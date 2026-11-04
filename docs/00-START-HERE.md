@@ -1,0 +1,43 @@
+# RetroDrive Studio | Documentation Index
+
+**Publisher:** an earlier publisher name  
+**Design baseline:** v1.0, 2026-11-04  
+**Status:** Product concept approved; starter application scaffold exists; full suite is not implemented.  
+**Product:** A Windows-first desktop application to create, catalog, manage, maintain, back up, and troubleshoot retro gaming environments.  
+
+## Read in this order
+
+| Document | Why it exists |
+|---|---|
+| [01 Product vision](01-PRODUCT-VISION.md) | Purpose, audiences, success criteria, positioning |
+| [02 Scope and requirements](02-SCOPE-AND-REQUIREMENTS.md) | Feature inventory, priority, MVP boundaries, acceptance |
+| [03 UX and screens](03-UX-AND-SCREENS.md) | Navigation, flows, screen states, usability |
+| [04 Architecture](04-SYSTEM-ARCHITECTURE.md) | Technologies, services, trust boundaries and adapters |
+| [05 Data model](05-DATA-MODEL.md) | Hybrid master library and relational schema |
+| [06 Drives and installations](06-DRIVES-AND-INSTALLATIONS.md) | Safe discovery, Batocera, RetroBat, imaging rules |
+| [07 Game library](07-GAME-LIBRARY.md) | Discovery, identity, metadata, duplicates, BIOS |
+| [08 Deployment and sync](08-DEPLOYMENT-AND-SYNC.md) | Preview/copy/verify/commit, conflicts, saves |
+| [09 Maintenance](09-MAINTENANCE-AND-PROFILES.md) | Profiles, updates, backups, diagnostics |
+| [10 Security and legal](10-SECURITY-PRIVACY-LEGAL.md) | Safety, permissions, copyright, providers |
+| [11 Roadmap](11-ROADMAP-AND-BACKLOG.md) | Releases, stories and definition of done |
+| [12 Development setup](12-DEVELOPMENT-GUIDE.md) | VS Code, commands, branching and test plan |
+| [13 Decisions and open questions](13-DECISION-LOG.md) | Decisions already made and items still unconfirmed |
+| [14 AI implementation brief](14-AI-CODING-BRIEF.md) | Ready-to-use instructions for coding assistants |
+| [15 QA matrix](15-QUALITY-AND-TESTS.md) | Repeatable functional and safety tests |
+
+## Where to start in VS Code
+
+1. Unzip this package; open the **RetroDrive-Studio-Complete** folder in VS Code.
+2. Read this index and `12-DEVELOPMENT-GUIDE.md`.
+3. Run the existing scaffold using `npm install` then `npm run tauri dev` with Windows prerequisites installed.
+4. Start with the Phase 1 issues in `11-ROADMAP-AND-BACKLOG.md`.
+5. Use `14-AI-CODING-BRIEF.md` as the implementation guardrails for coding assistants.
+
+**Important distinction:** The shipped scaffold already provides a UI, read-only mounted-volume discovery, and a basic SQLite file indexer. It does **not** install or image Batocera, deploy ROMs, synchronize saves, perform repairs, or support the normalized schema below. Design documents describe the intended system, not proven features.
+
+## Delivery contents
+- `docs/`: design specifications and development handoff.
+- `src/`, `src-tauri/`, configuration files: prior desktop starter source.
+- `README.md`: scaffold capabilities and local prerequisites.
+
+Keep the documents under version control, updated alongside implementation changes. Scope, data migrations and destructive functions require documented reviews.

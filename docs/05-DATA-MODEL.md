@@ -1,0 +1,66 @@
+# 05 | Hybrid Library Data Model
+
+## Essential rule
+**Game identity is not a file and is not a deployment.** A game may have multiple editions/discs/files; one file can be stored in many physical places; a selected subset can be deployed to many platform installations. Offlining storage must not delete canonical game records.
+
+## Relationships
+```mermaid
+erDiagram
+ GAMES ||--o{ GAME_RELEASES : includes
+ GAME_RELEASES ||--o{ GAME_ASSETS : has
+ GAME_RELEASES ||--o{ GAME_FILES : references
+ GAME_FILES ||--o{ FILE_LOCATIONS : stored_at
+ STORAGE_LOCATIONS ||--o{ FILE_LOCATIONS : contains
+ STORAGE_LOCATIONS ||--o{ INSTALLATIONS : hosts
+ COLLECTIONS ||--o{ COLLECTION_GAMES : contains
+ GAMES ||--o{ COLLECTION_GAMES : included
+ INSTALLATIONS ||--o{ DEPLOYMENTS : receives
+ DEPLOYMENTS ||--o{ DEPLOYMENT_ITEMS : tracks
+ GAME_FILES ||--o{ DEPLOYMENT_ITEMS : copied_as
+ JOBS ||--o{ JOB_EVENTS : logs
+```
+
+## Proposed tables
+
+| Table | Minimum fields / purpose |
+|---|---|
+| `games` | `id`, canonical_title, platform_family, created_at, updated_at |
+| `game_releases` | `id`, game_id, region, version, publisher, release_date, media_type, match_confidence |
+| `game_files` | `id`, release_id nullable, filename, size_bytes, sha256 nullable, crc32 nullable, file_type, disc_index nullable |
+| `storage_locations` | `id`, type(local/removable/network), stable_id nullable, display_name, root_hint, last_seen_at, online_status |
+| `file_locations` | `id`, game_file_id, storage_location_id, relative_path, last_seen_at, present_status, last_verified_at |
+| `installations` | `id`, storage_location_id, adapter_id, adapter_version, path, version_string, state |
+| `collections` | `id`, name, kind, created_at |
+| `collection_games` | `collection_id`, `game_id`, sort_order |
+| `deployments` | `id`, installation_id, collection_id nullable, plan_hash, created_at, completed_at, status |
+| `deployment_items` | `id`, deployment_id, game_file_id, source_location_id, destination_relpath, expected_hash, outcome |
+| `metadata_providers` | `id`, provider_name, authorization_ref nullable, rate_limit_state |
+| `game_assets` | `id`, game_release_id, asset_kind, provider_id, local_cache_path, license_info nullable, attribution nullable |
+| `bios_requirements` | `id`, adapter_id, system_code, filename_hint, known_hash nullable, requirement_level |
+| `profiles` | `id`, name, adapter_id nullable, schema_version, json_data, created_at |
+| `jobs` | `id`, kind, state, input_json, progress_json, started_at, finished_at, error_code nullable |
+| `job_events` | `id`, job_id, event_time, severity, event_code, detail_json |
+| `backups` | `id`, backup_kind, source_ref, destination_ref, manifest_path, verified_at nullable |
+
+## Keys and constraints
+- All identifiers are UUID/ULID-like opaque strings; don't key by filenames.
+- Unique file location within a storage root: `(storage_location_id, relative_path)` after normalized path handling.
+- Use `ON DELETE RESTRICT` or explicit transactional cleanup for important references; do not cascade offline drive removal into games.
+- Full-text search on titles with SQLite FTS5 when implemented; migration compatibility tests required.
+- `sha256` nullable because hashing large libraries is deferred and incremental.
+- Different revisions with identical names may remain separate release/file entities.
+- Handle multi-file formats and multidisc playlists explicitly; don't assume a `.cue` or `.m3u` is the entire game payload.
+
+## Drive identifiers
+For removable devices, maintain an OS-visible stable identifier where available plus secondary signals such as label, capacity and known file signatures. Drive letters are *not* stable identifiers. On ambiguous reattachment, require confirmation before writing.
+
+## Import strategy
+1. Add root with explicit user authorization.
+2. Enumerate paths and record immutable observed facts.
+3. Infer platform hints from source-root folder and extension; mark ambiguity.
+4. Resolve games/releases with provider-assisted or manual matching, never merge solely by title.
+5. Mark missing files offline after completed scans, not while a scan is interrupted.
+6. Hash incrementally to help dedupe, preserving distinct formats/revisions.
+
+## Migrations
+Existing scaffold has a simpler file-centric catalog. Introduce versioned migrations; backup the database first, test upgrading sample v0.1 data, and never silently discard indexed paths.
