@@ -9,11 +9,14 @@
 //!   rows are never deleted.
 //! - Work is committed in batches with progress callbacks and cooperative
 //!   cancellation (RDS-002).
+//! - Multi-file games are grouped after the walk: `.cue` tracks and `.m3u` discs
+//!   join one game; references outside the scanned folder are refused (RDS-005).
 
 use crate::volumes::VolumeProbe;
 use crate::{classify, db, paths};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::time::{Duration, Instant};
 use walkdir::WalkDir;
@@ -25,12 +28,16 @@ const MAX_REPORTED_ISSUES: usize = 200;
 pub struct ScanIssue {
     pub path: String,
     pub message: String,
+    /// `error` (something could not be read; the scan is incomplete) or `warning`.
+    pub severity: &'static str,
 }
 
 #[derive(Debug, Serialize, Default, Clone)]
 pub struct ScanSummary {
     /// Supported game files seen during this scan.
     pub indexed: usize,
+    /// Games found: indexed files minus the discs grouped under a playlist.
+    pub games: usize,
     /// Files seen for the first time.
     pub new_files: usize,
     /// Previously indexed files not found by this (error-free) scan.
@@ -44,18 +51,37 @@ pub struct ScanSummary {
     pub complete: bool,
     /// True when the scan was stopped by a cancellation request.
     pub cancelled: bool,
+    /// Errors plus warnings.
     pub issue_count: usize,
+    /// Entries that could not be read. Any error makes the scan incomplete.
+    pub error_count: usize,
+    /// Problems that do not stop missing-file detection (links, broken references).
+    pub warning_count: usize,
     pub issues: Vec<ScanIssue>,
+    /// Discs and tracks attached to a multi-file game by its `.m3u` or `.cue`.
+    pub grouped_files: usize,
     /// Set when the scanned drive was recognized from an earlier scan under a
     /// different drive letter (e.g. `E:\`); catalog paths now use the new letter.
     pub remounted_from: Option<String>,
 }
 
 impl ScanSummary {
+    /// Record an entry that could not be read.
     fn issue(&mut self, path: &Path, message: impl Into<String>) {
+        self.error_count += 1;
+        self.push(path, message.into(), "error");
+    }
+
+    /// Record a problem that does not make the scan incomplete.
+    fn warn(&mut self, path: &Path, message: impl Into<String>) {
+        self.warning_count += 1;
+        self.push(path, message.into(), "warning");
+    }
+
+    fn push(&mut self, path: &Path, message: String, severity: &'static str) {
         self.issue_count += 1;
         if self.issues.len() < MAX_REPORTED_ISSUES {
-            self.issues.push(ScanIssue { path: path.display().to_string(), message: message.into() });
+            self.issues.push(ScanIssue { path: path.display().to_string(), message, severity });
         }
     }
 }
@@ -173,6 +199,9 @@ pub fn scan_with(
     batch.restart()?;
 
     let mut summary = ScanSummary { remounted_from: location.previous_root, ..ScanSummary::default() };
+    let mut recorded: HashMap<String, Recorded> = HashMap::new();
+    let mut cue_sheets: Vec<ReferenceList> = Vec::new();
+    let mut playlists: Vec<ReferenceList> = Vec::new();
     let mut progress = ScanProgress::default();
     let mut pending = 0usize;
     let mut last_commit = Instant::now();
@@ -207,7 +236,7 @@ pub fn scan_with(
         let file_type = entry.file_type();
         if file_type.is_symlink() {
             summary.skipped_links += 1;
-            summary.issue(entry.path(), "Symbolic link or junction not followed");
+            summary.warn(entry.path(), "Symbolic link or junction not followed");
             continue;
         }
         if !file_type.is_file() {
@@ -247,7 +276,7 @@ pub fn scan_with(
         let filename = path.file_name().and_then(|s| s.to_str()).unwrap_or(relative_str).to_string();
         let title = path.file_stem().and_then(|s| s.to_str()).unwrap_or("Untitled").replace('_', " ");
 
-        let is_new = record_file(
+        let outcome = record_file(
             connection,
             &storage_id,
             &relative_path,
@@ -255,9 +284,25 @@ pub fn scan_with(
             &FileFacts { title: &title, filename: &filename, extension: &extension, size, modified: modified.as_deref(), classification },
         )?;
         summary.indexed += 1;
-        if is_new {
+        if outcome.is_new {
             summary.new_files += 1;
         }
+        match extension.as_str() {
+            "cue" => cue_sheets.push(ReferenceList { path: path.to_path_buf(), relative_path: relative_path.clone() }),
+            "m3u" => playlists.push(ReferenceList { path: path.to_path_buf(), relative_path: relative_path.clone() }),
+            _ => {}
+        }
+        recorded.insert(
+            relative_path.to_lowercase(),
+            Recorded {
+                file_id: outcome.file_id,
+                release_id: outcome.release_id,
+                role: outcome.role,
+                walked: true,
+                title,
+                platform: classification.platform,
+            },
+        );
         pending += 1;
         if pending >= options.batch_size || last_commit.elapsed() >= options.max_batch_time {
             batch.restart()?;
@@ -266,7 +311,32 @@ pub fn scan_with(
         }
     }
 
-    summary.complete = !summary.cancelled && summary.issue_count == summary.skipped_links;
+    // Group multi-file games: tracks under cue sheets first, then discs under playlists.
+    let mut grouping = Grouping {
+        connection,
+        root: &root,
+        root_relative: &root_relative,
+        storage_id: &storage_id,
+        scan_id: &scan_id,
+        recorded,
+        merged_into: HashMap::new(),
+        touched: HashSet::new(),
+        linked: HashSet::new(),
+    };
+    for list in &cue_sheets {
+        grouping.process(&mut summary, list, false)?;
+    }
+    for list in &playlists {
+        grouping.process(&mut summary, list, true)?;
+    }
+    if !summary.cancelled && summary.error_count == 0 {
+        grouping.detach_orphans()?;
+    }
+    grouping.update_payloads()?;
+    let walked_and_linked = grouping.recorded.values().filter(|r| r.walked && grouping.linked.contains(&r.file_id)).count();
+    summary.games = summary.indexed.saturating_sub(walked_and_linked);
+
+    summary.complete = !summary.cancelled && summary.error_count == 0;
     if summary.complete {
         summary.marked_missing = mark_missing(connection, &storage_id, &root_relative, &scan_id)?;
     }
@@ -344,16 +414,24 @@ fn upsert_indexed_root(tx: &Connection, storage_id: &str, relative: &str) -> Res
 
 /// Insert or refresh one file location; returns true when the file is new.
 /// Titles of existing games are left alone so manual corrections survive rescans.
-fn record_file(tx: &Connection, storage_id: &str, relative_path: &str, scan_id: &str, facts: &FileFacts) -> Result<bool, String> {
+struct RecordOutcome {
+    is_new: bool,
+    file_id: String,
+    release_id: String,
+    role: String,
+}
+
+fn record_file(tx: &Connection, storage_id: &str, relative_path: &str, scan_id: &str, facts: &FileFacts) -> Result<RecordOutcome, String> {
     let existing = tx
         .query_row(
-            "SELECT id, game_file_id FROM file_locations WHERE storage_location_id = ?1 AND relative_path = ?2",
+            "SELECT fl.id, fl.game_file_id, gf.release_id, gf.file_role FROM file_locations fl JOIN game_files gf ON gf.id = fl.game_file_id
+             WHERE fl.storage_location_id = ?1 AND fl.relative_path = ?2",
             params![storage_id, relative_path],
-            |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+            |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<String>>(2)?, r.get::<_, String>(3)?)),
         )
         .optional()
         .map_err(|e| e.to_string())?;
-    if let Some((location_id, file_id)) = existing {
+    if let Some((location_id, file_id, release_id, role)) = existing {
         tx.execute(
             "UPDATE file_locations SET last_seen_at = CURRENT_TIMESTAMP, last_scan_id = ?2, present_status = 'present' WHERE id = ?1",
             params![location_id, scan_id],
@@ -361,13 +439,15 @@ fn record_file(tx: &Connection, storage_id: &str, relative_path: &str, scan_id: 
         .map_err(|e| e.to_string())?;
         tx.execute(
             "UPDATE game_files SET size_bytes = ?2, modified_at = ?3,
+                 payload_bytes = CASE WHEN file_role = 'primary' AND NOT EXISTS (
+                     SELECT 1 FROM game_files m WHERE m.release_id = game_files.release_id AND m.id <> game_files.id) THEN ?2 ELSE payload_bytes END,
                  platform_hint = CASE WHEN platform_hint_source = 'legacy' THEN platform_hint ELSE ?4 END,
                  platform_hint_source = CASE WHEN platform_hint_source = 'legacy' THEN platform_hint_source ELSE ?5 END
              WHERE id = ?1",
             params![file_id, facts.size, facts.modified, facts.classification.platform, facts.classification.source.as_str()],
         )
         .map_err(|e| e.to_string())?;
-        return Ok(false);
+        return Ok(RecordOutcome { is_new: false, file_id, release_id: release_id.unwrap_or_default(), role });
     }
     let file_id = db::insert_game_file(
         tx,
@@ -384,7 +464,311 @@ fn record_file(tx: &Connection, storage_id: &str, relative_path: &str, scan_id: 
         params![db::new_id(), file_id, storage_id, relative_path, scan_id],
     )
     .map_err(|e| e.to_string())?;
-    Ok(true)
+    let release_id = tx
+        .query_row("SELECT release_id FROM game_files WHERE id = ?1", [&file_id], |r| r.get::<_, String>(0))
+        .map_err(|e| e.to_string())?;
+    Ok(RecordOutcome { is_new: true, file_id, release_id, role: "primary".into() })
+}
+
+/// A file recorded during this scan.
+#[derive(Clone)]
+struct Recorded {
+    file_id: String,
+    release_id: String,
+    /// Role stored in the catalog before this scan's grouping pass.
+    role: String,
+    /// True when the file was reached by the folder walk (not only by a reference).
+    walked: bool,
+    title: String,
+    platform: &'static str,
+}
+
+/// A `.cue` sheet or `.m3u` playlist found by the walk.
+struct ReferenceList {
+    path: std::path::PathBuf,
+    relative_path: String,
+}
+
+/// Cue sheets and playlists are small text files; anything larger is ignored.
+const MAX_REFERENCE_FILE_BYTES: u64 = 1024 * 1024;
+
+/// File names referenced by a cue sheet (`FILE "Track 01.bin" BINARY`) or listed
+/// in an `.m3u` playlist (one path per line, `#` comments).
+fn read_references(path: &Path, playlist: bool) -> Result<Vec<String>, String> {
+    let size = std::fs::metadata(path).map_err(|e| format!("Cannot read: {e}"))?.len();
+    if size > MAX_REFERENCE_FILE_BYTES {
+        return Err(format!("Too large ({size} bytes) to be a cue sheet or playlist"));
+    }
+    let bytes = std::fs::read(path).map_err(|e| format!("Cannot read: {e}"))?;
+    let text = String::from_utf8_lossy(&bytes);
+    let text = text.trim_start_matches('\u{feff}');
+    Ok(text
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            if playlist {
+                (!line.is_empty() && !line.starts_with('#')).then(|| line.to_string())
+            } else {
+                cue_file_reference(line)
+            }
+        })
+        .collect())
+}
+
+fn cue_file_reference(line: &str) -> Option<String> {
+    if !line.get(..5)?.eq_ignore_ascii_case("FILE ") {
+        return None;
+    }
+    let rest = line[5..].trim_start();
+    match rest.strip_prefix('"') {
+        Some(quoted) => quoted.find('"').map(|end| quoted[..end].to_string()),
+        None => rest.split_whitespace().next().map(str::to_string),
+    }
+}
+
+/// Links multi-file games after the folder walk (RDS-005, docs/07 "Recognition"):
+/// `.bin`/`.img` tracks join the game of the `.cue` that references them, and discs
+/// listed in an `.m3u` join the playlist's game. Only catalog records change.
+struct Grouping<'a> {
+    connection: &'a Connection,
+    root: &'a Path,
+    root_relative: &'a str,
+    storage_id: &'a str,
+    scan_id: &'a str,
+    /// Lower-cased volume-relative path → record.
+    recorded: HashMap<String, Recorded>,
+    /// Releases merged away during this pass → the release they were merged into.
+    merged_into: HashMap<String, String>,
+    /// Releases whose total size must be recomputed.
+    touched: HashSet<String>,
+    /// Files linked as a disc or track during this pass.
+    linked: HashSet<String>,
+}
+
+impl Grouping<'_> {
+    fn release_of(&self, release: &str) -> String {
+        let mut current = release.to_string();
+        while let Some(next) = self.merged_into.get(&current) {
+            current = next.clone();
+        }
+        current
+    }
+
+    /// Process one cue sheet or playlist.
+    fn process(&mut self, summary: &mut ScanSummary, list: &ReferenceList, playlist: bool) -> Result<(), String> {
+        let Some(parent) = self.recorded.get(&list.relative_path.to_lowercase()).cloned() else {
+            return Ok(());
+        };
+        let references = match read_references(&list.path, playlist) {
+            Ok(references) => references,
+            Err(message) => {
+                // Without its contents the grouping is unknown; treat like any unreadable entry.
+                summary.issue(&list.path, message);
+                return Ok(());
+            }
+        };
+        let mut missing_parts = 0i64;
+        let (role, mut disc) = if playlist { ("disc", Some(0i64)) } else { ("track", None) };
+        for reference in references {
+            if let Some(n) = disc.as_mut() {
+                *n += 1;
+            }
+            if !self.link(summary, list, &parent, &reference, role, disc)? {
+                missing_parts += 1;
+            }
+        }
+        self.connection
+            .execute("UPDATE game_files SET missing_parts = ?2 WHERE id = ?1", params![parent.file_id, missing_parts])
+            .map_err(|e| e.to_string())?;
+        self.touched.insert(self.release_of(&parent.release_id));
+        Ok(())
+    }
+
+    /// Link one referenced file to `parent`'s game. Returns false when the file is missing.
+    fn link(
+        &mut self,
+        summary: &mut ScanSummary,
+        list: &ReferenceList,
+        parent: &Recorded,
+        reference: &str,
+        role: &str,
+        disc_index: Option<i64>,
+    ) -> Result<bool, String> {
+        let parent_dir = list.path.parent().unwrap_or(self.root);
+        let Ok(target) = paths::normalize(&parent_dir.join(reference)) else {
+            summary.warn(&list.path, format!("References \"{reference}\", which was not found"));
+            return Ok(false);
+        };
+        let Ok(below_root) = target.strip_prefix(self.root) else {
+            summary.warn(&list.path, format!("References \"{reference}\" outside the scanned folder; ignored for safety"));
+            return Ok(true);
+        };
+        let Some(below_root) = below_root.to_str() else {
+            summary.warn(&list.path, format!("References \"{reference}\", whose name is not valid Unicode"));
+            return Ok(true);
+        };
+        if !target.is_file() {
+            summary.warn(&list.path, format!("References \"{reference}\", which is not a file"));
+            return Ok(false);
+        }
+        let relative_path = join_relative(self.root_relative, &below_root.replace('\\', "/"));
+        let key = relative_path.to_lowercase();
+        if key == list.relative_path.to_lowercase() {
+            return Ok(true);
+        }
+        let parent_release = self.release_of(&parent.release_id);
+        let child_id = match self.recorded.get(&key).cloned() {
+            Some(child) => {
+                let child_release = self.release_of(&child.release_id);
+                if child_release != parent_release {
+                    db::merge_release(self.connection, &child_release, &parent_release)?;
+                    self.merged_into.insert(child_release, parent_release.clone());
+                }
+                child.file_id
+            }
+            None => {
+                let metadata = match std::fs::metadata(&target) {
+                    Ok(m) => m,
+                    Err(error) => {
+                        summary.issue(&target, format!("Cannot read file details: {error}"));
+                        return Ok(true);
+                    }
+                };
+                let file_id = self.record_member(&relative_path, &target, &metadata, &parent_release, parent, role, disc_index)?;
+                // The walk skipped this file as unrecognized (e.g. a .bin track); it is part of a game after all.
+                summary.skipped_unsupported = summary.skipped_unsupported.saturating_sub(1);
+                self.recorded.insert(
+                    key,
+                    Recorded {
+                        file_id: file_id.clone(),
+                        release_id: parent_release.clone(),
+                        role: role.to_string(),
+                        walked: false,
+                        title: String::new(),
+                        platform: parent.platform,
+                    },
+                );
+                file_id
+            }
+        };
+        self.connection
+            .execute(
+                "UPDATE game_files SET file_role = ?2, parent_file_id = ?3, disc_index = ?4 WHERE id = ?1",
+                params![child_id, role, parent.file_id, disc_index],
+            )
+            .map_err(|e| e.to_string())?;
+        self.linked.insert(child_id);
+        summary.grouped_files += 1;
+        Ok(true)
+    }
+
+    /// Record a file reached only through a reference (e.g. a `.bin` track).
+    #[allow(clippy::too_many_arguments)]
+    fn record_member(
+        &self,
+        relative_path: &str,
+        target: &Path,
+        metadata: &std::fs::Metadata,
+        release: &str,
+        parent: &Recorded,
+        role: &str,
+        disc_index: Option<i64>,
+    ) -> Result<String, String> {
+        let size = i64::try_from(metadata.len()).unwrap_or(i64::MAX);
+        let modified = metadata.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs().to_string());
+        let existing = self
+            .connection
+            .query_row(
+                "SELECT fl.id, fl.game_file_id, gf.release_id FROM file_locations fl JOIN game_files gf ON gf.id = fl.game_file_id
+                 WHERE fl.storage_location_id = ?1 AND fl.relative_path = ?2",
+                params![self.storage_id, relative_path],
+                |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<String>>(2)?)),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+        if let Some((location_id, file_id, old_release)) = existing {
+            self.connection
+                .execute(
+                    "UPDATE file_locations SET last_seen_at = CURRENT_TIMESTAMP, last_scan_id = ?2, present_status = 'present' WHERE id = ?1",
+                    params![location_id, self.scan_id],
+                )
+                .map_err(|e| e.to_string())?;
+            self.connection
+                .execute("UPDATE game_files SET size_bytes = ?2, modified_at = ?3 WHERE id = ?1", params![file_id, size, modified])
+                .map_err(|e| e.to_string())?;
+            if let Some(old) = old_release.filter(|old| old != release) {
+                db::merge_release(self.connection, &old, release)?;
+            }
+            return Ok(file_id);
+        }
+        let filename = target.file_name().and_then(|s| s.to_str()).unwrap_or(relative_path);
+        let extension = target.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+        let file_id = db::insert_member_file(
+            self.connection,
+            release,
+            &parent.file_id,
+            role,
+            disc_index,
+            filename,
+            &extension,
+            size,
+            modified.as_deref(),
+            parent.platform,
+        )?;
+        self.connection
+            .execute(
+                "INSERT INTO file_locations (id, game_file_id, storage_location_id, relative_path, last_scan_id) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![db::new_id(), file_id, self.storage_id, relative_path, self.scan_id],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(file_id)
+    }
+
+    /// After a complete scan: walked files still marked as discs/tracks that no
+    /// playlist or cue sheet references any more become games of their own again.
+    fn detach_orphans(&mut self) -> Result<(), String> {
+        let orphans: Vec<Recorded> = self
+            .recorded
+            .values()
+            .filter(|r| r.walked && r.role != "primary" && !self.linked.contains(&r.file_id))
+            .cloned()
+            .collect();
+        for orphan in orphans {
+            let game_id = db::new_id();
+            let release_id = db::new_id();
+            self.connection
+                .execute("INSERT INTO games (id, canonical_title, platform) VALUES (?1, ?2, ?3)", params![game_id, orphan.title, orphan.platform])
+                .map_err(|e| e.to_string())?;
+            self.connection
+                .execute("INSERT INTO game_releases (id, game_id) VALUES (?1, ?2)", params![release_id, game_id])
+                .map_err(|e| e.to_string())?;
+            self.connection
+                .execute(
+                    "UPDATE game_files SET release_id = ?2, file_role = 'primary', parent_file_id = NULL, disc_index = NULL WHERE id = ?1",
+                    params![orphan.file_id, release_id],
+                )
+                .map_err(|e| e.to_string())?;
+            self.connection
+                .execute("UPDATE game_files SET release_id = ?2 WHERE parent_file_id = ?1", params![orphan.file_id, release_id])
+                .map_err(|e| e.to_string())?;
+            self.touched.insert(release_id);
+        }
+        Ok(())
+    }
+
+    /// Store each touched game's total size on its primary file (used for display and the size sort).
+    fn update_payloads(&self) -> Result<(), String> {
+        for release in &self.touched {
+            self.connection
+                .execute(
+                    "UPDATE game_files SET payload_bytes = (SELECT COALESCE(SUM(m.size_bytes), 0) FROM game_files m WHERE m.release_id = ?1)
+                     WHERE release_id = ?1 AND file_role = 'primary'",
+                    [release],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
 }
 
 /// Mark present locations under the scanned folder that this scan did not see.
@@ -690,5 +1074,201 @@ mod tests {
         assert_eq!(other.marked_missing, 0, "the first drive's files are untouched");
         let locations: i64 = c.query_row("SELECT COUNT(*) FROM storage_locations", [], |r| r.get(0)).unwrap();
         assert_eq!(locations, 2);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn paths_longer_than_260_characters_are_indexed() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut deep = dir.path().join("snes");
+        while deep.as_os_str().len() < 300 {
+            deep.push("a fairly long folder name for testing");
+        }
+        fs::create_dir_all(&deep).unwrap();
+        fs::write(deep.join("Long Path Game.sfc"), b"rom").unwrap();
+        assert!(deep.join("Long Path Game.sfc").as_os_str().len() > 260);
+
+        let mut c = catalog();
+        let summary = scan(&mut c, dir.path(), &local).unwrap();
+        assert_eq!(summary.indexed, 1, "{:?}", summary.issues);
+        assert!(summary.complete);
+        let (root, rel): (String, String) = c
+            .query_row("SELECT s.root_path, fl.relative_path FROM file_locations fl JOIN storage_locations s ON s.id = fl.storage_location_id", [], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap();
+        assert!(!root.starts_with(r"\\?\"), "{root}");
+        assert!(paths::join(&root, &rel).exists(), "stored long path must resolve");
+
+        // Scanning the deep folder itself (root path > 260 characters) also works.
+        let summary = scan(&mut c, &deep, &local).unwrap();
+        assert_eq!(summary.new_files, 0, "same file, same record");
+        let roots: i64 = c.query_row("SELECT COUNT(*) FROM storage_locations", [], |r| r.get(0)).unwrap();
+        assert_eq!(roots, 1, r"no separate \\?\ volume created");
+    }
+
+    // ---- RDS-005: multi-file games ----
+
+    fn files_by_role(c: &Connection) -> Vec<(String, String, Option<i64>)> {
+        let mut s = c.prepare("SELECT filename, file_role, disc_index FROM game_files ORDER BY file_role, filename").unwrap();
+        s.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap().map(Result::unwrap).collect()
+    }
+
+    fn count_rows(c: &Connection, sql: &str) -> i64 {
+        c.query_row(sql, [], |r| r.get(0)).unwrap()
+    }
+
+    fn disc_game(root: &Path) {
+        write(root, "psx/Single (USA)/Single (USA).cue", b"FILE \"Single (USA) (Track 1).bin\" BINARY\n  TRACK 01 MODE2/2352\nFILE \"Single (USA) (Track 2).bin\" BINARY\n  TRACK 02 AUDIO\n");
+        write(root, "psx/Single (USA)/Single (USA) (Track 1).bin", &[0u8; 1000]);
+        write(root, "psx/Single (USA)/Single (USA) (Track 2).bin", &[0u8; 500]);
+    }
+
+    fn multi_disc_game(root: &Path) {
+        write(root, "psx/Saga (USA)/Saga (USA).m3u", b"# discs\nSaga (USA) (Disc 1).cue\nSaga (USA) (Disc 2).cue\n");
+        write(root, "psx/Saga (USA)/Saga (USA) (Disc 1).cue", b"FILE Saga_D1.bin BINARY\n");
+        write(root, "psx/Saga (USA)/Saga (USA) (Disc 2).cue", b"file \"Saga_D2.bin\" binary\n");
+        write(root, "psx/Saga (USA)/Saga_D1.bin", &[0u8; 2000]);
+        write(root, "psx/Saga (USA)/Saga_D2.bin", &[0u8; 3000]);
+    }
+
+    #[test]
+    fn cue_sheet_tracks_join_one_game() {
+        let dir = tempfile::tempdir().unwrap();
+        disc_game(dir.path());
+        let mut c = catalog();
+        let summary = scan(&mut c, dir.path(), &local).unwrap();
+        assert!(summary.complete, "{:?}", summary.issues);
+        assert_eq!(summary.grouped_files, 2);
+        assert_eq!(count_rows(&c, "SELECT COUNT(*) FROM games"), 1, "one game, not three");
+        let roles = files_by_role(&c);
+        assert_eq!(roles.iter().filter(|r| r.1 == "track").count(), 2);
+        assert_eq!(roles.iter().filter(|r| r.1 == "primary").map(|r| r.0.as_str()).collect::<Vec<_>>(), ["Single (USA).cue"]);
+        let payload: i64 = c.query_row("SELECT payload_bytes FROM game_files WHERE file_role = 'primary'", [], |r| r.get(0)).unwrap();
+        let cue_len = fs::metadata(dir.path().join("psx/Single (USA)/Single (USA).cue")).unwrap().len() as i64;
+        assert_eq!(payload, cue_len + 1500, "total size includes the tracks");
+        assert_eq!(count_rows(&c, "SELECT COUNT(*) FROM file_locations"), 3, "tracks have locations for presence checks");
+    }
+
+    #[test]
+    fn playlist_discs_join_one_game_in_order() {
+        let dir = tempfile::tempdir().unwrap();
+        multi_disc_game(dir.path());
+        let mut c = catalog();
+        let summary = scan(&mut c, dir.path(), &local).unwrap();
+        assert!(summary.complete, "{:?}", summary.issues);
+        assert_eq!(count_rows(&c, "SELECT COUNT(*) FROM games"), 1);
+        assert_eq!(summary.games, 1, "{summary:?}");
+        assert_eq!(summary.skipped_unsupported, 0, "grouped tracks are not reported as ignored");
+        let title: String = c.query_row("SELECT canonical_title FROM games", [], |r| r.get(0)).unwrap();
+        assert_eq!(title, "Saga (USA)");
+        let roles = files_by_role(&c);
+        let discs: Vec<(&str, Option<i64>)> = roles.iter().filter(|r| r.1 == "disc").map(|r| (r.0.as_str(), r.2)).collect();
+        assert_eq!(discs, [("Saga (USA) (Disc 1).cue", Some(1)), ("Saga (USA) (Disc 2).cue", Some(2))]);
+        assert_eq!(roles.iter().filter(|r| r.1 == "track").count(), 2, "unquoted and lower-case FILE lines both parsed");
+        assert_eq!(roles.iter().filter(|r| r.1 == "primary").count(), 1);
+        let payload: i64 = c.query_row("SELECT payload_bytes FROM game_files WHERE file_role = 'primary'", [], |r| r.get(0)).unwrap();
+        assert!(payload >= 5000, "{payload}");
+    }
+
+    #[test]
+    fn rescans_keep_grouping_without_duplicates_or_false_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        disc_game(dir.path());
+        multi_disc_game(dir.path());
+        let mut c = catalog();
+        scan(&mut c, dir.path(), &local).unwrap();
+        let before = files_by_role(&c);
+        let again = scan(&mut c, dir.path(), &local).unwrap();
+        assert_eq!(again.new_files, 0);
+        assert_eq!(again.marked_missing, 0, "tracks reached through cue sheets are seen too");
+        assert_eq!(files_by_role(&c), before);
+        assert_eq!(count_rows(&c, "SELECT COUNT(*) FROM games"), 2);
+    }
+
+    #[test]
+    fn missing_track_is_a_warning_and_marks_the_game_incomplete() {
+        let dir = tempfile::tempdir().unwrap();
+        disc_game(dir.path());
+        let mut c = catalog();
+        scan(&mut c, dir.path(), &local).unwrap();
+        fs::remove_file(dir.path().join("psx/Single (USA)/Single (USA) (Track 2).bin")).unwrap();
+        let summary = scan(&mut c, dir.path(), &local).unwrap();
+        assert!(summary.complete, "a broken reference is a warning, not a read error");
+        assert_eq!(summary.warning_count, 1, "{:?}", summary.issues);
+        assert_eq!(summary.issues[0].severity, "warning");
+        assert_eq!(summary.marked_missing, 1, "the vanished track's record is marked missing");
+        let missing_parts: i64 = c.query_row("SELECT missing_parts FROM game_files WHERE file_role = 'primary'", [], |r| r.get(0)).unwrap();
+        assert_eq!(missing_parts, 1);
+    }
+
+    #[test]
+    fn references_outside_the_scanned_folder_are_refused() {
+        let outer = tempfile::tempdir().unwrap();
+        write(outer.path(), "outside/Secret.cue", b"FILE \"Secret.bin\" BINARY\n");
+        write(outer.path(), "outside/Secret.bin", b"x");
+        write(outer.path(), "lib/psx/Trap/Trap.m3u", b"..\\..\\..\\outside\\Secret.cue\n../../../outside/Secret.bin\n");
+        let mut c = catalog();
+        let summary = scan(&mut c, &outer.path().join("lib"), &local).unwrap();
+        assert_eq!(summary.warning_count, 2, "{:?}", summary.issues);
+        assert!(summary.issues.iter().all(|i| i.message.contains("outside the scanned folder")));
+        let outside: i64 = count_rows(&c, "SELECT COUNT(*) FROM file_locations WHERE relative_path LIKE '%outside%'");
+        assert_eq!(outside, 0, "nothing outside the authorized folder is recorded");
+    }
+
+    #[test]
+    fn removing_a_playlist_returns_its_discs_to_separate_games() {
+        let dir = tempfile::tempdir().unwrap();
+        multi_disc_game(dir.path());
+        let mut c = catalog();
+        scan(&mut c, dir.path(), &local).unwrap();
+        fs::remove_file(dir.path().join("psx/Saga (USA)/Saga (USA).m3u")).unwrap();
+        scan(&mut c, dir.path(), &local).unwrap();
+        let primaries: Vec<String> = files_by_role(&c).into_iter().filter(|r| r.1 == "primary").map(|r| r.0).collect();
+        assert_eq!(primaries, ["Saga (USA) (Disc 1).cue", "Saga (USA) (Disc 2).cue", "Saga (USA).m3u"], "the deleted playlist's record stays, marked missing");
+        let disc_games: i64 = count_rows(
+            &c,
+            "SELECT COUNT(DISTINCT gf.release_id) FROM game_files gf WHERE gf.file_role = 'primary' AND gf.extension = 'cue'",
+        );
+        assert_eq!(disc_games, 2, "each disc is its own game again");
+        let tracks_follow: i64 = count_rows(
+            &c,
+            "SELECT COUNT(*) FROM game_files t JOIN game_files p ON p.id = t.parent_file_id WHERE t.file_role = 'track' AND t.release_id = p.release_id",
+        );
+        assert_eq!(tracks_follow, 2, "tracks moved with their disc");
+    }
+
+    #[test]
+    fn cancelled_scan_does_not_split_grouped_games() {
+        let dir = tempfile::tempdir().unwrap();
+        multi_disc_game(dir.path());
+        let mut c = catalog();
+        scan(&mut c, dir.path(), &local).unwrap();
+        let before = files_by_role(&c);
+        let mut observer = CancelAfter::new(4);
+        let summary = scan_with(&c, dir.path(), &local, &mut observer, eager()).unwrap();
+        assert!(summary.cancelled);
+        assert_eq!(files_by_role(&c), before);
+    }
+
+    /// QA-009: a file held open exclusively by another program.
+    #[cfg(windows)]
+    #[test]
+    fn locked_files_are_reported_and_the_scan_continues() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        disc_game(dir.path());
+        write(dir.path(), "snes/Locked Rom.sfc", b"rom");
+        write(dir.path(), "snes/Other.sfc", b"rom");
+        let lock = |p: &str| fs::OpenOptions::new().read(true).share_mode(0).open(dir.path().join(p)).unwrap();
+        let _cue_lock = lock("psx/Single (USA)/Single (USA).cue");
+        let _rom_lock = lock("snes/Locked Rom.sfc");
+
+        let mut c = catalog();
+        let summary = scan(&mut c, dir.path(), &local).unwrap();
+        assert_eq!(summary.error_count, 1, "only the cue sheet's contents are unreadable: {:?}", summary.issues);
+        assert!(summary.issues[0].message.starts_with("Cannot read"), "{:?}", summary.issues);
+        assert!(!summary.complete, "unreadable entries make the scan incomplete");
+        let titles: Vec<String> = c.prepare("SELECT canonical_title FROM games ORDER BY 1").unwrap()
+            .query_map([], |r| r.get(0)).unwrap().map(Result::unwrap).collect();
+        assert_eq!(titles, ["Locked Rom", "Other", "Single (USA)"], "locked files are still indexed from their directory entry");
     }
 }

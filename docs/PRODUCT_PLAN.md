@@ -23,7 +23,7 @@ Existing source files must not be silently moved or deleted. Missing drives are 
 - [x] Import from folder, basic classification (starter)
 - [x] Normalize game identity from physical assets (schema v1, RDS-001; matching/grouping still open)
 - [ ] Platform-specific Batocera and RetroBat folder adapters
-- [ ] Cancellable scan jobs and import progress
+- [x] Cancellable scan jobs and import progress (RDS-002)
 - [ ] Deployment preview with free-space and compatibility checks
 - [ ] Verified transactional copy with resume/recovery
 - [x] Unit tests and automated CI (25 Rust tests; Windows CI workflow)

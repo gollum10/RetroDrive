@@ -6,7 +6,7 @@ The single list of what the app **does today** and what is **planned**. Update t
 
 Requirement IDs (FR/NFR) refer to [docs/02-SCOPE-AND-REQUIREMENTS.md](docs/02-SCOPE-AND-REQUIREMENTS.md); RDS IDs refer to [docs/11-ROADMAP-AND-BACKLOG.md](docs/11-ROADMAP-AND-BACKLOG.md).
 
-_Last updated: 2026-11-04 (RDS-004 branch)_
+_Last updated: 2026-11-04 (RDS-005 branch; milestone M1 complete)_
 
 ---
 
@@ -46,10 +46,16 @@ _Last updated: 2026-11-04 (RDS-004 branch)_
 | Platform detection from folder names | ✅ | Uses the nearest platform folder (e.g. `roms/psx/Game (USA)/game.cue`). The scanned folder's own name counts. |
 | Non-game files ignored inside platform folders | ✅ | `readme.txt`, `.srm` saves, `.state`, `gamelist.xml`, images and similar are skipped. |
 | Extension-only detection outside platform folders | ✅ | `.zip`, `.7z`, `.chd`, `.iso`, `.cue`, `.m3u` are recorded as **Unclassified**. |
-| Disc data tracks not counted twice | 🟡 | `.bin` is skipped in disc-system folders. Grouping `.cue/.bin` and `.m3u` into one game is planned (QA-007). |
+| Multi-file games counted once | ✅ | RDS-005. A `.cue` sheet's tracks (`.bin` and others) and an `.m3u` playlist's discs are grouped into one game, shown with a "2 discs" badge and the game's **total** size. Discs keep their order. |
+| Incomplete games flagged | ✅ | When a track or disc a game needs is missing, the game shows **Incomplete** and the scan lists a warning naming the missing file. |
+| Unsafe references refused | ✅ | Cue sheets and playlists that point outside the scanned folder are ignored with a warning. Files over 1 MB are not parsed. |
+| Removed playlists handled | ✅ | If an `.m3u` is deleted, its discs become separate games again on the next complete scan. A cancelled or partly unreadable scan never splits a game. |
+| Errors vs warnings in scan reports | ✅ | Errors (something couldn't be read) make a scan incomplete and skip missing-file detection. Warnings (links, broken references) don't. |
+| Long Windows paths (over 260 characters) | ✅ | Indexed, and stored once per volume (a duplicate-record bug was found and fixed, QA-008). |
+| Files locked by another program | ✅ | ROMs are still indexed from their directory entry; an unreadable cue sheet is reported as an error (QA-009). |
 | Supported systems | ✅ | NES, SNES, Genesis, Arcade, PlayStation, PlayStation 2, GBA, Game Boy, Game Boy Color, N64, Master System, Game Gear. |
 | Scan report | ✅ | Counts of indexed, new, ignored, missing and unreadable items, plus an expandable issues list (first 200). |
-| Unreadable files reported, scan continues | ✅ | QA-009. |
+| Unreadable files reported, scan continues | ✅ | QA-009 (now with a locked-file test). |
 | Symbolic links and junctions not followed | ✅ | Reported as skipped (NFR-02, QA-014). |
 | Rescan without duplicates | ✅ | One row per (volume, relative path). |
 | Missing-file detection | ✅ | A file is marked **Missing** only after an error-free scan of its folder. Rows are never deleted. Restoring the file sets it back to present. |
@@ -78,6 +84,7 @@ _Last updated: 2026-11-04 (RDS-004 branch)_
 | v0.1 catalog upgrade without data loss | ✅ | Row counts are verified, otherwise rolled back (QA-017). |
 | Refuses a catalog from a newer app version, untouched | ✅ | |
 | Job log (schema v2): `jobs` and `job_events` | ✅ | Every scan records start, end state, counts, errors and each scan issue. |
+| Multi-file game records (schema v5) | ✅ | `game_files.file_role` (primary / disc / track), `parent_file_id`, `payload_bytes`, `missing_parts`. Upgrades from every earlier schema are tested. |
 | Search and query indexes (schema v4) | ✅ | `games_fts` trigram index kept in sync by triggers; indexes for duplicate keys, platform+title, storage+status. |
 | Volume fingerprints (schema v3) | ✅ | `storage_locations` rebuilt: unique `stable_id`, non-unique `root_path`, plus label, filesystem, serial, GUID and size. References are checked before commit. |
 | Catalog export / delete controls | 📋 | docs/10 privacy defaults. |
@@ -110,7 +117,7 @@ _Last updated: 2026-11-04 (RDS-004 branch)_
 
 | Feature | Status | Notes |
 |---|---|---|
-| Rust unit tests (51): migrations, classifier, paths, scanner, cancellation, batching, job log, drive identity, search, filters, duplicates, paging | ✅ | `cd src-tauri && cargo test` |
+| Rust unit tests (62): migrations, classifier, paths, long paths, locked files, scanner, disc grouping, cancellation, batching, job log, drive identity, search, filters, duplicates, paging | ✅ | `cd src-tauri && cargo test` |
 | 100k-file performance benchmark | ✅ | `cargo test --release benchmark_100k -- --ignored --nocapture`; results in docs/15. |
 | TypeScript type-check and frontend build | ✅ | `npm run build` |
 | GitHub Actions CI on Windows (tests, clippy, build) | ✅ | Runs on every push to `main` and every pull request. |

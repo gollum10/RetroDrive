@@ -18,7 +18,7 @@ Read `docs/00-START-HERE.md`, `docs/02-SCOPE-AND-REQUIREMENTS.md`, `docs/04-SYST
 10. Update the associated design docs and acceptance tests for each significant change.
 
 ## Next suggested coding task
-RDS-001 to RDS-004 are done (schema and migrations, scan jobs, volume fingerprints, search/filters/duplicates); see docs/04 and docs/05. Next is finishing `RDS-005`: group `.cue` + `.bin` tracks and `.m3u` playlists + their discs into one game (QA-007) without double counting, and add long-path (>260 characters) and locked-file tests (QA-008, QA-009). Before changing files, report the plan, risk and test plan.
+Milestone M1 (RDS-001 to RDS-005) is done; see docs/04, docs/05 and docs/07. Next is M2, starting with `RDS-006`: a versioned `PlatformAdapter` interface in Rust (detect, capabilities, validate layout, plan file placement), with a mock adapter and tests. Then `RDS-007`, a read-only RetroBat adapter that recognizes an existing installation and maps platforms to its folders. Both must stay read-only: no files written. Before changing files, report the plan, risk and test plan.
 
 ## Keep docs in sync
 Every change updates [`Features.md`](../Features.md) (feature status) and the affected docs here (architecture in 04, schema in 05, rules in 07/08, roadmap status in 11, QA coverage in 15, decisions in 13).

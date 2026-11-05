@@ -10,6 +10,9 @@
 //!   fingerprint rather than drive letter (RDS-003).
 //! - v4: `games_fts` trigram full-text index kept in sync by triggers, plus indexes
 //!   for duplicate candidates and availability filters (RDS-004).
+//! - v5: multi-file games. `game_files.file_role` (`primary` / `disc` / `track`),
+//!   `parent_file_id`, and `payload_bytes` (total size of a primary file's game)
+//!   so `.cue`+`.bin` sets and `.m3u` multi-disc games count once (RDS-005).
 //!
 //! Migration rules: back up an existing database before upgrading, run the upgrade
 //! in one transaction, verify row counts, and refuse to open a database written by
@@ -21,7 +24,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 4;
+pub const SCHEMA_VERSION: i32 = 5;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -139,6 +142,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     if from_version < 4 {
         tx.execute_batch(SCHEMA_V4).map_err(|e| e.to_string())?;
     }
+    if from_version < 5 {
+        tx.execute_batch(SCHEMA_V5).map_err(|e| e.to_string())?;
+    }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
         .map_err(|e| e.to_string())?;
@@ -193,7 +199,7 @@ fn migrate_v0_rows(tx: &Connection) -> Result<usize, String> {
             .and_then(|s| s.to_str())
             .unwrap_or("")
             .to_lowercase();
-        let file_id = insert_game_file(tx, &title, &platform, &filename, &extension, size, None, "legacy")?;
+        let file_id = insert_game_file_v1(tx, &title, &platform, &filename, &extension, size, "legacy")?;
         tx.execute(
             "INSERT INTO file_locations (id, game_file_id, storage_location_id, relative_path, first_seen_at, last_seen_at, present_status)
              VALUES (?1, ?2, ?3, ?4, ?5, ?5, 'present')
@@ -392,12 +398,80 @@ pub fn insert_game_file(
     tx.execute("INSERT INTO game_releases (id, game_id) VALUES (?1, ?2)", params![release_id, game_id])
         .map_err(|e| e.to_string())?;
     tx.execute(
-        "INSERT INTO game_files (id, release_id, filename, extension, size_bytes, modified_at, platform_hint, platform_hint_source)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO game_files (id, release_id, filename, extension, size_bytes, payload_bytes, modified_at, platform_hint, platform_hint_source)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6, ?7, ?8)",
         params![file_id, release_id, filename, extension, size, modified_at, platform, hint_source],
     )
     .map_err(|e| e.to_string())?;
     Ok(file_id)
+}
+
+/// `insert_game_file` limited to the v1 columns, for migration steps that run
+/// before later columns exist (and for tests that build old-schema catalogs).
+fn insert_game_file_v1(tx: &Connection, title: &str, platform: &str, filename: &str, extension: &str, size: i64, hint_source: &str) -> Result<String, String> {
+    let game_id = new_id();
+    let release_id = new_id();
+    let file_id = new_id();
+    tx.execute("INSERT INTO games (id, canonical_title, platform) VALUES (?1, ?2, ?3)", params![game_id, title, platform])
+        .map_err(|e| e.to_string())?;
+    tx.execute("INSERT INTO game_releases (id, game_id) VALUES (?1, ?2)", params![release_id, game_id])
+        .map_err(|e| e.to_string())?;
+    tx.execute(
+        "INSERT INTO game_files (id, release_id, filename, extension, size_bytes, platform_hint, platform_hint_source)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![file_id, release_id, filename, extension, size, platform, hint_source],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(file_id)
+}
+
+/// Add a file that belongs to an existing game: a disc listed by an `.m3u`
+/// playlist or a track referenced by a `.cue` sheet. Returns the file id.
+#[allow(clippy::too_many_arguments)]
+pub fn insert_member_file(
+    tx: &Connection,
+    release_id: &str,
+    parent_file_id: &str,
+    role: &str,
+    disc_index: Option<i64>,
+    filename: &str,
+    extension: &str,
+    size: i64,
+    modified_at: Option<&str>,
+    platform: &str,
+) -> Result<String, String> {
+    let file_id = new_id();
+    tx.execute(
+        "INSERT INTO game_files (id, release_id, filename, extension, size_bytes, payload_bytes, modified_at, platform_hint,
+                                 platform_hint_source, file_role, parent_file_id, disc_index)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6, ?7, 'folder', ?8, ?9, ?10)",
+        params![file_id, release_id, filename, extension, size, modified_at, platform, role, parent_file_id, disc_index],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(file_id)
+}
+
+/// Move every file of release `from` into release `into`, then remove the emptied
+/// release and its game. Only catalog records are affected, never files on disk.
+pub fn merge_release(tx: &Connection, from: &str, into: &str) -> Result<(), String> {
+    if from == into {
+        return Ok(());
+    }
+    tx.execute("UPDATE game_files SET release_id = ?2 WHERE release_id = ?1", params![from, into])
+        .map_err(|e| e.to_string())?;
+    let game: Option<String> = tx
+        .query_row("SELECT game_id FROM game_releases WHERE id = ?1", [from], |r| r.get(0))
+        .optional()
+        .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM game_releases WHERE id = ?1", [from]).map_err(|e| e.to_string())?;
+    if let Some(game) = game {
+        tx.execute(
+            "DELETE FROM games WHERE id = ?1 AND NOT EXISTS (SELECT 1 FROM game_releases WHERE game_id = ?1)",
+            [&game],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 const SCHEMA_V1: &str = "
@@ -546,6 +620,19 @@ CREATE INDEX idx_file_locations_storage_status ON file_locations(storage_locatio
 CREATE INDEX idx_games_platform_title ON games(platform, canonical_title COLLATE NOCASE);
 ";
 
+/// v5: multi-file games (cue/bin tracks, m3u discs).
+const SCHEMA_V5: &str = "
+ALTER TABLE game_files ADD COLUMN file_role TEXT NOT NULL DEFAULT 'primary' CHECK (file_role IN ('primary','disc','track'));
+ALTER TABLE game_files ADD COLUMN parent_file_id TEXT REFERENCES game_files(id) ON DELETE RESTRICT;
+ALTER TABLE game_files ADD COLUMN payload_bytes INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE game_files ADD COLUMN missing_parts INTEGER NOT NULL DEFAULT 0;
+UPDATE game_files SET payload_bytes = size_bytes;
+CREATE INDEX idx_game_files_role_payload ON game_files(file_role, payload_bytes);
+DROP INDEX idx_game_files_duplicate_key;
+CREATE INDEX idx_game_files_duplicate_key ON game_files(size_bytes, filename COLLATE NOCASE, platform_hint, file_role);
+CREATE INDEX idx_game_files_release_role ON game_files(release_id, file_role);
+";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -614,6 +701,25 @@ mod tests {
     }
 
     #[test]
+    fn merging_releases_moves_files_and_removes_empty_games() {
+        let mut c = Connection::open_in_memory().unwrap();
+        migrate(&mut c, None).unwrap();
+        let cue = insert_game_file(&c, "Game (Disc 1)", "PlayStation", "Game (Disc 1).cue", "cue", 100, None, "folder").unwrap();
+        let m3u = insert_game_file(&c, "Game", "PlayStation", "Game.m3u", "m3u", 50, None, "folder").unwrap();
+        let release = |file: &str| -> String { c.query_row("SELECT release_id FROM game_files WHERE id = ?1", [file], |r| r.get(0)).unwrap() };
+        let (from, into) = (release(&cue), release(&m3u));
+        let track = insert_member_file(&c, &from, &cue, "track", None, "Game (Disc 1).bin", "bin", 9000, None, "PlayStation").unwrap();
+        merge_release(&c, &from, &into).unwrap();
+        assert_eq!(release(&cue), into);
+        assert_eq!(release(&track), into, "the cue's tracks move with it");
+        assert_eq!(count(&c, "games"), 1, "the disc's own game record is removed");
+        assert_eq!(count(&c, "game_releases"), 1);
+        let fts: i64 = c.query_row("SELECT COUNT(*) FROM games_fts", [], |r| r.get(0)).unwrap();
+        assert_eq!(fts, 1, "search index follows the delete");
+        merge_release(&c, &into, &into).unwrap();
+    }
+
+    #[test]
     fn title_search_index_follows_games() {
         let mut c = Connection::open_in_memory().unwrap();
         migrate(&mut c, None).unwrap();
@@ -635,7 +741,7 @@ mod tests {
         c.execute_batch(SCHEMA_V2).unwrap();
         c.execute_batch(SCHEMA_V3).unwrap();
         c.execute_batch("PRAGMA user_version = 3;").unwrap();
-        insert_game_file(&c, "Existing Adventure", "NES", "e.nes", "nes", 1, None, "folder").unwrap();
+        insert_game_file_v1(&c, "Existing Adventure", "NES", "e.nes", "nes", 1, "folder").unwrap();
         let report = migrate(&mut c, None).unwrap();
         assert_eq!(report.to_version, SCHEMA_VERSION);
         let n: i64 = c.query_row("SELECT COUNT(*) FROM games_fts WHERE games_fts MATCH '\"adventure\"'", [], |r| r.get(0)).unwrap();
@@ -713,7 +819,7 @@ mod tests {
             c.execute_batch(SCHEMA_V2).unwrap();
             c.execute_batch("PRAGMA user_version = 2;").unwrap();
             c.execute("INSERT INTO storage_locations (id, display_name, root_path) VALUES ('s1', 'E:', 'E:/')", []).unwrap();
-            let file = insert_game_file(&c, "Kept", "NES", "Kept.nes", "nes", 1, None, "folder").unwrap();
+            let file = insert_game_file_v1(&c, "Kept", "NES", "Kept.nes", "nes", 1, "folder").unwrap();
             c.execute(
                 "INSERT INTO file_locations (id, game_file_id, storage_location_id, relative_path) VALUES ('l1', ?1, 's1', 'Kept.nes')",
                 [file],
@@ -745,7 +851,7 @@ mod tests {
             c.execute_batch(SCHEMA_V1).unwrap();
             c.execute_batch("PRAGMA user_version = 1;").unwrap();
             let storage = upsert_storage_location(&c, SAMPLE_PATHS[1], "local").unwrap();
-            let file = insert_game_file(&c, "Kept", "NES", "Kept.nes", "nes", 1, None, "folder").unwrap();
+            let file = insert_game_file_v1(&c, "Kept", "NES", "Kept.nes", "nes", 1, "folder").unwrap();
             c.execute(
                 "INSERT INTO file_locations (id, game_file_id, storage_location_id, relative_path) VALUES (?1, ?2, ?3, 'Kept.nes')",
                 params![new_id(), file, storage],

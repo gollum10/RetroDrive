@@ -8,8 +8,17 @@
 use std::path::{Component, Path, PathBuf};
 
 /// Canonicalize without producing `\\?\` verbatim paths on Windows.
+///
+/// The prefix is removed even for paths longer than 260 characters: Rust's
+/// standard library adds it back internally when it calls Windows, so long plain
+/// paths still work, and the catalog always sees one spelling per volume (QA-008).
 pub fn normalize(path: &Path) -> std::io::Result<PathBuf> {
-    dunce::canonicalize(path)
+    let canonical = std::fs::canonicalize(path)?;
+    Ok(match canonical.to_str() {
+        Some(text) => PathBuf::from(strip_verbatim(text)),
+        // Non-Unicode names are rejected later by `split_volume`.
+        None => canonical,
+    })
 }
 
 /// Remove a Windows verbatim prefix from a stored string path (used for v0.1 data).

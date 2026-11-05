@@ -5,7 +5,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { Activity, AlertTriangle, ChevronLeft, ChevronRight, CircleStop, Copy, Database, FolderOpen, Gamepad2, HardDrive, LayoutDashboard, LibraryBig, RefreshCcw, Search, Settings2, ShieldCheck } from 'lucide-react';
 
 type Availability = 'online'|'offline'|'missing';
-type Game = { id: string; game_id: string; title: string; platform: string; path: string; file_size: number; storage_name: string; availability: Availability; duplicate_count: number };
+type Game = { id: string; game_id: string; title: string; platform: string; path: string; file_size: number; disc_count: number; incomplete: boolean; storage_name: string; availability: Availability; duplicate_count: number };
 type GamePage = { rows: Game[]; total: number; total_capped: boolean; offset: number; limit: number };
 type LibraryStats = { files: number; online: number; offline: number; missing: number; duplicate_files: number; platforms: { platform: string; files: number }[] };
 type Filters = { text: string; platform: string; availability: ''|Availability; storage_id: string; duplicates_only: boolean; sort: 'title'|'platform'|'size' };
@@ -21,8 +21,8 @@ function shortPath(path: string): string {
   return head + sep + '…' + sep + parts.slice(-3).join(sep);
 }
 const fmtSize = (n:number) => n >= 1048576 ? `${(n/1048576).toFixed(1)} MB` : n >= 1024 ? `${(n/1024).toFixed(0)} KB` : `${n} B`;
-type ScanIssue = { path: string; message: string };
-type ScanSummary = { indexed: number; new_files: number; marked_missing: number; skipped_unsupported: number; skipped_links: number; complete: boolean; cancelled: boolean; issue_count: number; issues: ScanIssue[]; remounted_from: string|null };
+type ScanIssue = { path: string; message: string; severity: 'error'|'warning' };
+type ScanSummary = { indexed: number; games: number; new_files: number; marked_missing: number; skipped_unsupported: number; skipped_links: number; complete: boolean; cancelled: boolean; issue_count: number; error_count: number; warning_count: number; grouped_files: number; issues: ScanIssue[]; remounted_from: string|null };
 type Presence = 'connected'|'not_connected'|'other_volume';
 type StorageRow = { id: string; display_name: string; root_path: string; kind: string; stable_id: string|null; volume_label: string|null; filesystem: string|null; volume_serial: string|null; total_bytes: number|null; last_seen_at: string|null; file_count: number; missing_count: number; presence: Presence };
 const sqlTime = (t: string|null) => t ? new Date(t.replace(' ','T')+'Z').toLocaleString() : 'never';
@@ -38,9 +38,11 @@ type JobRecord = { id: string; kind: string; state: string; input: { folder?: st
 const jobStateLabel: Record<string,string> = { running:'Running', completed:'Completed', cancelled:'Cancelled', failed:'Failed', interrupted:'Interrupted (app closed)' };
 function describeScan(r: ScanSummary): string {
   const moved = r.remounted_from ? `Recognized this drive from before (it was at ${r.remounted_from}); catalog paths now use the new drive letter. ` : '';
-  const parts=[`Indexed ${r.indexed.toLocaleString()} game files (${r.new_files.toLocaleString()} new)`, `${r.skipped_unsupported.toLocaleString()} non-game files ignored`];
+  const parts=[`Found ${r.games.toLocaleString()} games (${r.new_files.toLocaleString()} new files)`, `${r.skipped_unsupported.toLocaleString()} non-game files ignored`];
   if(r.marked_missing) parts.push(`${r.marked_missing} previously indexed files not found`);
-  if(r.issue_count) parts.push(`${r.issue_count} item(s) could not be read`);
+  if(r.grouped_files) parts.push(`${r.grouped_files.toLocaleString()} disc/track files grouped into their games`);
+  if(r.error_count) parts.push(`${r.error_count.toLocaleString()} item(s) could not be read`);
+  if(r.warning_count) parts.push(`${r.warning_count.toLocaleString()} warning(s)`);
   if(r.cancelled) return moved+'Scan cancelled. '+parts.join(' · ')+'. Files found so far were kept; the missing-file check was skipped. No files were moved or modified.';
   if(!r.complete) parts.push('missing-file check skipped because the scan was incomplete');
   return moved+parts.join(' · ')+'. No files were moved or modified.';
@@ -90,7 +92,7 @@ export default function App() {
     const progress=listen<{job_id:string;progress:ScanProgress}>('scan-progress',e=>setScan(s=>s&&s.job_id===e.payload.job_id?{...s,progress:e.payload.progress}:s));
     const finished=listen<ScanFinished>('scan-finished',e=>{
       const f=e.payload; setScan(null);
-      if(f.summary){ setError(f.summary.issue_count>f.summary.skipped_links); setIssues(f.summary.issues); setMessage(describeScan(f.summary)); }
+      if(f.summary){ setError(f.summary.error_count>0); setIssues(f.summary.issues); setMessage(describeScan(f.summary)); }
       else { setError(true); setMessage(`Import failed: ${f.error??'unknown error'}`); }
       void load();
     });
@@ -120,7 +122,7 @@ export default function App() {
       <div className="bar indeterminate"><div/></div>
       <div className="scan-stats"><span><b>{(scan.progress?.entries_checked??0).toLocaleString()}</b> items checked</span><span><b>{(scan.progress?.indexed??0).toLocaleString()}</b> game files found</span><span><b>{(scan.progress?.new_files??0).toLocaleString()}</b> new</span>{(scan.progress?.issue_count??0)>0&&<span className="warn-text"><b>{scan.progress?.issue_count}</b> unreadable</span>}</div>
       <small className="scan-current" title={scan.progress?.current_path}>{scan.progress?.current_path||'Starting...'}</small></section>}
-    {issues.length>0 && <details className="issues"><summary><AlertTriangle size={15}/> {issues.length} scan issue(s){issues.length>=200?' (first 200 shown)':''}</summary><ul>{issues.map((i,n)=><li key={n}><code>{i.path}</code> — {i.message}</li>)}</ul></details>}
+    {issues.length>0 && <details className="issues"><summary><AlertTriangle size={15}/> {issues.length} scan issue(s){issues.length>=200?' (first 200 shown)':''}</summary><ul>{issues.map((i,n)=><li key={n} className={'issue-'+i.severity}><b>{i.severity==='error'?'Error':'Warning'}:</b> <code>{i.path}</code> — {i.message}</li>)}</ul></details>}
     {page==='Dashboard' && <><section className="stats"><article><span>Cataloged games</span><strong>{(stats?.files??0).toLocaleString()}</strong><small>{stats?.platforms.length??0} platforms · local database</small></article><article><span>Detected volumes</span><strong>{drives.length}</strong><small>Read-only discovery</small></article><article><span>Available titles</span><strong>{(stats?.online??0).toLocaleString()}</strong><small>{stats&&(stats.offline||stats.missing)?`${stats.offline.toLocaleString()} offline · ${stats.missing.toLocaleString()} missing`:'Files currently accessible'}</small></article></section><div className="twocol"><section className="panel"><h2>Quick actions</h2><p>Get started with your existing library. Scanning never changes game files.</p><button className="primary" disabled={!native||busy} onClick={importFolder}><FolderOpen size={18}/>{busy?'Scanning...':'Import ROM folder'}</button><button className="subtle" onClick={()=>setPage('Game Library')}><LibraryBig size={18}/> Browse library</button>{(stats?.duplicate_files??0)>0&&<p className="dup-hint"><Copy size={15}/> {stats!.duplicate_files.toLocaleString()} files look like duplicate copies. <button className="link" onClick={reviewDuplicates}>Review them</button> (nothing is deleted).</p>}</section><section className="panel"><h2>Platform roadmap</h2><div className="platform-row"><span>Batocera</span><em>Adapter planned</em></div><div className="platform-row"><span>RetroBat</span><em>Adapter planned</em></div><div className="platform-row"><span>More systems</span><em>Future milestone</em></div></section></div>
     <section className="panel activity"><h2>Recent activity</h2>{jobs.length===0?<p>No scans yet.</p>:jobs.map(j=><div className="platform-row" key={j.id}><span><b className={'job '+j.state}>{jobStateLabel[j.state]??j.state}</b> <span className="job-folder" title={j.input.folder}>{j.input.folder??j.kind}</span></span><em>{j.progress?.indexed!=null?`${j.progress.indexed} files · `:''}{j.error_message?j.error_message+' · ':''}{new Date(j.started_at.replace(' ','T')+'Z').toLocaleString()}</em></div>)}</section></>}
     {page==='Game Library' && <section className="panel library-panel">
@@ -134,7 +136,7 @@ export default function App() {
         <label className="check"><input type="checkbox" checked={filters.duplicates_only} onChange={e=>updateFilters({duplicates_only:e.target.checked})}/> Possible duplicates only</label>
         {filtersActive&&<button className="link" onClick={clearFilters}>Clear filters</button>}
       </div>
-      <div className={'table-wrap'+(libraryLoading?' loading':'')}><table><thead><tr><th>Game</th><th>Platform</th><th>Drive</th><th>Size</th><th>Availability</th></tr></thead><tbody>{library?.rows.map(g=><tr key={g.id}><td><b>{g.title}{g.duplicate_count>1&&<span className="dup-badge" title={`Possible duplicate: ${g.duplicate_count} files share this platform, file name and size. Review before removing anything; RetroDrive never deletes files.`}>×{g.duplicate_count}</span>}</b><small title={g.path}>{shortPath(g.path)}</small></td><td>{g.platform}</td><td className="drive-cell" title={g.storage_name}>{g.storage_name}</td><td>{fmtSize(g.file_size)}</td><td><span className={'state '+g.availability}>{availabilityLabel[g.availability]}</span></td></tr>)}</tbody></table>
+      <div className={'table-wrap'+(libraryLoading?' loading':'')}><table><thead><tr><th>Game</th><th>Platform</th><th>Drive</th><th>Size</th><th>Availability</th></tr></thead><tbody>{library?.rows.map(g=><tr key={g.id}><td><b>{g.title}{g.disc_count>1&&<span className="disc-badge" title="Multi-disc game: discs listed by its .m3u playlist">{g.disc_count} discs</span>}{g.incomplete&&<span className="incomplete-badge" title="A disc or track file this game needs is missing. See the scan warnings.">Incomplete</span>}{g.duplicate_count>1&&<span className="dup-badge" title={`Possible duplicate: ${g.duplicate_count} files share this platform, file name and size. Review before removing anything; RetroDrive never deletes files.`}>×{g.duplicate_count}</span>}</b><small title={g.path}>{shortPath(g.path)}</small></td><td>{g.platform}</td><td className="drive-cell" title={g.storage_name}>{g.storage_name}</td><td>{fmtSize(g.file_size)}</td><td><span className={'state '+g.availability}>{availabilityLabel[g.availability]}</span></td></tr>)}</tbody></table>
         {library&&library.rows.length===0&&<div className="empty"><Database size={26}/>{(stats?.files??0)===0?'No games yet. Import a ROM folder to begin.':<>No games match these filters. <button className="link" onClick={clearFilters}>Clear filters</button></>}</div>}</div>
       {library&&library.total>0&&<div className="pager"><span>{library.rows.length?`${(library.offset+1).toLocaleString()}–${(library.offset+library.rows.length).toLocaleString()}`:'0'} of {library.total_capped?`${(library.total-1).toLocaleString()}+`:library.total.toLocaleString()}</span>
         <button className="ghost" disabled={offset===0||libraryLoading} onClick={()=>goToOffset(Math.max(0,offset-PAGE_SIZE))}><ChevronLeft size={16}/> Previous</button>
