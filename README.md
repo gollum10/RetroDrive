@@ -14,7 +14,8 @@ Full, maintained list: **[Features.md](Features.md)**.
 - **Drives:** read-only detection of mounted volumes. Drives are recognized by volume ID even when Windows gives them a different letter, and **Known drives** lists every scanned drive, plugged in or not.
 - **Import:** scan an existing ROM folder in the background *without moving, modifying or deleting anything*. Shows live progress, can be cancelled, and the report lists ignored and unreadable files.
 - **Activity:** every scan is logged. The Dashboard shows recent scans, including ones interrupted by a crash.
-- **Catalog:** normalized SQLite catalog (schema v5) in the app data folder. Versioned migrations back up the catalog before upgrading it.
+- **Catalog:** normalized SQLite catalog (schema v6) in the app data folder. Versioned migrations back up the catalog before upgrading it.
+- **RetroBat (read-only):** add an existing RetroBat folder, see layout checks, and preview where each game would go (`roms\snes`, `roms\psx\<Game>\…`). Nothing is copied yet.
 - **Disc games:** `.cue` + `.bin` sets and multi-disc `.m3u` games count as one game, with their total size; missing tracks are flagged **Incomplete**.
 - **Library:** fast full-text search, 100-row pages, and filters by platform, status (**Online** / **Offline** / **Missing**) and drive. Sorts by title, platform or size. Possible duplicate copies are flagged (never deleted). Measured at 100,000 files: most pages take 1–3 ms.
 
@@ -69,4 +70,4 @@ Replace `YOUR_USERNAME` with your GitHub account. GitHub may prompt for authenti
 ## Current simplifications
 - **Game identity:** each game is one file or one disc set. Matching against metadata databases is planned; duplicates are flagged by name and size, not yet by hash.
 - **Platform guesses** come from folder names and extensions; ambiguous archive and disc files are marked `Unclassified`.
-- **Verified 2026-11-04** on Windows 11 with Node 24, Rust 1.99.1 and VS 2026 C++ tools: `cargo test` (62 passing), `npm run build`, and `npm run tauri dev`, including 40,000-file scans, cancel, crash recovery, drive recognition, search, paging, duplicates and disc grouping.
+- **Verified 2026-11-04** on Windows 11 with Node 24, Rust 1.99.1 and VS 2026 C++ tools: `cargo test` (77 passing), `npm run build`, and `npm run tauri dev`, including 40,000-file scans, cancel, crash recovery, drive recognition, search, paging, duplicates, disc grouping and the RetroBat placement preview.

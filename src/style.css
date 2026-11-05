@@ -41,3 +41,24 @@
 .issues li.issue-warning b{color:#e8c48f}.issues li.issue-error b{color:#f0a49a}
 
 @media (max-height:720px){.sidebar-logo{display:none}}
+
+.adapter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.adapter{border:1px solid #35435a;border-radius:10px;padding:16px}.adapter.planned{opacity:.65}
+.adapter b{display:block;font-size:15px}.adapter small{display:block;color:#8096ad;font-size:12px;margin:3px 0 10px}
+.caps{list-style:none;margin:0;padding:0;font-size:12.5px;line-height:1.9}.caps li.yes{color:#6cd1a5}.caps li.yes::before{content:'✓  '}.caps li.no{color:#7d8ea6}.caps li.no::before{content:'–  '}
+.mono{font-family:Consolas,'Cascadia Mono',monospace;font-size:12.5px;color:#9fb3cb;word-break:break-all}
+.verdict{display:flex;gap:9px;align-items:center;font-weight:600;margin:6px 0 10px}.verdict.ok{color:#6cd1a5}.verdict.warn{color:#e8c48f}
+.evidence{margin:0 0 14px;padding-left:22px;font-size:13px;color:#b5c7dc;line-height:1.7}
+.checks{list-style:none;margin:6px 0 4px;padding:0}.check{display:flex;gap:9px;align-items:flex-start;font-size:13px;color:#b5c7dc;padding:5px 0}
+.check svg{flex-shrink:0;margin-top:2px}.check.ok svg{color:#6cd1a5}.check.warning svg{color:#e8c48f}.check.problem svg{color:#f0a49a}.check b{color:#e3ebf5}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.installation{border-top:1px solid #29384a;padding:16px 0}
+.installation-head{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:flex-start}.installation-head .actions{margin-top:0}
+.installation-head b{font-size:15px}.installation-head small{display:block;margin-top:4px;font-size:12px}
+.presence.connected{color:#6cd1a5}
+.preview-summary{display:flex;flex-wrap:wrap;gap:20px;font-size:13.5px;color:#b5c7dc;margin:-6px 0 14px}.preview-summary b{color:#e9edf5}
+.panel h3{font-size:15px;margin:22px 0 8px}
+.unsupported{margin:0;padding-left:22px;font-size:13px;color:#b5c7dc;line-height:1.8}
+
+.panel+.panel{margin-top:20px}
+.section-heading>button{white-space:nowrap;flex-shrink:0}

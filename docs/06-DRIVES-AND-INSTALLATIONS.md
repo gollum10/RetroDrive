@@ -9,6 +9,14 @@ Enumerate mounted storage; display OS-reported capacity/free space, filesystem t
 ## Installation types
 - **Batocera:** bootable operating system with platform/hardware-specific image and userdata layout. On Windows, direct access to Linux data partitions may not be supported; consider the Batocera network share after first boot, or an explicitly designed trusted access mechanism. Do not assume raw FAT/NTFS game paths are universally writable.
 - **RetroBat:** portable Windows application/frontend with its own directory layout. First support placement to a normal user-selected writable folder; preserve app layout and upstream distribution rules.
+  - **Implemented read-only (RDS-007, facts verified 2026-11-04 against the RetroBat wiki):**
+    - **Detection:** "Detected" needs `RetroBat.exe` plus at least one of `emulationstation\`, `retrobat.ini` or `roms\`. Without the exe it can only be "Possible", which is never saved.
+    - **Layout checks:** `roms`, `bios`, `emulators` and `emulationstation` folders, plus the install path (the wiki advises against spaces, accents and drive roots).
+    - **Version:** shown as unknown, because no version file is documented.
+    - **Folder mapping:** NES→`nes` (`.fds`→`fds`), SNES→`snes`, Genesis→`megadrive`, Master System→`mastersystem`, Game Gear→`gamegear`, PlayStation→`psx`, PS2→`ps2`, Game Boy→`gb`, GBC→`gbc`, GBA→`gba`, N64→`n64`.
+    - **Not guessed:** Arcade, because `mame` and `fbneo` take different ROM sets.
+    - **Multi-file games** go to `roms\<system>\<Game title>\…`, keeping file paths relative to the playlist or cue sheet.
+    - **Sources:** https://wiki.retrobat.org/get-started/retrobat-folder-structure, https://wiki.retrobat.org/get-started/installation-and-first-startup and https://wiki.retrobat.org/systems-and-emulators/supported-game-systems.
 - **ES-DE/EmulationStation:** frontend, not interchangeable with a bootable OS image.
 - **Recalbox/Lakka/RetroPie and others:** later adapters; platform-specific images and requirements.
 

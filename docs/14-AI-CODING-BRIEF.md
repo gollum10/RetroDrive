@@ -18,7 +18,7 @@ Read `docs/00-START-HERE.md`, `docs/02-SCOPE-AND-REQUIREMENTS.md`, `docs/04-SYST
 10. Update the associated design docs and acceptance tests for each significant change.
 
 ## Next suggested coding task
-Milestone M1 (RDS-001 to RDS-005) is done; see docs/04, docs/05 and docs/07. Next is M2, starting with `RDS-006`: a versioned `PlatformAdapter` interface in Rust (detect, capabilities, validate layout, plan file placement), with a mock adapter and tests. Then `RDS-007`, a read-only RetroBat adapter that recognizes an existing installation and maps platforms to its folders. Both must stay read-only: no files written. Before changing files, report the plan, risk and test plan.
+M1 and RDS-006/007 are done (adapter contract v1, read-only RetroBat support with placement preview); see docs/04, 05 and 06. Next is `RDS-009`: turn the placement preview into a deployment *plan*. Measure the destination's free space (minus a reserve and staging overhead), detect destination conflicts (an existing file with the same name but a different size or hash: keep it by default), and allow selecting a subset (a platform or collection). Still read-only: no copying until RDS-010. Before changing files, report the plan, risk and test plan.
 
 ## Keep docs in sync
 Every change updates [`Features.md`](../Features.md) (feature status) and the affected docs here (architecture in 04, schema in 05, rules in 07/08, roadmap status in 11, QA coverage in 15, decisions in 13).
