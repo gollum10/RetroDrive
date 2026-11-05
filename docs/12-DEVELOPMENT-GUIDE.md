@@ -26,6 +26,8 @@ cargo clippy --all-targets
 ```
 License gate (LEGAL-014): `python scripts/check-licenses.py`. Add `--csv docs/third-party/dependencies.csv` to refresh the inventory after dependency changes.
 
+**Separate test catalog:** set `RETRODRIVE_DATA_DIR` to a folder before `npm run tauri dev` to use a catalog there instead of `%APPDATA%\com.retrodrive.desktop`. To run a second copy beside one that's already open, also give it another port, e.g. `npx tauri dev --config "{\"build\":{\"devUrl\":\"http://localhost:1430\",\"beforeDevCommand\":\"npm run dev -- --port 1430 --strictPort\"}}"`.
+
 The same checks run in GitHub Actions on `windows-latest` (`.github/workflows/ci.yml`).
 
 Keep the working copy **outside OneDrive** (e.g. `C:\dev\RetroInstaller`). Cargo's `target/` folder is several GB, and OneDrive sync locks break builds. `vite.config.ts` ignores `src-tauri/**` for the same reason. The catalog lives at `%APPDATA%\com.retrodrive.desktop\retrodrive.sqlite`; delete it to start fresh (migration backups sit next to it).

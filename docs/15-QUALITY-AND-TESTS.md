@@ -50,6 +50,7 @@ Run with `cd src-tauri && cargo test`.
 | Arcade choice (RDS-016) | `adapters::retrobat::tests::arcade_games_follow_the_chosen_emulator_and_keep_their_names`, `deployment::tests::arcade_games_are_planned_once_an_emulator_is_chosen`, `installations::tests::add_list_and_forget_installations` (set/clear/reject) | Automated |
 | RetroBat version | `adapters::retrobat::tests::a_fresh_install_reports_its_version` (fresh 8.3.1.1 layout without `retrobat.ini`; fallback file; junk rejected) | Automated; layout confirmed on a real install 2026-11-05 |
 | Real-world copy (owner, 2026-11-05) | 96,750 games scanned from a NAS; NES plan (4,333 games: 3,436 to copy, 847 duplicates, 50 blocked as 25 same-name pairs); 3,436 files copied to RetroBat 8.3.1.1 on a 2 TB exFAT drive, all verified, no temp files left; 5 random copies re-hashed against recorded checksums | Manual |
+| Library views | `catalog::tests::multi_file_games_are_listed_once_with_their_total_size` (system summary counts a multi-disc game once, sizes include discs); manual 2026-11-05 with a separate test catalog (`RETRODRIVE_DATA_DIR`): Systems cards, NES grid, list toggle | Automated + manual |
 | QA-017 | `db::tests::v0_rows_are_preserved_and_backed_up`, `v1_catalog_upgrades_to_v2_keeping_data`, `v2_catalog_upgrades_to_v3_keeping_references` | Automated |
 | QA-015 (read side) | `scanner::tests::a_different_drive_at_the_same_letter_does_not_inherit_files`, `volumes::tests::system_volume_has_a_fingerprint`; Known drives showed "now a different drive" | Partial: identity is checked; re-checking before *writes* comes with deployment |
 
@@ -83,6 +84,7 @@ Command: `cd src-tauri && cargo test --release benchmark_100k -- --ignored --noc
 | Duplicates only (2,000) | 460 ms | 74 ms |
 | Sort by size | 302 ms | **1.6 ms** |
 | Library stats | 247 ms | 24 ms |
+| System summary (Systems page, 2026-11-05) | — | 262 ms (only when the page opens) |
 
 After RDS-005 (listing primary files only), rerun the same day: first page 5.4 ms, exact search 4.3 ms, size sort 3.0 ms, platform 36 ms, duplicates 77 ms, stats 40 ms, offset 50,000 159 ms. An intermediate version took 70 ms for the first page because SQLite chose the role index; a unary `+` on that term fixed it.
 

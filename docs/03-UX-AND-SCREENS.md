@@ -9,6 +9,8 @@ Cards for indexed games, available game files, managed installations and active 
 ## My Library
 Search by title and platform, filter by source, status, genre/favorites and duplicates. Grid/list toggle; game detail with identity, file versions, disc set, checksum, sources, deployments, artwork, metadata provenance, and readiness assessment. Actions: rescan, add to collection, plan deployment, correct match. Maintain game even if all copies offline.
 
+**Implemented 2026-11-05 (Plex-style browsing):** the Game Library opens on **Systems**, one card per platform with game count and total size (Unclassified last); clicking a card opens **Games** filtered to that system. Games show as a **grid** (cover tiles; a coloured placeholder with the title's initials until box art exists) or a **list** (the table). The chosen tab and view are remembered per computer (browser storage; falls back to defaults if unavailable).
+
 ## Drives
 Inventory: manufacturer/model, bus type when known, capacity, filesystem, free space, label, stable identity, mount point, safety classification (system/unknown/removable). Selected drive details: partitions, managed installations, activity, backup state. No prominent 'Erase' control in default view. Clearly distinguish physical disks from mounted volumes.
 

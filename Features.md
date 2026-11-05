@@ -44,6 +44,11 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 
 | Feature | Status | Notes |
 |---|---|---|
+| Browse by system (Plex-style) | ✅ | Systems page: a card per platform with game count and size; click to see that system's games. |
+| Grid or list view | ✅ | Grid shows cover tiles (coloured placeholders until box art); list is the detailed table. Your choice is remembered. |
+| Reference catalog import (names, details, genres) | 📋 | Next: match files to your own catalog file by No-Intro/MAME names. |
+| Box art from your own images | 📋 | Local only; images are never shipped with RetroDrive. |
+| Scraper (e.g. ScreenScraper) | ⛔ | Blocked on LEGAL-007. |
 | Import (scan) a user-selected folder | ✅ | Runs as a background job; the window stays responsive. Read only: tests confirm source files are unchanged. 40,000 files took about 3 s in a dev build. |
 | Platform detection from folder names | ✅ | Uses the nearest platform folder (e.g. `roms/psx/Game (USA)/game.cue`). The scanned folder's own name counts. |
 | Non-game files ignored inside platform folders | ✅ | `readme.txt`, `.srm` saves, `.state`, `gamelist.xml`, images and similar are skipped. |

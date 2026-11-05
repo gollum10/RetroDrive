@@ -94,7 +94,12 @@ impl scanner::ScanObserver for UiObserver {
 }
 
 fn init_catalog(handle: &AppHandle) -> Result<PathBuf, String> {
-    let directory = handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    // Developers and tests can point RetroDrive at a separate catalog folder so a
+    // test run never touches the real catalog (docs/12). Normal users never set this.
+    let directory = match std::env::var_os("RETRODRIVE_DATA_DIR") {
+        Some(dir) if !dir.is_empty() => PathBuf::from(dir),
+        _ => handle.path().app_data_dir().map_err(|e| e.to_string())?,
+    };
     std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
     let path = directory.join("retrodrive.sqlite");
     let mut connection = db::open(&path)?;
@@ -125,6 +130,13 @@ fn query_games(catalog: State<'_, Catalog>, query: catalog::GameQuery) -> Result
 fn library_stats(catalog: State<'_, Catalog>) -> Result<catalog::LibraryStats, String> {
     let connection = db::open(&catalog.path()?)?;
     catalog::library_stats(&connection, &volumes::presence)
+}
+
+/// Games and size per platform for the library's Systems page.
+#[tauri::command]
+async fn system_summary(catalog: State<'_, Catalog>) -> Result<Vec<catalog::SystemSummary>, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || catalog::system_summary(&db::open(&db_path)?)).await.map_err(|e| e.to_string())?
 }
 
 /// Every drive the catalog knows about, including ones not plugged in right now.
@@ -405,6 +417,7 @@ pub fn run() {
             list_installations,
             remove_installation,
             deployment_plan,
+            system_summary,
             set_arcade_system,
             start_deployment,
             list_storage_locations, start_scan, cancel_job, active_scan, recent_jobs, list_drives])

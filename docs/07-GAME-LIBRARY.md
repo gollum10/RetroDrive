@@ -43,6 +43,10 @@ Use platform folder semantics, file extension and optional metadata; record infe
 - **Not flagged:** the same title across platforms (category 3), and different dumps with different sizes.
 - **Next step:** hash-verified grouping needs background hashing (planned).
 
+### Implemented browsing (2026-11-05)
+- `catalog::system_summary`: games (multi-disc games count once) and total size per platform for the Systems page. It runs only when that page is shown, because summing sizes walks every game; `library_stats` (run on every refresh) stays a plain count.
+- Grid and list views use the same paged query (`query_games`, 100 per page).
+
 ## Duplicate categories
 1. Exact file: identical cryptographic hash.
 2. Same release/edition: different dump or compression; manual validation before merge.
