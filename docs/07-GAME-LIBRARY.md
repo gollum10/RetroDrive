@@ -77,6 +77,7 @@ The user can import their own game catalog (`.xlsx`/`.csv`) in **Settings → Re
 - **Display:** name and clone-set matches show the catalog title (clone sets add their set name, e.g. *10-Yard Fight (10yard85)*); title matches keep the file's title. Year and genre appear on cards and in list columns; publisher in the card tooltip.
 - **Separation:** reference data lives in its own tables; the library's own titles are never changed, and removing the catalog removes only the links.
 - **Measured on the owner's library (2026-11-05):** 63,793 entries imported in about 20 s; 47,840 of 116,405 games matched (24,156 by name, 4,539 by clone set, 19,145 by title): Arcade 93%, NES 80%, Genesis 79%, SNES 72%, Unclassified 4%. The 17,232-row genre supplement added 17,232 genres.
+- **One thing at a time:** importing or removing the catalog is refused (and its buttons are greyed out) while a scan or copy runs, and scans/copies are refused while an import runs, because both rewrite catalog tables (found by the owner, 2026-11-05: an import during a scan failed with "database is locked").
 - **Not yet:** searching by catalog titles (search still uses file titles), sorting by catalog title, and editing matches by hand.
 
 ## Metadata and scraping

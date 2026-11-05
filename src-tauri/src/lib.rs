@@ -46,7 +46,12 @@ impl Catalog {
 #[derive(Default)]
 struct ActiveJobs {
     jobs: Mutex<HashMap<String, ActiveJob>>,
+    /// True while a reference catalog is being imported (it rewrites catalog tables,
+    /// so scans and copies wait for it, and it waits for them).
+    importing: AtomicBool,
 }
+
+const BUSY_IMPORTING: &str = "The reference catalog is being imported. Start this when it has finished.";
 
 struct ActiveJob {
     cancel: Arc<AtomicBool>,
@@ -136,9 +141,20 @@ fn library_stats(catalog: State<'_, Catalog>) -> Result<catalog::LibraryStats, S
 
 /// Import the user's reference catalog (.xlsx/.csv) or a genre supplement, then match.
 #[tauri::command]
-async fn import_reference(catalog: State<'_, Catalog>, path: String) -> Result<reference::ImportSummary, String> {
+async fn import_reference(app: AppHandle, catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, path: String) -> Result<reference::ImportSummary, String> {
     let db_path = catalog.path()?;
-    tauri::async_runtime::spawn_blocking(move || reference::import(&db::open(&db_path)?, Path::new(&path))).await.map_err(|e| e.to_string())?
+    {
+        let running = active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?;
+        if !running.is_empty() {
+            return Err("A scan or copy is running. Import the catalog when it has finished.".into());
+        }
+        if active.importing.swap(true, Ordering::SeqCst) {
+            return Err(BUSY_IMPORTING.into());
+        }
+    }
+    let result = tauri::async_runtime::spawn_blocking(move || reference::import(&db::open(&db_path)?, Path::new(&path))).await.map_err(|e| e.to_string());
+    app.state::<ActiveJobs>().importing.store(false, Ordering::SeqCst);
+    result?
 }
 
 #[tauri::command]
@@ -181,7 +197,10 @@ fn serve_media(db_path: Result<PathBuf, String>, uri_path: &str) -> tauri::http:
 
 /// Remove the reference catalog; the library itself is unchanged.
 #[tauri::command]
-fn remove_reference(catalog: State<'_, Catalog>) -> Result<bool, String> {
+fn remove_reference(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>) -> Result<bool, String> {
+    if !active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?.is_empty() || active.importing.load(Ordering::SeqCst) {
+        return Err("A scan, copy or import is running. Remove the catalog when it has finished.".into());
+    }
     reference::remove(&db::open(&catalog.path()?)?)
 }
 
@@ -208,6 +227,9 @@ fn start_scan(app: AppHandle, catalog: State<'_, Catalog>, active: State<'_, Act
     let mut running = active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?;
     if !running.is_empty() {
         return Err("Another scan or copy is running. Wait for it to finish or cancel it first.".into());
+    }
+    if active.importing.load(Ordering::SeqCst) {
+        return Err(BUSY_IMPORTING.into());
     }
     let connection = db::open(&db_path)?;
     let job_id = jobs::create(&connection, jobs::KIND_SCAN, &json!({ "folder": folder }))?;
@@ -397,6 +419,9 @@ fn start_deployment(
     let mut running = active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?;
     if !running.is_empty() {
         return Err("Another scan or copy is running. Wait for it to finish or cancel it first.".into());
+    }
+    if active.importing.load(Ordering::SeqCst) {
+        return Err(BUSY_IMPORTING.into());
     }
     let connection = db::open(&db_path)?;
     let input = json!({ "folder": destination, "installation_id": installation_id, "systems": systems, "fingerprint": fingerprint });
