@@ -122,6 +122,19 @@ _Last updated: 2026-11-04 (RDS-006/007 branch; M2 started)_
 | Optional AI troubleshooting (opt-in, redacted) | 📋 | FR-12 |
 | More platforms (Recalbox, Lakka, ES-DE, …) | 📋 | FR-13 |
 
+## Legal and compliance (docs/16)
+
+| Item | Status | Notes |
+|---|---|---|
+| No games, BIOS, firmware or artwork shipped or downloaded | ✅ | Checked in docs/17 §5. |
+| RetroBat support limited to the user's own installation | ✅ | Read-only; downloading or installing RetroBat is blocked on LEGAL-002/003. |
+| Independence statement in the app (Settings) and README | 🟡 | Draft wording from docs/16 §8, pending counsel review. |
+| Third-party component manifest (LEGAL-001) | 🟡 | Software dependencies inventoried (280; 5 MPL-2.0 via Tauri need notices). Platforms and assets are listed by hand. |
+| CI license gate (LEGAL-014) | 🟡 | `scripts/check-licenses.py` fails CI on copyleft or unknown licenses; release sign-off still to be defined. |
+| Third-party notices file in the installer (LEGAL-009) | 📋 | Needed before public release. |
+| Trademark clearance for "RetroDrive", and logo provenance (LEGAL-008) | 📋 | Owner action; the logo is AI-generated (docs/17 §4). |
+| RetroBat written permission (LEGAL-003) | 📋 | Owner action; blocks RDS-012. |
+
 ## Engineering
 
 | Feature | Status | Notes |

@@ -9,7 +9,7 @@ Read `docs/00-START-HERE.md`, `docs/02-SCOPE-AND-REQUIREMENTS.md`, `docs/04-SYST
 1. **Do not claim unimplemented features already work.** Initial scaffold has a simple file-centric DB, read-only mounted-volume listing, basic scans and UI.
 2. Keep a **hybrid** library: canonical game, file identity, physical location and deployment are distinct entities. Offline never means deleted.
 3. Every disk mutation must be user-initiated, scoped, previewed and logged. Raw imaging, formatting, partitioning and clone operations are **out of scope unless explicitly tasked and safety-reviewed**.
-4. Do not bundle or suggest downloads of copyrighted ROMs, protected BIOS or unlicensed artwork.
+4. Do not bundle or suggest downloads of copyrighted ROMs, protected BIOS or unlicensed artwork. Don't build features that download, install or bundle third-party software (RetroBat, Batocera, emulators, cores) or fetch artwork or metadata until the matching LEGAL item in docs/16 is resolved. Add every new dependency or asset to docs/17 and keep `python scripts/check-licenses.py` passing.
 5. No arbitrary command execution from user metadata, URL, path or frontend IPC.
 6. Prefer minimal, testable patches to rewrites. Use versioned SQLite migrations.
 7. Provide exact build/test commands and *actual* executed results. Do not claim Windows tests you did not run.

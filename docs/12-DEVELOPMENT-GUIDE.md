@@ -24,6 +24,8 @@ cd src-tauri
 cargo test
 cargo clippy --all-targets
 ```
+License gate (LEGAL-014): `python scripts/check-licenses.py`. Add `--csv docs/third-party/dependencies.csv` to refresh the inventory after dependency changes.
+
 The same checks run in GitHub Actions on `windows-latest` (`.github/workflows/ci.yml`).
 
 Keep the working copy **outside OneDrive** (e.g. `C:\dev\RetroInstaller`). Cargo's `target/` folder is several GB, and OneDrive sync locks break builds. `vite.config.ts` ignores `src-tauri/**` for the same reason. The catalog lives at `%APPDATA%\com.retrodrive.desktop\retrodrive.sqlite`; delete it to start fresh (migration backups sit next to it).

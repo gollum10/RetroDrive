@@ -23,9 +23,9 @@ Navigation, basic read-only mounted volume discovery, folder scan into simple SQ
 - RDS-011 Add user-confirmed deletion/overwrite policy and safety tests.
 
 ### M3: Install and guide
-- RDS-012 RetroBat portable installation guided workflow and official download validation.
-- RDS-013 Batocera official image selection and bootable-media preflight design.
-- RDS-014 Elevated imaging helper only after independent destructive-disk review and QA.
+- RDS-012 RetroBat portable installation guided workflow and official download validation. **⛔ Blocked on LEGAL-002/003** (RetroBat's written permission for commercial download/install; docs/16 §5).
+- RDS-013 Batocera official image selection and bootable-media preflight design. **⛔ Blocked on LEGAL-004.**
+- RDS-014 Elevated imaging helper only after independent destructive-disk review and QA. **⛔ Also needs LEGAL-004 and LEGAL-010.**
 - RDS-015 First-boot guide and setup verification.
 
 ### M4: Rich management
@@ -33,6 +33,12 @@ Metadata/artwork matching and attribution; gamelist imports; BIOS checker; profi
 
 ### M5: Advanced suite
 Arcade Builder, additional adapters, cloning/migration, optional AI diagnostics, optional secure remote/NAS optimization.
+
+### Compliance track (runs alongside the milestones; see docs/16 §13 and §18)
+- LEGAL-001 inventory: 🟡 software done (docs/17); add each platform or asset as it is considered.
+- LEGAL-014 CI license gate: 🟡 `scripts/check-licenses.py` runs in CI; release sign-off still to be defined.
+- **Gates:** metadata and artwork (M4) need LEGAL-007; any download of third-party software needs LEGAL-005 and LEGAL-011; commercial launch needs LEGAL-008, 009, 012 and 013.
+- **Owner actions (not code):** LEGAL-002/003 (contact the RetroBat maintainers), 004, 008 (trademark search for "RetroDrive"), 012 and 013.
 
 ## Story format
 Every GitHub issue should state: persona/problem, user-visible result, constraints, dependencies, implementation notes, tests, documentation updated and acceptance criteria. Label e.g. `area:catalog`, `area:storage`, `area:adapter`, `area:security`, `type:feature`, `type:bug`.
