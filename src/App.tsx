@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { invoke, isTauri } from '@tauri-apps/api/core';
+import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import logoUrl from './assets/retrodrive-logo.png';
 import iconUrl from './assets/retrodrive-icon.png';
 import { Activity, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, CircleStop, Copy, Database, Eye, Plus, XCircle, FolderOpen, Gamepad2, HardDrive, LayoutDashboard, LayoutGrid, LibraryBig, List, RefreshCcw, Search, Settings2, ShieldCheck } from 'lucide-react';
 
 type Availability = 'online'|'offline'|'missing';
-type Game = { id: string; game_id: string; title: string; platform: string; path: string; file_size: number; disc_count: number; incomplete: boolean; storage_name: string; availability: Availability; duplicate_count: number; reference: RefInfo|null };
+type Game = { id: string; game_id: string; title: string; platform: string; path: string; file_size: number; disc_count: number; incomplete: boolean; storage_name: string; availability: Availability; duplicate_count: number; reference: RefInfo|null; file_id: string; art: string|null };
+/** URL of a game's linked image (served only by RetroDrive's media protocol), or null. */
+const artUrl = (g: { file_id: string; art: string|null }) => g.art ? `${convertFileSrc(g.file_id, 'rdmedia')}?v=${encodeURIComponent(g.art.split('|')[2] ?? '')}` : null;
+const artSource = (g: { art: string|null }) => g.art?.split('|')[1] ?? null;
 type RefInfo = { title: string; year: number|null; genre: string|null; publisher: string|null; developer: string|null; method: 'name'|'variant'|'title' };
 type MatchCounts = { by_name: number; by_variant: number; by_title: number };
 type PlatformMatch = { platform: string; games: number; matched: number };
@@ -55,7 +58,7 @@ function Checks({ checks }: { checks: LayoutCheck[] }) {
   return <ul className="checks">{checks.map(c=><li key={c.id} className={'check '+c.status}>{c.status==='ok'?<CheckCircle2 size={15}/>:c.status==='warning'?<AlertTriangle size={15}/>:<XCircle size={15}/>}<span><b>{c.label}</b> — {c.detail}</span></li>)}</ul>;
 }
 type ScanIssue = { path: string; message: string; severity: 'error'|'warning' };
-type ScanSummary = { indexed: number; games: number; new_files: number; marked_missing: number; skipped_unsupported: number; skipped_links: number; complete: boolean; cancelled: boolean; issue_count: number; error_count: number; warning_count: number; grouped_files: number; issues: ScanIssue[]; remounted_from: string|null };
+type ScanSummary = { indexed: number; games: number; new_files: number; marked_missing: number; skipped_unsupported: number; skipped_links: number; complete: boolean; cancelled: boolean; issue_count: number; error_count: number; warning_count: number; grouped_files: number; issues: ScanIssue[]; remounted_from: string|null; images_found: number; images_linked: number };
 type Presence = 'connected'|'not_connected'|'other_volume';
 type StorageRow = { id: string; display_name: string; root_path: string; kind: string; stable_id: string|null; volume_label: string|null; filesystem: string|null; volume_serial: string|null; total_bytes: number|null; last_seen_at: string|null; file_count: number; missing_count: number; presence: Presence };
 const sqlTime = (t: string|null) => t ? new Date(t.replace(' ','T')+'Z').toLocaleString() : 'never';
@@ -79,6 +82,7 @@ function describeScan(r: ScanSummary): string {
   const parts=[`Found ${r.games.toLocaleString()} games (${r.new_files.toLocaleString()} new files)`, `${r.skipped_unsupported.toLocaleString()} non-game files ignored`];
   if(r.marked_missing) parts.push(`${r.marked_missing} previously indexed files not found`);
   if(r.grouped_files) parts.push(`${r.grouped_files.toLocaleString()} disc/track files grouped into their games`);
+  if(r.images_found) parts.push(`${r.images_found.toLocaleString()} images found, ${r.images_linked.toLocaleString()} games linked to art`);
   if(r.error_count) parts.push(`${r.error_count.toLocaleString()} item(s) could not be read`);
   if(r.warning_count) parts.push(`${r.warning_count.toLocaleString()} warning(s)`);
   if(r.cancelled) return moved+'Scan cancelled. '+parts.join(' · ')+'. Files found so far were kept; the missing-file check was skipped. No files were moved or modified.';
@@ -231,6 +235,16 @@ export default function App() {
     try { await invoke<boolean>('remove_reference'); setRefRemoving(false); setRefResult(null); await loadReference(); setReloadKey(k=>k+1); setMessage('Reference catalog removed. Your library and files are unchanged.'); }
     catch(e){ setError(true); setMessage(`Could not remove the catalog: ${String(e)}`); }
   };
+  const setArt=async(g:Game)=>{
+    try { const path=await open({multiple:false,directory:false,title:`Choose box art for ${displayTitle(g)}`,filters:[{name:'Images',extensions:['png','jpg','jpeg','webp','gif','bmp']}]});
+      if(!path||typeof path!=='string') return;
+      await invoke('set_game_art',{fileId:g.file_id, path}); setError(false); setMessage(`Box art set for ${displayTitle(g)}. The image stays where it is; nothing was copied.`); setReloadKey(k=>k+1);
+    } catch(e){ setError(true); setMessage(`Could not set the box art: ${String(e)}`); }
+  };
+  const removeArt=async(g:Game)=>{
+    try { await invoke<boolean>('remove_game_art',{fileId:g.file_id}); setMessage(`Your box art for ${displayTitle(g)} was removed (the image file wasn't touched).`); setReloadKey(k=>k+1); }
+    catch(e){ setError(true); setMessage(`Could not remove the box art: ${String(e)}`); }
+  };
   const cancelScan=async()=>{
     if(!scan) return;
     setScan({...scan,cancelling:true}); setMessage('Cancelling scan — finishing the current file...');
@@ -270,7 +284,7 @@ export default function App() {
         {filtersActive&&<button className="link" onClick={clearFilters}>Clear filters</button>}
       </div>
       {libraryView==='grid' ? <div className={'game-grid'+(libraryLoading?' loading':'')}>{library?.rows.map(g=><article key={g.id} className={'game-card '+g.availability} title={`${displayTitle(g)}${g.reference?.publisher?`\n${g.reference.publisher}`:''}\n${g.path}\n${availabilityLabel[g.availability]}`}>
-        <div className="cover" style={{['--hue' as string]:platformHue(g.platform)}}><span className="cover-initials">{initials(displayTitle(g))}</span><span className="cover-platform">{g.platform}</span></div>
+        <div className="cover" style={{['--hue' as string]:platformHue(g.platform)}}><span className="cover-initials">{initials(displayTitle(g))}</span>{artUrl(g)&&<img className="cover-img" src={artUrl(g)!} alt="" loading="lazy" onError={e=>{e.currentTarget.style.display='none';}}/>}<span className="cover-platform">{g.platform}</span>{native&&<div className="art-actions"><button onClick={()=>void setArt(g)}>{g.art?'Change art':'Add art'}</button>{artSource(g)==='user'&&<button onClick={()=>void removeArt(g)}>Remove my art</button>}</div>}</div>
         <div className="card-body"><b>{displayTitle(g)}</b>{g.reference&&refLine(g.reference)&&<small className="ref-line">{refLine(g.reference)}</small>}<small>{fmtSize(g.file_size)} · <span className={'state '+g.availability}>{g.availability==='online'?'Online':g.availability==='offline'?'Offline':'Missing'}</span></small>
           <div className="card-badges">{g.disc_count>1&&<span className="disc-badge">{g.disc_count} discs</span>}{g.incomplete&&<span className="incomplete-badge">Incomplete</span>}{g.duplicate_count>1&&<span className="dup-badge" title="Possible duplicate copies (same platform, name and size)">×{g.duplicate_count}</span>}</div></div></article>)}
         {library&&library.rows.length===0&&<div className="empty"><Database size={26}/>{(stats?.files??0)===0?'No games yet. Import a ROM folder to begin.':<>No games match these filters. <button className="link" onClick={clearFilters}>Clear filters</button></>}</div>}</div>

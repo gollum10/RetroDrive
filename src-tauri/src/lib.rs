@@ -10,6 +10,7 @@ mod deployment;
 mod drives;
 mod installations;
 mod jobs;
+mod media;
 mod paths;
 mod reference;
 mod scanner;
@@ -143,6 +144,39 @@ async fn import_reference(catalog: State<'_, Catalog>, path: String) -> Result<r
 #[tauri::command]
 fn reference_status(catalog: State<'_, Catalog>) -> Result<Option<reference::CatalogStatus>, String> {
     reference::status(&db::open(&catalog.path()?)?)
+}
+
+/// Use an image the user picked as a game's box art. The image isn't copied.
+#[tauri::command]
+fn set_game_art(catalog: State<'_, Catalog>, file_id: String, path: String) -> Result<(), String> {
+    media::set_user_art(&db::open(&catalog.path()?)?, &file_id, Path::new(&path), &volumes::probe)
+}
+
+/// Forget the user's own art for a game (the image file is untouched).
+#[tauri::command]
+fn remove_game_art(catalog: State<'_, Catalog>, file_id: String) -> Result<bool, String> {
+    media::remove_user_art(&db::open(&catalog.path()?)?, &file_id)
+}
+
+/// Serve `rdmedia://<game file id>`: the best image linked to that game, and nothing else.
+fn serve_media(db_path: Result<PathBuf, String>, uri_path: &str) -> tauri::http::Response<Vec<u8>> {
+    let not_found = || tauri::http::Response::builder().status(404).body(Vec::new()).unwrap_or_default();
+    let id = uri_path.trim_matches('/');
+    if id.is_empty() || id.len() > 64 || !id.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
+        return not_found();
+    }
+    let found = db_path.and_then(|p| db::open(&p)).and_then(|c| media::resolve(&c, id, &volumes::presence));
+    match found {
+        Ok(Some((path, mime))) => match std::fs::read(&path) {
+            Ok(bytes) => tauri::http::Response::builder()
+                .header(tauri::http::header::CONTENT_TYPE, mime)
+                .header(tauri::http::header::CACHE_CONTROL, "private, max-age=86400")
+                .body(bytes)
+                .unwrap_or_else(|_| not_found()),
+            Err(_) => not_found(),
+        },
+        _ => not_found(),
+    }
 }
 
 /// Remove the reference catalog; the library itself is unchanged.
@@ -423,6 +457,11 @@ fn list_drives() -> Vec<drives::Drive> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .register_asynchronous_uri_scheme_protocol("rdmedia", |ctx, request, responder| {
+            let db_path = ctx.app_handle().state::<Catalog>().path();
+            let uri_path = request.uri().path().to_string();
+            tauri::async_runtime::spawn_blocking(move || responder.respond(serve_media(db_path, &uri_path)));
+        })
         .manage(ActiveJobs::default())
         .setup(|app| {
             let path = init_catalog(app.handle());
@@ -445,6 +484,8 @@ pub fn run() {
             import_reference,
             reference_status,
             remove_reference,
+            set_game_art,
+            remove_game_art,
             set_arcade_system,
             start_deployment,
             list_storage_locations, start_scan, cancel_job, active_scan, recent_jobs, list_drives])

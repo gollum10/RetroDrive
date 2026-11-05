@@ -13,11 +13,11 @@
 //!   join one game; references outside the scanned folder are refused (RDS-005).
 
 use crate::volumes::VolumeProbe;
-use crate::{classify, db, paths};
+use crate::{classify, db, media, paths};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use walkdir::WalkDir;
 
@@ -42,8 +42,12 @@ pub struct ScanSummary {
     pub new_files: usize,
     /// Previously indexed files not found by this (error-free) scan.
     pub marked_missing: usize,
-    /// Files ignored because they are not recognized game files.
+    /// Files ignored because they are not recognized game files (images are counted separately).
     pub skipped_unsupported: usize,
+    /// Image files seen (box art, screenshots…); never copied, only linked.
+    pub images_found: usize,
+    /// Games linked to an image by this scan (from `gamelist.xml` or folder conventions).
+    pub images_linked: usize,
     /// Symbolic links / junctions that were not followed.
     pub skipped_links: usize,
     /// True when every entry was read and the scan was not cancelled;
@@ -202,6 +206,9 @@ pub fn scan_with(
     let mut recorded: HashMap<String, Recorded> = HashMap::new();
     let mut cue_sheets: Vec<ReferenceList> = Vec::new();
     let mut playlists: Vec<ReferenceList> = Vec::new();
+    // Images (lower-case volume-relative path -> as written) and gamelists (file, folder).
+    let mut images: HashMap<String, String> = HashMap::new();
+    let mut gamelists: Vec<(PathBuf, String)> = Vec::new();
     let mut progress = ScanProgress::default();
     let mut pending = 0usize;
     let mut last_commit = Instant::now();
@@ -258,7 +265,18 @@ pub fn scan_with(
             folders.extend(parent.components().filter_map(|c| c.as_os_str().to_str()));
         }
         let Some(classification) = classify::classify(&folders, &extension) else {
-            summary.skipped_unsupported += 1;
+            let below = relative_str.replace('\\', "/");
+            let relative_path = join_relative(&root_relative, &below);
+            if media::is_image(&extension) {
+                summary.images_found += 1;
+                images.insert(relative_path.to_lowercase(), relative_path);
+            } else {
+                if path.file_name().is_some_and(|n| n.eq_ignore_ascii_case("gamelist.xml")) {
+                    let folder = relative_path.rsplit_once('/').map(|(d, _)| d.to_string()).unwrap_or_default();
+                    gamelists.push((path.to_path_buf(), folder));
+                }
+                summary.skipped_unsupported += 1;
+            }
             continue;
         };
 
@@ -336,6 +354,10 @@ pub fn scan_with(
     let walked_and_linked = grouping.recorded.values().filter(|r| r.walked && grouping.linked.contains(&r.file_id)).count();
     summary.games = summary.indexed.saturating_sub(walked_and_linked);
 
+    if !summary.cancelled {
+        summary.images_linked = link_media(connection, &storage_id, &grouping.recorded, &grouping.linked, &gamelists, &images, &mut summary)?;
+    }
+
     summary.complete = !summary.cancelled && summary.error_count == 0;
     if summary.complete {
         summary.marked_missing = mark_missing(connection, &storage_id, &root_relative, &scan_id)?;
@@ -364,6 +386,82 @@ pub fn scan_with(
     progress.current_path.clear();
     observer.progress(&progress);
     Ok(summary)
+}
+
+/// Link games reached by this scan to images: entries in `gamelist.xml` first, then
+/// common folder conventions next to the ROM. Only image files seen by this walk are
+/// used, so links always point inside the scanned folder. The user's own picks are
+/// never touched. Returns how many games got an image.
+fn link_media(
+    connection: &Connection,
+    storage_id: &str,
+    recorded: &HashMap<String, Recorded>,
+    members: &HashSet<String>,
+    gamelists: &[(PathBuf, String)],
+    images: &HashMap<String, String>,
+    summary: &mut ScanSummary,
+) -> Result<usize, String> {
+    let mut chosen: HashMap<&str, Vec<(&'static str, &'static str, String)>> = HashMap::new();
+    for (file, folder) in gamelists {
+        let entries = match media::parse_gamelist(file) {
+            Ok(entries) => entries,
+            Err(error) => {
+                summary.warn(file, format!("Couldn't read this gamelist, so its images weren't linked: {error}"));
+                continue;
+            }
+        };
+        for entry in entries {
+            let Some(rom) = media::resolve_relative(folder, &entry.path) else { continue };
+            let Some(record) = recorded.get(&rom.to_lowercase()) else { continue };
+            if !record.walked || members.contains(&record.file_id) {
+                continue;
+            }
+            for (kind, image) in &entry.images {
+                if *kind == "marquee" {
+                    continue; // a logo, not a cover
+                }
+                let found = media::resolve_relative(folder, image).and_then(|r| images.get(&r.to_lowercase()));
+                if let Some(actual) = found {
+                    chosen.entry(record.file_id.as_str()).or_default().push((kind, "gamelist", actual.clone()));
+                }
+            }
+        }
+    }
+    for (key, record) in recorded {
+        if !record.walked || members.contains(&record.file_id) || chosen.contains_key(record.file_id.as_str()) {
+            continue;
+        }
+        let (folder, name) = key.rsplit_once('/').unwrap_or(("", key.as_str()));
+        let stem = name.rsplit_once('.').map(|(s, _)| s).unwrap_or(name);
+        'conventions: for (kind, pattern) in media::CONVENTIONS {
+            let base = pattern.replace("{stem}", stem);
+            for extension in media::IMAGE_EXTENSIONS {
+                let candidate = if folder.is_empty() { format!("{base}.{extension}") } else { format!("{folder}/{base}.{extension}") };
+                if let Some(actual) = images.get(&candidate) {
+                    chosen.entry(record.file_id.as_str()).or_default().push((kind, "folder", actual.clone()));
+                    break 'conventions;
+                }
+            }
+        }
+    }
+    let mut clear = connection
+        .prepare_cached("DELETE FROM game_media WHERE game_file_id = ?1 AND source IN ('gamelist', 'folder')")
+        .map_err(|e| e.to_string())?;
+    let mut insert = connection
+        .prepare_cached(
+            "INSERT INTO game_media (game_file_id, kind, source, storage_location_id, relative_path) VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT (game_file_id, source, kind) DO UPDATE SET relative_path = excluded.relative_path, storage_location_id = excluded.storage_location_id",
+        )
+        .map_err(|e| e.to_string())?;
+    for record in recorded.values().filter(|r| r.walked && !members.contains(&r.file_id)) {
+        clear.execute([&record.file_id]).map_err(|e| e.to_string())?;
+    }
+    for (file_id, found) in &chosen {
+        for (kind, source, relative) in found {
+            insert.execute(params![file_id, kind, source, storage_id, relative]).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(chosen.len())
 }
 
 struct FileFacts<'a> {
@@ -1270,5 +1368,71 @@ mod tests {
         let titles: Vec<String> = c.prepare("SELECT canonical_title FROM games ORDER BY 1").unwrap()
             .query_map([], |r| r.get(0)).unwrap().map(Result::unwrap).collect();
         assert_eq!(titles, ["Locked Rom", "Other", "Single (USA)"], "locked files are still indexed from their directory entry");
+    }
+
+    #[test]
+    fn box_art_is_linked_from_gamelists_and_folder_conventions_without_copying() {
+        let unknown = |_: &str| VolumeProbe::unknown();
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("roms");
+        let put = |rel: &str, body: &[u8]| {
+            let p = root.join(rel);
+            fs::create_dir_all(p.parent().unwrap()).unwrap();
+            fs::write(p, body).unwrap();
+        };
+        put("nes/Tom & Jerry (USA).zip", b"rom");
+        put("nes/Kid Icarus (USA).zip", b"rom");
+        put("nes/No Art (USA).zip", b"rom");
+        put("nes/media/screenshot/Tom & Jerry (USA).png", b"png");
+        put("nes/images/Kid Icarus (USA)-image.jpg", b"jpg");
+        put("nes/media/screenshot/Orphan.png", b"png");
+        put("outside.png", b"png");
+        put(
+            "nes/gamelist.xml",
+            br#"<gameList><game><path>./Tom &amp; Jerry (USA).zip</path><image>./media/screenshot/Tom &amp; Jerry (USA).png</image></game>
+<game><path>./No Art (USA).zip</path><image>../../outside.png</image><marquee>./media/screenshot/Orphan.png</marquee></game></gameList>"#,
+        );
+        let before: Vec<_> = walkdir::WalkDir::new(&root).sort_by_file_name().into_iter().map(|e| e.unwrap().path().to_path_buf()).collect();
+        let mut c = catalog();
+        let summary = scan(&mut c, &root, &unknown).unwrap();
+        assert_eq!(summary.games, 3);
+        assert_eq!(summary.images_found, 4);
+        assert_eq!(summary.images_linked, 2);
+        assert_eq!(summary.skipped_unsupported, 1, "only gamelist.xml; images are counted separately");
+        let art = |file: &str| -> Option<(String, String, String)> {
+            c.query_row(
+                "SELECT m.kind, m.source, m.relative_path FROM game_media m JOIN game_files gf ON gf.id = m.game_file_id WHERE gf.filename = ?1",
+                [file],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .optional()
+            .unwrap()
+        };
+        let tom = art("Tom & Jerry (USA).zip").unwrap();
+        assert_eq!((tom.0.as_str(), tom.1.as_str()), ("image", "gamelist"));
+        assert!(tom.2.ends_with("nes/media/screenshot/Tom & Jerry (USA).png"), "{}", tom.2);
+        let kid = art("Kid Icarus (USA).zip").unwrap();
+        assert_eq!((kid.0.as_str(), kid.1.as_str()), ("image", "folder"));
+        assert_eq!(art("No Art (USA).zip"), None, "an image outside the scanned folder and a marquee logo are not used");
+        let after: Vec<_> = walkdir::WalkDir::new(&root).sort_by_file_name().into_iter().map(|e| e.unwrap().path().to_path_buf()).collect();
+        assert_eq!(before, after, "scanning never creates or copies files");
+
+        // The user's own pick survives rescans; scanned links aren't duplicated.
+        let kid_id: String = c.query_row("SELECT id FROM game_files WHERE filename = 'Kid Icarus (USA).zip'", [], |r| r.get(0)).unwrap();
+        let picked = dir.path().join("my art.png");
+        fs::write(&picked, b"png").unwrap();
+        media::set_user_art(&c, &kid_id, &picked, &unknown).unwrap();
+        scan(&mut c, &root, &unknown).unwrap();
+        let rows: i64 = c.query_row("SELECT COUNT(*) FROM game_media", [], |r| r.get(0)).unwrap();
+        assert_eq!(rows, 3, "two scanned links plus the user's pick");
+        let best = media::resolve(&c, &kid_id, &|_, _| crate::volumes::Presence::Connected).unwrap().unwrap();
+        assert!(best.0.ends_with("my art.png"), "the user's pick wins: {:?}", best.0);
+        assert_eq!(best.1, "image/png");
+        assert!(media::remove_user_art(&c, &kid_id).unwrap());
+        let best = media::resolve(&c, &kid_id, &|_, _| crate::volumes::Presence::Connected).unwrap().unwrap();
+        assert!(best.0.to_string_lossy().ends_with("Kid Icarus (USA)-image.jpg"));
+        assert!(picked.exists(), "removing art never deletes the image file");
+        assert_eq!(media::resolve(&c, &kid_id, &|_, _| crate::volumes::Presence::NotConnected).unwrap(), None, "nothing is served from a drive that isn't connected");
+        assert!(media::set_user_art(&c, &kid_id, &root.join("nes/Kid Icarus (USA).zip"), &unknown).unwrap_err().contains("image file"));
     }
 }

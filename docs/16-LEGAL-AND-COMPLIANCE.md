@@ -319,6 +319,7 @@ This is an engineering status record, not a legal conclusion.
 | RetroBat download/install (RDS-012) | ⛔ **Blocked on LEGAL-002/003** (written permission). The installer license recorded in §5 (2026-11-05) supports this block. | docs/11 |
 | RetroBat: copying the user's games into their own install (RDS-010) | ✅ Personal-use copying only; no RetroBat files are touched; no "prepare drives for sale" feature. | docs/18 |
 | Personal-use statement | 🟡 Draft wording in Settings and README, pending counsel. | `src/App.tsx`, README |
+| Game art | ✅ Never shipped, downloaded or copied. RetroDrive only links to images on the user's own drives (gamelists, folder conventions, user picks) and displays them locally (ADR-025). | docs/07 |
 | OneSauce / RetroFE target | ⛔ **Not started; blocked on LEGAL-015.** | §6, docs/11 |
 | Batocera images and installs (RDS-013/014) | ⛔ **Blocked on LEGAL-004** (plus the existing safety review). | docs/11 |
 | Metadata and artwork providers | ⛔ **Blocked on LEGAL-007.** | docs/11 |

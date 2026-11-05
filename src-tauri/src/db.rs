@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 9;
+pub const SCHEMA_VERSION: i32 = 10;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -157,6 +157,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 9 {
         tx.execute_batch(SCHEMA_V9).map_err(|e| e.to_string())?;
+    }
+    if from_version < 10 {
+        tx.execute_batch(SCHEMA_V10).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -743,6 +746,22 @@ CREATE TABLE game_reference (
     matched_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_game_reference_entry ON game_reference(entry_id);
+";
+
+/// v10: game images (`media.rs`). Stores only where an image is; images are never
+/// copied. `source` is `gamelist`, `folder` (found by a scan) or `user` (picked by hand).
+const SCHEMA_V10: &str = "
+CREATE TABLE game_media (
+    id                   INTEGER PRIMARY KEY,
+    game_file_id         TEXT NOT NULL REFERENCES game_files(id) ON DELETE CASCADE,
+    kind                 TEXT NOT NULL,
+    source               TEXT NOT NULL,
+    storage_location_id  TEXT NOT NULL REFERENCES storage_locations(id) ON DELETE CASCADE,
+    relative_path        TEXT NOT NULL,
+    added_at             TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (game_file_id, source, kind)
+);
+CREATE INDEX idx_game_media_file ON game_media(game_file_id);
 ";
 
 #[cfg(test)]
