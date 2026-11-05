@@ -59,7 +59,8 @@ Every GitHub issue should state: persona/problem, user-visible result, constrain
 5. ~~RDS-009 deployment plan (read-only).~~ Done 2026-11-05.
 6. ~~RDS-010 staged, verified copy.~~ Done 2026-11-05 (docs/18).
 7. ~~Arcade choice (RDS-016).~~ Done 2026-11-05.
-8. **Next candidates:** confirm copied games launch in RetroBat (docs/18 §6), RDS-017 conflict and clash choices, RDS-008 Batocera (read-only), collections, RDS-019 small-file speed.
+8. **Owner-approved order (2026-11-05):** ~~(1) Plex-style library: Systems page, grid/list views~~ (done) → (2) import the owner's reference catalog (names, details, genres; no art) → (3) box art from the user's own images (local only, never shipped) → (4) ignored files / new platforms → (5) RDS-017 conflict choices → (6) RDS-019 small-file speed → (7) collections → (8) RDS-008 Batocera → (9) scraper (e.g. ScreenScraper with the user's own account), **blocked on LEGAL-007**.
+9. **Earlier candidates:** confirm copied games launch in RetroBat (docs/18 §6), RDS-017 conflict and clash choices, RDS-008 Batocera (read-only), collections, RDS-019 small-file speed.
 
 ## Definition of done
 Code reviewed; automated tests passing; sample manual Windows test complete; failure/retry behavior tested; documentation updated; no unexpected file mutations; security-sensitive features assessed; versioned migration/backup path documented.

@@ -4,15 +4,22 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import logoUrl from './assets/retrodrive-logo.png';
 import iconUrl from './assets/retrodrive-icon.png';
-import { Activity, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, CircleStop, Copy, Database, Eye, Plus, XCircle, FolderOpen, Gamepad2, HardDrive, LayoutDashboard, LibraryBig, RefreshCcw, Search, Settings2, ShieldCheck } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, CircleStop, Copy, Database, Eye, Plus, XCircle, FolderOpen, Gamepad2, HardDrive, LayoutDashboard, LayoutGrid, LibraryBig, List, RefreshCcw, Search, Settings2, ShieldCheck } from 'lucide-react';
 
 type Availability = 'online'|'offline'|'missing';
 type Game = { id: string; game_id: string; title: string; platform: string; path: string; file_size: number; disc_count: number; incomplete: boolean; storage_name: string; availability: Availability; duplicate_count: number };
 type GamePage = { rows: Game[]; total: number; total_capped: boolean; offset: number; limit: number };
 type LibraryStats = { files: number; online: number; offline: number; missing: number; duplicate_files: number; platforms: { platform: string; files: number }[] };
+type SystemSummary = { platform: string; games: number; bytes: number };
 type Filters = { text: string; platform: string; availability: ''|Availability; storage_id: string; duplicates_only: boolean; sort: 'title'|'platform'|'size' };
 const noFilters: Filters = { text:'', platform:'', availability:'', storage_id:'', duplicates_only:false, sort:'title' };
 const PAGE_SIZE = 100;
+type LibraryMode = 'systems'|'games'; type LibraryView = 'list'|'grid';
+function remembered<T extends string>(key: string, allowed: readonly T[], fallback: T): T { try { const v = localStorage.getItem(key); return v && (allowed as readonly string[]).includes(v) ? v as T : fallback; } catch { return fallback; } }
+function remember(key: string, value: string) { try { localStorage.setItem(key, value); } catch { /* storage unavailable: the choice just isn't remembered */ } }
+/** A stable colour per platform for placeholder tiles (until box art is added). */
+function platformHue(name: string): number { let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
+function initials(title: string): string { const words = title.replace(/\(.*?\)|\[.*?\]/g, '').split(/[\s:\-_]+/).filter(w => /[A-Za-z0-9]/.test(w)); return (words.slice(0, 2).map(w => w[0]).join('') || '?').toUpperCase(); }
 /** Keep the drive and the last folders visible, e.g. C:\…\roms\snes\Game.sfc */
 function shortPath(path: string): string {
   const sep = path.includes('\\') ? '\\' : '/';
@@ -79,6 +86,14 @@ const bytes = (n:number) => `${(n/1024/1024/1024).toFixed(1)} GB`;
 export default function App() {
   const [page,setPage]=useState<Page>('Dashboard');
   const [stats,setStats]=useState<LibraryStats|null>(null); const [drives,setDrives]=useState<Drive[]>([]); const [storage,setStorage]=useState<StorageRow[]>([]);
+  const [libraryMode,setLibraryMode]=useState<LibraryMode>(()=>remembered('rd.libraryMode',['systems','games'] as const,'systems'));
+  const [libraryView,setLibraryView]=useState<LibraryView>(()=>remembered('rd.libraryView',['list','grid'] as const,'grid'));
+  const chooseMode=(m:LibraryMode)=>{ setLibraryMode(m); remember('rd.libraryMode',m); };
+  const [systems,setSystems]=useState<SystemSummary[]|null>(null);
+  useEffect(()=>{ if(page!=='Game Library'||libraryMode!=='systems'||!native) return; let live=true;
+    invoke<SystemSummary[]>('system_summary').then(r=>{ if(live) setSystems(r); }).catch(e=>{ if(live){ setError(true); setMessage(`Could not load systems: ${String(e)}`); } });
+    return ()=>{ live=false; }; },[page,libraryMode,stats]);
+  const chooseView=(v:LibraryView)=>{ setLibraryView(v); remember('rd.libraryView',v); };
   const [filters,setFilters]=useState<Filters>(noFilters); const [searchText,setSearchText]=useState(''); const [offset,setOffset]=useState(0);
   const [library,setLibrary]=useState<GamePage|null>(null); const [libraryLoading,setLibraryLoading]=useState(false); const [reloadKey,setReloadKey]=useState(0);
   const requestId=useRef(0); const finishedJobs=useRef(new Set<string>()); const resultRef=useRef<HTMLElement|null>(null);
@@ -213,6 +228,9 @@ export default function App() {
     <section className="panel activity"><h2>Recent activity</h2>{jobs.length===0?<p>No scans or copies yet.</p>:jobs.map(j=><div className="platform-row" key={j.id}><span><b className={'job '+j.state}>{jobStateLabel[j.state]??j.state}</b> <span className="job-folder" title={j.input.folder}>{j.kind==='deployment'?'Copy to ':''}{j.input.folder??j.kind}</span></span><em>{j.progress?.indexed!=null?`${j.progress.indexed} files · `:''}{j.progress?.files_copied!=null?`${j.progress.files_copied} files copied · `:''}{j.error_message?j.error_message+' · ':''}{new Date(j.started_at.replace(' ','T')+'Z').toLocaleString()}</em></div>)}</section></>}
     {page==='Game Library' && <section className="panel library-panel">
       <div className="section-heading"><div><h2>Master game catalog</h2><p>One searchable view across every imported folder and drive, including drives that aren't plugged in.</p></div><button className="primary" disabled={!native||busy} onClick={importFolder}><FolderOpen size={17}/> Import folder</button></div>
+      <div className="library-bar"><div className="tabs" role="tablist"><button role="tab" aria-selected={libraryMode==='systems'} className={libraryMode==='systems'?'on':''} onClick={()=>chooseMode('systems')}>Systems</button><button role="tab" aria-selected={libraryMode==='games'} className={libraryMode==='games'?'on':''} onClick={()=>chooseMode('games')}>{filters.platform?`Games · ${filters.platform}`:'All games'}</button></div>
+        {libraryMode==='games'&&<div className="view-toggle" role="group" aria-label="View"><button className={libraryView==='grid'?'on':''} aria-pressed={libraryView==='grid'} title="Grid" onClick={()=>chooseView('grid')}><LayoutGrid size={16}/></button><button className={libraryView==='list'?'on':''} aria-pressed={libraryView==='list'} title="List" onClick={()=>chooseView('list')}><List size={16}/></button></div>}</div>
+      {libraryMode==='systems' ? <div className="system-grid">{systems===null?<div className="empty">Loading systems…</div>:systems.length===0?<div className="empty"><Database size={26}/>No games yet. Import a ROM folder to begin.</div>:[...systems].sort((a,b)=>(a.platform==='Unclassified'?1:0)-(b.platform==='Unclassified'?1:0)||b.games-a.games).map(sp=><button key={sp.platform} className="system-card" style={{['--hue' as string]:platformHue(sp.platform)}} onClick={()=>{ updateFilters({platform:sp.platform}); chooseMode('games'); }}><span className="system-name">{sp.platform}</span><span className="system-count">{sp.games.toLocaleString()} {sp.games===1?'game':'games'}</span><small>{fmtSize(sp.bytes)}{sp.platform==='Unclassified'?' · platform not recognized yet':''}</small></button>)}</div> : <>
       <label className="search"><Search size={18}/><input placeholder="Search titles or systems" value={searchText} onChange={e=>setSearchText(e.target.value)} aria-label="Search titles or systems"/></label>
       <div className="filters">
         <select aria-label="Platform" value={filters.platform} onChange={e=>updateFilters({platform:e.target.value})}><option value="">All platforms</option>{stats?.platforms.map(p=><option key={p.platform} value={p.platform}>{p.platform} ({p.files.toLocaleString()})</option>)}</select>
@@ -222,11 +240,18 @@ export default function App() {
         <label className="check"><input type="checkbox" checked={filters.duplicates_only} onChange={e=>updateFilters({duplicates_only:e.target.checked})}/> Possible duplicates only</label>
         {filtersActive&&<button className="link" onClick={clearFilters}>Clear filters</button>}
       </div>
-      <div className={'table-wrap'+(libraryLoading?' loading':'')}><table><thead><tr><th>Game</th><th>Platform</th><th>Drive</th><th>Size</th><th>Availability</th></tr></thead><tbody>{library?.rows.map(g=><tr key={g.id}><td><b>{g.title}{g.disc_count>1&&<span className="disc-badge" title="Multi-disc game: discs listed by its .m3u playlist">{g.disc_count} discs</span>}{g.incomplete&&<span className="incomplete-badge" title="A disc or track file this game needs is missing. See the scan warnings.">Incomplete</span>}{g.duplicate_count>1&&<span className="dup-badge" title={`Possible duplicate: ${g.duplicate_count} files share this platform, file name and size. Review before removing anything; RetroDrive never deletes files.`}>×{g.duplicate_count}</span>}</b><small title={g.path}>{shortPath(g.path)}</small></td><td>{g.platform}</td><td className="drive-cell" title={g.storage_name}>{g.storage_name}</td><td>{fmtSize(g.file_size)}</td><td><span className={'state '+g.availability}>{availabilityLabel[g.availability]}</span></td></tr>)}</tbody></table>
+      {libraryView==='grid' ? <div className={'game-grid'+(libraryLoading?' loading':'')}>{library?.rows.map(g=><article key={g.id} className={'game-card '+g.availability} title={`${g.title}\n${g.path}\n${availabilityLabel[g.availability]}`}>
+        <div className="cover" style={{['--hue' as string]:platformHue(g.platform)}}><span className="cover-initials">{initials(g.title)}</span><span className="cover-platform">{g.platform}</span></div>
+        <div className="card-body"><b>{g.title}</b><small>{fmtSize(g.file_size)} · <span className={'state '+g.availability}>{g.availability==='online'?'Online':g.availability==='offline'?'Offline':'Missing'}</span></small>
+          <div className="card-badges">{g.disc_count>1&&<span className="disc-badge">{g.disc_count} discs</span>}{g.incomplete&&<span className="incomplete-badge">Incomplete</span>}{g.duplicate_count>1&&<span className="dup-badge" title="Possible duplicate copies (same platform, name and size)">×{g.duplicate_count}</span>}</div></div></article>)}
         {library&&library.rows.length===0&&<div className="empty"><Database size={26}/>{(stats?.files??0)===0?'No games yet. Import a ROM folder to begin.':<>No games match these filters. <button className="link" onClick={clearFilters}>Clear filters</button></>}</div>}</div>
+      : <div className={'table-wrap'+(libraryLoading?' loading':'')}><table><thead><tr><th>Game</th><th>Platform</th><th>Drive</th><th>Size</th><th>Availability</th></tr></thead><tbody>{library?.rows.map(g=><tr key={g.id}><td><b>{g.title}{g.disc_count>1&&<span className="disc-badge" title="Multi-disc game: discs listed by its .m3u playlist">{g.disc_count} discs</span>}{g.incomplete&&<span className="incomplete-badge" title="A disc or track file this game needs is missing. See the scan warnings.">Incomplete</span>}{g.duplicate_count>1&&<span className="dup-badge" title={`Possible duplicate: ${g.duplicate_count} files share this platform, file name and size. Review before removing anything; RetroDrive never deletes files.`}>×{g.duplicate_count}</span>}</b><small title={g.path}>{shortPath(g.path)}</small></td><td>{g.platform}</td><td className="drive-cell" title={g.storage_name}>{g.storage_name}</td><td>{fmtSize(g.file_size)}</td><td><span className={'state '+g.availability}>{availabilityLabel[g.availability]}</span></td></tr>)}</tbody></table>
+        {library&&library.rows.length===0&&<div className="empty"><Database size={26}/>{(stats?.files??0)===0?'No games yet. Import a ROM folder to begin.':<>No games match these filters. <button className="link" onClick={clearFilters}>Clear filters</button></>}</div>}</div>
+      }
       {library&&library.total>0&&<div className="pager"><span>{library.rows.length?`${(library.offset+1).toLocaleString()}–${(library.offset+library.rows.length).toLocaleString()}`:'0'} of {library.total_capped?`${(library.total-1).toLocaleString()}+`:library.total.toLocaleString()}</span>
         <button className="ghost" disabled={offset===0||libraryLoading} onClick={()=>goToOffset(Math.max(0,offset-PAGE_SIZE))}><ChevronLeft size={16}/> Previous</button>
         <button className="ghost" disabled={library.rows.length<PAGE_SIZE||(!library.total_capped&&offset+PAGE_SIZE>=library.total)||libraryLoading} onClick={()=>goToOffset(offset+PAGE_SIZE)}>Next <ChevronRight size={16}/></button></div>}
+      </>}
     </section>}
     {page==='Drive Manager' && <><section className="panel"><h2>Connected volumes</h2><p>Detected storage volumes are displayed for inspection. Formatting and image-writing are intentionally not implemented in this starter.</p><div className="drive-grid">{drives.map(d=><article className="drive" key={d.mount_point}><div className="drive-title"><HardDrive size={23}/><div><b>{d.name||d.mount_point}</b><small>{d.mount_point} {d.removable?'• Removable':''}</small></div></div><div className="bar"><div style={{width:`${d.total_bytes ? 100*(1-d.available_bytes/d.total_bytes):0}%`}}/></div><small>{bytes(Math.max(0,d.total_bytes-d.available_bytes))} used of {bytes(d.total_bytes)}</small></article>)}</div>{drives.length===0&&<div className="empty">No volumes reported by the desktop backend.</div>}</section>
     <section className="panel known-drives"><h2>Known drives</h2><p>Every drive the catalog has scanned, including ones that aren't plugged in. Drives are recognized by their volume ID, not their letter, so a drive that comes back as a different letter keeps its games.</p>

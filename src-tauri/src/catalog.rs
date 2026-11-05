@@ -80,6 +80,16 @@ pub struct PlatformCount {
     pub files: i64,
 }
 
+/// One card on the library's Systems page.
+#[derive(Debug, Serialize, PartialEq)]
+pub struct SystemSummary {
+    pub platform: String,
+    /// Games on this platform (multi-disc games count once).
+    pub games: i64,
+    /// Total size of those games, including discs and tracks.
+    pub bytes: i64,
+}
+
 #[derive(Debug, Serialize)]
 pub struct LibraryStats {
     pub files: i64,
@@ -288,6 +298,24 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
 }
 
 /// Totals for the dashboard and filter menus. Each figure uses an index.
+/// Games and total size per platform, for the library's Systems page. Kept out of
+/// `library_stats` (which runs on every refresh) because summing sizes walks every game.
+pub fn system_summary(connection: &Connection) -> Result<Vec<SystemSummary>, String> {
+    // Walk primary files through the role index, then look up release and game by key.
+    let mut statement = connection
+        .prepare(
+            "SELECT g.platform, COUNT(DISTINCT g.id), COALESCE(SUM(gf.payload_bytes), 0)
+             FROM game_files gf CROSS JOIN game_releases r CROSS JOIN games g
+             WHERE gf.file_role = 'primary' AND r.id = gf.release_id AND g.id = r.game_id
+             GROUP BY g.platform ORDER BY g.platform",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = statement
+        .query_map([], |r| Ok(SystemSummary { platform: r.get(0)?, games: r.get(1)?, bytes: r.get(2)? }))
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
+}
+
 pub fn library_stats(connection: &Connection, presence: PresenceFn) -> Result<LibraryStats, String> {
     let offline_ids = offline_storage_ids(connection, presence)?;
     let count = |sql: &str, bind_offline: bool| -> Result<i64, String> {
@@ -538,6 +566,11 @@ mod tests {
         assert!(saga.file_size > 10_000, "{}", saga.file_size);
         assert!(!saga.incomplete);
         assert_eq!(library_stats(&c, &connected).unwrap().files, 2);
+        let systems = system_summary(&c).unwrap();
+        let psx = systems.iter().find(|p| p.platform == "PlayStation").unwrap();
+        assert_eq!(psx.games, 1, "a multi-disc game counts once per system");
+        assert_eq!(psx.bytes, saga.file_size, "system totals include discs and tracks");
+        assert_eq!(systems.iter().map(|s| s.games).sum::<i64>(), 2);
         let by_size = run(&c, GameQuery { sort: Some("size".into()), limit: Some(1), ..GameQuery::default() });
         assert_eq!(titles(&by_size), ["Saga"], "size sort uses the game's total size");
 
@@ -607,6 +640,9 @@ mod tests {
         let t = Instant::now();
         let stats = library_stats(&c, &connected).unwrap();
         eprintln!("{:<28} files={:>6}  {:?}", "library_stats", stats.files, t.elapsed());
+        let t = std::time::Instant::now();
+        let systems = system_summary(&c).unwrap();
+        eprintln!("{:<28} systems={:>4}  {:?}", "system_summary", systems.len(), t.elapsed());
         assert_eq!(stats.files, 100_000);
         assert_eq!(stats.duplicate_files, 2_000);
     }
