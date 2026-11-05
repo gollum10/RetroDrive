@@ -5,6 +5,7 @@ mod adapters;
 mod catalog;
 mod classify;
 mod db;
+mod deployment;
 mod drives;
 mod installations;
 mod jobs;
@@ -250,13 +251,14 @@ fn remove_installation(catalog: State<'_, Catalog>, id: String) -> Result<bool, 
     installations::remove(&connection, &id)
 }
 
-/// Where every available game would go in an installation. Nothing is written.
+/// Deployment plan for an installation (RDS-009): actions, conflicts and capacity.
+/// `systems` limits it to those system folders; `None` plans all. Nothing is written.
 #[tauri::command]
-async fn placement_preview(catalog: State<'_, Catalog>, installation_id: String) -> Result<installations::PlacementPreview, String> {
+async fn deployment_plan(catalog: State<'_, Catalog>, installation_id: String, systems: Option<Vec<String>>) -> Result<deployment::DeploymentPlan, String> {
     let db_path = catalog.path()?;
     tauri::async_runtime::spawn_blocking(move || {
         let connection = db::open(&db_path)?;
-        installations::placement_preview(&connection, &installation_id, &volumes::presence)
+        deployment::plan(&connection, &installation_id, systems.as_deref(), &volumes::presence, &volumes::space)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -287,7 +289,7 @@ pub fn run() {
             add_installation,
             list_installations,
             remove_installation,
-            placement_preview,
+            deployment_plan,
             list_storage_locations, start_scan, cancel_job, active_scan, recent_jobs, list_drives])
         .run(tauri::generate_context!())
         .expect("error starting RetroDrive");

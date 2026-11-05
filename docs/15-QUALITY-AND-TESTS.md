@@ -22,7 +22,7 @@
 | QA-017 | Catalog DB migration from starter | Original rows preserved or migration safely aborted |
 | QA-018 | Network share disconnect mid-scan | Offline/unknown state, no mass catalog removal |
 
-## Automated coverage (2026-11-04)
+## Automated coverage (2026-11-05)
 Run with `cd src-tauri && cargo test`.
 
 | Test ID | Covered by | Status |
@@ -38,6 +38,10 @@ Run with `cd src-tauri && cargo test`.
 | RDS-006/007 | `adapters::tests::*` (contract through a mock adapter, read-only capabilities, Windows-safe folder names), `adapters::retrobat::tests::*` (detection including case-insensitivity and partial folders, layout checks, wiki path advice, folder mapping, `.fds`, arcade and unknown not guessed, multi-disc subfolders, `..` refused), `installations::tests::*` (inspect, add/list/forget, refusal, preview grouping, preview never writes, incomplete games left out); manual 2026-11-04 in the app with a mock RetroBat folder: refused a non-RetroBat folder, recognized RetroBat, saved it, and the preview put `.fds`→`roms\fds` and the 2-disc game→`roms\psx\Star Saga (USA)\`. The installation folder was verified unchanged afterwards | Automated + manual |
 | RDS-004 | `catalog::tests::text_search_matches_inside_titles_and_platforms` (including literal special characters), `filters_combine`, `duplicate_candidates_need_same_platform_name_and_size`, `pages_and_sorting`, `filtered_counts_are_capped_but_unfiltered_are_exact`, `stats_summarize_the_library`; manual in the app with 39,300 files: search, paging, the duplicates filter and the Review shortcut | Automated + manual |
 | QA-014 | Links are not followed and are reported (as warnings); `scanner::tests::references_outside_the_scanned_folder_are_refused` covers `..` escapes in playlists | Partial: creating a symlink in a test needs Windows Developer Mode |
+| QA-011 (plan side) | `deployment::tests::existing_files_are_kept_or_skipped`: a different existing file is a conflict, kept, and the game isn't copied; same size is skipped; the installation is byte-for-byte unchanged | Automated + manual 2026-11-05 in the app (conflict shown with both sizes); the copy-time choice comes with RDS-010 |
+| QA-013 (plan side) | `deployment::tests::fat32_rejects_files_over_4_gib_and_small_drives_dont_fit`: reserve applied, "doesn't fit", unknown space never "fits"; `volumes::tests::system_volume_space_is_measured` | Automated; blocking execution comes with RDS-010 |
+| QA-014 (destination) | `deployment::tests::junctions_are_never_written_through` (a real junction), `links_and_folders_in_the_way_are_blocked`, `unsafe_relative_paths_are_rejected` | Automated |
+| RDS-009 plan | `deployment::tests::plans_copies_by_system_and_never_writes` (counts, folders, cluster-rounded capacity, stable fingerprint, no changes), `a_subset_of_systems_can_be_chosen`, `a_scanned_installation_is_already_in_place`, `duplicates_are_copied_once_and_clashes_are_blocked`, `missing_files_and_unplugged_drives_are_left_out`; manual 2026-11-05 in the app: 3 to copy (7 files), 1 already there, 1 duplicate, 1 conflict, 3 new folders, NTFS capacity measured, unticking NES re-planned to 2 games, RetroBat folder unchanged | Automated + manual |
 | QA-017 | `db::tests::v0_rows_are_preserved_and_backed_up`, `v1_catalog_upgrades_to_v2_keeping_data`, `v2_catalog_upgrades_to_v3_keeping_references` | Automated |
 | QA-015 (read side) | `scanner::tests::a_different_drive_at_the_same_letter_does_not_inherit_files`, `volumes::tests::system_volume_has_a_fingerprint`; Known drives showed "now a different drive" | Partial: identity is checked; re-checking before *writes* comes with deployment |
 

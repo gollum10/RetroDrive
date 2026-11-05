@@ -28,7 +28,10 @@ type Detection = { adapter_id: string; display_name: string; kind: string; confi
 type LayoutCheck = { id: string; label: string; status: 'ok'|'warning'|'problem'; detail: string };
 type Inspection = { path: string; detections: Detection[]; best: Detection|null; checks: LayoutCheck[] };
 type Installation = { id: string; adapter_id: string; adapter_name: string; path: string; version: string|null; presence: 'connected'|'not_connected'|'other_volume'; checks: LayoutCheck[]; added_at: string };
-type PlacementPreview = { installation_id: string; adapter_name: string; installation_path: string; systems: { system_folder: string; platforms: string[]; games: number; bytes: number }[]; unsupported: { platform: string; reason: string; games: number }[]; unavailable_games: number; planned_games: number; planned_bytes: number; sample: { title: string; platform: string; source: string; destination: string; files: number; bytes: number }[] };
+type PlanAction = 'in_place'|'already_there'|'duplicate'|'copy'|'conflict'|'blocked';
+type PlanGame = { title: string; platform: string; system_folder: string; action: PlanAction; reason: string|null; source: string; destination: string; files: number; bytes: number; bytes_to_copy: number };
+type DeploymentPlan = { installation_id: string; adapter_name: string; installation_path: string; systems: { system_folder: string; platforms: string[]; games: number; bytes: number; selected: boolean }[]; unsupported: { platform: string; reason: string; games: number }[]; unavailable_games: number; games: Record<PlanAction,number>; selected_games: number; files_to_copy: number; bytes_to_copy: number; folders_to_create: number; long_paths: number; capacity: { measured: boolean; filesystem: string|null; free_bytes: number; total_bytes: number; reserve_bytes: number; staging_bytes: number; required_bytes: number; fits: boolean|null; max_file_bytes: number|null }; attention: PlanGame[]; sample: PlanGame[]; fingerprint: string };
+const actionLabel: Record<PlanAction,string> = { copy:'Would be copied', already_there:'Already there (skipped)', in_place:'Already in place', duplicate:'Duplicate (copied once)', conflict:'Conflict: existing file kept', blocked:'Blocked' };
 const kindLabel: Record<string,string> = { portable_app:'Portable Windows app', bootable_os:'Bootable operating system', frontend:'Frontend' };
 const installPresence: Record<Installation['presence'],string> = { connected:'Connected', not_connected:'Not connected (drive unplugged or folder moved)', other_volume:'Not connected (that drive letter is now a different drive)' };
 function Checks({ checks }: { checks: LayoutCheck[] }) {
@@ -75,8 +78,8 @@ export default function App() {
   const [library,setLibrary]=useState<GamePage|null>(null); const [libraryLoading,setLibraryLoading]=useState(false); const [reloadKey,setReloadKey]=useState(0);
   const requestId=useRef(0);
   const [adapters,setAdapters]=useState<AdapterInfo[]>([]); const [installs,setInstalls]=useState<Installation[]>([]);
-  const [inspection,setInspection]=useState<Inspection|null>(null); const [preview,setPreview]=useState<PlacementPreview|null>(null);
-  const [previewLoading,setPreviewLoading]=useState<string|null>(null); const [forgetting,setForgetting]=useState<string|null>(null);
+  const [inspection,setInspection]=useState<Inspection|null>(null); const [plan,setPlan]=useState<DeploymentPlan|null>(null);
+  const [planLoading,setPlanLoading]=useState<string|null>(null); const [planBuilt,setPlanBuilt]=useState<Date|null>(null); const [forgetting,setForgetting]=useState<string|null>(null);
   const [scan,setScan]=useState<ActiveScan|null>(null); const [jobs,setJobs]=useState<JobRecord[]>([]);
   const [message,setMessage]=useState('Ready. Connect a drive or import your existing ROM folder.'); const busy=scan!==null;
   const native=isTauri(); const [issues,setIssues]=useState<ScanIssue[]>([]); const [error,setError]=useState(false);
@@ -126,7 +129,7 @@ export default function App() {
   const addInstallation=async()=>{
     try { const folder=await open({directory:true,multiple:false,title:'Select your RetroBat folder (the one containing RetroBat.exe)'});
       if(!folder || typeof folder!=='string') return;
-      setPreview(null); setInspection(await invoke<Inspection>('inspect_installation',{folder}));
+      setPlan(null); setInspection(await invoke<Inspection>('inspect_installation',{folder}));
     } catch(e){ setError(true); setMessage(`Could not check that folder: ${String(e)}`); }
   };
   const saveInspection=async()=>{
@@ -135,15 +138,20 @@ export default function App() {
       setError(false); setMessage(`${inspection.best.display_name} installation added. Nothing in it was changed.`); setInspection(null); await load();
     } catch(e){ setError(true); setMessage(`Could not add the installation: ${String(e)}`); }
   };
-  const showPreview=async(id:string)=>{
-    setPreviewLoading(id);
-    try { setPreview(await invoke<PlacementPreview>('placement_preview',{installationId:id})); }
-    catch(e){ setError(true); setMessage(`Could not build the placement preview: ${String(e)}`); }
-    finally { setPreviewLoading(null); }
+  const showPlan=async(id:string, systems:string[]|null=null)=>{
+    setPlanLoading(id);
+    try { setPlan(await invoke<DeploymentPlan>('deployment_plan',{installationId:id, systems})); setPlanBuilt(new Date()); }
+    catch(e){ setError(true); setMessage(`Could not build the deployment plan: ${String(e)}`); }
+    finally { setPlanLoading(null); }
+  };
+  const chooseSystems=(change:(selected:Set<string>)=>void)=>{
+    if(!plan) return;
+    const selected=new Set(plan.systems.filter(x=>x.selected).map(x=>x.system_folder)); change(selected);
+    void showPlan(plan.installation_id, plan.systems.map(x=>x.system_folder).filter(x=>selected.has(x)));
   };
   const forgetInstallation=async(id:string)=>{
     if(forgetting!==id){ setForgetting(id); return; }
-    try { await invoke<boolean>('remove_installation',{id}); setForgetting(null); if(preview?.installation_id===id) setPreview(null); setMessage('Installation forgotten. No files were touched.'); await load(); }
+    try { await invoke<boolean>('remove_installation',{id}); setForgetting(null); if(plan?.installation_id===id) setPlan(null); setMessage('Installation forgotten. No files were touched.'); await load(); }
     catch(e){ setError(true); setMessage(`Could not forget the installation: ${String(e)}`); }
   };
   const cancelScan=async()=>{
@@ -163,7 +171,7 @@ export default function App() {
       <div className="scan-stats"><span><b>{(scan.progress?.entries_checked??0).toLocaleString()}</b> items checked</span><span><b>{(scan.progress?.indexed??0).toLocaleString()}</b> game files found</span><span><b>{(scan.progress?.new_files??0).toLocaleString()}</b> new</span>{(scan.progress?.issue_count??0)>0&&<span className="warn-text"><b>{scan.progress?.issue_count}</b> unreadable</span>}</div>
       <small className="scan-current" title={scan.progress?.current_path}>{scan.progress?.current_path||'Starting...'}</small></section>}
     {issues.length>0 && <details className="issues"><summary><AlertTriangle size={15}/> {issues.length} scan issue(s){issues.length>=200?' (first 200 shown)':''}</summary><ul>{issues.map((i,n)=><li key={n} className={'issue-'+i.severity}><b>{i.severity==='error'?'Error':'Warning'}:</b> <code>{i.path}</code> — {i.message}</li>)}</ul></details>}
-    {page==='Dashboard' && <><section className="stats"><article><span>Cataloged games</span><strong>{(stats?.files??0).toLocaleString()}</strong><small>{stats?.platforms.length??0} platforms · local database</small></article><article><span>Detected volumes</span><strong>{drives.length}</strong><small>Read-only discovery</small></article><article><span>Available titles</span><strong>{(stats?.online??0).toLocaleString()}</strong><small>{stats&&(stats.offline||stats.missing)?`${stats.offline.toLocaleString()} offline · ${stats.missing.toLocaleString()} missing`:'Files currently accessible'}</small></article></section><div className="twocol"><section className="panel"><h2>Quick actions</h2><p>Get started with your existing library. Scanning never changes game files.</p><button className="primary" disabled={!native||busy} onClick={importFolder}><FolderOpen size={18}/>{busy?'Scanning...':'Import ROM folder'}</button><button className="subtle" onClick={()=>setPage('Game Library')}><LibraryBig size={18}/> Browse library</button>{(stats?.duplicate_files??0)>0&&<p className="dup-hint"><Copy size={15}/> {stats!.duplicate_files.toLocaleString()} files look like duplicate copies. <button className="link" onClick={reviewDuplicates}>Review them</button> (nothing is deleted).</p>}</section><section className="panel"><h2>Platform roadmap</h2><div className="platform-row"><span>Batocera</span><em>Adapter planned</em></div><div className="platform-row"><span>RetroBat</span><em>{installs.length?`${installs.length} installation${installs.length>1?'s':''} · preview available`:'Recognize & preview (read-only)'}</em></div><div className="platform-row"><span>More systems</span><em>Future milestone</em></div></section></div>
+    {page==='Dashboard' && <><section className="stats"><article><span>Cataloged games</span><strong>{(stats?.files??0).toLocaleString()}</strong><small>{stats?.platforms.length??0} platforms · local database</small></article><article><span>Detected volumes</span><strong>{drives.length}</strong><small>Read-only discovery</small></article><article><span>Available titles</span><strong>{(stats?.online??0).toLocaleString()}</strong><small>{stats&&(stats.offline||stats.missing)?`${stats.offline.toLocaleString()} offline · ${stats.missing.toLocaleString()} missing`:'Files currently accessible'}</small></article></section><div className="twocol"><section className="panel"><h2>Quick actions</h2><p>Get started with your existing library. Scanning never changes game files.</p><button className="primary" disabled={!native||busy} onClick={importFolder}><FolderOpen size={18}/>{busy?'Scanning...':'Import ROM folder'}</button><button className="subtle" onClick={()=>setPage('Game Library')}><LibraryBig size={18}/> Browse library</button>{(stats?.duplicate_files??0)>0&&<p className="dup-hint"><Copy size={15}/> {stats!.duplicate_files.toLocaleString()} files look like duplicate copies. <button className="link" onClick={reviewDuplicates}>Review them</button> (nothing is deleted).</p>}</section><section className="panel"><h2>Platform roadmap</h2><div className="platform-row"><span>Batocera</span><em>Adapter planned</em></div><div className="platform-row"><span>RetroBat</span><em>{installs.length?`${installs.length} installation${installs.length>1?'s':''} · deployment plan available`:'Recognize & plan (read-only)'}</em></div><div className="platform-row"><span>More systems</span><em>Future milestone</em></div></section></div>
     <section className="panel activity"><h2>Recent activity</h2>{jobs.length===0?<p>No scans yet.</p>:jobs.map(j=><div className="platform-row" key={j.id}><span><b className={'job '+j.state}>{jobStateLabel[j.state]??j.state}</b> <span className="job-folder" title={j.input.folder}>{j.input.folder??j.kind}</span></span><em>{j.progress?.indexed!=null?`${j.progress.indexed} files · `:''}{j.error_message?j.error_message+' · ':''}{new Date(j.started_at.replace(' ','T')+'Z').toLocaleString()}</em></div>)}</section></>}
     {page==='Game Library' && <section className="panel library-panel">
       <div className="section-heading"><div><h2>Master game catalog</h2><p>One searchable view across every imported folder and drive, including drives that aren't plugged in.</p></div><button className="primary" disabled={!native||busy} onClick={importFolder}><FolderOpen size={17}/> Import folder</button></div>
@@ -191,10 +199,10 @@ export default function App() {
     </section></>}
     {page==='Emulation Systems' && <>
     <section className="panel">
-      <div className="section-heading"><div><h2>Emulation systems</h2><p>Platforms RetroDrive works with. This page is read-only for now: RetroDrive recognizes an installation and previews where your games would go, but doesn't copy anything yet.</p></div><button className="primary" disabled={!native} onClick={()=>void addInstallation()}><Plus size={17}/> Add existing installation</button></div>
+      <div className="section-heading"><div><h2>Emulation systems</h2><p>Platforms RetroDrive works with. This page is read-only for now: RetroDrive recognizes an installation, plans where your games would go and checks drive space and existing files, but doesn't copy anything yet.</p></div><button className="primary" disabled={!native} onClick={()=>void addInstallation()}><Plus size={17}/> Add existing installation</button></div>
       <div className="adapter-grid">
         {adapters.map(a=><article className="adapter" key={a.id}><b>{a.display_name}</b><small>{kindLabel[a.kind]??a.kind}</small>
-          <ul className="caps"><li className={a.capabilities.detect?'yes':'no'}>Recognizes installations</li><li className={a.capabilities.validate_layout?'yes':'no'}>Checks folder layout</li><li className={a.capabilities.plan_placement?'yes':'no'}>Previews game placement</li><li className="no">Copies games (coming in M2)</li><li className="no">Installs RetroBat (needs RetroBat's written permission first)</li></ul></article>)}
+          <ul className="caps"><li className={a.capabilities.detect?'yes':'no'}>Recognizes installations</li><li className={a.capabilities.validate_layout?'yes':'no'}>Checks folder layout</li><li className={a.capabilities.plan_placement?'yes':'no'}>Plans deployment (space and conflicts)</li><li className="no">Copies games (coming in M2)</li><li className="no">Installs RetroBat (needs RetroBat's written permission first)</li></ul></article>)}
         <article className="adapter planned"><b>Batocera</b><small>Bootable operating system</small><ul className="caps"><li className="no">Planned next (RDS-008)</li></ul></article>
       </div>
     </section>
@@ -215,18 +223,34 @@ export default function App() {
       <h2>Your installations</h2>
       {installs.length===0 ? <div className="empty">No installations yet. Click <b>&nbsp;Add existing installation&nbsp;</b> and pick your RetroBat folder.</div> : installs.map(ins=><article className="installation" key={ins.id}>
         <div className="installation-head"><div><b>{ins.adapter_name}</b><small className="mono">{ins.path}</small><small className={'presence '+ins.presence}>{installPresence[ins.presence]} · {ins.version?`Version ${ins.version}`:'Version unknown'}</small></div>
-          <div className="actions"><button className="primary" disabled={ins.presence!=='connected'||previewLoading!==null} onClick={()=>void showPreview(ins.id)}><Eye size={16}/>{previewLoading===ins.id?'Planning...':'Preview game placement'}</button><button className="ghost" onClick={()=>void forgetInstallation(ins.id)} onBlur={()=>setForgetting(null)}>{forgetting===ins.id?'Click again to forget':'Forget'}</button></div></div>
+          <div className="actions"><button className="primary" disabled={ins.presence!=='connected'||planLoading!==null} onClick={()=>void showPlan(ins.id)}><Eye size={16}/>{planLoading===ins.id?'Planning...':'Plan deployment'}</button><button className="ghost" onClick={()=>void forgetInstallation(ins.id)} onBlur={()=>setForgetting(null)}>{forgetting===ins.id?'Click again to forget':'Forget'}</button></div></div>
         {ins.checks.length>0&&<Checks checks={ins.checks}/>}
       </article>)}
     </section>
-    {preview && <section className="panel">
-      <h2>Placement preview: {preview.adapter_name}</h2>
-      <p>Where your games would go in <span className="mono">{preview.installation_path}</span>. <b>Nothing has been copied</b>; this is a plan only.</p>
-      <div className="preview-summary"><span><b>{preview.planned_games.toLocaleString()}</b> games planned</span><span><b>{fmtSize(preview.planned_bytes)}</b> total</span>{preview.unavailable_games>0&&<span className="warn-text"><b>{preview.unavailable_games.toLocaleString()}</b> left out (drive not connected or files missing)</span>}</div>
-      <div className="table-wrap"><table><thead><tr><th>RetroBat folder</th><th>Platforms</th><th>Games</th><th>Size</th></tr></thead><tbody>{preview.systems.map(sp=><tr key={sp.system_folder}><td><code>roms\{sp.system_folder}</code></td><td>{sp.platforms.join(', ')}</td><td>{sp.games.toLocaleString()}</td><td>{fmtSize(sp.bytes)}</td></tr>)}</tbody></table>{preview.systems.length===0&&<div className="empty">No games can be placed yet.</div>}</div>
-      {preview.unsupported.length>0&&<><h3>Not placed automatically</h3><ul className="unsupported">{preview.unsupported.map(u=><li key={u.platform+u.reason}><b>{u.platform}</b> ({u.games.toLocaleString()} {u.games===1?'game':'games'}): {u.reason}</li>)}</ul></>}
-      {preview.sample.length>0&&<><h3>Examples</h3><div className="table-wrap"><table><thead><tr><th>Game</th><th>Would be copied to</th><th>Files</th><th>Size</th></tr></thead><tbody>{preview.sample.map(g=><tr key={g.destination}><td><b>{g.title}</b><small title={g.source}>{shortPath(g.source)}</small></td><td className="mono" title={g.destination}>{shortPath(g.destination)}</td><td>{g.files}</td><td>{fmtSize(g.bytes)}</td></tr>)}</tbody></table></div></>}
-    </section>}
+    {plan && (()=>{ const c=plan.capacity; const g=plan.games; const verdict=c.fits===true?'ok':c.fits===false?'problem':'warn'; return <section className="panel">
+      <h2>Deployment plan: {plan.adapter_name}</h2>
+      <p>What copying your games to <span className="mono">{plan.installation_path}</span> would do. <b>Nothing has been copied or changed</b>; copying comes in a later update, and it will check everything again first.</p>
+      <div className={'verdict '+verdict}>{verdict==='ok'?<CheckCircle2 size={18}/>:verdict==='problem'?<XCircle size={18}/>:<AlertTriangle size={18}/>}
+        {c.fits===true?(plan.files_to_copy===0?' Nothing new to copy.':' Fits on this drive.'):c.fits===false?" Doesn't fit: free up space or choose fewer platforms.":" Free space couldn't be measured on this drive."}</div>
+      {c.measured&&<div className="capacity"><div className="capacity-bar"><span className="need" style={{width:`${Math.min(100,c.required_bytes/Math.max(1,c.free_bytes)*100)}%`}}/><span className="reserve" style={{width:`${Math.min(100,c.reserve_bytes/Math.max(1,c.free_bytes)*100)}%`}}/></div>
+        <div className="preview-summary"><span>Needs <b>{fmtSize(c.required_bytes)}</b></span><span>Free <b>{fmtSize(c.free_bytes)}</b> of {fmtSize(c.total_bytes)}</span><span>Kept free <b>{fmtSize(c.reserve_bytes)}</b> (safety reserve)</span>{c.filesystem&&<span>{c.filesystem}{c.max_file_bytes?` · max ${fmtSize(c.max_file_bytes)} per file`:''}</span>}</div></div>}
+      <div className="plan-counts">
+        <span className="pc copy"><b>{g.copy.toLocaleString()}</b> to copy<small>{plan.files_to_copy.toLocaleString()} files · {fmtSize(plan.bytes_to_copy)}</small></span>
+        <span className="pc"><b>{g.already_there.toLocaleString()}</b> already there</span>
+        {g.in_place>0&&<span className="pc"><b>{g.in_place.toLocaleString()}</b> already in place</span>}
+        {g.duplicate>0&&<span className="pc"><b>{g.duplicate.toLocaleString()}</b> duplicates</span>}
+        <span className={'pc'+(g.conflict?' conflict':'')}><b>{g.conflict.toLocaleString()}</b> conflicts (kept)</span>
+        <span className={'pc'+(g.blocked?' blocked':'')}><b>{g.blocked.toLocaleString()}</b> blocked</span>
+        {plan.unavailable_games>0&&<span className="pc"><b>{plan.unavailable_games.toLocaleString()}</b> left out<small>drive not connected or files missing</small></span>}
+      </div>
+      {(plan.folders_to_create>0||plan.long_paths>0)&&<p className="plan-notes">{plan.folders_to_create>0&&<>{plan.folders_to_create.toLocaleString()} new {plan.folders_to_create===1?'folder':'folders'} would be created. </>}{plan.long_paths>0&&<span className="warn-text">{plan.long_paths.toLocaleString()} {plan.long_paths===1?'path is':'paths are'} longer than 260 characters, which some emulators can't open.</span>}</p>}
+      <h3>Platforms to include</h3>
+      <div className="table-wrap"><table><thead><tr><th className="pick"><input type="checkbox" aria-label="All platforms" checked={plan.systems.length>0&&plan.systems.every(x=>x.selected)} disabled={planLoading!==null} onChange={e=>{const all=e.target.checked; chooseSystems(sel=>{sel.clear(); if(all) plan.systems.forEach(x=>sel.add(x.system_folder));});}}/></th><th>{plan.adapter_name} folder</th><th>Platforms</th><th>Games</th><th>Size</th></tr></thead><tbody>{plan.systems.map(sp=><tr key={sp.system_folder} className={sp.selected?'':'unpicked'}><td className="pick"><input type="checkbox" aria-label={sp.system_folder} checked={sp.selected} disabled={planLoading!==null} onChange={()=>chooseSystems(sel=>{ if(sel.has(sp.system_folder)) sel.delete(sp.system_folder); else sel.add(sp.system_folder); })}/></td><td><code>roms\{sp.system_folder}</code></td><td>{sp.platforms.join(', ')}</td><td>{sp.games.toLocaleString()}</td><td>{fmtSize(sp.bytes)}</td></tr>)}</tbody></table>{plan.systems.length===0&&<div className="empty">No games can be placed yet.</div>}</div>
+      {plan.attention.length>0&&<><h3>Needs your attention</h3><p className="plan-notes">These games won't be copied. Files already on the drive are always kept.</p><div className="table-wrap"><table><thead><tr><th>Game</th><th>What happens</th><th>Why</th></tr></thead><tbody>{plan.attention.map(x=><tr key={x.source}><td><b>{x.title}</b><small title={x.destination}>{shortPath(x.destination)}</small></td><td><span className={'tag '+x.action}>{actionLabel[x.action]}</span></td><td>{x.reason}</td></tr>)}</tbody></table></div></>}
+      {plan.unsupported.length>0&&<><h3>Not placed automatically</h3><ul className="unsupported">{plan.unsupported.map(u=><li key={u.platform+u.reason}><b>{u.platform}</b> ({u.games.toLocaleString()} {u.games===1?'game':'games'}): {u.reason}</li>)}</ul></>}
+      {plan.sample.length>0&&<><h3>Examples</h3><div className="table-wrap"><table><thead><tr><th>Game</th><th>Would be copied to</th><th>Files</th><th>Size</th></tr></thead><tbody>{plan.sample.map(x=><tr key={x.source}><td><b>{x.title}</b><small title={x.source}>{shortPath(x.source)}</small></td><td className="mono" title={x.destination}>{shortPath(x.destination)}</td><td>{x.files}</td><td>{fmtSize(x.bytes_to_copy)}</td></tr>)}</tbody></table></div></>}
+      <small className="plan-id">Plan {plan.fingerprint}{planBuilt?` · built ${planBuilt.toLocaleTimeString()}`:''}. Build it again if the drive changes.</small>
+    </section>; })()}
     </>}
     {page==='Settings' && <section className="panel"><h2>Application settings</h2><p>RetroDrive currently stores its SQLite catalog in the operating system's application data folder. Imports index files in place and never copy, move, or delete them.</p><p>Future settings: metadata providers, library scan schedules, backup locations, and platform defaults.</p><h2 className="legal-heading">About and legal</h2><p>RetroDrive doesn't include or download games, BIOS or firmware. It only organizes and copies files you choose, so use only files you have the right to use.</p><p className="legal-notice">RetroDrive is an independent retro gaming management application. All third-party product names and trademarks belong to their respective owners. Compatibility references do not imply sponsorship, affiliation, or endorsement.</p><small className="legal-draft">Draft wording from the legal assessment (docs/16), pending counsel review.</small></section>}
     <footer>RetroDrive · Early development build · No disk writes or platform installation features</footer>
