@@ -90,6 +90,16 @@ Choices made while implementing (see ADR-010 and ADR-011 in docs/13):
 - **Older locations** from v0/v1 data have no fingerprint. A scan claims one only when sampled files from it exist on the scanned volume.
 - **Tests:** `db::tests::v2_catalog_upgrades_to_v3_keeping_references`, `same_volume_under_a_new_letter_is_recognized`, `different_volume_at_a_known_letter_gets_its_own_location`, `unidentified_location_is_claimed_only_when_its_files_are_there`.
 
+## Implemented schema v5 (RDS-005, 2026-11-04)
+- **`game_files.file_role`:** `primary` (the file listed in the library), `disc` (listed by an `.m3u`) or `track` (referenced by a `.cue`).
+- **`parent_file_id`:** the `.m3u` or `.cue` that references the file.
+- **`payload_bytes`:** on a primary file, the game's total size (all files in its release). Used for display and the size sort.
+- **`missing_parts`:** on a `.cue` or `.m3u`, how many references weren't found on the last scan.
+- **One game:** all files of a multi-file game share the primary file's `game_releases` row. When a disc is grouped, its own auto-created game and release are merged in and removed (catalog records only, never files).
+- **New indexes:** `game_files(file_role, payload_bytes)` for the size sort and primary counts, and `game_files(release_id, file_role)`. The duplicate-key index now includes `file_role`.
+- **Rule:** migration steps that run before later columns exist use version-specific inserts (`insert_game_file_v1`). This was found when the v0.1 upgrade test failed once v5 columns were added.
+- **Existing catalogs:** a rescan groups discs already indexed under earlier schemas.
+
 ## Implemented schema v4 (RDS-004, 2026-11-04)
 - **`games_fts`:** an FTS5 virtual table (`game_id UNINDEXED, canonical_title, platform`, `tokenize='trigram'`), back-filled from `games` and kept in sync by insert, update and delete triggers.
   - It stores its own copy of the text rather than using external content, because `games` has no INTEGER PRIMARY KEY and VACUUM may renumber implicit rowids.

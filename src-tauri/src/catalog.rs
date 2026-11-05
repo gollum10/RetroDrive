@@ -5,6 +5,10 @@
 //! on large or disconnected libraries. Duplicate candidates are files with the same
 //! platform, file name (case-insensitive) and non-zero size; they are informational
 //! only and nothing is ever deleted (docs/07 "Duplicate categories").
+//!
+//! Only each game's primary file is listed: discs of an `.m3u` game and tracks of
+//! a `.cue` sheet are shown through `disc_count`, `file_size` (the game's total)
+//! and `incomplete` (RDS-005).
 
 use crate::paths;
 use crate::volumes::Presence;
@@ -26,7 +30,12 @@ pub struct GameRow {
     pub title: String,
     pub platform: String,
     pub path: String,
+    /// Total size of the game: the primary file plus its discs and tracks.
     pub file_size: i64,
+    /// Discs listed by the game's `.m3u` playlist (0 for single-file games).
+    pub disc_count: i64,
+    /// True when a disc or track is missing, or a referenced file was never found.
+    pub incomplete: bool,
     pub storage_name: String,
     /// `online`: file was present at the last scan and its volume is attached.
     /// `offline`: the volume (drive / share) is not attached, or its drive letter
@@ -127,7 +136,7 @@ const FROM_BY_FILE: &str = "
 const HAS_DUPLICATE: &str = "gf.size_bytes > 0 AND EXISTS (
     SELECT 1 FROM game_files d
     WHERE d.size_bytes = gf.size_bytes AND d.filename = gf.filename COLLATE NOCASE
-      AND d.platform_hint = gf.platform_hint AND d.id <> gf.id)";
+      AND d.platform_hint = gf.platform_hint AND d.file_role = 'primary' AND d.id <> gf.id)";
 
 /// Escape a user search string as a single FTS5 phrase.
 fn fts_phrase(text: &str) -> String {
@@ -147,7 +156,10 @@ fn like_pattern(text: &str) -> String {
 pub fn query_games(connection: &Connection, query: &GameQuery, presence: PresenceFn) -> Result<GamePage, String> {
     let limit = query.limit.unwrap_or(DEFAULT_PAGE_SIZE).clamp(1, MAX_PAGE_SIZE);
     let offline = offline_storage_ids(connection, presence)?;
-    let mut conditions: Vec<&str> = Vec::new();
+    // Always list primary files only. The unary `+` stops SQLite from choosing the
+    // role index for this term, which would scan every primary file instead of
+    // walking the title index or the search results.
+    let mut conditions: Vec<&str> = vec!["+gf.file_role = 'primary'"];
     let mut values: Vec<Value> = Vec::new();
 
     if let Some(text) = query.text.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
@@ -188,16 +200,19 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
     if query.duplicates_only {
         conditions.push(HAS_DUPLICATE);
     }
-    let where_clause = if conditions.is_empty() { String::new() } else { format!("WHERE {}", conditions.join(" AND ")) };
+    let filtered = conditions.len() > 1;
+    let where_clause = format!("WHERE {}", conditions.join(" AND "));
     let (page_from, order) = match query.sort.as_deref() {
         Some("platform") => (FROM_BY_GAME, "g.platform, g.canonical_title COLLATE NOCASE, g.rowid, fl.id"),
-        Some("size") => (FROM_BY_FILE, "gf.size_bytes DESC, gf.filename COLLATE NOCASE DESC, gf.platform_hint DESC, fl.id"),
+        Some("size") => (FROM_BY_FILE, "gf.file_role DESC, gf.payload_bytes DESC, fl.id"),
         Some("title") | None => (FROM_BY_GAME, "g.canonical_title COLLATE NOCASE, g.rowid, fl.id"),
         Some(other) => return Err(format!("Unknown sort: {other}")),
     };
 
-    let total: i64 = if conditions.is_empty() {
-        connection.query_row("SELECT COUNT(*) FROM file_locations", [], |r| r.get(0))
+    // Every game_files row has exactly one file_locations row (the scanner creates
+    // them in pairs), so primary files can be counted straight from the role index.
+    let total: i64 = if !filtered {
+        connection.query_row("SELECT COUNT(*) FROM game_files WHERE file_role = 'primary'", [], |r| r.get(0))
     } else {
         connection.query_row(
             &format!("SELECT COUNT(*) FROM (SELECT 1 {FROM} {where_clause} LIMIT {})", COUNT_CAP + 1),
@@ -206,7 +221,10 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
         )
     }
     .map_err(|e| e.to_string())?;
-    let total_capped = !conditions.is_empty() && total > COUNT_CAP;
+    let total_capped = filtered && total > COUNT_CAP;
+
+    // The size sort walks the (file_role, payload_bytes) index, which needs an indexable role term.
+    let page_extra = if query.sort.as_deref() == Some("size") { " AND gf.file_role = 'primary'" } else { "" };
 
     // Phase 1: ids for this page.
     let mut page_values = values.clone();
@@ -214,7 +232,7 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
     page_values.push(Value::Integer(i64::from(query.offset)));
     let ids: Vec<String> = {
         let mut statement = connection
-            .prepare(&format!("SELECT fl.id {page_from} {where_clause} ORDER BY {order} LIMIT ? OFFSET ?"))
+            .prepare(&format!("SELECT fl.id {page_from} {where_clause}{page_extra} ORDER BY {order} LIMIT ? OFFSET ?"))
             .map_err(|e| e.to_string())?;
         let rows = statement.query_map(params_from_iter(page_values.iter()), |r| r.get(0)).map_err(|e| e.to_string())?;
         rows.collect::<Result<_, _>>().map_err(|e| e.to_string())?
@@ -227,13 +245,18 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
     let ids_json = serde_json::to_string(&ids).map_err(|e| e.to_string())?;
     let mut statement = connection
         .prepare(&format!(
-            "SELECT fl.id, g.id, g.canonical_title, g.platform, s.root_path, fl.relative_path, gf.size_bytes, s.display_name,
+            "SELECT fl.id, g.id, g.canonical_title, g.platform, s.root_path, fl.relative_path, gf.payload_bytes, s.display_name,
                     CASE WHEN fl.storage_location_id IN (SELECT value FROM json_each(?2)) THEN 'offline'
                          WHEN fl.present_status = 'missing' THEN 'missing' ELSE 'online' END,
                     CASE WHEN gf.size_bytes > 0 THEN (
                         SELECT COUNT(*) FROM game_files d
-                        WHERE d.size_bytes = gf.size_bytes AND d.filename = gf.filename COLLATE NOCASE AND d.platform_hint = gf.platform_hint)
-                    ELSE 1 END
+                        WHERE d.size_bytes = gf.size_bytes AND d.filename = gf.filename COLLATE NOCASE
+                          AND d.platform_hint = gf.platform_hint AND d.file_role = 'primary')
+                    ELSE 1 END,
+                    (SELECT COUNT(*) FROM game_files m WHERE m.release_id = gf.release_id AND m.file_role = 'disc'),
+                    EXISTS (SELECT 1 FROM game_files m WHERE m.release_id = gf.release_id AND m.missing_parts > 0)
+                    OR EXISTS (SELECT 1 FROM game_files m JOIN file_locations ml ON ml.game_file_id = m.id
+                               WHERE m.release_id = gf.release_id AND m.file_role <> 'primary' AND ml.present_status = 'missing')
              {FROM} JOIN storage_locations s ON s.id = fl.storage_location_id
              WHERE fl.id IN (SELECT value FROM json_each(?1))"
         ))
@@ -252,6 +275,8 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
                 storage_name: r.get(7)?,
                 availability: r.get(8)?,
                 duplicate_count: r.get(9)?,
+                disc_count: r.get(10)?,
+                incomplete: r.get(11)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -273,15 +298,20 @@ pub fn library_stats(connection: &Connection, presence: PresenceFn) -> Result<Li
         }
         .map_err(|e| e.to_string())
     };
-    let files = count("SELECT COUNT(*) FROM file_locations", false)?;
-    let offline = count("SELECT COUNT(*) FROM file_locations WHERE storage_location_id IN (SELECT value FROM json_each(?1))", true)?;
+    const PRIMARY: &str = "FROM file_locations fl JOIN game_files gf ON gf.id = fl.game_file_id WHERE +gf.file_role = 'primary'";
+    let files = count("SELECT COUNT(*) FROM game_files WHERE file_role = 'primary'", false)?;
+    let offline = if offline_ids == "[]" {
+        0
+    } else {
+        count(&format!("SELECT COUNT(*) {PRIMARY} AND fl.storage_location_id IN (SELECT value FROM json_each(?1))"), true)?
+    };
     let missing = count(
-        "SELECT COUNT(*) FROM file_locations WHERE present_status = 'missing' AND storage_location_id NOT IN (SELECT value FROM json_each(?1))",
+        &format!("SELECT COUNT(*) {PRIMARY} AND fl.present_status = 'missing' AND fl.storage_location_id NOT IN (SELECT value FROM json_each(?1))"),
         true,
     )?;
     let duplicate_files = count(
         "SELECT COALESCE(SUM(copies), 0) FROM (
-             SELECT COUNT(*) AS copies FROM game_files WHERE size_bytes > 0
+             SELECT COUNT(*) AS copies FROM game_files WHERE size_bytes > 0 AND file_role = 'primary'
              GROUP BY size_bytes, filename COLLATE NOCASE, platform_hint HAVING COUNT(*) > 1)",
         false,
     )?;
@@ -489,6 +519,33 @@ mod tests {
         let page = run(&c, text("puzzle"));
         assert_eq!((page.total, page.total_capped), (2, false));
         assert!(!run(&c, GameQuery::default()).total_capped);
+    }
+
+    #[test]
+    fn multi_file_games_are_listed_once_with_their_total_size() {
+        let (dir, mut c) = library(&[
+            ("psx/Saga/Saga.m3u", b"Saga (Disc 1).cue\nSaga (Disc 2).cue\n"),
+            ("psx/Saga/Saga (Disc 1).cue", b"FILE \"d1.bin\" BINARY\n"),
+            ("psx/Saga/Saga (Disc 2).cue", b"FILE \"d2.bin\" BINARY\n"),
+            ("psx/Saga/d1.bin", &[0u8; 4000]),
+            ("psx/Saga/d2.bin", &[0u8; 6000]),
+            ("snes/Plain.sfc", b"rom"),
+        ]);
+        let page = run(&c, GameQuery::default());
+        assert_eq!(titles(&page), ["Plain", "Saga"], "discs and tracks are not separate rows");
+        let saga = &page.rows[1];
+        assert_eq!(saga.disc_count, 2);
+        assert!(saga.file_size > 10_000, "{}", saga.file_size);
+        assert!(!saga.incomplete);
+        assert_eq!(library_stats(&c, &connected).unwrap().files, 2);
+        let by_size = run(&c, GameQuery { sort: Some("size".into()), limit: Some(1), ..GameQuery::default() });
+        assert_eq!(titles(&by_size), ["Saga"], "size sort uses the game's total size");
+
+        fs::remove_file(dir.path().join("psx/Saga/d2.bin")).unwrap();
+        scanner::scan(&mut c, dir.path(), &|_| crate::volumes::VolumeProbe::unknown()).unwrap();
+        let saga = run(&c, text("saga")).rows.remove(0);
+        assert!(saga.incomplete, "a missing track marks the game incomplete");
+        assert_eq!(saga.availability, "online", "the game's main file is still there");
     }
 
     #[test]

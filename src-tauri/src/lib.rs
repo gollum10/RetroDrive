@@ -158,11 +158,15 @@ fn run_scan(app: AppHandle, db_path: PathBuf, job_id: String, folder: String, ca
         let progress = summary.as_ref().map(|s| {
             json!({
                 "indexed": s.indexed,
+                "games": s.games,
                 "new_files": s.new_files,
                 "marked_missing": s.marked_missing,
                 "skipped_unsupported": s.skipped_unsupported,
                 "skipped_links": s.skipped_links,
                 "issue_count": s.issue_count,
+                "error_count": s.error_count,
+                "warning_count": s.warning_count,
+                "grouped_files": s.grouped_files,
                 "complete": s.complete,
                 "cancelled": s.cancelled,
                 "remounted_from": s.remounted_from,
@@ -170,7 +174,7 @@ fn run_scan(app: AppHandle, db_path: PathBuf, job_id: String, folder: String, ca
         });
         if let Some(s) = &summary {
             for issue in &s.issues {
-                let _ = jobs::event(&connection, &job_id, "warning", "scan_issue", &json!({ "path": issue.path, "message": issue.message }));
+                let _ = jobs::event(&connection, &job_id, if issue.severity == "error" { "error" } else { "warning" }, "scan_issue", &json!({ "path": issue.path, "message": issue.message }));
             }
         }
         if let Err(e) = jobs::finish(&connection, &job_id, state, progress.as_ref(), error.as_deref().map(|e| ("scan_error", e))) {

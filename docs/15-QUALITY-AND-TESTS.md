@@ -31,12 +31,12 @@ Run with `cd src-tauri && cargo test`.
 | QA-002 | `scanner::tests::cancelled_scan_never_marks_files_missing`, `cancelled_scan_keeps_files_already_recorded`; manual 2026-11-04: 40,000-file fixture cancelled after 5,109 files, all 40,000 stayed present | Automated + manual |
 | QA-003 | `catalog::tests::availability_states` (unreachable volume → offline, rows kept) | Automated with a simulated volume; a real USB test is still manual |
 | QA-004 | `scanner::tests::drive_letter_change_is_recognized_without_duplicates`, `db::tests::same_volume_under_a_new_letter_is_recognized`; manual 2026-11-04 in the app with the real C: fingerprint (catalog root set to Q:\, rescan recognized it, 0 new) | Automated + simulated manual; **a real USB letter change still needs testing** |
-| QA-007 |, scanner fixture with `.cue` + `.bin` and `.zip` | Partial: `.bin` tracks are skipped and archives are Unclassified; `.m3u` grouping is still open |
-| QA-008 | `paths::tests::unicode_round_trip`, scanner Unicode fixture | Automated; Windows long paths (>260 characters) are still untested |
-| QA-009 | Scanner reports issues and continues | Code path exists; no locked-file fixture yet |
+| QA-007 | `scanner::tests::cue_sheet_tracks_join_one_game`, `playlist_discs_join_one_game_in_order`, `rescans_keep_grouping_without_duplicates_or_false_missing`, `missing_track_is_a_warning_and_marks_the_game_incomplete`, `removing_a_playlist_returns_its_discs_to_separate_games`, `cancelled_scan_does_not_split_grouped_games`, `catalog::tests::multi_file_games_are_listed_once_with_their_total_size`; manual 2026-11-04 in the app (5 games from 12 files, 2-disc badge, Incomplete flag, warning text) | Automated + manual |
+| QA-008 | `paths::tests::unicode_round_trip`, scanner Unicode fixture, `scanner::tests::paths_longer_than_260_characters_are_indexed` (this test found a duplicate-record bug, now fixed) | Automated |
+| QA-009 | `scanner::tests::locked_files_are_reported_and_the_scan_continues`: an exclusively locked ROM is still indexed, and a locked cue sheet produces one error, leaving the scan incomplete | Automated |
 | QA-010 | Empty catalog shows zeros (manual screenshot 2026-11-04) | Manual |
 | RDS-004 | `catalog::tests::text_search_matches_inside_titles_and_platforms` (including literal special characters), `filters_combine`, `duplicate_candidates_need_same_platform_name_and_size`, `pages_and_sorting`, `filtered_counts_are_capped_but_unfiltered_are_exact`, `stats_summarize_the_library`; manual in the app with 39,300 files: search, paging, the duplicates filter and the Review shortcut | Automated + manual |
-| QA-014 | Links are not followed and are reported | Code path exists; creating a symlink in a test needs Windows Developer Mode |
+| QA-014 | Links are not followed and are reported (as warnings); `scanner::tests::references_outside_the_scanned_folder_are_refused` covers `..` escapes in playlists | Partial: creating a symlink in a test needs Windows Developer Mode |
 | QA-017 | `db::tests::v0_rows_are_preserved_and_backed_up`, `v1_catalog_upgrades_to_v2_keeping_data`, `v2_catalog_upgrades_to_v3_keeping_references` | Automated |
 | QA-015 (read side) | `scanner::tests::a_different_drive_at_the_same_letter_does_not_inherit_files`, `volumes::tests::system_volume_has_a_fingerprint`; Known drives showed "now a different drive" | Partial: identity is checked; re-checking before *writes* comes with deployment |
 
@@ -70,6 +70,8 @@ Command: `cd src-tauri && cargo test --release benchmark_100k -- --ignored --noc
 | Duplicates only (2,000) | 460 ms | 74 ms |
 | Sort by size | 302 ms | **1.6 ms** |
 | Library stats | 247 ms | 24 ms |
+
+After RDS-005 (listing primary files only), rerun the same day: first page 5.4 ms, exact search 4.3 ms, size sort 3.0 ms, platform 36 ms, duplicates 77 ms, stats 40 ms, offset 50,000 159 ms. An intermediate version took 70 ms for the first page because SQLite chose the role index; a unary `+` on that term fixed it.
 
 The query plans (EXPLAIN QUERY PLAN) confirm index-ordered walks (`SCAN g USING INDEX idx_games_title`). **Scan cost:** a first-time scan of 39,300 files took 12 s in the dev app, against about 3 s before the search index; rescans of known files don't touch the index. Not yet measured: 1M rows, memory use.
 

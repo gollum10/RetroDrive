@@ -19,7 +19,12 @@ Use platform folder semantics, file extension and optional metadata; record infe
 - **Platform folders:** the nearest folder named after a platform decides, searching from the file's parent up to and including the scanned folder. Inside that folder, only that platform's extensions (plus `.zip` / `.7z` for cartridge systems) count as games. Anything else, such as saves, states, readme files or gamelists, is ignored.
 - **`.bin`:** counts only inside Genesis folders. In disc-system folders it is a data track of a `.cue`, and is skipped.
 - **Without a platform folder:** an extension that belongs to exactly one platform decides it. `.zip`, `.7z`, `.chd`, `.iso`, `.cue` and `.m3u` are recorded as `Unclassified` with source `ambiguous`.
-- **Not yet done:** linking `.cue` to its `.bin` tracks and `.m3u` to its discs. Today, each `.cue` / `.m3u` counts as one game.
+- **Multi-file games (RDS-005):** after the walk, every `.cue` sheet (`FILE "…" BINARY` lines, quoted or not, any case) and `.m3u` playlist (one path per line, `#` comments) is read.
+  - **Grouping:** the referenced files join the referencing file's game as `track` or `disc` (in playlist order). Tracks the walk skipped as unrecognized (e.g. `.bin`) are recorded through the reference.
+  - **Safety:** references are resolved relative to the sheet, must stay inside the scanned folder (otherwise ignored with a warning), and files over 1 MB aren't parsed. A missing reference is a warning that increments `missing_parts`, and the game shows **Incomplete**.
+  - **Unreadable sheets:** a cue sheet or playlist that can't be read (e.g. locked) is an **error**: the scan is incomplete, so nothing is marked missing or split.
+  - **Deleted playlists:** after a complete scan, discs whose playlist no longer references them become separate games again, and their tracks move with them.
+  - **Known limitations:** a track dropped from an edited cue sheet is marked missing rather than reclassified, and a manual title edit on a disc is lost when it is grouped.
 
 ### Implemented rescan rules
 `src-tauri/src/scanner.rs`:

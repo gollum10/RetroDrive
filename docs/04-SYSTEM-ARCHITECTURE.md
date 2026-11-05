@@ -63,7 +63,7 @@ Frontend is unprivileged. Rust services validate all command arguments. A future
 - Handle Windows long paths, case-insensitive comparisons, network interruptions and filesystem permissions.
 - Never update catalog to reflect a write until verified.
 
-## Implemented today (updated 2026-11-04, RDS-001 to RDS-004)
+## Implemented today (updated 2026-11-04, RDS-001 to RDS-005, milestone M1)
 Native backend modules in `src-tauri/src/`:
 
 | Module | Responsibility | Target module above |
@@ -71,10 +71,10 @@ Native backend modules in `src-tauri/src/`:
 | `lib.rs` | Tauri setup and commands: `query_games`, `library_stats`, `list_storage_locations`, `start_scan`, `cancel_job`, `active_scan`, `recent_jobs`, `list_drives`. At startup it migrates the catalog and recovers interrupted jobs; if that fails, every command returns the error. Holds the in-memory registry of running jobs and their cancel flags. | app services |
 | `jobs.rs` | Durable job log: create, add events, finish, list recent, recover interrupted. | `jobs` |
 | `db.rs` | Opens connections (WAL, foreign keys, busy timeout). Versioned migrations via `PRAGMA user_version`, with a backup first and v0.1 data conversion. | `catalog` |
-| `scanner.rs` | Read-only folder indexer. Commits in batches, reports progress and accepts cancellation through a `ScanObserver`, and returns a `ScanSummary`. | `catalog` / `jobs` |
+| `scanner.rs` | Read-only folder indexer. Commits in batches, reports progress and accepts cancellation through a `ScanObserver`. After the walk, a grouping pass reads `.cue` and `.m3u` files and links tracks and discs into one game. Returns a `ScanSummary` with errors and warnings kept separate. | `catalog` / `jobs` |
 | `classify.rs` | Infers the platform from folder names and extensions, and records where the hint came from. | `catalog` |
 | `catalog.rs` | Paged library queries (`query_games`) with search, filters, sort and duplicate counts; `library_stats`; Known drives list. | `catalog` |
-| `paths.rs` | Path normalization without `\\?\`, plus volume-root and relative-path splitting. | `storage` |
+| `paths.rs` | Path normalization without `\\?\`, even for paths over 260 characters (std re-adds the prefix internally), plus volume-root and relative-path splitting. | `storage` |
 | `drives.rs` | Read-only volume listing (sysinfo); local/removable classification. | `storage` |
 | `volumes.rs` | Volume fingerprints via Win32 `GetVolumeInformationW`, `GetDiskFreeSpaceExW` and `GetVolumeNameForVolumeMountPointW` (read only). `probe(root)` returns kind and identity; `presence(root, stable_id)` returns Connected / NotConnected / OtherVolume. | `storage` |
 
@@ -92,6 +92,8 @@ Behavior that differs from the target design, and is still open:
   - **Search** uses the `games_fts` trigram index for 3+ characters and `LIKE` for shorter text.
   - **Counts:** filtered totals stop at 10,000 (`total_capped`); the unfiltered total is exact.
   - **Availability** for filters comes from one presence check per storage location, passed into SQL as a JSON list of offline locations.
+  - **Primary files only:** the library lists only primary files (`+gf.file_role = 'primary'`; the unary `+` keeps SQLite from picking the role index for that term). Discs and tracks appear as `disc_count`, the total `file_size`, and `incomplete`.
+  - **Invariant:** every `game_files` row has exactly one `file_locations` row, so primary files are counted straight from the role index.
 - **Availability** comes from the last scan, plus one presence check per volume (reachable *and* the same fingerprint). Listing never checks individual files.
 - **Drive matching** (`db::resolve_storage_location`) goes by fingerprint first. Next, it claims an older unidentified location at the same root, but only if sampled files from that location exist on the volume. Otherwise it creates a new location. There is no confirmation prompt yet, because scans never write to drives; deployment will add one (QA-015).
 - **Security policy:** `tauri.conf.json` still has `csp: null`.

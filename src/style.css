@@ -35,3 +35,7 @@
 .drive-cell{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pager{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:16px;font-size:13px;color:#93a7c0}
 .pager span{margin-right:auto}
+
+.disc-badge{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:9px;background:#1e304b;color:#9ac9e9;font-size:11px;font-weight:600;vertical-align:1px}
+.incomplete-badge{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:9px;background:#3b1f1f;color:#f0a49a;font-size:11px;font-weight:600;vertical-align:1px}
+.issues li.issue-warning b{color:#e8c48f}.issues li.issue-error b{color:#f0a49a}
