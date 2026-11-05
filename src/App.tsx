@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
+import logoUrl from './assets/retrodrive-logo.png';
 import { Activity, AlertTriangle, ChevronLeft, ChevronRight, CircleStop, Copy, Database, FolderOpen, Gamepad2, HardDrive, LayoutDashboard, LibraryBig, RefreshCcw, Search, Settings2, ShieldCheck } from 'lucide-react';
 
 type Availability = 'online'|'offline'|'missing';
@@ -112,9 +113,9 @@ export default function App() {
     try { await invoke<boolean>('cancel_job',{jobId:scan.job_id}); } catch(e){ setError(true); setMessage(`Could not cancel: ${String(e)}`); }
   };
   return <div className="app">
-    <aside className="sidebar"><div className="brand"><span className="brand-icon"><Gamepad2 size={25}/></span><div><strong>RETRODRIVE</strong><small>STUDIO <span className="brand-labs">/ an earlier publisher name</span></small></div></div>
+    <aside className="sidebar"><div className="brand"><span className="brand-icon"><Gamepad2 size={25}/></span><div><strong>RETRODRIVE</strong><small>LIBRARY MANAGER</small></div></div>
       <div className="nav-label">WORKSPACE</div><nav>{menus.map(item=><button key={item.title} className={'nav-item '+(page===item.title?'selected':'')} onClick={()=>setPage(item.title)}><item.icon size={19}/>{item.title}</button>)}</nav>
-      <div className="aside-bottom"><ShieldCheck size={17}/> Read-only disk discovery <small>v0.1.0 · dev build</small></div>
+      <div className="aside-bottom"><img className="sidebar-logo" src={logoUrl} alt="RetroDrive" width={192} height={192}/><div className="aside-status"><ShieldCheck size={17}/> Read-only disk discovery</div><small>v0.1.0 · dev build</small></div>
     </aside>
     <main><header><div><div className="eyebrow">RETRO GAMING COMMAND CENTER</div><h1>{page}</h1></div><button className="ghost" onClick={()=>void load()}><RefreshCcw size={16}/> Refresh</button></header>
     <div className={'notice '+(error?'warn':'')}><Activity size={17}/>{message}</div>
@@ -150,7 +151,7 @@ export default function App() {
       </article>)}
     </section></>}
     {page==='Emulation Systems' && <section className="panel"><h2>Emulation systems</h2><p>Batocera and RetroBat adapters are the next milestone. This screen will manage verified installers, device compatibility, and installed versions.</p><div className="platform-row"><span>Batocera</span><em>Not yet connected</em></div><div className="platform-row"><span>RetroBat</span><em>Not yet connected</em></div></section>}
-    {page==='Settings' && <section className="panel"><h2>Application settings</h2><p>RetroDrive Studio currently stores its SQLite catalog in the operating system's application data folder. Imports index files in place and never copy, move, or delete them.</p><p>Future settings: metadata providers, library scan schedules, backup locations, and platform defaults.</p></section>}
-    <footer>RetroDrive Studio · Early development scaffold · No disk writes or platform installation features</footer>
+    {page==='Settings' && <section className="panel"><h2>Application settings</h2><p>RetroDrive currently stores its SQLite catalog in the operating system's application data folder. Imports index files in place and never copy, move, or delete them.</p><p>Future settings: metadata providers, library scan schedules, backup locations, and platform defaults.</p></section>}
+    <footer>RetroDrive · Early development build · No disk writes or platform installation features</footer>
     </main></div>;
 }

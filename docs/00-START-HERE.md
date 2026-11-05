@@ -1,6 +1,5 @@
-# RetroDrive Studio | Documentation Index
+# RetroDrive | Documentation Index
 
-**Publisher:** an earlier publisher name  
 **Design baseline:** v1.0, 2026-11-04  
 **Status:** Product concept approved; starter application scaffold exists; full suite is not implemented.  
 **Product:** A Windows-first desktop application to create, catalog, manage, maintain, back up, and troubleshoot retro gaming environments.  

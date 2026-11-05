@@ -90,7 +90,7 @@ pub fn migrate(connection: &mut Connection, db_path: Option<&Path>) -> Result<Mi
     let from_version = user_version(connection)?;
     if from_version > SCHEMA_VERSION {
         return Err(format!(
-            "The catalog was written by a newer RetroDrive Studio (schema v{from_version}; this build supports v{SCHEMA_VERSION}). \
+            "The catalog was written by a newer RetroDrive (schema v{from_version}; this build supports v{SCHEMA_VERSION}). \
              It was not modified. Update the application to open it."
         ));
     }

@@ -3,8 +3,7 @@
 ## Mission
 Make retro gaming setup and ongoing maintenance accessible to beginners and efficient for enthusiasts through one trustworthy desktop management suite.
 
-**Working name:** RetroDrive Studio  
-**Publisher:** an earlier publisher name  
+**Name:** RetroDrive (ADR-017)  
 **Tagline:** Your retro gaming setup, simplified.
 
 ## Product promise
@@ -24,7 +23,7 @@ From an empty compatible target drive or an existing ROM collection, help users 
 - **Safety by default:** read-only analysis first, backups, preflight checks, explicit confirmation, no silent deletions.
 - **Offline-first:** library operations work locally without an account; network features are optional.
 
-## What RetroDrive Studio is not
+## What RetroDrive is not
 - An emulator, console firmware distributor, commercial ROM download service or circumvention platform.
 - A guarantee every game will boot/play perfectly; static readiness checks are evidence, not complete runtime testing.
 - A universal disk image installer for every handheld/OS in version 1.

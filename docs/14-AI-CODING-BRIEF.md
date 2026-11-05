@@ -1,6 +1,6 @@
 # 14 | AI Coding Assistant Brief (paste into VS Code assistant)
 
-You are assisting with **RetroDrive Studio**, a an earlier publisher name Windows-first Tauri v2 + React + TypeScript + Rust + SQLite retro gaming management application.
+You are assisting with **RetroDrive**, a Windows-first Tauri v2 + React + TypeScript + Rust + SQLite retro gaming management application.
 
 ## Read first
 Read `docs/00-START-HERE.md`, `docs/02-SCOPE-AND-REQUIREMENTS.md`, `docs/04-SYSTEM-ARCHITECTURE.md`, `docs/05-DATA-MODEL.md`, `docs/08-DEPLOYMENT-AND-SYNC.md`, `docs/10-SECURITY-PRIVACY-LEGAL.md`, `docs/11-ROADMAP-AND-BACKLOG.md` and the current code.

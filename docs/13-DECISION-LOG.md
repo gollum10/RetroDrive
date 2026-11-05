@@ -3,7 +3,7 @@
 ## Accepted decisions (from product discussions)
 | ID | Decision | Rationale |
 |---|---|---|
-| ADR-001 | Name: RetroDrive Studio, under an earlier publisher name | Product identity for continued development |
+| ADR-001 | Name: RetroDrive Studio, under an earlier publisher name. *Superseded by ADR-017.* | Product identity for continued development |
 | ADR-002 | Full retro gaming **management suite**, not merely drive creator | Persistent use beyond initial install |
 | ADR-003 | **Hybrid** master library | One view, no forced relocation of existing collections |
 | ADR-004 | Windows-first desktop | Local drive operations and initial audience |
@@ -19,6 +19,7 @@
 | ADR-014 | (2026-11-04) Volume fingerprint = filesystem serial + total size (`vol:XXXX-XXXX:<bytes>`), or `unc:` + share path; `stable_id` is unique, `root_path` is just the last known mount | The serial survives letter changes and is portable between PCs; the size reduces collisions. The volume GUID is stored but not used as the key, because it's specific to each PC. Alternative considered: physical disk serial, which needs elevated or WMI queries and doesn't separate partitions. Clones sharing a fingerprint is accepted for now. Affects docs/05, 07 and 15 (QA-004). |
 | ADR-015 | (2026-11-04) Library search uses SQLite FTS5 with the trigram tokenizer (own-content table plus triggers); pages use offset paging with join order fixed by `CROSS JOIN`; filtered counts are capped at 10,000 | Trigram matches anywhere in a word, which suits ROM titles, with no extra dependency. Without fixed join order, SQLite sorted all 100k rows per page (522 ms → 1.4 ms once fixed). Counting every match of a broad search cost more than the page itself (414 ms → 37 ms with the cap). Alternatives considered: keyset paging (more complex, deferred) and a separate search engine (unnecessary). Trade-off: first-time scans are slower (docs/11 follow-up). |
 | ADR-016 | (2026-11-04) Multi-file games: the referencing file (`.m3u`, else `.cue`) is the game's primary file; discs and tracks share its release with `file_role` and `parent_file_id`; grouping runs as a post-walk pass inside the scan transaction; detaching runs only after complete scans; references must stay inside the scanned folder | This matches how emulators load these games (playlist, then cue, then tracks). A post-walk pass handles references in any order. Detaching only after complete scans prevents a cancelled or unreadable scan from splitting games. The containment rule blocks path-traversal tricks in downloaded cue sheets (docs/10). Alternative considered: grouping by file-name patterns like "(Disc 1)", which is unreliable. Affects docs/05, 07 and 15 (QA-007). |
+| ADR-017 | (2026-11-04) The product is named **RetroDrive**. an earlier publisher name is removed from the app and the docs, and the RetroDrive logo (`branding/retrodrive-logo-full.png`, with a 384 px copy at `src/assets/`) appears in the sidebar. The installer publisher is set to "RetroDrive". The internal app identifier `com.retrodrive.desktop` is **kept for now** | The user's direction. The identifier decides the catalog folder (`%APPDATA%\com.retrodrive.desktop`), so changing it later needs a one-time catalog move. It isn't shown in the UI, but Tauri would have derived the installer publisher from it, hence the explicit `publisher`. Supersedes ADR-001. |
 
 ## Recommended, awaiting implementation validation
 - Separate privileged helper for imaging, with hardened permissions.
@@ -35,7 +36,7 @@
 6. What portable RetroBat versions/installer formats are supported?
 7. Which filesystem types will future deployment target directly?
 8. What should be offered free versus in a Pro tier after product validation?
-9. What license will apply to RetroDrive Studio's own code?
+9. What license will apply to RetroDrive's own code?
 10. Should the app provide optional encrypted backups and how should keys be managed?
 
 ## Change control

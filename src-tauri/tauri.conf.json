@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "RetroDrive Studio",
+  "productName": "RetroDrive",
   "version": "0.1.0",
   "identifier": "com.retrodrive.desktop",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "RetroDrive Studio",
+        "title": "RetroDrive",
         "width": 1250,
         "height": 820,
         "minWidth": 780,
@@ -25,6 +25,7 @@
   },
   "bundle": {
     "active": true,
+    "publisher": "RetroDrive",
     "targets": "all"
   }
 }
