@@ -5,17 +5,21 @@
 //! - v1: normalized hybrid library (storage locations, indexed roots, games,
 //!   releases, files and file locations) as described in docs/05-DATA-MODEL.md.
 //! - v2: durable job log (`jobs`, `job_events`) for scans and later operations (RDS-002).
+//! - v3: volume identity on `storage_locations` (stable_id unique, root_path no longer
+//!   unique, label/filesystem/serial/GUID/size columns) so drives are matched by
+//!   fingerprint rather than drive letter (RDS-003).
 //!
 //! Migration rules: back up an existing database before upgrading, run the upgrade
 //! in one transaction, verify row counts, and refuse to open a database written by
 //! a newer schema than this build understands.
 
 use crate::paths;
+use crate::volumes::{VolumeIdentity, VolumeProbe};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 2;
+pub const SCHEMA_VERSION: i32 = 3;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -96,6 +100,18 @@ pub fn migrate(connection: &mut Connection, db_path: Option<&Path>) -> Result<Mi
         }
     }
 
+    // Table rebuilds need foreign-key enforcement off, and that pragma only takes
+    // effect outside a transaction. Integrity is re-checked before commit.
+    connection.execute_batch("PRAGMA foreign_keys = OFF;").map_err(|e| e.to_string())?;
+    let result = run_steps(connection, from_version, &mut report);
+    let restored = connection.execute_batch("PRAGMA foreign_keys = ON;").map_err(|e| e.to_string());
+    result?;
+    restored?;
+    report.to_version = SCHEMA_VERSION;
+    Ok(report)
+}
+
+fn run_steps(connection: &mut Connection, from_version: i32, report: &mut MigrationReport) -> Result<(), String> {
     let tx = connection.transaction().map_err(|e| e.to_string())?;
     if from_version < 1 {
         let legacy = table_exists(&tx, "game_files")? && !table_exists(&tx, "file_locations")?;
@@ -115,11 +131,18 @@ pub fn migrate(connection: &mut Connection, db_path: Option<&Path>) -> Result<Mi
     if from_version < 2 {
         tx.execute_batch(SCHEMA_V2).map_err(|e| e.to_string())?;
     }
+    if from_version < 3 {
+        tx.execute_batch(SCHEMA_V3).map_err(|e| e.to_string())?;
+    }
+    let violations: i64 = tx
+        .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    if violations > 0 {
+        return Err(format!("Migration aborted and rolled back: {violations} broken references found."));
+    }
     tx.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION};"))
         .map_err(|e| e.to_string())?;
-    tx.commit().map_err(|e| e.to_string())?;
-    report.to_version = SCHEMA_VERSION;
-    Ok(report)
+    tx.commit().map_err(|e| e.to_string())
 }
 
 /// Write a consistent copy of the database next to it before migrating.
@@ -187,10 +210,139 @@ fn migrate_v0_rows(tx: &Connection) -> Result<usize, String> {
     Ok(migrated)
 }
 
-/// Find a storage location by its root path, creating it when absent.
+/// The storage location a scan should use, and the root it was previously seen
+/// at when the same volume came back under a different drive letter.
+#[derive(Debug, PartialEq)]
+pub struct ResolvedLocation {
+    pub id: String,
+    pub previous_root: Option<String>,
+}
+
+/// Match the volume mounted at `root` to a catalog storage location (RDS-003):
+/// 1. same fingerprint → that location (updating its root if the letter changed);
+/// 2. an older, unidentified location at this root whose files are on this volume
+///    → claim it by recording the fingerprint;
+/// 3. otherwise a new location. A different volume using a known letter therefore
+///    never inherits another drive's files.
+pub fn resolve_storage_location(connection: &Connection, root: &str, probe: &VolumeProbe) -> Result<ResolvedLocation, String> {
+    let Some(identity) = &probe.identity else {
+        let existing = connection
+            .query_row(
+                "SELECT id FROM storage_locations WHERE root_path = ?1 AND stable_id IS NULL ORDER BY created_at LIMIT 1",
+                [root],
+                |r| r.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+        let id = match existing {
+            Some(id) => id,
+            None => insert_location(connection, root, probe.kind, None)?,
+        };
+        return Ok(ResolvedLocation { id, previous_root: None });
+    };
+
+    let by_fingerprint = connection
+        .query_row(
+            "SELECT id, root_path FROM storage_locations WHERE stable_id = ?1",
+            [&identity.stable_id],
+            |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?;
+    if let Some((id, old_root)) = by_fingerprint {
+        update_identity(connection, &id, root, probe.kind, identity)?;
+        let moved = !old_root.eq_ignore_ascii_case(root);
+        return Ok(ResolvedLocation { id, previous_root: moved.then_some(old_root) });
+    }
+
+    let unidentified: Vec<String> = {
+        let mut statement = connection
+            .prepare("SELECT id FROM storage_locations WHERE root_path = ?1 AND stable_id IS NULL ORDER BY created_at")
+            .map_err(|e| e.to_string())?;
+        let rows = statement.query_map([root], |r| r.get(0)).map_err(|e| e.to_string())?;
+        rows.collect::<Result<_, _>>().map_err(|e| e.to_string())?
+    };
+    for id in unidentified {
+        if files_found_on_volume(connection, &id, root)? {
+            update_identity(connection, &id, root, probe.kind, identity)?;
+            return Ok(ResolvedLocation { id, previous_root: None });
+        }
+    }
+    let id = insert_location(connection, root, probe.kind, Some(identity))?;
+    Ok(ResolvedLocation { id, previous_root: None })
+}
+
+fn display_name(root: &str, identity: Option<&VolumeIdentity>) -> String {
+    match identity.and_then(|i| i.label.as_deref()) {
+        Some(label) => format!("{label} ({root})"),
+        None => root.to_string(),
+    }
+}
+
+fn insert_location(connection: &Connection, root: &str, kind: &str, identity: Option<&VolumeIdentity>) -> Result<String, String> {
+    let id = new_id();
+    connection
+        .execute(
+            "INSERT INTO storage_locations (id, kind, stable_id, display_name, root_path, volume_label, filesystem, volume_serial, volume_guid, total_bytes)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                id,
+                kind,
+                identity.map(|i| &i.stable_id),
+                display_name(root, identity),
+                root,
+                identity.and_then(|i| i.label.as_ref()),
+                identity.and_then(|i| i.filesystem.as_ref()),
+                identity.and_then(|i| i.serial.as_ref()),
+                identity.and_then(|i| i.guid.as_ref()),
+                identity.and_then(|i| i.total_bytes),
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(id)
+}
+
+fn update_identity(connection: &Connection, id: &str, root: &str, kind: &str, identity: &VolumeIdentity) -> Result<(), String> {
+    connection
+        .execute(
+            "UPDATE storage_locations SET root_path = ?2, stable_id = ?3, display_name = ?4, volume_label = ?5, filesystem = ?6,
+                 volume_serial = ?7, volume_guid = ?8, total_bytes = ?9,
+                 kind = CASE WHEN ?10 <> 'unknown' THEN ?10 ELSE kind END
+             WHERE id = ?1",
+            params![
+                id,
+                root,
+                identity.stable_id,
+                display_name(root, Some(identity)),
+                identity.label,
+                identity.filesystem,
+                identity.serial,
+                identity.guid,
+                identity.total_bytes,
+                kind
+            ],
+        )
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+/// True when a location has no files yet, or some of its recorded files exist under `root`.
+fn files_found_on_volume(connection: &Connection, id: &str, root: &str) -> Result<bool, String> {
+    let sample: Vec<String> = {
+        let mut statement = connection
+            .prepare("SELECT relative_path FROM file_locations WHERE storage_location_id = ?1 ORDER BY present_status DESC LIMIT 25")
+            .map_err(|e| e.to_string())?;
+        let rows = statement.query_map([id], |r| r.get(0)).map_err(|e| e.to_string())?;
+        rows.collect::<Result<_, _>>().map_err(|e| e.to_string())?
+    };
+    Ok(sample.is_empty() || sample.iter().any(|relative| paths::join(root, relative).exists()))
+}
+
+/// Find a storage location by its root path, creating it when absent. Used for
+/// migrated v0.1 data, which has no volume fingerprint.
 pub fn upsert_storage_location(tx: &Connection, root_path: &str, kind: &str) -> Result<String, String> {
     if let Some(id) = tx
-        .query_row("SELECT id FROM storage_locations WHERE root_path = ?1", [root_path], |r| r.get::<_, String>(0))
+        .query_row("SELECT id FROM storage_locations WHERE root_path = ?1 ORDER BY created_at LIMIT 1", [root_path], |r| r.get::<_, String>(0))
         .optional()
         .map_err(|e| e.to_string())?
     {
@@ -344,9 +496,47 @@ CREATE TABLE job_events (
 CREATE INDEX idx_job_events_job ON job_events(job_id);
 ";
 
+/// v3: rebuild storage_locations so root_path is no longer unique (a drive letter
+/// can be reused by another volume) and the fingerprint is unique instead.
+const SCHEMA_V3: &str = "
+CREATE TABLE storage_locations_v3 (
+    id             TEXT PRIMARY KEY,
+    kind           TEXT NOT NULL DEFAULT 'unknown' CHECK (kind IN ('local','removable','network','unknown')),
+    stable_id      TEXT UNIQUE,
+    display_name   TEXT NOT NULL,
+    root_path      TEXT NOT NULL COLLATE NOCASE,
+    volume_label   TEXT,
+    filesystem     TEXT,
+    volume_serial  TEXT,
+    volume_guid    TEXT,
+    total_bytes    INTEGER,
+    created_at     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at   TEXT
+);
+INSERT INTO storage_locations_v3 (id, kind, stable_id, display_name, root_path, created_at, last_seen_at)
+    SELECT id, kind, stable_id, display_name, root_path, created_at, last_seen_at FROM storage_locations;
+DROP TABLE storage_locations;
+ALTER TABLE storage_locations_v3 RENAME TO storage_locations;
+CREATE INDEX idx_storage_locations_root ON storage_locations(root_path);
+";
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn identity(stable: &str, label: &str) -> VolumeProbe {
+        VolumeProbe {
+            kind: "removable",
+            identity: Some(VolumeIdentity {
+                stable_id: stable.into(),
+                label: Some(label.into()),
+                filesystem: Some("exFAT".into()),
+                serial: Some("ABCD-1234".into()),
+                guid: None,
+                total_bytes: Some(64_000_000_000),
+            }),
+        }
+    }
 
     const V0_SCHEMA: &str = "CREATE TABLE IF NOT EXISTS game_files (
         id INTEGER PRIMARY KEY,
@@ -398,6 +588,100 @@ mod tests {
     }
 
     #[test]
+    fn same_volume_under_a_new_letter_is_recognized() {
+        let mut c = Connection::open_in_memory().unwrap();
+        migrate(&mut c, None).unwrap();
+        let usb = identity("vol:ABCD-1234:64000000000", "GAMES");
+        let first = resolve_storage_location(&c, r"E:\", &usb).unwrap();
+        assert_eq!(first.previous_root, None);
+        let again = resolve_storage_location(&c, r"F:\", &usb).unwrap();
+        assert_eq!(again.id, first.id, "same fingerprint → same location");
+        assert_eq!(again.previous_root.as_deref(), Some(r"E:\"));
+        let (root, name): (String, String) =
+            c.query_row("SELECT root_path, display_name FROM storage_locations", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+        assert_eq!(root, r"F:\");
+        assert_eq!(name, r"GAMES (F:\)");
+        // Rescanning at the same letter is not reported as a move.
+        assert_eq!(resolve_storage_location(&c, r"F:\", &usb).unwrap().previous_root, None);
+    }
+
+    #[test]
+    fn different_volume_at_a_known_letter_gets_its_own_location() {
+        let mut c = Connection::open_in_memory().unwrap();
+        migrate(&mut c, None).unwrap();
+        let a = resolve_storage_location(&c, r"E:\", &identity("vol:AAAA-AAAA:1", "A")).unwrap();
+        let b = resolve_storage_location(&c, r"E:\", &identity("vol:BBBB-BBBB:2", "B")).unwrap();
+        assert_ne!(a.id, b.id);
+        assert_eq!(count(&c, "storage_locations"), 2);
+    }
+
+    #[test]
+    fn unidentified_location_is_claimed_only_when_its_files_are_there() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Game.sfc"), b"x").unwrap();
+        let root = dir.path().to_str().unwrap().to_string();
+        let mut c = Connection::open_in_memory().unwrap();
+        migrate(&mut c, None).unwrap();
+
+        // Legacy row whose file exists under `root` → claimed.
+        let legacy = upsert_storage_location(&c, &root, "unknown").unwrap();
+        let file = insert_game_file(&c, "Game", "SNES", "Game.sfc", "sfc", 1, None, "legacy").unwrap();
+        c.execute(
+            "INSERT INTO file_locations (id, game_file_id, storage_location_id, relative_path) VALUES (?1, ?2, ?3, 'Game.sfc')",
+            params![new_id(), file, legacy],
+        )
+        .unwrap();
+        let resolved = resolve_storage_location(&c, &root, &identity("vol:1111-1111:1", "X")).unwrap();
+        assert_eq!(resolved.id, legacy);
+
+        // Another legacy row at the same root whose files are absent → not claimed.
+        let mut c2 = Connection::open_in_memory().unwrap();
+        migrate(&mut c2, None).unwrap();
+        let other = upsert_storage_location(&c2, &root, "unknown").unwrap();
+        let file = insert_game_file(&c2, "Gone", "SNES", "Gone.sfc", "sfc", 1, None, "legacy").unwrap();
+        c2.execute(
+            "INSERT INTO file_locations (id, game_file_id, storage_location_id, relative_path) VALUES (?1, ?2, ?3, 'Gone.sfc')",
+            params![new_id(), file, other],
+        )
+        .unwrap();
+        let resolved = resolve_storage_location(&c2, &root, &identity("vol:2222-2222:1", "Y")).unwrap();
+        assert_ne!(resolved.id, other);
+    }
+
+    #[test]
+    fn v2_catalog_upgrades_to_v3_keeping_references() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("retrodrive.sqlite");
+        {
+            let c = Connection::open(&db_path).unwrap();
+            c.execute_batch(SCHEMA_V1).unwrap();
+            c.execute_batch(SCHEMA_V2).unwrap();
+            c.execute_batch("PRAGMA user_version = 2;").unwrap();
+            c.execute("INSERT INTO storage_locations (id, display_name, root_path) VALUES ('s1', 'E:', 'E:/')", []).unwrap();
+            let file = insert_game_file(&c, "Kept", "NES", "Kept.nes", "nes", 1, None, "folder").unwrap();
+            c.execute(
+                "INSERT INTO file_locations (id, game_file_id, storage_location_id, relative_path) VALUES ('l1', ?1, 's1', 'Kept.nes')",
+                [file],
+            )
+            .unwrap();
+            c.execute("INSERT INTO indexed_roots (id, storage_location_id, relative_path) VALUES ('r1', 's1', 'roms')", []).unwrap();
+        }
+        let mut c = open(&db_path).unwrap();
+        let report = migrate(&mut c, Some(&db_path)).unwrap();
+        assert_eq!((report.from_version, report.to_version), (2, 3));
+        assert!(report.backup_path.is_some());
+        assert_eq!(count(&c, "storage_locations"), 1);
+        assert_eq!(count(&c, "file_locations"), 1);
+        assert_eq!(count(&c, "indexed_roots"), 1);
+        // Foreign keys are enforced again and still point at the rebuilt table.
+        let fk: i64 = c.query_row("PRAGMA foreign_keys", [], |r| r.get(0)).unwrap();
+        assert_eq!(fk, 1);
+        assert!(c.execute("DELETE FROM storage_locations WHERE id = 's1'", []).is_err(), "RESTRICT still protects files");
+        // root_path is no longer unique.
+        c.execute("INSERT INTO storage_locations (id, display_name, root_path) VALUES ('s2', 'E:', 'E:/')", []).unwrap();
+    }
+
+    #[test]
     fn v1_catalog_upgrades_to_v2_keeping_data() {
         let dir = tempfile::tempdir().unwrap();
         let db_path = dir.path().join("retrodrive.sqlite");
@@ -415,7 +699,7 @@ mod tests {
         }
         let mut c = open(&db_path).unwrap();
         let report = migrate(&mut c, Some(&db_path)).unwrap();
-        assert_eq!((report.from_version, report.to_version), (1, 2));
+        assert_eq!((report.from_version, report.to_version), (1, SCHEMA_VERSION));
         assert!(report.backup_path.is_some());
         assert_eq!(count(&c, "games"), 1);
         assert_eq!(count(&c, "file_locations"), 1);

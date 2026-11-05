@@ -54,6 +54,8 @@ erDiagram
 ## Drive identifiers
 For removable devices, maintain an OS-visible stable identifier where available plus secondary signals such as label, capacity and known file signatures. Drive letters are *not* stable identifiers. On ambiguous reattachment, require confirmation before writing.
 
+*Implemented (RDS-003):* volume serial plus size as `stable_id`, with label, filesystem and GUID stored as secondary signals; see "Implemented schema v3" below. The confirmation step is deferred until a feature writes to drives.
+
 ## Import strategy
 1. Add root with explicit user authorization.
 2. Enumerate paths and record immutable observed facts.
@@ -79,6 +81,14 @@ Choices made while implementing (see ADR-010 and ADR-011 in docs/13):
 - **`job_events`:** `id`, `job_id`, `event_time`, `severity` (`info` / `warning` / `error`), `event_code` (`started`, `completed`, `cancelled`, `failed`, `interrupted`, `scan_issue`), `detail_json`.
 - **`indexed_roots.last_scan_status`** now also takes `cancelled` and `interrupted`.
 - **v1 → v2:** adds the two tables (with a backup first, like every upgrade). Tested by `db::tests::v1_catalog_upgrades_to_v2_keeping_data`, and run for real on a live v1 catalog on 2026-11-04.
+
+## Implemented schema v3 (RDS-003, 2026-11-04)
+- **`storage_locations` rebuilt** using SQLite's documented table-rebuild procedure: foreign keys are switched off outside the transaction, then `pragma_foreign_key_check` must pass before commit.
+  - `stable_id` is now `UNIQUE`; `root_path` (the last known mount) is no longer unique and has an index.
+  - New columns: `volume_label`, `filesystem`, `volume_serial`, `volume_guid`, `total_bytes`. `display_name` becomes `LABEL (E:\)` when the volume has a label.
+- **Fingerprint format:** `vol:<serial XXXX-XXXX>:<total bytes>` for local and removable volumes, and `unc:<\\server\share\>` for network shares. The serial changes only when a volume is reformatted. **Known limitation:** byte-identical clones share a fingerprint.
+- **Older locations** from v0/v1 data have no fingerprint. A scan claims one only when sampled files from it exist on the scanned volume.
+- **Tests:** `db::tests::v2_catalog_upgrades_to_v3_keeping_references`, `same_volume_under_a_new_letter_is_recognized`, `different_volume_at_a_known_letter_gets_its_own_location`, `unidentified_location_is_claimed_only_when_its_files_are_there`.
 
 ## Migrations
 - The version number is kept in `PRAGMA user_version`; the current version is `db::SCHEMA_VERSION`.

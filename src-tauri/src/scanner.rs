@@ -10,6 +10,7 @@
 //! - Work is committed in batches with progress callbacks and cooperative
 //!   cancellation (RDS-002).
 
+use crate::volumes::VolumeProbe;
 use crate::{classify, db, paths};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
@@ -45,6 +46,9 @@ pub struct ScanSummary {
     pub cancelled: bool,
     pub issue_count: usize,
     pub issues: Vec<ScanIssue>,
+    /// Set when the scanned drive was recognized from an earlier scan under a
+    /// different drive letter (e.g. `E:\`); catalog paths now use the new letter.
+    pub remounted_from: Option<String>,
 }
 
 impl ScanSummary {
@@ -135,12 +139,12 @@ impl Drop for Batch<'_> {
 
 /// Scan `folder` into the catalog with default options and no observer.
 #[cfg(test)]
-pub fn scan(connection: &mut Connection, folder: &Path, volume_kind: &dyn Fn(&str) -> &'static str) -> Result<ScanSummary, String> {
-    scan_with(connection, folder, volume_kind, &mut Unobserved, ScanOptions::default())
+pub fn scan(connection: &mut Connection, folder: &Path, volume_probe: &dyn Fn(&str) -> VolumeProbe) -> Result<ScanSummary, String> {
+    scan_with(connection, folder, volume_probe, &mut Unobserved, ScanOptions::default())
 }
 
-/// Scan `folder` into the catalog. `volume_kind` maps a volume root such as `D:\`
-/// to `local`, `removable`, `network` or `unknown`.
+/// Scan `folder` into the catalog. `volume_probe` reports the kind and fingerprint
+/// of the volume at a root such as `D:\` (see `volumes::probe`).
 ///
 /// Work is committed in batches. If the scan is cancelled, files recorded so far
 /// are kept but missing-file detection is skipped, so a cancelled scan can never
@@ -148,7 +152,7 @@ pub fn scan(connection: &mut Connection, folder: &Path, volume_kind: &dyn Fn(&st
 pub fn scan_with(
     connection: &Connection,
     folder: &Path,
-    volume_kind: &dyn Fn(&str) -> &'static str,
+    volume_probe: &dyn Fn(&str) -> VolumeProbe,
     observer: &mut dyn ScanObserver,
     options: ScanOptions,
 ) -> Result<ScanSummary, String> {
@@ -160,13 +164,15 @@ pub fn scan_with(
         .ok_or_else(|| format!("Unsupported folder path: {}", root.display()))?;
     let root_name = root.file_name().and_then(|s| s.to_str()).unwrap_or("").to_string();
 
+    let probe = volume_probe(&volume_root);
     let mut batch = Batch::begin(connection)?;
-    let storage_id = db::upsert_storage_location(connection, &volume_root, volume_kind(&volume_root))?;
+    let location = db::resolve_storage_location(connection, &volume_root, &probe)?;
+    let storage_id = location.id;
     let indexed_root_id = upsert_indexed_root(connection, &storage_id, &root_relative)?;
     let scan_id = db::new_id();
     batch.restart()?;
 
-    let mut summary = ScanSummary::default();
+    let mut summary = ScanSummary { remounted_from: location.previous_root, ..ScanSummary::default() };
     let mut progress = ScanProgress::default();
     let mut pending = 0usize;
     let mut last_commit = Instant::now();
@@ -407,8 +413,22 @@ mod tests {
         c
     }
 
-    fn local(_: &str) -> &'static str {
-        "local"
+    fn local(_: &str) -> VolumeProbe {
+        VolumeProbe { kind: "local", identity: None }
+    }
+
+    fn fingerprint(id: &'static str) -> impl Fn(&str) -> VolumeProbe {
+        move |_| VolumeProbe {
+            kind: "removable",
+            identity: Some(crate::volumes::VolumeIdentity {
+                stable_id: id.into(),
+                label: Some("GAMES".into()),
+                filesystem: Some("exFAT".into()),
+                serial: None,
+                guid: None,
+                total_bytes: Some(1),
+            }),
+        }
     }
 
     fn write(root: &Path, relative: &str, contents: &[u8]) {
@@ -639,5 +659,36 @@ mod tests {
         c.execute_batch("DROP TABLE file_locations;").unwrap();
         assert!(scan_with(&c, dir.path(), &local, &mut Unobserved, eager()).is_err());
         assert!(c.is_autocommit(), "failed batch must be rolled back");
+    }
+
+    #[test]
+    fn drive_letter_change_is_recognized_without_duplicates() {
+        let dir = fixture();
+        let mut c = catalog();
+        let usb = fingerprint("vol:ABCD-1234:1");
+        let first = scan(&mut c, dir.path(), &usb).unwrap();
+        assert_eq!(first.remounted_from, None);
+        // Pretend the drive was last seen under another letter.
+        c.execute("UPDATE storage_locations SET root_path = 'Q:\\'", []).unwrap();
+
+        let second = scan(&mut c, dir.path(), &usb).unwrap();
+        assert_eq!(second.remounted_from.as_deref(), Some("Q:\\"));
+        assert_eq!(second.new_files, 0, "same files, so nothing is added twice");
+        assert_eq!(statuses(&c).len(), 4);
+        assert!(statuses(&c).iter().all(|(_, s)| s == "present"));
+        let locations: i64 = c.query_row("SELECT COUNT(*) FROM storage_locations", [], |r| r.get(0)).unwrap();
+        assert_eq!(locations, 1);
+    }
+
+    #[test]
+    fn a_different_drive_at_the_same_letter_does_not_inherit_files() {
+        let dir = fixture();
+        let mut c = catalog();
+        scan(&mut c, dir.path(), &fingerprint("vol:AAAA-AAAA:1")).unwrap();
+        let other = scan(&mut c, dir.path(), &fingerprint("vol:BBBB-BBBB:1")).unwrap();
+        assert_eq!(other.new_files, 4, "files on the other volume are new records");
+        assert_eq!(other.marked_missing, 0, "the first drive's files are untouched");
+        let locations: i64 = c.query_row("SELECT COUNT(*) FROM storage_locations", [], |r| r.get(0)).unwrap();
+        assert_eq!(locations, 2);
     }
 }

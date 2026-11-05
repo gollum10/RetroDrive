@@ -6,7 +6,7 @@ The single list of what the app **does today** and what is **planned**. Update t
 
 Requirement IDs (FR/NFR) refer to [docs/02-SCOPE-AND-REQUIREMENTS.md](docs/02-SCOPE-AND-REQUIREMENTS.md); RDS IDs refer to [docs/11-ROADMAP-AND-BACKLOG.md](docs/11-ROADMAP-AND-BACKLOG.md).
 
-_Last updated: 2026-11-04 (RDS-002 branch)_
+_Last updated: 2026-11-04 (RDS-003 branch)_
 
 ---
 
@@ -29,7 +29,11 @@ _Last updated: 2026-11-04 (RDS-002 branch)_
 |---|---|---|
 | List mounted volumes with capacity, free space, removable flag | ✅ | Read only (sysinfo). |
 | Volume type recorded in the catalog (local / removable / network) | ✅ | Network = UNC path; removable comes from the OS. |
-| Stable drive identity (survives drive-letter changes) | 📋 | RDS-003. `storage_locations.stable_id` is reserved for it. |
+| Stable drive identity (survives drive-letter changes) | ✅ | RDS-003. Each volume is fingerprinted by its serial number and size, read from Windows. A drive that comes back under a new letter is matched to its existing records, and the scan says "Recognized this drive from before (it was at E:\)". |
+| Different drive using a known letter | ✅ | Gets its own records. The old drive's games show **Offline**, not Online. |
+| Known drives list (Drive Manager) | ✅ | Every scanned drive, plugged in or not. Shows label, connection status (Connected / Not connected / letter now used by a different drive), file and missing counts, filesystem, size, volume ID and last scan. |
+| `subst` drive letters | ✅ | Resolved to the real folder underneath, so an alias letter never creates duplicate records. |
+| Confirmation prompt when a drive match is ambiguous | 📋 | Not needed yet because nothing writes to drives. Required before deployment (RDS-009/010, QA-015). |
 | Physical disk vs volume model, filesystem type, system-disk flag | 📋 | docs/06. |
 | Format, partition, image, clone | ⛔ | Needs the elevated-helper safety review (RDS-014). |
 
@@ -48,7 +52,7 @@ _Last updated: 2026-11-04 (RDS-002 branch)_
 | Symbolic links and junctions not followed | ✅ | Reported as skipped (NFR-02, QA-014). |
 | Rescan without duplicates | ✅ | One row per (volume, relative path). |
 | Missing-file detection | ✅ | A file is marked **Missing** only after an error-free scan of its folder. Rows are never deleted. Restoring the file sets it back to present. |
-| Offline drives | ✅ | When the volume is unreachable, its files show **Offline**; the catalog keeps them. |
+| Offline drives | ✅ | When the volume is unreachable, or its letter now holds a different volume, its files show **Offline**; the catalog keeps them. |
 | Clean Windows paths | ✅ | No `\\?\` prefixes are stored or shown. Paths are stored per volume plus a relative path. |
 | Manual title corrections kept on rescan | ✅ | Rescans don't overwrite titles. No title-editing UI yet. |
 | Search by title or platform | 🟡 | Filters in the browser. Paginated, indexed search is planned (RDS-004, NFR-06). |
@@ -68,6 +72,7 @@ _Last updated: 2026-11-04 (RDS-002 branch)_
 | v0.1 catalog upgrade without data loss | ✅ | Row counts are verified, otherwise rolled back (QA-017). |
 | Refuses a catalog from a newer app version, untouched | ✅ | |
 | Job log (schema v2): `jobs` and `job_events` | ✅ | Every scan records start, end state, counts, errors and each scan issue. |
+| Volume fingerprints (schema v3) | ✅ | `storage_locations` rebuilt: unique `stable_id`, non-unique `root_path`, plus label, filesystem, serial, GUID and size. References are checked before commit. |
 | Catalog export / delete controls | 📋 | docs/10 privacy defaults. |
 
 ## Platforms (FR-04) and deployment (FR-05)
@@ -98,7 +103,7 @@ _Last updated: 2026-11-04 (RDS-002 branch)_
 
 | Feature | Status | Notes |
 |---|---|---|
-| Rust unit tests (34): migrations, classifier, paths, scanner, cancellation, batching, job log, availability | ✅ | `cd src-tauri && cargo test` |
+| Rust unit tests (43): migrations, classifier, paths, scanner, cancellation, batching, job log, drive identity, availability | ✅ | `cd src-tauri && cargo test` |
 | TypeScript type-check and frontend build | ✅ | `npm run build` |
 | GitHub Actions CI on Windows (tests, clippy, build) | ✅ | Runs on every push to `main` and every pull request. |
 | Pinned dependency lockfiles | ✅ | `package-lock.json`, `src-tauri/Cargo.lock`. |

@@ -27,7 +27,8 @@ Use platform folder semantics, file extension and optional metadata; record infe
 - **Read errors:** entries that can't be read are reported, and the scan continues with the rest.
 - **Missing files:** a previously indexed file under the scanned folder is marked `missing` only if the scan finished with **no** read errors and was **not cancelled**. Catalog rows are never deleted, and a file that reappears becomes `present` again.
 - **Partial rescans:** scanning a subfolder only affects files under that subfolder.
-- **Offline volumes:** if a file's volume root isn't reachable, it is shown as `offline`. That check overrides `present` / `missing`.
+- **Offline volumes:** if a file's volume root isn't reachable, *or* that drive letter now holds a volume with a different fingerprint, the file is shown as `offline`. That check overrides `present` / `missing`.
+- **Reconnecting under a new letter:** a rescan matches the drive by fingerprint and updates the location's root, so files are neither duplicated nor marked missing. The scan summary reports `remounted_from`.
 - **Manual titles:** existing titles are never overwritten by a rescan, so manual corrections survive.
 - **Batched saving:** files are committed in batches of 500 or every second. A cancelled or crashed scan keeps what it had already saved; the next full scan completes the picture.
 
