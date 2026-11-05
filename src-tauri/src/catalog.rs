@@ -36,6 +36,8 @@ pub struct GameRow {
     pub disc_count: i64,
     /// True when a disc or track is missing, or a referenced file was never found.
     pub incomplete: bool,
+    /// From the reference catalog, when this game is linked to an entry.
+    pub reference: Option<ReferenceInfo>,
     pub storage_name: String,
     /// `online`: file was present at the last scan and its volume is attached.
     /// `offline`: the volume (drive / share) is not attached, or its drive letter
@@ -61,6 +63,18 @@ pub struct GameQuery {
     pub sort: Option<String>,
     pub offset: u32,
     pub limit: Option<u32>,
+}
+
+/// Details from the user's reference catalog (`reference.rs`).
+#[derive(Debug, Serialize, Clone, PartialEq)]
+pub struct ReferenceInfo {
+    pub title: String,
+    pub year: Option<i64>,
+    pub genre: Option<String>,
+    pub publisher: Option<String>,
+    pub developer: Option<String>,
+    /// `name`, `variant` or `title`.
+    pub method: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -266,8 +280,10 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
                     (SELECT COUNT(*) FROM game_files m WHERE m.release_id = gf.release_id AND m.file_role = 'disc'),
                     EXISTS (SELECT 1 FROM game_files m WHERE m.release_id = gf.release_id AND m.missing_parts > 0)
                     OR EXISTS (SELECT 1 FROM game_files m JOIN file_locations ml ON ml.game_file_id = m.id
-                               WHERE m.release_id = gf.release_id AND m.file_role <> 'primary' AND ml.present_status = 'missing')
+                               WHERE m.release_id = gf.release_id AND m.file_role <> 'primary' AND ml.present_status = 'missing'),
+                    re.title, re.year, re.genre, re.publisher, re.developer, gr.method
              {FROM} JOIN storage_locations s ON s.id = fl.storage_location_id
+             LEFT JOIN game_reference gr ON gr.game_id = g.id LEFT JOIN reference_entries re ON re.id = gr.entry_id
              WHERE fl.id IN (SELECT value FROM json_each(?1))"
         ))
         .map_err(|e| e.to_string())?;
@@ -287,6 +303,10 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
                 duplicate_count: r.get(9)?,
                 disc_count: r.get(10)?,
                 incomplete: r.get(11)?,
+                reference: match r.get::<_, Option<String>>(12)? {
+                    Some(title) => Some(ReferenceInfo { title, year: r.get(13)?, genre: r.get(14)?, publisher: r.get(15)?, developer: r.get(16)?, method: r.get(17)? }),
+                    None => None,
+                },
             })
         })
         .map_err(|e| e.to_string())?
