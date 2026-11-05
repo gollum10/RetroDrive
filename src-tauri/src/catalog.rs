@@ -38,6 +38,10 @@ pub struct GameRow {
     pub incomplete: bool,
     /// From the reference catalog, when this game is linked to an entry.
     pub reference: Option<ReferenceInfo>,
+    /// The primary game file's id (used to ask for its image).
+    pub file_id: String,
+    /// `kind|source|added_at` of the best linked image, or `None`.
+    pub art: Option<String>,
     pub storage_name: String,
     /// `online`: file was present at the last scan and its volume is attached.
     /// `offline`: the volume (drive / share) is not attached, or its drive letter
@@ -281,10 +285,11 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
                     EXISTS (SELECT 1 FROM game_files m WHERE m.release_id = gf.release_id AND m.missing_parts > 0)
                     OR EXISTS (SELECT 1 FROM game_files m JOIN file_locations ml ON ml.game_file_id = m.id
                                WHERE m.release_id = gf.release_id AND m.file_role <> 'primary' AND ml.present_status = 'missing'),
-                    re.title, re.year, re.genre, re.publisher, re.developer, gr.method
+                    re.title, re.year, re.genre, re.publisher, re.developer, gr.method, gf.id, {art}
              {FROM} JOIN storage_locations s ON s.id = fl.storage_location_id
              LEFT JOIN game_reference gr ON gr.game_id = g.id LEFT JOIN reference_entries re ON re.id = gr.entry_id
-             WHERE fl.id IN (SELECT value FROM json_each(?1))"
+             WHERE fl.id IN (SELECT value FROM json_each(?1))",
+            art = crate::media::best_media_sql("gf.id")
         ))
         .map_err(|e| e.to_string())?;
     let mut by_id: std::collections::HashMap<String, GameRow> = statement
@@ -307,6 +312,8 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
                     Some(title) => Some(ReferenceInfo { title, year: r.get(13)?, genre: r.get(14)?, publisher: r.get(15)?, developer: r.get(16)?, method: r.get(17)? }),
                     None => None,
                 },
+                file_id: r.get(18)?,
+                art: r.get(19)?,
             })
         })
         .map_err(|e| e.to_string())?

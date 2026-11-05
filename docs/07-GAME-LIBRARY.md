@@ -53,6 +53,14 @@ Use platform folder semantics, file extension and optional metadata; record infe
 3. Same title across platforms: **not** duplicate for deletion.
 4. Arcade parent/clone dependency: not safe to infer redundancy from names.
 
+## Game media: box art (implemented 2026-11-05, `src-tauri/src/media.rs`)
+RetroDrive **never ships, downloads or copies art**. It links games to images the user already has; only each image's location is stored (`game_media`).
+- **During every scan:** image files (`png`, `jpg`, `jpeg`, `webp`, `gif`, `bmp`) are counted as *images found*, not as ignored files. Then, for games reached by the scan: (1) each `gamelist.xml` (EmulationStation format, e.g. written by Skraper/ScreenScraper) links `<path>` to its `<image>` and `<thumbnail>` (`<marquee>` logos aren't used as covers); (2) games without a gamelist entry are matched to images next to the ROM by name: `media/box2dfront|boxart|covers/<name>`, `boxart/`, `covers/`, `media/images|screenshot|screenshots/<name>`, `images/<name>-image`, `images/<name>`, `images/<name>-thumb`, or `<name>.<ext>` beside the ROM.
+- **Only images seen inside the scanned folder are linked**; gamelist paths that climb above it are refused. Scanned links are refreshed by each scan; the user's own picks are never touched.
+- **Add art by hand:** a game card's **Add art / Change art** picks any image; **Remove my art** forgets the pick (the image file is never touched). The user's pick always wins, then box art, thumbnail, image.
+- **Display:** the UI loads images through the `rdmedia` protocol, which serves **only** the best image recorded for the requested game file, only image file types, at most 25 MB, and only when its drive is connected (fingerprint checked). It never serves arbitrary paths. No thumbnails or copies are cached.
+- **Measured on the owner's NAS (2026-11-05, separate test catalog):** `roms II\nes`: 1,592 games, 1,520 images found, 1,520 games linked; only 6 files left as non-game.
+
 ## Reference catalog (implemented 2026-11-05, `src-tauri/src/reference.rs`)
 The user can import their own game catalog (`.xlsx`/`.csv`) in **Settings → Reference catalog**.
 - **Columns** are recognized by header name (Title, Platform/System/Console, Year, Genre, Publisher, Developer, Source ID = No-Intro/MAME name, Source full name, Variants, Regions, Game ID). **Art columns ("Art…", image, thumbnail) are never read.** Rows without a title or system are skipped and counted.

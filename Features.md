@@ -49,7 +49,9 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 | Reference catalog import (names, details, genres) | ✅ | Settings → Reference catalog: import your `.xlsx`/`.csv` and an optional genre file. Games are matched by exact No-Intro/MAME name, MAME clone set, then title per system; cards and the list show catalog titles, year and genre. Art columns are never read. On your library: 47,840 of 116,405 games matched (Arcade 93%). |
 | Search and sort by catalog titles | 📋 | Search still uses file titles today. |
 | Arcade routing by source folder (`mame`/`fbneo`) | 📋 | Your library already separates them. |
-| Box art from your own images | 📋 | Local only; images are never shipped with RetroDrive. |
+| Box art from your own images | ✅ | Found automatically during scans (your `gamelist.xml` from Skraper/ScreenScraper, or images named like the game in `media`, `images`, `boxart`, `covers`…), or pick one with **Add art** on a game card. Shown from where it is; never copied or shipped. On your NAS's NES folder: 1,520 of 1,520 images linked. |
+| Scan summary counts images separately | ✅ | "N images found, N games linked to art" instead of "non-game files ignored". |
+| Game details from gamelist.xml (descriptions, players, rating) | 📋 | Follow-up. |
 | Scraper (e.g. ScreenScraper) | ⛔ | Blocked on LEGAL-007. |
 | Import (scan) a user-selected folder | ✅ | Runs as a background job; the window stays responsive. Read only: tests confirm source files are unchanged. 40,000 files took about 3 s in a dev build. |
 | Platform detection from folder names | ✅ | Uses the nearest platform folder (e.g. `roms/psx/Game (USA)/game.cue`). The scanned folder's own name counts. |
