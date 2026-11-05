@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 6;
+pub const SCHEMA_VERSION: i32 = 7;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -148,6 +148,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 6 {
         tx.execute_batch(SCHEMA_V6).map_err(|e| e.to_string())?;
+    }
+    if from_version < 7 {
+        tx.execute_batch(SCHEMA_V7).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -650,6 +653,46 @@ CREATE TABLE installations (
     last_checked_at      TEXT,
     UNIQUE (storage_location_id, relative_path)
 );
+";
+
+/// v7 (RDS-010): deployment journal. A deployment and all its items are written
+/// *before* any file is copied, and each item's state is updated as it moves
+/// through copying -> verified, so an interrupted copy can always be explained and
+/// its temporary file cleaned up. History survives forgetting an installation.
+const SCHEMA_V7: &str = "
+CREATE TABLE deployments (
+    id                     TEXT PRIMARY KEY,
+    job_id                 TEXT REFERENCES jobs(id) ON DELETE SET NULL,
+    installation_id        TEXT REFERENCES installations(id) ON DELETE SET NULL,
+    adapter_id             TEXT NOT NULL,
+    adapter_contract       INTEGER NOT NULL,
+    destination_root       TEXT NOT NULL,
+    destination_stable_id  TEXT,
+    plan_fingerprint       TEXT NOT NULL,
+    systems_json           TEXT,
+    status                 TEXT NOT NULL,
+    manifest_path          TEXT,
+    created_at             TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_at            TEXT
+);
+CREATE TABLE deployment_items (
+    id                INTEGER PRIMARY KEY,
+    deployment_id     TEXT NOT NULL REFERENCES deployments(id) ON DELETE CASCADE,
+    game_index        INTEGER NOT NULL,
+    game_title        TEXT NOT NULL,
+    game_file_id      TEXT REFERENCES game_files(id) ON DELETE SET NULL,
+    source_path       TEXT NOT NULL,
+    destination_path  TEXT NOT NULL,
+    temp_path         TEXT,
+    size_bytes        INTEGER NOT NULL,
+    planned_action    TEXT NOT NULL,
+    state             TEXT NOT NULL,
+    sha256            TEXT,
+    message           TEXT,
+    updated_at        TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_deployment_items_state ON deployment_items(deployment_id, state);
+CREATE INDEX idx_deployments_status ON deployments(status);
 ";
 
 #[cfg(test)]

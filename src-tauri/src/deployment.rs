@@ -144,25 +144,40 @@ pub struct DeploymentPlan {
     pub fingerprint: String,
 }
 
-struct ItemFile {
-    source: PathBuf,
-    relative: String,
-    destination: PathBuf,
-    size: i64,
-    action: Action,
-    reason: Option<String>,
+/// One planned file. Shared with the copier (RDS-010), which works from exactly
+/// what the plan contains.
+pub(crate) struct ItemFile {
+    pub game_file_id: String,
+    pub source: PathBuf,
+    pub relative: String,
+    pub destination: PathBuf,
+    pub size: i64,
+    pub action: Action,
+    pub reason: Option<String>,
 }
 
-struct Item {
-    title: String,
-    platform: String,
-    system_folder: String,
-    files: Vec<ItemFile>,
+pub(crate) struct Item {
+    pub title: String,
+    pub platform: String,
+    pub system_folder: String,
+    pub files: Vec<ItemFile>,
+}
+
+impl Item {
+    /// The game's action: the most serious action of its files.
+    pub fn action(&self) -> Action {
+        self.files.iter().map(|f| f.action).max().unwrap_or(Action::Copy)
+    }
 }
 
 /// Build the plan for an installation. `systems` limits it to those system folders
 /// (`None` = all). Reads the catalog and the destination; writes nothing.
 pub fn plan(connection: &Connection, installation_id: &str, systems: Option<&[String]>, presence: PresenceFn, space: SpaceFn) -> Result<DeploymentPlan, String> {
+    build(connection, installation_id, systems, presence, space).map(|(plan, _)| plan)
+}
+
+/// The plan plus every selected item, for the copier.
+pub(crate) fn build(connection: &Connection, installation_id: &str, systems: Option<&[String]>, presence: PresenceFn, space: SpaceFn) -> Result<(DeploymentPlan, Vec<Item>), String> {
     let install = installations::located(connection, presence, Some(installation_id))?.into_iter().next().ok_or("Installation not found")?;
     if install.presence != Presence::Connected {
         return Err("The installation's drive isn't connected, so a plan can't be made.".into());
@@ -205,7 +220,7 @@ pub fn plan(connection: &Connection, installation_id: &str, systems: Option<&[St
     fingerprint.write(&adapters::CONTRACT_VERSION.to_string());
     fingerprint.write(&install_root);
     for item in &items {
-        let action = item.files.iter().map(|f| f.action).max().unwrap_or(Action::Copy);
+        let action = item.action();
         games.add(action);
         let mut game_copy_bytes = 0i64;
         for file in &item.files {
@@ -286,7 +301,7 @@ pub fn plan(connection: &Connection, installation_id: &str, systems: Option<&[St
         },
     };
 
-    Ok(DeploymentPlan {
+    let plan = DeploymentPlan {
         installation_id: install.id,
         adapter_id: install.adapter_id,
         adapter_name: adapter.display_name().to_string(),
@@ -305,7 +320,8 @@ pub fn plan(connection: &Connection, installation_id: &str, systems: Option<&[St
         attention,
         sample,
         fingerprint: format!("{:016x}", fingerprint.finish()),
-    })
+    };
+    Ok((plan, items))
 }
 
 fn to_i64(value: u64) -> i64 {
@@ -420,8 +436,8 @@ fn check_file(file: &ItemFile, install_root: &Path, max_file: Option<u64>, folde
     }
 }
 
-/// (release, storage location) -> [(relative path, size, present status)].
-type Members = HashMap<(String, String), Vec<(String, i64, String)>>;
+/// (release, storage location) -> [(relative path, size, present status, game file id)].
+type Members = HashMap<(String, String), Vec<(String, i64, String, String)>>;
 
 struct Gathered {
     items: Vec<Item>,
@@ -436,24 +452,24 @@ fn gather(connection: &Connection, adapter: &dyn adapters::PlatformAdapter, inst
     {
         let mut statement = connection
             .prepare(
-                "SELECT gf.release_id, fl.storage_location_id, fl.relative_path, gf.size_bytes, fl.present_status
+                "SELECT gf.release_id, fl.storage_location_id, fl.relative_path, gf.size_bytes, fl.present_status, gf.id
                  FROM game_files gf JOIN file_locations fl ON fl.game_file_id = gf.id
                  WHERE gf.file_role <> 'primary' ORDER BY fl.relative_path",
             )
             .map_err(|e| e.to_string())?;
         let rows = statement
-            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, i64>(3)?, r.get::<_, String>(4)?)))
+            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, i64>(3)?, r.get::<_, String>(4)?, r.get::<_, String>(5)?)))
             .map_err(|e| e.to_string())?;
         for row in rows {
-            let (release, storage, relative, size, status) = row.map_err(|e| e.to_string())?;
-            members.entry((release, storage)).or_default().push((relative, size, status));
+            let (release, storage, relative, size, status, id) = row.map_err(|e| e.to_string())?;
+            members.entry((release, storage)).or_default().push((relative, size, status, id));
         }
     }
 
     let mut statement = connection
         .prepare(
             "SELECT g.canonical_title, g.platform, gf.extension, gf.release_id, gf.size_bytes, fl.relative_path, fl.present_status,
-                    fl.storage_location_id, s.root_path, s.stable_id
+                    fl.storage_location_id, s.root_path, s.stable_id, gf.id
              FROM game_files gf
              JOIN game_releases r ON r.id = gf.release_id
              JOIN games g ON g.id = r.game_id
@@ -476,6 +492,7 @@ fn gather(connection: &Connection, adapter: &dyn adapters::PlatformAdapter, inst
                 r.get::<_, String>(7)?,
                 r.get::<_, String>(8)?,
                 r.get::<_, Option<String>>(9)?,
+                r.get::<_, String>(10)?,
             ))
         })
         .map_err(|e| e.to_string())?;
@@ -483,7 +500,7 @@ fn gather(connection: &Connection, adapter: &dyn adapters::PlatformAdapter, inst
     let mut connected: HashMap<String, bool> = HashMap::new();
     let mut gathered = Gathered { items: Vec::new(), unsupported: BTreeMap::new(), unavailable: 0 };
     for row in rows {
-        let (title, platform, extension, release, size, relative, status, storage, root, stable) = row.map_err(|e| e.to_string())?;
+        let (title, platform, extension, release, size, relative, status, storage, root, stable, file_id) = row.map_err(|e| e.to_string())?;
         let online = *connected.entry(storage.clone()).or_insert_with(|| presence(&root, stable.as_deref()) == Presence::Connected);
         let parts = release.map(|r| members.get(&(r, storage)).cloned().unwrap_or_default()).unwrap_or_default();
         if !online || status != "present" || parts.iter().any(|m| m.2 != "present") {
@@ -492,12 +509,12 @@ fn gather(connection: &Connection, adapter: &dyn adapters::PlatformAdapter, inst
         }
         let primary_dir = relative.rsplit_once('/').map(|(dir, _)| format!("{dir}/")).unwrap_or_default();
         let primary_name = relative.rsplit('/').next().unwrap_or(&relative).to_string();
-        let mut sources = vec![relative.clone()];
+        let mut sources = vec![(relative.clone(), file_id)];
         let mut files = vec![PlacementFile { relative_to_primary: primary_name, size }];
-        for (member_relative, member_size, _) in &parts {
+        for (member_relative, member_size, _, member_id) in &parts {
             let relative_to_primary = member_relative.strip_prefix(&primary_dir).map(str::to_string).unwrap_or_else(|| format!("../{member_relative}"));
             files.push(PlacementFile { relative_to_primary, size: *member_size });
-            sources.push(member_relative.clone());
+            sources.push((member_relative.clone(), member_id.clone()));
         }
         let request = PlacementRequest { title: title.clone(), platform: platform.clone(), extension, files };
         match adapter.plan_placement(&request) {
@@ -506,7 +523,8 @@ fn gather(connection: &Connection, adapter: &dyn adapters::PlatformAdapter, inst
                     .into_iter()
                     .zip(&request.files)
                     .zip(destinations)
-                    .map(|((source, planned), destination)| ItemFile {
+                    .map(|(((source, game_file_id), planned), destination)| ItemFile {
+                        game_file_id,
                         source: paths::join(&root, &source),
                         destination: paths::join(install_root, &destination),
                         relative: destination,

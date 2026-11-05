@@ -26,5 +26,8 @@ The detailed legal assessment, compliance backlog and release gates are in [docs
 
 The product orchestrates existing emulation software but does not grant users ROM distribution rights or rights to console firmware. Review each project's license, trademark rules, dependencies and commercial redistribution policy before bundling. Links to authorized official downloads are generally preferable to repackaging components. No unlicensed game artwork bundled in starter assets.
 
+## File writes (RDS-010)
+Copying games is the only write path today. Its hazards, mitigations, tests and owner sign-off are in [docs/18](18-SAFETY-REVIEW-RDS-010.md). It never overwrites or deletes user files, never writes through links, and runs only after the user confirms a reviewed plan.
+
 ## Security release gates
 No raw disk write without documented QA on sacrificial media and safe failures for OS disk, disconnected target, device swap, insufficient space, bad image/hash and power interruption. Code review for every elevated operation. Published installer should be signed when distribution begins.

@@ -4,6 +4,7 @@
 mod adapters;
 mod catalog;
 mod classify;
+mod copier;
 mod db;
 mod deployment;
 mod drives;
@@ -25,6 +26,8 @@ use tauri::{AppHandle, Emitter, Manager, State};
 /// Events sent to the UI.
 const EVENT_SCAN_PROGRESS: &str = "scan-progress";
 const EVENT_SCAN_FINISHED: &str = "scan-finished";
+const EVENT_DEPLOY_PROGRESS: &str = "deploy-progress";
+const EVENT_DEPLOY_FINISHED: &str = "deploy-finished";
 
 /// Catalog location, or the reason it could not be opened/migrated at startup.
 struct Catalog {
@@ -46,12 +49,15 @@ struct ActiveJobs {
 struct ActiveJob {
     cancel: Arc<AtomicBool>,
     folder: String,
+    kind: &'static str,
 }
 
 #[derive(Serialize, Clone)]
 struct ActiveScan {
     job_id: String,
     folder: String,
+    /// `library_scan` or `deployment`.
+    kind: &'static str,
 }
 
 #[derive(Serialize, Clone)]
@@ -97,6 +103,13 @@ fn init_catalog(handle: &AppHandle) -> Result<PathBuf, String> {
     if interrupted > 0 {
         eprintln!("Marked {interrupted} unfinished job(s) from a previous session as interrupted");
     }
+    copier::recover(&connection)?;
+    // Only removes RetroDrive's own temporary files, on confirmed drives (docs/18).
+    match copier::cleanup_leftovers(&connection, &volumes::presence) {
+        Ok(0) => {}
+        Ok(n) => eprintln!("Removed {n} unfinished temporary file(s) from an interrupted copy"),
+        Err(e) => eprintln!("Could not check for unfinished copies: {e}"),
+    }
     Ok(path)
 }
 
@@ -129,14 +142,14 @@ fn start_scan(app: AppHandle, catalog: State<'_, Catalog>, active: State<'_, Act
     let db_path = catalog.path()?;
     let mut running = active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?;
     if !running.is_empty() {
-        return Err("A scan is already running. Wait for it to finish or cancel it first.".into());
+        return Err("Another scan or copy is running. Wait for it to finish or cancel it first.".into());
     }
     let connection = db::open(&db_path)?;
     let job_id = jobs::create(&connection, jobs::KIND_SCAN, &json!({ "folder": folder }))?;
     drop(connection);
 
     let cancel = Arc::new(AtomicBool::new(false));
-    running.insert(job_id.clone(), ActiveJob { cancel: cancel.clone(), folder: folder.clone() });
+    running.insert(job_id.clone(), ActiveJob { cancel: cancel.clone(), folder: folder.clone(), kind: jobs::KIND_SCAN });
     drop(running);
 
     let id = job_id.clone();
@@ -208,7 +221,7 @@ fn cancel_job(active: State<'_, ActiveJobs>, job_id: String) -> Result<bool, Str
 #[tauri::command]
 fn active_scan(active: State<'_, ActiveJobs>) -> Result<Option<ActiveScan>, String> {
     let running = active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?;
-    Ok(running.iter().next().map(|(id, job)| ActiveScan { job_id: id.clone(), folder: job.folder.clone() }))
+    Ok(running.iter().next().map(|(id, job)| ActiveScan { job_id: id.clone(), folder: job.folder.clone(), kind: job.kind }))
 }
 
 #[tauri::command]
@@ -264,6 +277,101 @@ async fn deployment_plan(catalog: State<'_, Catalog>, installation_id: String, s
     .map_err(|e| e.to_string())?
 }
 
+/// Forwards copy progress to the UI and relays cancellation requests.
+struct DeployUi {
+    app: AppHandle,
+    job_id: String,
+    cancel: Arc<AtomicBool>,
+}
+
+impl copier::DeployObserver for DeployUi {
+    fn cancelled(&mut self) -> bool {
+        self.cancel.load(Ordering::Relaxed)
+    }
+    fn progress(&mut self, progress: &copier::DeployProgress) {
+        let _ = self.app.emit(EVENT_DEPLOY_PROGRESS, json!({ "job_id": self.job_id, "progress": progress }));
+    }
+}
+
+#[derive(Serialize, Clone)]
+struct DeployFinishedEvent {
+    job_id: String,
+    /// `completed`, `completed_with_issues`, `cancelled`, `interrupted` or `failed`.
+    state: String,
+    summary: Option<copier::DeploySummary>,
+    error: Option<String>,
+}
+
+/// Copy the reviewed plan to an installation (RDS-010). `fingerprint` must match
+/// the plan the user reviewed; everything is re-checked before the first write.
+/// Runs in the background; progress arrives as `deploy-progress`, the result as
+/// `deploy-finished`. Only one scan or copy runs at a time.
+#[tauri::command]
+fn start_deployment(
+    app: AppHandle,
+    catalog: State<'_, Catalog>,
+    active: State<'_, ActiveJobs>,
+    installation_id: String,
+    systems: Option<Vec<String>>,
+    fingerprint: String,
+    destination: String,
+) -> Result<String, String> {
+    let db_path = catalog.path()?;
+    let mut running = active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?;
+    if !running.is_empty() {
+        return Err("Another scan or copy is running. Wait for it to finish or cancel it first.".into());
+    }
+    let connection = db::open(&db_path)?;
+    let input = json!({ "folder": destination, "installation_id": installation_id, "systems": systems, "fingerprint": fingerprint });
+    let job_id = jobs::create(&connection, jobs::KIND_DEPLOY, &input)?;
+    drop(connection);
+
+    let cancel = Arc::new(AtomicBool::new(false));
+    running.insert(job_id.clone(), ActiveJob { cancel: cancel.clone(), folder: destination, kind: jobs::KIND_DEPLOY });
+    drop(running);
+
+    let id = job_id.clone();
+    tauri::async_runtime::spawn_blocking(move || run_deployment(app, db_path, id, installation_id, systems, fingerprint, cancel));
+    Ok(job_id)
+}
+
+fn run_deployment(app: AppHandle, db_path: PathBuf, job_id: String, installation_id: String, systems: Option<Vec<String>>, fingerprint: String, cancel: Arc<AtomicBool>) {
+    let outcome = catch_unwind(AssertUnwindSafe(|| {
+        let connection = db::open(&db_path)?;
+        let mut observer = DeployUi { app: app.clone(), job_id: job_id.clone(), cancel };
+        let request = copier::DeployRequest { installation_id: &installation_id, systems: systems.as_deref(), fingerprint: &fingerprint };
+        copier::deploy(&connection, Some(&job_id), &request, &volumes::presence, &volumes::space, &mut observer)
+    }))
+    .unwrap_or_else(|_| Err("The copy stopped because of an internal error. Files already verified were kept; unfinished temporary files are cleaned up next time.".into()));
+
+    let (state, summary, error) = match outcome {
+        Ok(summary) => (summary.status.clone(), Some(summary), None),
+        Err(error) => ("failed".to_string(), None, Some(error)),
+    };
+    if let Ok(connection) = db::open(&db_path) {
+        if let Some(s) = &summary {
+            for issue in &s.issues {
+                let _ = jobs::event(&connection, &job_id, "warning", "deploy_issue", &json!({ "game": issue.game, "path": issue.path, "message": issue.message }));
+            }
+        }
+        // Job states stay within the job vocabulary; the detailed status is in the summary.
+        let job_state = match state.as_str() {
+            "completed" | "completed_with_issues" => "completed",
+            "cancelled" => "cancelled",
+            _ => "failed",
+        };
+        let progress = summary.as_ref().and_then(|s| serde_json::to_value(s).ok());
+        let failure = error.as_deref().map(|e| ("deploy_refused", e)).or_else(|| (state == "interrupted").then_some(("drive_lost", "The destination drive was disconnected during the copy.")));
+        if let Err(e) = jobs::finish(&connection, &job_id, job_state, progress.as_ref(), failure) {
+            eprintln!("Could not record the end of job {job_id}: {e}");
+        }
+    }
+    if let Ok(mut running) = app.state::<ActiveJobs>().jobs.lock() {
+        running.remove(&job_id);
+    }
+    let _ = app.emit(EVENT_DEPLOY_FINISHED, DeployFinishedEvent { job_id, state, summary, error });
+}
+
 #[tauri::command]
 fn list_drives() -> Vec<drives::Drive> {
     drives::list()
@@ -290,6 +398,7 @@ pub fn run() {
             list_installations,
             remove_installation,
             deployment_plan,
+            start_deployment,
             list_storage_locations, start_scan, cancel_job, active_scan, recent_jobs, list_drives])
         .run(tauri::generate_context!())
         .expect("error starting RetroDrive");

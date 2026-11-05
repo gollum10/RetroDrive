@@ -6,7 +6,7 @@ The single list of what the app **does today** and what is **planned**. Update t
 
 Requirement IDs (FR/NFR) refer to [docs/02-SCOPE-AND-REQUIREMENTS.md](docs/02-SCOPE-AND-REQUIREMENTS.md); RDS IDs refer to [docs/11-ROADMAP-AND-BACKLOG.md](docs/11-ROADMAP-AND-BACKLOG.md).
 
-_Last updated: 2026-11-05 (RDS-009 deployment plan)_
+_Last updated: 2026-11-05 (RDS-010 verified copy)_
 
 ---
 
@@ -36,7 +36,7 @@ _Last updated: 2026-11-05 (RDS-009 deployment plan)_
 | Different drive using a known letter | ✅ | Gets its own records. The old drive's games show **Offline**, not Online. |
 | Known drives list (Drive Manager) | ✅ | Every scanned drive, plugged in or not. Shows label, connection status (Connected / Not connected / letter now used by a different drive), file and missing counts, filesystem, size, volume ID and last scan. |
 | `subst` drive letters | ✅ | Resolved to the real folder underneath, so an alias letter never creates duplicate records. |
-| Confirmation prompt when a drive match is ambiguous | 📋 | Not needed yet because nothing writes to drives. Required before copying (RDS-010, QA-015). |
+| Confirmation prompt when a drive match is ambiguous | 📋 | Not needed yet: copies are refused when the drive doesn't match its fingerprint. Copies re-check the drive's fingerprint before starting and before every game (RDS-010, QA-015). |
 | Physical disk vs volume model, filesystem type, system-disk flag | 📋 | docs/06. |
 | Format, partition, image, clone | ⛔ | Needs the elevated-helper safety review (RDS-014). |
 
@@ -108,7 +108,11 @@ _Last updated: 2026-11-05 (RDS-009 deployment plan)_
 | RetroBat folder mapping (verified against the RetroBat wiki) | ✅ | nes, fds (Famicom Disk `.fds`), snes, megadrive, mastersystem, gamegear, psx, ps2, gb, gbc, gba, n64. Multi-disc games get their own subfolder so playlists keep working. |
 | Arcade placement (MAME vs FinalBurn Neo) | 📋 | Not guessed: the two use different ROM sets. Needs a user choice. |
 | Batocera adapter | 📋 | RDS-008. |
-| Verified staged copy with manifest and recovery | 📋 | RDS-010. Will rebuild the plan and check its fingerprint, drive identity and space before writing. |
+| Copy games to RetroBat (verified) | ✅ | RDS-010. After you confirm, copies the plan in the background with progress and Cancel. Re-checks the plan, the drive's identity and free space first. Each file goes to a temporary name, is checked with SHA-256 by reading it back from the drive, and only then gets its real name. **Never overwrites or deletes** your files (a file that appears mid-copy is kept). Safety review: docs/18. |
+| Existing files checked by content | ✅ | "Already there" files are compared byte for byte before being skipped; if they differ, the existing file is kept and reported. |
+| Cancel and crash recovery | ✅ | Cancel discards only the file in progress. After a crash or unplugged drive, RetroDrive removes its own unfinished temporary files the next time that same drive is connected. Partly copied multi-disc games keep their verified discs; copying again finishes them. |
+| Copy record (manifest) | ✅ | Every copy is recorded in the catalog and as `.retrodrive\deployments\<id>.json` in the RetroBat folder. Verified checksums are saved to the catalog. |
+| Conflict choices (replace with backup, side-by-side rename) | 📋 | Today conflicts are always kept (docs/08). |
 | Guided installs and imaging | ⛔ | RDS-012 to RDS-014, gated. |
 
 ## Later modules
@@ -129,7 +133,7 @@ _Last updated: 2026-11-05 (RDS-009 deployment plan)_
 | Item | Status | Notes |
 |---|---|---|
 | No games, BIOS, firmware or artwork shipped or downloaded | ✅ | Checked in docs/17 §5. |
-| RetroBat support limited to the user's own installation | ✅ | Read-only; downloading or installing RetroBat is blocked on LEGAL-002/003. |
+| RetroBat support limited to the user's own installation | ✅ | RetroDrive works only with a RetroBat you installed: it checks the folder and copies games into it after you confirm. Downloading or installing RetroBat is blocked on LEGAL-002/003. |
 | Independence statement in the app (Settings) and README | 🟡 | Draft wording from docs/16 §8, pending counsel review. |
 | Third-party component manifest (LEGAL-001) | 🟡 | Software dependencies inventoried (280; 5 MPL-2.0 via Tauri need notices). Platforms and assets are listed by hand. |
 | CI license gate (LEGAL-014) | 🟡 | `scripts/check-licenses.py` fails CI on copyleft or unknown licenses; release sign-off still to be defined. |

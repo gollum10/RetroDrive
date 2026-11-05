@@ -48,6 +48,15 @@ A game takes its most serious file action, so a game with one conflicting file i
 
 **Fingerprint:** a stable 64-bit FNV-1a hash over adapter, contract, installation, and every source, destination, size and action. RDS-010 must rebuild the plan right before copying and refuse to start if the fingerprint changed.
 
+## Implemented copy (RDS-010, `src-tauri/src/copier.rs`, ADR-021, safety review docs/18)
+1. **Re-check:** rebuild the plan; the fingerprint must match what the user reviewed; the drive must be the same volume and have room (unknown space refuses). Otherwise nothing is written.
+2. **Journal:** a `deployments` row and every `deployment_items` row are written before the first byte.
+3. **Per game:** confirm the volume again; compare "already there" files by content (a difference makes the whole game a conflict, kept); then for each file to copy: create missing folders one level at a time (refusing links), record the temp path, create `<name>.rdpart-<id>` with `create_new`, stream with SHA-256, `sync_all`, check the source didn't change, read the temp back past the Windows cache and compare, and rename with no-replace. Only then is it `verified`.
+4. **Failures:** the file's own temp is removed; a conflict at rename keeps the existing file; if the drive disappears the deployment is `interrupted`. Verified files of a partly copied game stay; running the copy again checks them and copies the rest.
+5. **Cancel:** the file in progress is discarded; verified files stay; the rest are `not_attempted`.
+6. **Manifest:** the journal is the catalog record; a JSON copy is written to `<installation>/.retrodrive/deployments/<id>.json` the same safe way.
+7. **Startup:** deployments left `running` become `interrupted`; recorded temps are removed only on the confirmed drive, inside that installation, with that deployment's marker.
+
 ## Transaction behavior
 Stage temporary files in destination where feasible; stream chunks and hashes; atomically rename completed files where supported; journal each item. The full multi-file job cannot always be globally atomic, so clearly mark partial completion and support recovery/cleanup. Never mark a deployment item completed before verification.
 
