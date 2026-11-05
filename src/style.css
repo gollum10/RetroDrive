@@ -62,3 +62,5 @@
 
 .panel+.panel{margin-top:20px}
 .section-heading>button{white-space:nowrap;flex-shrink:0}
+
+.legal-heading{margin-top:26px}.legal-notice{border-left:3px solid #32465f;padding-left:12px}.legal-draft{display:block;color:#627796;font-size:11.5px;margin-top:-10px}

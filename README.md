@@ -60,6 +60,11 @@ git push -u origin main
 ```
 Replace `YOUR_USERNAME` with your GitHub account. GitHub may prompt for authentication.
 
+## Legal
+RetroDrive doesn't include or download games, BIOS or firmware; it organizes and copies files you choose. See [docs/16-LEGAL-AND-COMPLIANCE.md](docs/16-LEGAL-AND-COMPLIANCE.md) for the legal assessment and [docs/17-THIRD-PARTY-COMPONENTS.md](docs/17-THIRD-PARTY-COMPONENTS.md) for the component inventory.
+
+> RetroDrive is an independent retro gaming management application. All third-party product names and trademarks belong to their respective owners. Compatibility references do not imply sponsorship, affiliation, or endorsement. *(Draft wording, pending counsel review.)*
+
 ## Design rules
 - Always use a preview and explicit confirmation before potentially destructive disk operations.
 - Start with a hybrid catalog: game identity, physical files, and deployment manifests will eventually be separate entities.

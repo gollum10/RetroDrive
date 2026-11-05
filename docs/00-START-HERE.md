@@ -23,6 +23,8 @@
 | [13 Decisions and open questions](13-DECISION-LOG.md) | Decisions already made and items still unconfirmed |
 | [14 AI implementation brief](14-AI-CODING-BRIEF.md) | Ready-to-use instructions for coding assistants |
 | [15 QA matrix](15-QUALITY-AND-TESTS.md) | Repeatable functional and safety tests |
+| [16 Legal and compliance](16-LEGAL-AND-COMPLIANCE.md) | Legal-risk assessment, LEGAL-001…014 backlog, sign-off decisions, engineering status |
+| [17 Third-party components](17-THIRD-PARTY-COMPONENTS.md) | Manifest of shipped dependencies, platforms, assets and content (LEGAL-001) |
 
 **Feature status:** see [`../Features.md`](../Features.md) for what is shipped vs planned.
 

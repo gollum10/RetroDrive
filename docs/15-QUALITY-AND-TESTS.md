@@ -77,7 +77,7 @@ After RDS-005 (listing primary files only), rerun the same day: first page 5.4 m
 The query plans (EXPLAIN QUERY PLAN) confirm index-ordered walks (`SCAN g USING INDEX idx_games_title`). **Scan cost:** a first-time scan of 39,300 files took 12 s in the dev app, against about 3 s before the search index; rescans of known files don't touch the index. Not yet measured: 1M rows, memory use.
 
 ## Security review checklist
-Check path traversal, symlink/junction escape, signed/trusted downloads, secret handling, rate limits, frontend IPC validation, backup recovery, unsafe shell usage and dependency vulnerabilities.
+Check the dependency license gate (`scripts/check-licenses.py`, LEGAL-014), path traversal, symlink/junction escape, signed/trusted downloads, secret handling, rate limits, frontend IPC validation, backup recovery, unsafe shell usage and dependency vulnerabilities.
 
 ## Release signoff record (template)
 Version, commit SHA, target Windows environment, automated suite result, manual matrix result, known limitations, code reviewers, security approver for elevated operations, packaging/signing status, and release notes.

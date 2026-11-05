@@ -22,6 +22,8 @@
 No account needed. The local catalog can reveal sensitive file paths and user collections; keep it local, don't upload without explicit opt-in. Optional telemetry: clearly described and disabled by default initially. Provide export/delete catalog controls that don't delete ROM files.
 
 ## Copyright/legal
+The detailed legal assessment, compliance backlog and release gates are in [docs/16](16-LEGAL-AND-COMPLIANCE.md); the component inventory is in [docs/17](17-THIRD-PARTY-COMPONENTS.md).
+
 The product orchestrates existing emulation software but does not grant users ROM distribution rights or rights to console firmware. Review each project's license, trademark rules, dependencies and commercial redistribution policy before bundling. Links to authorized official downloads are generally preferable to repackaging components. No unlicensed game artwork bundled in starter assets.
 
 ## Security release gates
