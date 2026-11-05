@@ -92,6 +92,12 @@ fn retrodrive_platform(label: &str) -> String {
         "Super Nintendo" | "Super Nintendo Entertainment System" | "Super Famicom" => "SNES",
         "Sony PlayStation" | "PS1" => "PlayStation",
         "Sony PlayStation 2" | "PS2" => "PlayStation 2",
+        "Neo Geo AES" | "Neo Geo MVS" => "Neo Geo",
+        "TurboGrafx-16 / PC Engine" | "TurboGrafx-16" | "PC Engine / TurboGrafx-16" => "PC Engine",
+        "TurboGrafx-CD" | "PC Engine CD-ROM" => "PC Engine CD",
+        "Sega Mega-CD" | "Mega-CD" => "Sega CD",
+        "Magnavox Odyssey 2" | "Videopac" => "Odyssey 2",
+        "Sega Dreamcast" => "Dreamcast",
         other => other,
     }
     .to_string()

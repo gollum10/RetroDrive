@@ -280,6 +280,11 @@ pub fn scan_with(
             continue;
         };
 
+        let classification = if path.file_name().and_then(|n| n.to_str()).is_some_and(classify::looks_like_bios) {
+            classify::Classification { platform: classify::BIOS, source: classify::HintSource::Folder }
+        } else {
+            classification
+        };
         let metadata = match entry.metadata() {
             Ok(m) => m,
             Err(error) => {
@@ -545,6 +550,18 @@ fn record_file(tx: &Connection, storage_id: &str, relative_path: &str, scan_id: 
             params![file_id, facts.size, facts.modified, facts.classification.platform, facts.classification.source.as_str()],
         )
         .map_err(|e| e.to_string())?;
+        // A newer build may recognize the system now (e.g. a c64 folder that used to be
+        // Unclassified): the primary file's game follows. Legacy rows keep their platform.
+        if role == "primary" {
+            if let Some(release) = &release_id {
+                tx.execute(
+                    "UPDATE games SET platform = ?2 WHERE id = (SELECT game_id FROM game_releases WHERE id = ?1) AND platform <> ?2
+                     AND NOT EXISTS (SELECT 1 FROM game_files WHERE id = ?3 AND platform_hint_source = 'legacy')",
+                    params![release, facts.classification.platform, file_id],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+        }
         return Ok(RecordOutcome { is_new: false, file_id, release_id: release_id.unwrap_or_default(), role });
     }
     let file_id = db::insert_game_file(
@@ -1434,5 +1451,35 @@ mod tests {
         assert!(picked.exists(), "removing art never deletes the image file");
         assert_eq!(media::resolve(&c, &kid_id, &|_, _| crate::volumes::Presence::NotConnected).unwrap(), None, "nothing is served from a drive that isn't connected");
         assert!(media::set_user_art(&c, &kid_id, &root.join("nes/Kid Icarus (USA).zip"), &unknown).unwrap_err().contains("image file"));
+    }
+
+    #[test]
+    fn rescans_move_games_to_newly_recognized_systems_and_mark_bios() {
+        let unknown = |_: &str| VolumeProbe::unknown();
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("roms");
+        fs::create_dir_all(root.join("c64")).unwrap();
+        fs::create_dir_all(root.join("gba")).unwrap();
+        fs::write(root.join("c64/Pyramid Quiz (USA).zip"), b"c64").unwrap();
+        fs::write(root.join("gba/[BIOS] Game Boy Advance (World).zip"), b"bios").unwrap();
+        let mut c = catalog();
+        scan(&mut c, &root, &unknown).unwrap();
+        let platform = |c: &Connection, file: &str| -> String {
+            c.query_row(
+                "SELECT g.platform FROM games g JOIN game_releases r ON r.game_id = g.id JOIN game_files gf ON gf.release_id = r.id WHERE gf.filename = ?1",
+                [file],
+                |r| r.get(0),
+            )
+            .unwrap()
+        };
+        assert_eq!(platform(&c, "Pyramid Quiz (USA).zip"), "Commodore 64");
+        assert_eq!(platform(&c, "[BIOS] Game Boy Advance (World).zip"), "BIOS", "BIOS files aren't listed as GBA games");
+
+        // Simulate a catalog from an older build that didn't know the c64 folder.
+        c.execute("UPDATE games SET platform = 'Unclassified' WHERE canonical_title LIKE 'Pyramid Quiz%'", []).unwrap();
+        scan(&mut c, &root, &unknown).unwrap();
+        assert_eq!(platform(&c, "Pyramid Quiz (USA).zip"), "Commodore 64", "a rescan moves the game to its system");
+        let found: i64 = c.query_row("SELECT COUNT(*) FROM games_fts WHERE games_fts MATCH 'Commodore'", [], |r| r.get(0)).unwrap();
+        assert_eq!(found, 1, "search follows the new system");
     }
 }

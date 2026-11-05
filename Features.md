@@ -54,6 +54,8 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 | Game details from gamelist.xml (descriptions, players, rating) | 📋 | Follow-up. |
 | Scraper (e.g. ScreenScraper) | ⛔ | Blocked on LEGAL-007. |
 | Import (scan) a user-selected folder | ✅ | Runs as a background job; the window stays responsive. Read only: tests confirm source files are unchanged. 40,000 files took about 3 s in a dev build. |
+| 49 systems recognized, incl. your hack folders | ✅ | C64, Amiga, Amstrad, Atari, MSX, X68000, PC Engine, Neo Geo, WonderSwan and many more; `nesh`/`snesh`/`genh`/`megadrive-japan` join their systems. On your library: Unclassified drops from 60,558 to 4 after a rescan. RetroBat folders mapped for all of them. |
+| BIOS files kept out of the game list | ✅ | `bios` folders and `[BIOS] …` names become **BIOS** (never placed or copied as games). A BIOS checker is planned (M4). |
 | Platform detection from folder names | ✅ | Uses the nearest platform folder (e.g. `roms/psx/Game (USA)/game.cue`). The scanned folder's own name counts. |
 | Non-game files ignored inside platform folders | ✅ | `readme.txt`, `.srm` saves, `.state`, `gamelist.xml`, images and similar are skipped. |
 | Extension-only detection outside platform folders | ✅ | `.zip`, `.7z`, `.chd`, `.iso`, `.cue`, `.m3u` are recorded as **Unclassified**. |
