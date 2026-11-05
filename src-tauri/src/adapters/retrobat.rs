@@ -4,7 +4,11 @@
 //! - Folder structure (https://wiki.retrobat.org/get-started/retrobat-folder-structure):
 //!   `RetroBat.exe`, `retrobat.ini`, `emulationstation\`, `emulators\`, `roms\`
 //!   (one folder per system), `bios\`, `saves\`, `system\` (replaced on update).
-//!   No version file is documented, so the version is reported as unknown.
+//!   No version file is documented. Observed on a real 8.3.1.1 install (2026-11-05):
+//!   `system\version.info` and `emulationstation\version.info` both contain
+//!   `8.3.1.1-stable-win64` (`RetroBat.exe` itself still says 8.3.0.0), and `system\`
+//!   is replaced on every update, so RetroDrive reads that file. `retrobat.ini` doesn't
+//!   exist until RetroBat has run, so it is supporting evidence only.
 //! - Install advice (https://wiki.retrobat.org/get-started/installation-and-first-startup):
 //!   avoid spaces and special characters in the path and don't install at a drive root.
 //! - System folder names (https://wiki.retrobat.org/systems-and-emulators/supported-game-systems):
@@ -69,6 +73,29 @@ fn arcade_folder(extension: &str, options: PlacementOptions) -> Result<&'static 
     }
 }
 
+/// RetroBat's version from `system\version.info` (fallback `emulationstation\version.info`),
+/// e.g. `8.3.1.1-stable-win64`. Reads at most 128 bytes and accepts only a short
+/// version-like string, so an unexpected file can't inject text into the UI.
+fn read_version(root: &Path) -> Option<String> {
+    use std::io::Read;
+    for relative in ["system/version.info", "emulationstation/version.info"] {
+        let Ok(file) = std::fs::File::open(root.join(relative)) else { continue };
+        let mut text = String::new();
+        if file.take(128).read_to_string(&mut text).is_err() {
+            continue;
+        }
+        let version = text.trim();
+        let valid = !version.is_empty()
+            && version.len() <= 64
+            && version.starts_with(|c: char| c.is_ascii_digit())
+            && version.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'));
+        if valid {
+            return Some(version.to_string());
+        }
+    }
+    None
+}
+
 /// Path problems the RetroBat wiki warns about (pure, for testing).
 fn path_warnings(path: &str) -> Vec<String> {
     let mut warnings = Vec::new();
@@ -118,7 +145,8 @@ impl PlatformAdapter for RetroBat {
             (true, _) => Confidence::Possible,
             _ => Confidence::NotDetected,
         };
-        Detection { adapter_id: ID, display_name: NAME, kind: AdapterKind::PortableApp, confidence, evidence, version: None }
+        let version = if confidence == Confidence::NotDetected { None } else { read_version(root) };
+        Detection { adapter_id: ID, display_name: NAME, kind: AdapterKind::PortableApp, confidence, evidence, version }
     }
 
     fn validate_layout(&self, root: &Path) -> Vec<LayoutCheck> {
@@ -145,11 +173,19 @@ impl PlatformAdapter for RetroBat {
             status: if warnings.is_empty() { CheckStatus::Ok } else { CheckStatus::Warning },
             detail: if warnings.is_empty() { "The path follows the RetroBat wiki's advice.".into() } else { warnings.join(" ") },
         });
-        checks.push(LayoutCheck {
-            id: "version",
-            label: "Version".into(),
-            status: CheckStatus::Warning,
-            detail: "RetroBat doesn't document a version file, so the version is unknown.".into(),
+        checks.push(match read_version(root) {
+            Some(version) => LayoutCheck {
+                id: "version",
+                label: "Version".into(),
+                status: CheckStatus::Ok,
+                detail: format!("RetroBat {version} (from system\\version.info)."),
+            },
+            None => LayoutCheck {
+                id: "version",
+                label: "Version".into(),
+                status: CheckStatus::Warning,
+                detail: "No readable system\\version.info, so the version is unknown.".into(),
+            },
         });
         checks
     }
@@ -218,7 +254,28 @@ mod tests {
         let d = RetroBat.detect(dir.path());
         assert_eq!(d.confidence, Confidence::Detected);
         assert_eq!(d.evidence.len(), 3, "{:?}", d.evidence);
-        assert_eq!(d.version, None, "no documented version file");
+        assert_eq!(d.version, None, "no version file in this folder");
+    }
+
+    #[test]
+    fn a_fresh_install_reports_its_version() {
+        // Layout of a real 8.3.1.1 install before first launch: no retrobat.ini.
+        let dir = tempfile::tempdir().unwrap();
+        install(dir.path(), &[("RetroBat.exe", false), ("emulationstation", true), ("roms", true), ("bios", true), ("emulators", true), ("system", true)]);
+        fs::write(dir.path().join("system/version.info"), b"8.3.1.1-stable-win64").unwrap();
+        let d = RetroBat.detect(dir.path());
+        assert_eq!(d.confidence, Confidence::Detected);
+        assert_eq!(d.version.as_deref(), Some("8.3.1.1-stable-win64"));
+        let version = RetroBat.validate_layout(dir.path()).into_iter().find(|c| c.id == "version").unwrap();
+        assert_eq!(version.status, CheckStatus::Ok);
+        assert!(version.detail.contains("8.3.1.1"));
+
+        // Falls back to emulationstation\version.info; ignores junk.
+        fs::write(dir.path().join("system/version.info"), b"<script>alert(1)</script>").unwrap();
+        fs::write(dir.path().join("emulationstation/version.info"), b"8.3.1.1-stable-win64\r\n").unwrap();
+        assert_eq!(RetroBat.detect(dir.path()).version.as_deref(), Some("8.3.1.1-stable-win64"));
+        fs::remove_file(dir.path().join("emulationstation/version.info")).unwrap();
+        assert_eq!(RetroBat.detect(dir.path()).version, None);
     }
 
     #[test]

@@ -68,9 +68,9 @@ Native backend modules in `src-tauri/src/`:
 
 | Module | Responsibility | Target module above |
 |---|---|---|
-| `lib.rs` | Tauri setup and commands: `query_games`, `library_stats`, `list_adapters`, `inspect_installation`, `add_installation`, `list_installations`, `remove_installation`, `deployment_plan`, `start_deployment`, `list_storage_locations`, `start_scan`, `cancel_job`, `active_scan`, `recent_jobs`, `list_drives`. At startup it migrates the catalog and recovers interrupted jobs; if that fails, every command returns the error. Holds the in-memory registry of running jobs and their cancel flags. | app services |
+| `lib.rs` | Tauri setup and commands: `query_games`, `library_stats`, `list_adapters`, `inspect_installation`, `add_installation`, `list_installations`, `remove_installation`, `set_arcade_system`, `deployment_plan`, `start_deployment`, `list_storage_locations`, `start_scan`, `cancel_job`, `active_scan`, `recent_jobs`, `list_drives`. At startup it migrates the catalog and recovers interrupted jobs; if that fails, every command returns the error. Holds the in-memory registry of running jobs and their cancel flags. | app services |
 | `jobs.rs` | Durable job log: create, add events, finish, list recent, recover interrupted. | `jobs` |
-| `adapters/mod.rs` | `PlatformAdapter` trait (contract v1, read-only), `registry()`, `detect_all()`, `catalog()` and `folder_name()` for Windows-safe names. | `platforms` |
+| `adapters/mod.rs` | `PlatformAdapter` trait (contract v2, read-only; v2 adds `PlacementOptions` such as the arcade choice to each request), `registry()`, `detect_all()`, `catalog()` and `folder_name()` for Windows-safe names. | `platforms` |
 | `adapters/retrobat.rs` | RetroBat detection, layout checks and placement rules, with facts cited from the RetroBat wiki in the module docs. | `platforms` |
 | `installations.rs` | Inspect a folder, save, list and forget installations. | `platforms` |
 | `deployment.rs` | RDS-009 deployment plan (read-only): places every available game with the adapter, classifies each destination file (copy, already there, already in place, duplicate, conflict, blocked), measures capacity and returns a plan fingerprint. Only reads metadata; never creates or writes. | `deployment` |

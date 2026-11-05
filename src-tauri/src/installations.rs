@@ -142,16 +142,16 @@ pub fn list(connection: &Connection, presence: PresenceFn) -> Result<Vec<Install
         .into_iter()
         .map(|i| {
             let adapter = adapters::find(&i.adapter_id);
-            let checks = match (&adapter, i.presence) {
-                (Some(a), Presence::Connected) => a.validate_layout(&i.root),
-                _ => Vec::new(),
+            let (checks, live_version) = match (&adapter, i.presence) {
+                (Some(a), Presence::Connected) => (a.validate_layout(&i.root), a.detect(&i.root).version),
+                _ => (Vec::new(), None),
             };
             InstallationRow {
                 adapter_name: adapter.map(|a| a.display_name().to_string()).unwrap_or_else(|| i.adapter_id.clone()),
                 id: i.id,
                 adapter_id: i.adapter_id,
                 path: i.root.display().to_string(),
-                version: i.version,
+                version: live_version.or(i.version),
                 presence: i.presence,
                 checks,
                 added_at: i.added_at,

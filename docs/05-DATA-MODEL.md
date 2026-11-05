@@ -90,6 +90,9 @@ Choices made while implementing (see ADR-010 and ADR-011 in docs/13):
 - **Older locations** from v0/v1 data have no fingerprint. A scan claims one only when sampled files from it exist on the scanned volume.
 - **Tests:** `db::tests::v2_catalog_upgrades_to_v3_keeping_references`, `same_volume_under_a_new_letter_is_recognized`, `different_volume_at_a_known_letter_gets_its_own_location`, `unidentified_location_is_claimed_only_when_its_files_are_there`.
 
+## Implemented schema v8 (2026-11-05)
+- **`installations.arcade_system`:** `NULL` (arcade games not placed), `mame` or `fbneo` (CHECK constraint). Set by the user per installation; passed to the adapter as `PlacementOptions` (adapter contract v2).
+
 ## Implemented schema v7 (RDS-010, 2026-11-05)
 - **`deployments`:** `id`, `job_id`, `installation_id` (set to null if the installation is forgotten, so history survives), `adapter_id`, `adapter_contract`, `destination_root` and `destination_stable_id` (snapshots), `plan_fingerprint`, `systems_json`, `status` (`running`, `completed`, `completed_with_issues`, `cancelled`, `interrupted`, `failed`), `manifest_path`, `created_at`, `finished_at`.
 - **`deployment_items`:** one row per planned file, written before copying starts: `deployment_id`, `game_index`, `game_title`, `game_file_id`, `source_path`, `destination_path`, `temp_path` (set while a temporary file may exist; used for crash cleanup), `size_bytes`, `planned_action`, `state` (`pending`, `copying`, `verified`, `identical`, `conflict`, `failed`, `cancelled`, `skipped`, `not_attempted`, `interrupted`), `sha256`, `message`, `updated_at`.

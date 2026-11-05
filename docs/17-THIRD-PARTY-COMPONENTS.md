@@ -2,7 +2,7 @@
 
 Inventory of everything RetroDrive ships, fetches or works with, using the fields from docs/16 §11. This is an engineering record for counsel review, not a legal conclusion. Update it whenever a component is added or considered.
 
-_Last updated: 2026-11-05._
+_Last updated: 2026-11-05 (RetroBat license, OneSauce)._
 
 ## How this is kept current
 
@@ -42,9 +42,10 @@ Measured 2026-11-04: **280 shipped dependencies**, 275 under permissive licenses
 
 | Platform | What RetroDrive does today | Shipped or downloaded? | Status |
 |---|---|---|---|
-| RetroBat | Reads a folder the user already installed; checks layout; previews placement (ADR-018) | **No.** Nothing bundled, downloaded or modified. | Allowed as "manage a user-installed copy" (docs/16 §5). Downloading or installing RetroBat is **blocked on LEGAL-002/003**. |
+| RetroBat | Reads a folder the user already installed (version from `system\version.info`); checks layout; plans; copies the user's own games into `roms\` after confirmation (RDS-010). License per its installer (2026-11-05): non-commercial; team code LGPL-3.0; project content CC BY-NC-SA 4.0; selling pre-installed machines or drives is not allowed (docs/16 §5) | **No.** Nothing bundled, downloaded or modified. | Allowed as "manage a user-installed copy" (docs/16 §5). Downloading or installing RetroBat is **blocked on LEGAL-002/003**. |
 | Batocera | Nothing yet (RDS-008 planned, read-only) | No | Images and installs are **blocked on LEGAL-004**. |
 | Emulators and Libretro cores | None | No | Each must be audited separately before any download feature (LEGAL-005). |
+| OneSauce (RetroFE build for AtGames Legends Ultimate) | Nothing. Considered 2026-11-05; a user's drive was inspected read-only (docs/16 §6) | No | **Blocked on LEGAL-015.** The build ships BIOS files; RetroDrive must never copy them. |
 | ES-DE | None | No | Candidate frontend; check the exact version and license first (docs/16 §6). |
 
 RetroDrive uses names like "RetroBat", "NES", "SNES", "PlayStation" and "Genesis" only to describe compatibility. No third-party logos are used (docs/16 §8).

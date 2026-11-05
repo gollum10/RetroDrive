@@ -10,13 +10,13 @@ Enumerate mounted storage; display OS-reported capacity/free space, filesystem t
 - **Batocera:** bootable operating system with platform/hardware-specific image and userdata layout. On Windows, direct access to Linux data partitions may not be supported; consider the Batocera network share after first boot, or an explicitly designed trusted access mechanism. Do not assume raw FAT/NTFS game paths are universally writable.
 - **RetroBat:** portable Windows application/frontend with its own directory layout. First support placement to a normal user-selected writable folder; preserve app layout and upstream distribution rules.
   - **Implemented read-only (RDS-007, facts verified 2026-11-04 against the RetroBat wiki):**
-    - **Detection:** "Detected" needs `RetroBat.exe` plus at least one of `emulationstation\`, `retrobat.ini` or `roms\`. Without the exe it can only be "Possible", which is never saved.
+    - **Detection:** "Detected" needs `RetroBat.exe` plus at least one of `emulationstation\`, `retrobat.ini` or `roms\`. Without the exe it can only be "Possible", which is never saved. A fresh install has no `retrobat.ini` until RetroBat first runs (observed on 8.3.1.1).
     - **Layout checks:** `roms`, `bios`, `emulators` and `emulationstation` folders, plus the install path (the wiki advises against spaces, accents and drive roots).
-    - **Version:** shown as unknown, because no version file is documented.
+    - **Version:** read from `system\version.info` (fallback `emulationstation\version.info`), e.g. `8.3.1.1-stable-win64`. Not documented by RetroBat; observed on a real 8.3.1.1 install on 2026-11-05 (`RetroBat.exe` still reports 8.3.0.0, so it isn't used). Only a short version-like string is accepted.
     - **Folder mapping:** NES→`nes` (`.fds`→`fds`), SNES→`snes`, Genesis→`megadrive`, Master System→`mastersystem`, Game Gear→`gamegear`, PlayStation→`psx`, PS2→`ps2`, Game Boy→`gb`, GBC→`gbc`, GBA→`gba`, N64→`n64`.
-    - **Not guessed:** Arcade, because `mame` and `fbneo` take different ROM sets.
+    - **Arcade:** never guessed. Each installation has a setting, *Arcade games go to*: not chosen (default; arcade games aren't placed), **MAME** (`roms\mame`) or **FinalBurn Neo** (`roms\fbneo`). Only `.zip`/`.7z` archives are placed, with their names unchanged (they are romset names). CHD disks aren't placed yet: they must sit in a folder named after their game's zip. Per the RetroBat Arcade Guide, romset versions must match the emulator, non-merged sets are recommended and merged sets aren't supported.
     - **Multi-file games** go to `roms\<system>\<Game title>\…`, keeping file paths relative to the playlist or cue sheet.
-    - **Sources:** https://wiki.retrobat.org/get-started/retrobat-folder-structure, https://wiki.retrobat.org/get-started/installation-and-first-startup and https://wiki.retrobat.org/systems-and-emulators/supported-game-systems.
+    - **Sources:** https://wiki.retrobat.org/get-started/retrobat-folder-structure, https://wiki.retrobat.org/get-started/installation-and-first-startup and https://wiki.retrobat.org/systems-and-emulators/supported-game-systems and https://wiki.retrobat.org/systems-and-emulators/arcade-guide (checked 2026-11-05).
 - **ES-DE/EmulationStation:** frontend, not interchangeable with a bootable OS image.
 - **Recalbox/Lakka/RetroPie and others:** later adapters; platform-specific images and requirements.
 

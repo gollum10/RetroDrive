@@ -61,7 +61,7 @@ git push -u origin main
 Replace `YOUR_USERNAME` with your GitHub account. GitHub may prompt for authentication.
 
 ## Legal
-RetroDrive doesn't include or download games, BIOS or firmware; it organizes and copies files you choose. See [docs/16-LEGAL-AND-COMPLIANCE.md](docs/16-LEGAL-AND-COMPLIANCE.md) for the legal assessment and [docs/17-THIRD-PARTY-COMPONENTS.md](docs/17-THIRD-PARTY-COMPONENTS.md) for the component inventory.
+RetroDrive doesn't include or download games, BIOS or firmware; it organizes and copies files you choose, for your personal use. It isn't for preparing drives or machines for others or for sale. See [docs/16-LEGAL-AND-COMPLIANCE.md](docs/16-LEGAL-AND-COMPLIANCE.md) for the legal assessment and [docs/17-THIRD-PARTY-COMPONENTS.md](docs/17-THIRD-PARTY-COMPONENTS.md) for the component inventory.
 
 > RetroDrive is an independent retro gaming management application. All third-party product names and trademarks belong to their respective owners. Compatibility references do not imply sponsorship, affiliation, or endorsement. *(Draft wording, pending counsel review.)*
 
@@ -75,4 +75,4 @@ RetroDrive doesn't include or download games, BIOS or firmware; it organizes and
 ## Current simplifications
 - **Game identity:** each game is one file or one disc set. Matching against metadata databases is planned; duplicates are flagged by name and size, not yet by hash.
 - **Platform guesses** come from folder names and extensions; ambiguous archive and disc files are marked `Unclassified`.
-- **Verified 2026-11-04** on Windows 11 with Node 24, Rust 1.99.1 and VS 2026 C++ tools: `cargo test` (105 passing), `npm run build`, and `npm run tauri dev`, including 40,000-file scans, cancel, crash recovery, drive recognition, search, paging, duplicates, disc grouping and the RetroBat placement preview, plus (2026-11-05) the RDS-009 deployment plan and the RDS-010 verified copy (copy, stale-plan refusal and cancel tested in the app; see docs/18).
+- **Verified 2026-11-04** on Windows 11 with Node 24, Rust 1.99.1 and VS 2026 C++ tools: `cargo test` (108 passing), `npm run build`, and `npm run tauri dev`, including 40,000-file scans, cancel, crash recovery, drive recognition, search, paging, duplicates, disc grouping and the RetroBat placement preview, plus (2026-11-05) the RDS-009 deployment plan and the RDS-010 verified copy (copy, stale-plan refusal and cancel tested in the app; see docs/18).
