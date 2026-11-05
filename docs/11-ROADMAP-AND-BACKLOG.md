@@ -18,7 +18,7 @@ Navigation, basic read-only mounted volume discovery, folder scan into simple SQ
 - RDS-006 Define versioned `PlatformAdapter` interface. **Done 2026-11-04**: contract v1 (read-only) with a mock-adapter test.
 - RDS-007 RetroBat adapter: identify an existing installation, validate folders and plan placement. **Done 2026-11-04**: detection, layout checks, folder mapping verified against the RetroBat wiki, saved installations (schema v6), Emulation Systems page and placement preview.
 - RDS-008 Batocera adapter: inspect accessible userdata layout, report limitations.
-- RDS-009 Build capacity and file-conflict preview; preflight all paths.
+- RDS-009 Build capacity and file-conflict preview; preflight all paths. **Done 2026-11-05**: read-only deployment plan with per-file actions, FAT32 limits, link and clash checks, measured capacity with reserve and staging, platform selection and a plan fingerprint (docs/08, ADR-020).
 - RDS-010 Build transactional staged copier with hash verify, recovery journal and manifest.
 - RDS-011 Add user-confirmed deletion/overwrite policy and safety tests.
 
@@ -49,7 +49,8 @@ Every GitHub issue should state: persona/problem, user-visible result, constrain
 3. ~~Add tests and normalized schema migrations.~~ RDS-001.
 4. ~~Build read-only robust catalog before any writes.~~ M1 done (RDS-001 to RDS-005).
    - **Follow-up found by measurement:** first-time scans got about 4× slower with the search index (39,300 files in 12 s, versus about 3 s before). Option: bulk-load the search index at the end of a scan instead of one trigger per file.
-5. **Next:** RDS-009, the deployment preview with real capacity (free space minus a reserve) and destination conflict checks (same name, different file), still read-only. Then RDS-010, the first copy: staged, verified and journaled. RDS-008 (Batocera, read-only) can run in parallel.
+5. ~~RDS-009 deployment plan (read-only).~~ Done 2026-11-05.
+6. **Next:** RDS-010, the first copy: staged, verified and journaled, rebuilding the plan and checking its fingerprint and the drive's identity first. This is the first feature that writes to disk, so it needs your explicit go-ahead and a dedicated safety review (AGENTS.md). RDS-008 (Batocera, read-only) can run in parallel.
 
 ## Definition of done
 Code reviewed; automated tests passing; sample manual Windows test complete; failure/retry behavior tested; documentation updated; no unexpected file mutations; security-sensitive features assessed; versioned migration/backup path documented.

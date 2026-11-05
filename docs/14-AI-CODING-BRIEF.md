@@ -18,7 +18,7 @@ Read `docs/00-START-HERE.md`, `docs/02-SCOPE-AND-REQUIREMENTS.md`, `docs/04-SYST
 10. Update the associated design docs and acceptance tests for each significant change.
 
 ## Next suggested coding task
-M1 and RDS-006/007 are done (adapter contract v1, read-only RetroBat support with placement preview); see docs/04, 05 and 06. Next is `RDS-009`: turn the placement preview into a deployment *plan*. Measure the destination's free space (minus a reserve and staging overhead), detect destination conflicts (an existing file with the same name but a different size or hash: keep it by default), and allow selecting a subset (a platform or collection). Still read-only: no copying until RDS-010. Before changing files, report the plan, risk and test plan.
+M1, RDS-006/007 and RDS-009 are done (adapter contract v1, read-only RetroBat support, read-only deployment plan in `deployment.rs`); see docs/04, 06 and 08. Next is `RDS-010`, the first feature that **writes**: a staged copier (temp file in the destination folder, streamed hash, verify, atomic rename), a recovery journal and a manifest. It must rebuild the plan and match its fingerprint, re-check the destination's volume identity (QA-015) and free space immediately before copying, never overwrite (conflicts are kept), and compare contents before treating a same-size file as already there. **Get the user's explicit go-ahead and do a dedicated safety review before writing any copy code** (AGENTS.md). Report the plan, risk and test plan first.
 
 ## Keep docs in sync
 Every change updates [`Features.md`](../Features.md) (feature status) and the affected docs here (architecture in 04, schema in 05, rules in 07/08, roadmap status in 11, QA coverage in 15, decisions in 13).

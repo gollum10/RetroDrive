@@ -78,6 +78,68 @@ pub fn presence(root: &str, stable_id: Option<&str>) -> Presence {
     }
 }
 
+/// Live free space and filesystem facts for the volume holding a folder (RDS-009).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VolumeSpace {
+    /// Bytes this user may still write (honours disk quotas).
+    pub free_bytes: u64,
+    pub total_bytes: u64,
+    /// e.g. `NTFS`, `exFAT`, `FAT32`.
+    pub filesystem: Option<String>,
+    /// Allocation unit; each file uses a whole number of these.
+    pub cluster_bytes: u64,
+}
+
+/// Largest single file the filesystem can hold, when it has a small limit.
+pub fn max_file_bytes(filesystem: Option<&str>) -> Option<u64> {
+    match filesystem.map(str::to_ascii_uppercase).as_deref() {
+        Some("FAT32") => Some((4u64 << 30) - 1),
+        Some("FAT") | Some("FAT16") | Some("FAT12") => Some((2u64 << 30) - 1),
+        _ => None,
+    }
+}
+
+/// Measure the volume that holds `folder`. Read-only; `None` if Windows can't tell.
+#[cfg(windows)]
+pub fn space(folder: &std::path::Path) -> Option<VolumeSpace> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::{GetDiskFreeSpaceExW, GetDiskFreeSpaceW, GetVolumeInformationW, GetVolumePathNameW};
+
+    let wide: Vec<u16> = folder.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+    let (mut free, mut total) = (0u64, 0u64);
+    // SAFETY: NUL-terminated path; valid out pointers; the unused output is null.
+    if unsafe { GetDiskFreeSpaceExW(wide.as_ptr(), &mut free, &mut total, std::ptr::null_mut()) } == 0 {
+        return None;
+    }
+    let mut root = [0u16; 1024];
+    // SAFETY: the buffer length matches the size passed.
+    if unsafe { GetVolumePathNameW(wide.as_ptr(), root.as_mut_ptr(), root.len() as u32) } == 0 {
+        return Some(VolumeSpace { free_bytes: free, total_bytes: total, filesystem: None, cluster_bytes: 4096 });
+    }
+    let mut filesystem = [0u16; 261];
+    // SAFETY: `root` is NUL-terminated by the call above; buffers match their sizes.
+    let have_fs = unsafe {
+        GetVolumeInformationW(root.as_ptr(), std::ptr::null_mut(), 0, std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), filesystem.as_mut_ptr(), filesystem.len() as u32)
+    } != 0;
+    let (mut sectors, mut sector_bytes, mut free_clusters, mut clusters) = (0u32, 0u32, 0u32, 0u32);
+    // SAFETY: valid NUL-terminated root and out pointers.
+    let have_cluster = unsafe { GetDiskFreeSpaceW(root.as_ptr(), &mut sectors, &mut sector_bytes, &mut free_clusters, &mut clusters) } != 0;
+    let end = filesystem.iter().position(|&c| c == 0).unwrap_or(filesystem.len());
+    let name = String::from_utf16_lossy(&filesystem[..end]);
+    let cluster_bytes = u64::from(sectors) * u64::from(sector_bytes);
+    Some(VolumeSpace {
+        free_bytes: free,
+        total_bytes: total,
+        filesystem: (have_fs && !name.is_empty()).then_some(name),
+        cluster_bytes: if have_cluster && cluster_bytes > 0 { cluster_bytes } else { 4096 },
+    })
+}
+
+#[cfg(not(windows))]
+pub fn space(_folder: &std::path::Path) -> Option<VolumeSpace> {
+    None
+}
+
 #[cfg(windows)]
 fn identity(root: &str) -> Option<VolumeIdentity> {
     use std::ffi::OsStr;
@@ -167,5 +229,24 @@ mod tests {
         assert_eq!(presence(&root, Some(&id.stable_id)), Presence::Connected);
         assert_eq!(presence(&root, Some("vol:0000-0000:1")), Presence::OtherVolume, "a different volume at the same letter");
         assert_eq!(presence(&root, None), Presence::Connected);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn system_volume_space_is_measured() {
+        let root = std::env::var("SystemDrive").unwrap_or_else(|_| "C:".into()) + "\\";
+        let space = space(std::path::Path::new(&root)).expect("system volume space");
+        assert!(space.total_bytes > 0 && space.free_bytes <= space.total_bytes);
+        assert!(space.cluster_bytes >= 512);
+        assert!(space.filesystem.is_some());
+    }
+
+    #[test]
+    fn fat_filesystems_limit_file_size() {
+        assert_eq!(max_file_bytes(Some("FAT32")), Some(4_294_967_295));
+        assert_eq!(max_file_bytes(Some("fat")), Some(2_147_483_647));
+        assert_eq!(max_file_bytes(Some("NTFS")), None);
+        assert_eq!(max_file_bytes(Some("exFAT")), None);
+        assert_eq!(max_file_bytes(None), None);
     }
 }

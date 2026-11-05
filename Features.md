@@ -6,7 +6,7 @@ The single list of what the app **does today** and what is **planned**. Update t
 
 Requirement IDs (FR/NFR) refer to [docs/02-SCOPE-AND-REQUIREMENTS.md](docs/02-SCOPE-AND-REQUIREMENTS.md); RDS IDs refer to [docs/11-ROADMAP-AND-BACKLOG.md](docs/11-ROADMAP-AND-BACKLOG.md).
 
-_Last updated: 2026-11-04 (RDS-006/007 branch; M2 started)_
+_Last updated: 2026-11-05 (RDS-009 deployment plan)_
 
 ---
 
@@ -36,7 +36,7 @@ _Last updated: 2026-11-04 (RDS-006/007 branch; M2 started)_
 | Different drive using a known letter | ✅ | Gets its own records. The old drive's games show **Offline**, not Online. |
 | Known drives list (Drive Manager) | ✅ | Every scanned drive, plugged in or not. Shows label, connection status (Connected / Not connected / letter now used by a different drive), file and missing counts, filesystem, size, volume ID and last scan. |
 | `subst` drive letters | ✅ | Resolved to the real folder underneath, so an alias letter never creates duplicate records. |
-| Confirmation prompt when a drive match is ambiguous | 📋 | Not needed yet because nothing writes to drives. Required before deployment (RDS-009/010, QA-015). |
+| Confirmation prompt when a drive match is ambiguous | 📋 | Not needed yet because nothing writes to drives. Required before copying (RDS-010, QA-015). |
 | Physical disk vs volume model, filesystem type, system-disk flag | 📋 | docs/06. |
 | Format, partition, image, clone | ⛔ | Needs the elevated-helper safety review (RDS-014). |
 
@@ -101,12 +101,14 @@ _Last updated: 2026-11-04 (RDS-006/007 branch; M2 started)_
 | Add an existing RetroBat installation | ✅ | RDS-007. Pick a folder; RetroDrive shows the evidence (RetroBat.exe, emulationstation, retrobat.ini, roms) and layout checks before saving. Unrecognized folders are refused, with a hint when a folder looks partly like RetroBat. |
 | RetroBat layout checks | ✅ | roms, bios, emulators and emulationstation folders, plus the install location (the wiki advises against spaces, accents and drive roots). The version is shown as unknown because RetroBat doesn't document a version file. |
 | Saved installations survive drive-letter changes | ✅ | Stored against the drive's volume ID, like scanned folders. |
-| Placement preview | ✅ | For each saved installation: which `roms\<system>` folder each game would go to, games and total size per folder, example destinations, and what can't be placed and why. Copies nothing (verified: the installation folder is unchanged). |
+| Deployment plan (replaces the placement preview) | ✅ | RDS-009. For each saved installation: which `roms\<system>` folder each game would go to, and what would happen to it: copy, already there (same name and size), already in place (you scanned the RetroBat folder), duplicate (copied once), conflict (a different file is there and is kept) or blocked, with the reason. Copies and creates nothing (verified: the installation folder is unchanged). |
+| Drive space check | ✅ | Live free space on the installation's drive, a safety reserve (1 GB or 2% of the drive, whichever is bigger) and room for the largest file, rounded to the drive's cluster size. Says plainly whether it fits. |
+| Choose which platforms to deploy | ✅ | Tick or untick each RetroBat system folder; the plan updates. Collections come later. |
+| Destination safety checks | ✅ | Blocks files too big for FAT32, names that clash only by upper/lower case, links or junctions on the way, folders in the way, and paths outside the installation. Warns about paths over 260 characters. |
 | RetroBat folder mapping (verified against the RetroBat wiki) | ✅ | nes, fds (Famicom Disk `.fds`), snes, megadrive, mastersystem, gamegear, psx, ps2, gb, gbc, gba, n64. Multi-disc games get their own subfolder so playlists keep working. |
 | Arcade placement (MAME vs FinalBurn Neo) | 📋 | Not guessed: the two use different ROM sets. Needs a user choice. |
 | Batocera adapter | 📋 | RDS-008. |
-| Deployment preview, capacity, conflicts | 📋 | RDS-009. |
-| Verified staged copy with manifest and recovery | 📋 | RDS-010. |
+| Verified staged copy with manifest and recovery | 📋 | RDS-010. Will rebuild the plan and check its fingerprint, drive identity and space before writing. |
 | Guided installs and imaging | ⛔ | RDS-012 to RDS-014, gated. |
 
 ## Later modules
