@@ -6,15 +6,16 @@
 
 **an earlier publisher name** — early Windows desktop application scaffold for a full retro gaming management suite.
 
-## What works in this starter
-- Desktop navigation with Dashboard, Game Library, Drive Manager, Emulation Systems, Settings.
-- Read-only detection of mounted volumes and capacity information.
-- Import / scan an existing ROM directory *without moving, modifying, or deleting its contents*.
-- SQLite catalog persisted in the user's app data directory.
-- Search indexed games and mark missing/disconnected files offline.
+## What works today
+Full, maintained list: **[Features.md](Features.md)**.
+- **Navigation:** Dashboard, Game Library, Drive Manager, Emulation Systems, Settings.
+- **Drives:** read-only detection of mounted volumes and their capacity.
+- **Import:** scan an existing ROM folder in the background *without moving, modifying or deleting anything*. The scan report lists ignored and unreadable files.
+- **Catalog:** normalized SQLite catalog (schema v1) in the app data folder. Versioned migrations back up the catalog before upgrading it.
+- **Library:** search, plus **Online** / **Offline** (drive not connected) / **Missing** (not found by the last complete scan) status for each file.
 
 ## Not yet implemented
-This is an **early development scaffold**, not a drive installer. No imaging, formatting, partition creation, ROM deployment, metadata scraping, BIOS repair, controller mapping, or automatic updates are implemented. The platform labels are a roadmap, not functional installers.
+This is an **early development build**, not a drive installer. No imaging, formatting, partition creation, ROM deployment, metadata scraping, BIOS repair, controller mapping, or automatic updates are implemented. The platform labels are a roadmap, not functional installers.
 
 ## Requirements (Windows)
 - Node.js LTS and npm
@@ -39,9 +40,11 @@ npm run tauri build
 `npm run dev` alone opens the UI in a browser, but native commands **do not** work without Tauri.
 
 ## Create your GitHub repo
-1. Create an empty **private** repository named `retrodrive-studio` at github.com/new. Do not auto-create a README, license, or `.gitignore` because this starter already includes them.
-2. Extract the ZIP, open its `retrodrive-studio-starter` folder in VS Code, then open the terminal.
-3. Run:
+The project lives at **https://github.com/gollum10/RetroInstaller** (private). Clone it outside OneDrive:
+```powershell
+git clone https://github.com/gollum10/RetroInstaller.git C:\dev\RetroInstaller
+```
+Original first-push steps, kept for reference:
 ```powershell
 git init
 git add .
@@ -60,7 +63,7 @@ Replace `YOUR_USERNAME` with your GitHub account. GitHub may prompt for authenti
 - Platform adapters must follow upstream platform layout, terms, and licensing.
 
 ## Current simplifications
-- The initial database stores one row per detected game file, not yet normalized canonical game identities.
-- Platform inference uses file extensions and folder names; ambiguous disc and archive files are marked `Unclassified`.
-- Scan is synchronous and may temporarily block interaction on very large collections; a cancellable background job is planned.
-- No dependency/build verification was performed in the authoring environment. Test on a Windows development machine and log compatibility adjustments as issues.
+- **One game per file:** each indexed file gets its own game record. Matching, disc grouping and duplicate detection are planned.
+- **Platform guesses** come from folder names and extensions; ambiguous archive and disc files are marked `Unclassified`.
+- **Scans** run in the background, but there's no progress bar or cancel button yet (RDS-002).
+- **Verified 2026-11-04** on Windows 11 with Node 24, Rust 1.99.1 and VS 2026 C++ tools: `cargo test` (25 passing), `npm run build`, and `npm run tauri dev` launching the app.

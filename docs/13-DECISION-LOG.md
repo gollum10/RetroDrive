@@ -12,6 +12,9 @@
 | ADR-007 | Read-only, safety-first incremental development | Avoid unexpected user data loss |
 | ADR-008 | Game identity, file location and deployment separate | Enables cross-drive library and offline indexing |
 | ADR-009 | Use GitHub and Visual Studio Code | User already has GitHub; source-centric workflow |
+| ADR-010 | (2026-11-04) `storage_locations` = one row per volume root; user-authorized folders go in a separate `indexed_roots` table; file paths are stored relative to the volume with `/` | Overlapping scans can't duplicate files. A drive-letter change becomes one `root_path` update once RDS-003 adds stable IDs. Alternative considered: one storage location per scanned folder, which needs re-parenting when folders nest. |
+| ADR-011 | (2026-11-04) Schema versioning via `PRAGMA user_version`, with a `VACUUM INTO` backup before every upgrade, and newer catalogs refused | Needs no extra table; the backup is a consistent, openable copy. Affects docs/05 and docs/15 QA-017. |
+| ADR-012 | (2026-11-04) Repository is `gollum10/RetroInstaller` (private); working copy kept outside OneDrive | The user chose an existing repo. OneDrive syncing conflicts with Cargo's `target/` folder. |
 
 ## Recommended, awaiting implementation validation
 - Separate privileged helper for imaging, with hardened permissions.

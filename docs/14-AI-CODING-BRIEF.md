@@ -17,8 +17,11 @@ Read `docs/00-START-HERE.md`, `docs/02-SCOPE-AND-REQUIREMENTS.md`, `docs/04-SYST
 9. Preserve manually edited metadata and existing game files by default.
 10. Update the associated design docs and acceptance tests for each significant change.
 
-## First suggested coding task
-Implement `RDS-001`: normalized database schema + migrations, retaining v0.1 catalog data, with unit tests and UI compatibility. Before changing files, report the current schema, proposed migration, risk and test plan. Make the change; summarize actual tests and any constraints.
+## Next suggested coding task
+RDS-001 (normalized schema and migrations) is done; see docs/05. Next is `RDS-002`: turn the folder scan into a durable job, with a `jobs` / `job_events` migration (schema v2), progress events to the UI, and safe cancellation. A cancelled scan must never mark files missing (QA-002). Before changing files, report the plan, risk and test plan.
+
+## Keep docs in sync
+Every change updates [`Features.md`](../Features.md) (feature status) and the affected docs here (architecture in 04, schema in 05, rules in 07/08, roadmap status in 11, QA coverage in 15, decisions in 13).
 
 ## Required response format from coding assistant
 - What was changed and where.
