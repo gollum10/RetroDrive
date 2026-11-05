@@ -9,7 +9,7 @@ Navigation, basic read-only mounted volume discovery, folder scan into simple SQ
 - RDS-001 Add migration framework and normalized storage/game/file model. **Done 2026-11-04** (branch `feature/RDS-001-normalized-schema`).
 - RDS-002 Implement background paginated scanner with cancellation and progress. **Done 2026-11-04** (branch `feature/RDS-002-scan-jobs`): job log (schema v2), live progress, cancel, batched commits and interrupted-job recovery. Paginating the library *list* moves to RDS-004.
 - RDS-003 Distinguish offline root versus removed file; stable root identifiers. **Done 2026-11-04** (branch `feature/RDS-003-stable-volume-ids`): volume fingerprints (schema v3), drive-letter changes recognized, reused letters detected, Known drives view.
-- RDS-004 Add search/filter and duplicate candidate views.
+- RDS-004 Add search/filter and duplicate candidate views. **Done 2026-11-04** (branch `feature/RDS-004-search-filters-duplicates`): FTS5 trigram search, 100-row pages, platform / status / drive filters, sorts, duplicate candidates, 100k benchmark.
 - RDS-005 Add tests for paths, Unicode, discs, archive ambiguity, offline drives. *Partial:* 25 Rust unit tests cover paths, Unicode, archive ambiguity, disc tracks, missing and offline states, and migrations. `.cue/.m3u` grouping is still open.
 
 ### M2: First real game deployment
@@ -39,7 +39,8 @@ Every GitHub issue should state: persona/problem, user-visible result, constrain
 1. ~~Run current scaffold on actual Windows dev machine and log defects.~~ Done 2026-11-04. Defect found and fixed: Vite's watcher crashed on `src-tauri/target` (EBUSY).
 2. ~~Create GitHub repo/CI, pin toolchain and dependency versions.~~ Repo `gollum10/RetroInstaller`, lockfiles committed, Windows CI workflow added.
 3. ~~Add tests and normalized schema migrations.~~ RDS-001.
-4. Build read-only robust catalog before any writes. ~~RDS-002~~ and ~~RDS-003~~ done. Next up: RDS-004 (paginated search and filters, duplicate candidates), then RDS-005 gaps (`.cue`/`.m3u` grouping).
+4. Build read-only robust catalog before any writes. ~~RDS-002~~, ~~RDS-003~~ and ~~RDS-004~~ done. Remaining M1 work is the RDS-005 gaps: `.cue/.bin` and `.m3u` disc grouping (QA-007), long paths over 260 characters (QA-008), and a locked-file fixture (QA-009).
+   - **Follow-up found by measurement:** first-time scans got about 4× slower with the search index (39,300 files in 12 s, versus about 3 s before). Option: bulk-load the search index at the end of a scan instead of one trigger per file.
 5. Add RetroBat folder deployment as the first end-to-end data-moving feature.
 
 ## Definition of done

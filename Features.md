@@ -6,7 +6,7 @@ The single list of what the app **does today** and what is **planned**. Update t
 
 Requirement IDs (FR/NFR) refer to [docs/02-SCOPE-AND-REQUIREMENTS.md](docs/02-SCOPE-AND-REQUIREMENTS.md); RDS IDs refer to [docs/11-ROADMAP-AND-BACKLOG.md](docs/11-ROADMAP-AND-BACKLOG.md).
 
-_Last updated: 2026-11-04 (RDS-003 branch)_
+_Last updated: 2026-11-04 (RDS-004 branch)_
 
 ---
 
@@ -16,7 +16,8 @@ _Last updated: 2026-11-04 (RDS-003 branch)_
 |---|---|---|
 | Windows desktop app (Tauri v2 + React) | ✅ | Built and launched on Windows 11 with Rust 1.99.1 / VS 2026 C++ tools. |
 | Sidebar navigation: Dashboard, Game Library, Drive Manager, Emulation Systems, Settings | ✅ | Screen names differ from docs/03 (My Library, Drives, Systems); to be aligned. |
-| Dashboard counters: cataloged files, detected volumes, available titles | ✅ | Counts come from the catalog; no invented health scores. |
+| Dashboard counters: cataloged files, platforms, detected volumes, available / offline / missing | ✅ | Counts come from indexed catalog queries; no invented health scores. |
+| Dashboard duplicate hint with a "Review them" link | ✅ | Opens the library filtered to possible duplicates. |
 | Accurate status banner | ✅ | Separates "running in browser" from real catalog errors. |
 | Live scan progress panel with Cancel button | ✅ | RDS-002. Shows items checked, game files found, new files, unreadable count and the current file. The bar is indeterminate because the total isn't known in advance. |
 | Recent activity on the Dashboard | ✅ | Last 5 jobs with state (Completed / Cancelled / Failed / Interrupted), folder, file count, error and time. |
@@ -55,8 +56,13 @@ _Last updated: 2026-11-04 (RDS-003 branch)_
 | Offline drives | ✅ | When the volume is unreachable, or its letter now holds a different volume, its files show **Offline**; the catalog keeps them. |
 | Clean Windows paths | ✅ | No `\\?\` prefixes are stored or shown. Paths are stored per volume plus a relative path. |
 | Manual title corrections kept on rescan | ✅ | Rescans don't overwrite titles. No title-editing UI yet. |
-| Search by title or platform | 🟡 | Filters in the browser. Paginated, indexed search is planned (RDS-004, NFR-06). |
-| Duplicate candidates, hashing | 📋 | RDS-004; `sha256` / `crc32` columns reserved. |
+| Search by title or platform | ✅ | RDS-004. Full-text trigram index (SQLite FTS5) matches anywhere in a title, case-insensitively. Searches under 3 characters fall back to a plain scan. Typing is debounced. Special characters are searched literally. |
+| Paged library (100 per page) | ✅ | The window never loads the whole catalog. Previous/Next with "1–100 of N". Filtered counts stop at 10,000 ("10,000+"). |
+| Filters: platform, status (Online / Offline / Missing), drive | ✅ | Can be combined with search; "Clear filters" resets them. |
+| Sort by title, platform or largest first | ✅ | Uses an index, so pages stay fast at 100k+ files. |
+| Readable paths | ✅ | Long paths keep the drive and last folders (`C:\…\roms\snes\Game.sfc`); the full path shows on hover. |
+| Duplicate candidates | ✅ | RDS-004. Same platform, same file name (ignoring case) and same non-zero size. Shown with a ×N badge and a "Possible duplicates only" filter. Informational only: nothing is ever deleted. |
+| Hash-verified duplicates | 📋 | Needs background hashing; `sha256` / `crc32` columns are reserved. |
 | Collections and favorites | 📋 | M2. |
 | Scan progress and cancellation | ✅ | RDS-002. Cancelling keeps files found so far and skips missing-file detection, so it can't mark files missing (QA-002). |
 | One scan at a time | ✅ | Starting a second scan is refused with a clear message. |
@@ -72,6 +78,7 @@ _Last updated: 2026-11-04 (RDS-003 branch)_
 | v0.1 catalog upgrade without data loss | ✅ | Row counts are verified, otherwise rolled back (QA-017). |
 | Refuses a catalog from a newer app version, untouched | ✅ | |
 | Job log (schema v2): `jobs` and `job_events` | ✅ | Every scan records start, end state, counts, errors and each scan issue. |
+| Search and query indexes (schema v4) | ✅ | `games_fts` trigram index kept in sync by triggers; indexes for duplicate keys, platform+title, storage+status. |
 | Volume fingerprints (schema v3) | ✅ | `storage_locations` rebuilt: unique `stable_id`, non-unique `root_path`, plus label, filesystem, serial, GUID and size. References are checked before commit. |
 | Catalog export / delete controls | 📋 | docs/10 privacy defaults. |
 
@@ -103,7 +110,8 @@ _Last updated: 2026-11-04 (RDS-003 branch)_
 
 | Feature | Status | Notes |
 |---|---|---|
-| Rust unit tests (43): migrations, classifier, paths, scanner, cancellation, batching, job log, drive identity, availability | ✅ | `cd src-tauri && cargo test` |
+| Rust unit tests (51): migrations, classifier, paths, scanner, cancellation, batching, job log, drive identity, search, filters, duplicates, paging | ✅ | `cd src-tauri && cargo test` |
+| 100k-file performance benchmark | ✅ | `cargo test --release benchmark_100k -- --ignored --nocapture`; results in docs/15. |
 | TypeScript type-check and frontend build | ✅ | `npm run build` |
 | GitHub Actions CI on Windows (tests, clippy, build) | ✅ | Runs on every push to `main` and every pull request. |
 | Pinned dependency lockfiles | ✅ | `package-lock.json`, `src-tauri/Cargo.lock`. |

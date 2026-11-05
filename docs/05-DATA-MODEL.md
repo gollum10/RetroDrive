@@ -46,7 +46,7 @@ erDiagram
 - All identifiers are UUID/ULID-like opaque strings; don't key by filenames.
 - Unique file location within a storage root: `(storage_location_id, relative_path)` after normalized path handling.
 - Use `ON DELETE RESTRICT` or explicit transactional cleanup for important references; do not cascade offline drive removal into games.
-- Full-text search on titles with SQLite FTS5 when implemented; migration compatibility tests required.
+- Full-text search on titles with SQLite FTS5: implemented in schema v4 (trigram tokenizer), with migration tests.
 - `sha256` nullable because hashing large libraries is deferred and incremental.
 - Different revisions with identical names may remain separate release/file entities.
 - Handle multi-file formats and multidisc playlists explicitly; don't assume a `.cue` or `.m3u` is the entire game payload.
@@ -89,6 +89,16 @@ Choices made while implementing (see ADR-010 and ADR-011 in docs/13):
 - **Fingerprint format:** `vol:<serial XXXX-XXXX>:<total bytes>` for local and removable volumes, and `unc:<\\server\share\>` for network shares. The serial changes only when a volume is reformatted. **Known limitation:** byte-identical clones share a fingerprint.
 - **Older locations** from v0/v1 data have no fingerprint. A scan claims one only when sampled files from it exist on the scanned volume.
 - **Tests:** `db::tests::v2_catalog_upgrades_to_v3_keeping_references`, `same_volume_under_a_new_letter_is_recognized`, `different_volume_at_a_known_letter_gets_its_own_location`, `unidentified_location_is_claimed_only_when_its_files_are_there`.
+
+## Implemented schema v4 (RDS-004, 2026-11-04)
+- **`games_fts`:** an FTS5 virtual table (`game_id UNINDEXED, canonical_title, platform`, `tokenize='trigram'`), back-filled from `games` and kept in sync by insert, update and delete triggers.
+  - It stores its own copy of the text rather than using external content, because `games` has no INTEGER PRIMARY KEY and VACUUM may renumber implicit rowids.
+- **New indexes:**
+  - `game_files(size_bytes, filename COLLATE NOCASE, platform_hint)`: duplicate key, also used for the size sort.
+  - `file_locations(storage_location_id, present_status)`: availability counts.
+  - `games(platform, canonical_title COLLATE NOCASE)`: the platform sort.
+- **Duplicate candidate** = same `platform_hint`, same `filename` (ignoring case) and same non-zero `size_bytes`. Computed at query time; nothing is stored or deleted.
+- **Tests:** `db::tests::title_search_index_follows_games`, `v3_catalog_gets_search_index_for_existing_games`.
 
 ## Migrations
 - The version number is kept in `PRAGMA user_version`; the current version is `db::SCHEMA_VERSION`.

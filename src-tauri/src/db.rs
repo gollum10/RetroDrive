@@ -8,6 +8,8 @@
 //! - v3: volume identity on `storage_locations` (stable_id unique, root_path no longer
 //!   unique, label/filesystem/serial/GUID/size columns) so drives are matched by
 //!   fingerprint rather than drive letter (RDS-003).
+//! - v4: `games_fts` trigram full-text index kept in sync by triggers, plus indexes
+//!   for duplicate candidates and availability filters (RDS-004).
 //!
 //! Migration rules: back up an existing database before upgrading, run the upgrade
 //! in one transaction, verify row counts, and refuse to open a database written by
@@ -19,7 +21,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 3;
+pub const SCHEMA_VERSION: i32 = 4;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -133,6 +135,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 3 {
         tx.execute_batch(SCHEMA_V3).map_err(|e| e.to_string())?;
+    }
+    if from_version < 4 {
+        tx.execute_batch(SCHEMA_V4).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -520,6 +525,27 @@ ALTER TABLE storage_locations_v3 RENAME TO storage_locations;
 CREATE INDEX idx_storage_locations_root ON storage_locations(root_path);
 ";
 
+/// v4: title search and library query indexes.
+/// The FTS table stores its own copy of title/platform keyed by `game_id` rather
+/// than using external content, because `games` has no INTEGER PRIMARY KEY and its
+/// implicit rowids may be renumbered by VACUUM.
+const SCHEMA_V4: &str = "
+CREATE VIRTUAL TABLE games_fts USING fts5(game_id UNINDEXED, canonical_title, platform, tokenize = 'trigram');
+INSERT INTO games_fts (game_id, canonical_title, platform) SELECT id, canonical_title, platform FROM games;
+CREATE TRIGGER games_fts_insert AFTER INSERT ON games BEGIN
+    INSERT INTO games_fts (game_id, canonical_title, platform) VALUES (new.id, new.canonical_title, new.platform);
+END;
+CREATE TRIGGER games_fts_update AFTER UPDATE OF canonical_title, platform ON games BEGIN
+    UPDATE games_fts SET canonical_title = new.canonical_title, platform = new.platform WHERE game_id = old.id;
+END;
+CREATE TRIGGER games_fts_delete AFTER DELETE ON games BEGIN
+    DELETE FROM games_fts WHERE game_id = old.id;
+END;
+CREATE INDEX idx_game_files_duplicate_key ON game_files(size_bytes, filename COLLATE NOCASE, platform_hint);
+CREATE INDEX idx_file_locations_storage_status ON file_locations(storage_location_id, present_status);
+CREATE INDEX idx_games_platform_title ON games(platform, canonical_title COLLATE NOCASE);
+";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -563,7 +589,7 @@ mod tests {
         assert_eq!(report.from_version, 0);
         assert_eq!(report.to_version, SCHEMA_VERSION);
         assert_eq!(user_version(&c).unwrap(), SCHEMA_VERSION);
-        for table in ["storage_locations", "indexed_roots", "games", "game_releases", "game_files", "file_locations", "jobs", "job_events"] {
+        for table in ["storage_locations", "indexed_roots", "games", "game_releases", "game_files", "file_locations", "jobs", "job_events", "games_fts"] {
             assert!(table_exists(&c, table).unwrap(), "{table} missing");
         }
     }
@@ -585,6 +611,35 @@ mod tests {
         assert!(err.contains("newer"));
         assert!(table_exists(&c, "marker").unwrap());
         assert_eq!(user_version(&c).unwrap(), 99);
+    }
+
+    #[test]
+    fn title_search_index_follows_games() {
+        let mut c = Connection::open_in_memory().unwrap();
+        migrate(&mut c, None).unwrap();
+        insert_game_file(&c, "Super Puzzle Quest", "SNES", "a.sfc", "sfc", 1, None, "folder").unwrap();
+        let hits = |q: &str| -> i64 {
+            c.query_row("SELECT COUNT(*) FROM games_fts WHERE games_fts MATCH ?1", [q], |r| r.get(0)).unwrap()
+        };
+        assert_eq!(hits("\"puzzle\""), 1, "trigram matches inside words, case-insensitively");
+        assert_eq!(hits("\"zzle q\""), 1);
+        c.execute("UPDATE games SET canonical_title = 'Renamed Title'", []).unwrap();
+        assert_eq!(hits("\"puzzle\""), 0);
+        assert_eq!(hits("\"renamed\""), 1);
+    }
+
+    #[test]
+    fn v3_catalog_gets_search_index_for_existing_games() {
+        let mut c = Connection::open_in_memory().unwrap();
+        c.execute_batch(SCHEMA_V1).unwrap();
+        c.execute_batch(SCHEMA_V2).unwrap();
+        c.execute_batch(SCHEMA_V3).unwrap();
+        c.execute_batch("PRAGMA user_version = 3;").unwrap();
+        insert_game_file(&c, "Existing Adventure", "NES", "e.nes", "nes", 1, None, "folder").unwrap();
+        let report = migrate(&mut c, None).unwrap();
+        assert_eq!(report.to_version, SCHEMA_VERSION);
+        let n: i64 = c.query_row("SELECT COUNT(*) FROM games_fts WHERE games_fts MATCH '\"adventure\"'", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 1, "existing titles are back-filled");
     }
 
     #[test]
@@ -668,7 +723,7 @@ mod tests {
         }
         let mut c = open(&db_path).unwrap();
         let report = migrate(&mut c, Some(&db_path)).unwrap();
-        assert_eq!((report.from_version, report.to_version), (2, 3));
+        assert_eq!((report.from_version, report.to_version), (2, SCHEMA_VERSION));
         assert!(report.backup_path.is_some());
         assert_eq!(count(&c, "storage_locations"), 1);
         assert_eq!(count(&c, "file_locations"), 1);

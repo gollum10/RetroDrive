@@ -35,6 +35,7 @@ Run with `cd src-tauri && cargo test`.
 | QA-008 | `paths::tests::unicode_round_trip`, scanner Unicode fixture | Automated; Windows long paths (>260 characters) are still untested |
 | QA-009 | Scanner reports issues and continues | Code path exists; no locked-file fixture yet |
 | QA-010 | Empty catalog shows zeros (manual screenshot 2026-11-04) | Manual |
+| RDS-004 | `catalog::tests::text_search_matches_inside_titles_and_platforms` (including literal special characters), `filters_combine`, `duplicate_candidates_need_same_platform_name_and_size`, `pages_and_sorting`, `filtered_counts_are_capped_but_unfiltered_are_exact`, `stats_summarize_the_library`; manual in the app with 39,300 files: search, paging, the duplicates filter and the Review shortcut | Automated + manual |
 | QA-014 | Links are not followed and are reported | Code path exists; creating a symlink in a test needs Windows Developer Mode |
 | QA-017 | `db::tests::v0_rows_are_preserved_and_backed_up`, `v1_catalog_upgrades_to_v2_keeping_data`, `v2_catalog_upgrades_to_v3_keeping_references` | Automated |
 | QA-015 (read side) | `scanner::tests::a_different_drive_at_the_same_letter_does_not_inherit_files`, `volumes::tests::system_volume_has_a_fingerprint`; Known drives showed "now a different drive" | Partial: identity is checked; re-checking before *writes* comes with deployment |
@@ -54,6 +55,23 @@ Other regression tests: rescans don't create duplicates, rescanning a subfolder 
 
 ## Performance tests
 Baseline 10k, 100k and 1M file metadata rows using synthetic fixtures; record scan rates, search latency, memory use, query plans and cancellation responsiveness. Numbers should be measured, not assumed.
+
+### Measured 2026-11-04 (RDS-004)
+Command: `cd src-tauri && cargo test --release benchmark_100k -- --ignored --nocapture`. Setup: 100,000 synthetic files across 6 platforms, 2,000 in duplicate pairs, in-memory SQLite, Windows 11 dev PC.
+
+| Query | Before tuning | After |
+|---|---|---|
+| First page, no filter | 523 ms | **1.7 ms** |
+| Page 500 (offset 50,000) | 602 ms | 124 ms |
+| Search "puzzle" (14,286 matches) | 185 ms | 140 ms |
+| Search "adventure 0999" (100 matches) | 43 ms | **2.6 ms** |
+| Search "ad" (2 characters, matches everything) | 539 ms | 37 ms (count capped) |
+| Platform filter (16,333 matches) | 156 ms | 40 ms |
+| Duplicates only (2,000) | 460 ms | 74 ms |
+| Sort by size | 302 ms | **1.6 ms** |
+| Library stats | 247 ms | 24 ms |
+
+The query plans (EXPLAIN QUERY PLAN) confirm index-ordered walks (`SCAN g USING INDEX idx_games_title`). **Scan cost:** a first-time scan of 39,300 files took 12 s in the dev app, against about 3 s before the search index; rescans of known files don't touch the index. Not yet measured: 1M rows, memory use.
 
 ## Security review checklist
 Check path traversal, symlink/junction escape, signed/trusted downloads, secret handling, rate limits, frontend IPC validation, backup recovery, unsafe shell usage and dependency vulnerabilities.

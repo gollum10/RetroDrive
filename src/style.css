@@ -24,3 +24,14 @@
 .known-title small{display:block;font-size:12px;margin-top:3px}
 .presence.connected{color:#6cd1a5}.presence.not_connected{color:#8096ad}.presence.other_volume{color:#caa778}
 .known-meta{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;color:#8fa5bf;padding-left:32px}
+
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:-8px 0 18px}
+.filters select{background:#0f1724;border:1px solid #32425a;color:#c7d7ed;border-radius:8px;padding:8px 10px;font:inherit;font-size:13px}
+.check{display:flex;gap:7px;align-items:center;font-size:13px;color:#b5c7dc;cursor:pointer}
+.link{background:none;border:0;color:#54b4fa;padding:0;font-size:13px;text-decoration:underline;cursor:pointer}
+.table-wrap.loading{opacity:.55;transition:opacity .15s}
+.dup-badge{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:9px;background:#3a2f1c;color:#f3cda1;font-size:11px;font-weight:600;vertical-align:1px}
+.dup-hint{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin:18px 0 0;font-size:13px;color:#d9c3a5}
+.drive-cell{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pager{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:16px;font-size:13px;color:#93a7c0}
+.pager span{margin-right:auto}

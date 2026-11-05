@@ -12,8 +12,8 @@ Full, maintained list: **[Features.md](Features.md)**.
 - **Drives:** read-only detection of mounted volumes. Drives are recognized by volume ID even when Windows gives them a different letter, and **Known drives** lists every scanned drive, plugged in or not.
 - **Import:** scan an existing ROM folder in the background *without moving, modifying or deleting anything*. Shows live progress, can be cancelled, and the report lists ignored and unreadable files.
 - **Activity:** every scan is logged. The Dashboard shows recent scans, including ones interrupted by a crash.
-- **Catalog:** normalized SQLite catalog (schema v3) in the app data folder. Versioned migrations back up the catalog before upgrading it.
-- **Library:** search, plus **Online** / **Offline** (drive not connected) / **Missing** (not found by the last complete scan) status for each file.
+- **Catalog:** normalized SQLite catalog (schema v4) in the app data folder. Versioned migrations back up the catalog before upgrading it.
+- **Library:** fast full-text search, 100-row pages, and filters by platform, status (**Online** / **Offline** / **Missing**) and drive. Sorts by title, platform or size. Possible duplicate copies are flagged (never deleted). Measured at 100,000 files: most pages take 1–3 ms.
 
 ## Not yet implemented
 This is an **early development build**, not a drive installer. No imaging, formatting, partition creation, ROM deployment, metadata scraping, BIOS repair, controller mapping, or automatic updates are implemented. The platform labels are a roadmap, not functional installers.
@@ -64,6 +64,6 @@ Replace `YOUR_USERNAME` with your GitHub account. GitHub may prompt for authenti
 - Platform adapters must follow upstream platform layout, terms, and licensing.
 
 ## Current simplifications
-- **One game per file:** each indexed file gets its own game record. Matching, disc grouping and duplicate detection are planned.
+- **One game per file:** each indexed file gets its own game record. Matching and disc grouping are planned; duplicates are flagged by name and size, not yet by hash.
 - **Platform guesses** come from folder names and extensions; ambiguous archive and disc files are marked `Unclassified`.
-- **Verified 2026-11-04** on Windows 11 with Node 24, Rust 1.99.1 and VS 2026 C++ tools: `cargo test` (43 passing), `npm run build`, and `npm run tauri dev`, including a 40,000-file scan, cancel, crash recovery and drive recognition.
+- **Verified 2026-11-04** on Windows 11 with Node 24, Rust 1.99.1 and VS 2026 C++ tools: `cargo test` (51 passing), `npm run build`, and `npm run tauri dev`, including 40,000-file scans, cancel, crash recovery, drive recognition, search, paging and duplicates.
