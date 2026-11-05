@@ -17,3 +17,10 @@
 .job.completed{color:#6cd1a5}.job.cancelled,.job.interrupted{color:#caa778}.job.failed{color:#e59a8f}.job.running{color:#54b4fa}
 .job-folder{color:#c4d3e4;word-break:break-all}
 .activity .platform-row{gap:16px}.activity .platform-row em{text-align:right;flex-shrink:0;max-width:50%}
+
+.known-drives{margin-top:20px}
+.known-drive{border-top:1px solid #29384a;padding:16px 0}
+.known-title{display:flex;gap:12px;align-items:center;margin-bottom:8px}
+.known-title small{display:block;font-size:12px;margin-top:3px}
+.presence.connected{color:#6cd1a5}.presence.not_connected{color:#8096ad}.presence.other_volume{color:#caa778}
+.known-meta{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;color:#8fa5bf;padding-left:32px}

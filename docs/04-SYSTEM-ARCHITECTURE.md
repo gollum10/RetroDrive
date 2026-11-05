@@ -63,19 +63,20 @@ Frontend is unprivileged. Rust services validate all command arguments. A future
 - Handle Windows long paths, case-insensitive comparisons, network interruptions and filesystem permissions.
 - Never update catalog to reflect a write until verified.
 
-## Implemented today (updated 2026-11-04, RDS-001 + RDS-002)
+## Implemented today (updated 2026-11-04, RDS-001 to RDS-003)
 Native backend modules in `src-tauri/src/`:
 
 | Module | Responsibility | Target module above |
 |---|---|---|
-| `lib.rs` | Tauri setup and commands: `list_games`, `start_scan`, `cancel_job`, `active_scan`, `recent_jobs`, `list_drives`. At startup it migrates the catalog and recovers interrupted jobs; if that fails, every command returns the error. Holds the in-memory registry of running jobs and their cancel flags. | app services |
+| `lib.rs` | Tauri setup and commands: `list_games`, `list_storage_locations`, `start_scan`, `cancel_job`, `active_scan`, `recent_jobs`, `list_drives`. At startup it migrates the catalog and recovers interrupted jobs; if that fails, every command returns the error. Holds the in-memory registry of running jobs and their cancel flags. | app services |
 | `jobs.rs` | Durable job log: create, add events, finish, list recent, recover interrupted. | `jobs` |
 | `db.rs` | Opens connections (WAL, foreign keys, busy timeout). Versioned migrations via `PRAGMA user_version`, with a backup first and v0.1 data conversion. | `catalog` |
 | `scanner.rs` | Read-only folder indexer. Commits in batches, reports progress and accepts cancellation through a `ScanObserver`, and returns a `ScanSummary`. | `catalog` / `jobs` |
 | `classify.rs` | Infers the platform from folder names and extensions, and records where the hint came from. | `catalog` |
 | `catalog.rs` | Library listing with per-file availability (`online` / `offline` / `missing`). | `catalog` |
 | `paths.rs` | Path normalization without `\\?\`, plus volume-root and relative-path splitting. | `storage` |
-| `drives.rs` | Read-only volume listing; classifies volumes as local, removable or network. | `storage` |
+| `drives.rs` | Read-only volume listing (sysinfo); local/removable classification. | `storage` |
+| `volumes.rs` | Volume fingerprints via Win32 `GetVolumeInformationW`, `GetDiskFreeSpaceExW` and `GetVolumeNameForVolumeMountPointW` (read only). `probe(root)` returns kind and identity; `presence(root, stable_id)` returns Connected / NotConnected / OtherVolume. | `storage` |
 
 Behavior that differs from the target design, and is still open:
 - **Scan jobs (RDS-002):** `start_scan` creates a `jobs` row, returns the job id right away, and runs the scan on a worker thread.
@@ -86,5 +87,6 @@ Behavior that differs from the target design, and is still open:
 - **Connections:** each command opens its own SQLite connection, with no pool.
 - **Commands** return errors as plain strings; structured error codes are still to come.
 - **Listing** returns the whole catalog; pagination is part of RDS-004.
-- **Availability** comes from the last scan, plus one reachability check per volume. Listing never checks individual files.
+- **Availability** comes from the last scan, plus one presence check per volume (reachable *and* the same fingerprint). Listing never checks individual files.
+- **Drive matching** (`db::resolve_storage_location`) goes by fingerprint first. Next, it claims an older unidentified location at the same root, but only if sampled files from that location exist on the volume. Otherwise it creates a new location. There is no confirmation prompt yet, because scans never write to drives; deployment will add one (QA-015).
 - **Security policy:** `tauri.conf.json` still has `csp: null`.

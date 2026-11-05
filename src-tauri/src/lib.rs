@@ -8,6 +8,7 @@ mod drives;
 mod jobs;
 mod paths;
 mod scanner;
+mod volumes;
 
 use serde::Serialize;
 use serde_json::json;
@@ -99,7 +100,14 @@ fn init_catalog(handle: &AppHandle) -> Result<PathBuf, String> {
 #[tauri::command]
 fn list_games(catalog: State<'_, Catalog>) -> Result<Vec<catalog::GameRow>, String> {
     let connection = db::open(&catalog.path()?)?;
-    catalog::list_games(&connection, &catalog::volume_reachable)
+    catalog::list_games(&connection, &volumes::presence)
+}
+
+/// Every drive the catalog knows about, including ones not plugged in right now.
+#[tauri::command]
+fn list_storage_locations(catalog: State<'_, Catalog>) -> Result<Vec<catalog::StorageRow>, String> {
+    let connection = db::open(&catalog.path()?)?;
+    catalog::list_storage_locations(&connection, &volumes::presence)
 }
 
 /// Start scanning `folder` in the background and return the job id immediately.
@@ -129,7 +137,7 @@ fn run_scan(app: AppHandle, db_path: PathBuf, job_id: String, folder: String, ca
     let outcome = catch_unwind(AssertUnwindSafe(|| {
         let connection = db::open(&db_path)?;
         let mut observer = UiObserver { app: app.clone(), job_id: job_id.clone(), cancel };
-        scanner::scan_with(&connection, Path::new(&folder), &drives::volume_kind, &mut observer, scanner::ScanOptions::default())
+        scanner::scan_with(&connection, Path::new(&folder), &volumes::probe, &mut observer, scanner::ScanOptions::default())
     }))
     .unwrap_or_else(|_| Err("The scan stopped because of an internal error.".into()));
 
@@ -149,6 +157,7 @@ fn run_scan(app: AppHandle, db_path: PathBuf, job_id: String, folder: String, ca
                 "issue_count": s.issue_count,
                 "complete": s.complete,
                 "cancelled": s.cancelled,
+                "remounted_from": s.remounted_from,
             })
         });
         if let Some(s) = &summary {
@@ -210,7 +219,7 @@ pub fn run() {
             app.manage(Catalog { path });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![list_games, start_scan, cancel_job, active_scan, recent_jobs, list_drives])
+        .invoke_handler(tauri::generate_handler![list_games, list_storage_locations, start_scan, cancel_job, active_scan, recent_jobs, list_drives])
         .run(tauri::generate_context!())
         .expect("error starting RetroDrive Studio");
 }
