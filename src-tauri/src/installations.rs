@@ -5,7 +5,7 @@
 //! path, so a RetroBat on a USB drive is still recognized after a letter change.
 //! Deployment plans for an installation are built in `deployment.rs`; nothing here writes game files.
 
-use crate::adapters::{self, Confidence, Detection, LayoutCheck};
+use crate::adapters::{self, ArcadeSystem, Confidence, Detection, LayoutCheck, PlacementOptions};
 use crate::volumes::{Presence, VolumeProbe};
 use crate::{db, paths};
 use rusqlite::{params, Connection, OptionalExtension};
@@ -36,6 +36,8 @@ pub struct InstallationRow {
     /// Live layout checks (empty when the drive isn't connected).
     pub checks: Vec<LayoutCheck>,
     pub added_at: String,
+    /// `mame`, `fbneo` or `None` (arcade games not placed).
+    pub arcade_system: Option<ArcadeSystem>,
 }
 
 pub fn inspect(folder: &Path) -> Result<Inspection, String> {
@@ -99,12 +101,13 @@ pub(crate) struct Located {
     pub version: Option<String>,
     pub presence: Presence,
     pub added_at: String,
+    pub options: PlacementOptions,
 }
 
 pub(crate) fn located(connection: &Connection, presence: PresenceFn, only: Option<&str>) -> Result<Vec<Located>, String> {
     let mut statement = connection
         .prepare(
-            "SELECT i.id, i.adapter_id, s.root_path, s.stable_id, i.relative_path, i.version_string, i.added_at
+            "SELECT i.id, i.adapter_id, s.root_path, s.stable_id, i.relative_path, i.version_string, i.added_at, i.arcade_system
              FROM installations i JOIN storage_locations s ON s.id = i.storage_location_id
              WHERE ?1 IS NULL OR i.id = ?1 ORDER BY i.added_at",
         )
@@ -119,15 +122,17 @@ pub(crate) fn located(connection: &Connection, presence: PresenceFn, only: Optio
                 r.get::<_, String>(4)?,
                 r.get::<_, Option<String>>(5)?,
                 r.get::<_, String>(6)?,
+                r.get::<_, Option<String>>(7)?,
             ))
         })
         .map_err(|e| e.to_string())?;
     rows.map(|row| {
-        let (id, adapter_id, root, stable, relative, version, added_at) = row.map_err(|e| e.to_string())?;
+        let (id, adapter_id, root, stable, relative, version, added_at, arcade) = row.map_err(|e| e.to_string())?;
         let volume = presence(&root, stable.as_deref());
         let path = paths::join(&root, &relative);
         let presence = if volume == Presence::Connected && !path.is_dir() { Presence::NotConnected } else { volume };
-        Ok(Located { id, adapter_id, root: path, version, presence, added_at })
+        let options = PlacementOptions { arcade: arcade.as_deref().and_then(ArcadeSystem::parse) };
+        Ok(Located { id, adapter_id, root: path, version, presence, added_at, options })
     })
     .collect()
 }
@@ -150,9 +155,26 @@ pub fn list(connection: &Connection, presence: PresenceFn) -> Result<Vec<Install
                 presence: i.presence,
                 checks,
                 added_at: i.added_at,
+                arcade_system: i.options.arcade,
             }
         })
         .collect())
+}
+
+/// Choose which arcade emulator family's romset this installation uses
+/// (`"mame"`, `"fbneo"`, or `None` to stop placing arcade games). Catalog only.
+pub fn set_arcade_system(connection: &Connection, id: &str, system: Option<&str>) -> Result<(), String> {
+    let value = match system {
+        None => None,
+        Some(s) => Some(ArcadeSystem::parse(s).ok_or_else(|| format!("Unknown arcade emulator: {s}"))?.as_str()),
+    };
+    let changed = connection
+        .execute("UPDATE installations SET arcade_system = ?2 WHERE id = ?1", params![id, value])
+        .map_err(|e| e.to_string())?;
+    if changed == 0 {
+        return Err("Installation not found".into());
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -212,6 +234,14 @@ mod tests {
 
         let offline = list(&c, &|_, _| Presence::NotConnected).unwrap();
         assert!(offline[0].checks.is_empty(), "no live checks for an unplugged drive");
+
+        assert_eq!(rows[0].arcade_system, None, "arcade isn't guessed");
+        set_arcade_system(&c, &id, Some("fbneo")).unwrap();
+        assert_eq!(list(&c, &connected).unwrap()[0].arcade_system, Some(ArcadeSystem::Fbneo));
+        assert!(set_arcade_system(&c, &id, Some("neogeo")).is_err());
+        assert!(set_arcade_system(&c, "missing", Some("mame")).is_err());
+        set_arcade_system(&c, &id, None).unwrap();
+        assert_eq!(list(&c, &connected).unwrap()[0].arcade_system, None);
 
         assert!(remove(&c, &id).unwrap());
         assert!(root.join("RetroBat.exe").exists(), "forgetting never touches files");

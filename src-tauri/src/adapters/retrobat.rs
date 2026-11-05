@@ -10,8 +10,13 @@
 //! - System folder names (https://wiki.retrobat.org/systems-and-emulators/supported-game-systems):
 //!   nes, fds, snes, megadrive, mastersystem, gamegear, psx, ps2, gb, gbc, gba, n64;
 //!   arcade has no single folder (`mame` and `fbneo` take different ROM sets).
+//! - Arcade guide (https://wiki.retrobat.org/systems-and-emulators/arcade-guide, checked
+//!   2026-11-05): MAME games go in `roms\mame`, FinalBurn Neo in `roms\fbneo`; the romset
+//!   version must match the emulator; games stay zipped ("Do not unzip"); a CHD goes in a
+//!   folder named exactly like its game zip (`roms\mame\kinst\kinst.chd`); non-merged sets
+//!   are recommended, split sets need their parent zips, merged sets aren't supported.
 
-use super::{AdapterKind, Capabilities, CheckStatus, Confidence, Detection, LayoutCheck, Placement, PlacementRequest, PlatformAdapter};
+use super::{AdapterKind, ArcadeSystem, Capabilities, CheckStatus, Confidence, Detection, LayoutCheck, Placement, PlacementOptions, PlacementRequest, PlatformAdapter};
 use std::path::Path;
 
 pub struct RetroBat;
@@ -28,7 +33,7 @@ fn has_entry(root: &Path, name: &str, want_dir: bool) -> bool {
 }
 
 /// RetroBat `roms\` folder for a catalog platform; `Err` explains why a game can't be placed.
-fn system_folder(platform: &str, extension: &str) -> Result<&'static str, String> {
+fn system_folder(platform: &str, extension: &str, options: PlacementOptions) -> Result<&'static str, String> {
     Ok(match platform {
         "NES" if extension == "fds" => "fds",
         "NES" => "nes",
@@ -42,12 +47,26 @@ fn system_folder(platform: &str, extension: &str) -> Result<&'static str, String
         "Game Boy Color" => "gbc",
         "GBA" => "gba",
         "N64" => "n64",
-        "Arcade" => {
-            return Err("Arcade games need a choice between MAME and FinalBurn Neo (they use different ROM sets), so they aren't placed automatically yet.".into())
-        }
+        "Arcade" => return arcade_folder(extension, options),
         "Unclassified" => return Err("The platform isn't known (e.g. a loose .zip or .iso), so RetroDrive can't tell which system folder it belongs in.".into()),
         other => return Err(format!("RetroDrive doesn't map {other} to a RetroBat folder yet.")),
     })
+}
+
+/// Arcade games go to the folder of the emulator family the user chose. Only the
+/// game archives themselves are placed, unchanged (their names are the romset names).
+fn arcade_folder(extension: &str, options: PlacementOptions) -> Result<&'static str, String> {
+    let Some(system) = options.arcade else {
+        return Err("Choose MAME or FinalBurn Neo for this installation to place arcade games (they use different ROM sets, so RetroDrive doesn't guess).".into());
+    };
+    match extension {
+        "zip" | "7z" => Ok(match system {
+            ArcadeSystem::Mame => "mame",
+            ArcadeSystem::Fbneo => "fbneo",
+        }),
+        "chd" => Err("CHD disks must go in a folder named after their game's zip; RetroDrive doesn't link CHDs to their games yet.".into()),
+        other => Err(format!("Arcade .{other} files aren't game archives, so they aren't placed.")),
+    }
 }
 
 /// Path problems the RetroBat wiki warns about (pure, for testing).
@@ -136,7 +155,7 @@ impl PlatformAdapter for RetroBat {
     }
 
     fn plan_placement(&self, request: &PlacementRequest) -> Placement {
-        let system = match system_folder(&request.platform, &request.extension) {
+        let system = match system_folder(&request.platform, &request.extension, request.options) {
             Ok(s) => s,
             Err(reason) => return Placement::Unsupported { reason },
         };
@@ -188,6 +207,7 @@ mod tests {
             platform: platform.into(),
             extension: ext.into(),
             files: files.iter().map(|f| PlacementFile { relative_to_primary: f.to_string(), size: 1 }).collect(),
+            options: PlacementOptions::default(),
         }
     }
 
@@ -256,6 +276,29 @@ mod tests {
         for platform in ["Arcade", "Unclassified", "Atari Jaguar"] {
             assert!(matches!(RetroBat.plan_placement(&request(platform, "zip", &["a.zip"])), Placement::Unsupported { .. }), "{platform}");
         }
+    }
+
+    #[test]
+    fn arcade_games_follow_the_chosen_emulator_and_keep_their_names() {
+        let with = |system, ext: &str, file: &str| {
+            let mut r = request("Arcade", ext, &[file]);
+            r.options.arcade = system;
+            RetroBat.plan_placement(&r)
+        };
+        assert_eq!(with(Some(ArcadeSystem::Mame), "zip", "sf2.zip"), Placement::Planned { system_folder: "mame".into(), destinations: vec!["roms/mame/sf2.zip".into()] });
+        assert_eq!(with(Some(ArcadeSystem::Fbneo), "7z", "mslug.7z"), Placement::Planned { system_folder: "fbneo".into(), destinations: vec!["roms/fbneo/mslug.7z".into()] });
+        match with(None, "zip", "sf2.zip") {
+            Placement::Unsupported { reason } => assert!(reason.contains("Choose MAME or FinalBurn Neo"), "{reason}"),
+            other => panic!("{other:?}"),
+        }
+        match with(Some(ArcadeSystem::Mame), "chd", "kinst.chd") {
+            Placement::Unsupported { reason } => assert!(reason.contains("CHD"), "{reason}"),
+            other => panic!("{other:?}"),
+        }
+        // Other platforms ignore the arcade choice.
+        let mut nes = request("NES", "nes", &["Kid.nes"]);
+        nes.options.arcade = Some(ArcadeSystem::Fbneo);
+        assert_eq!(RetroBat.plan_placement(&nes), Placement::Planned { system_folder: "nes".into(), destinations: vec!["roms/nes/Kid.nes".into()] });
     }
 
     #[test]
