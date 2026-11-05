@@ -2,7 +2,7 @@
 
 This is the dedicated safety review that AGENTS.md requires before RetroDrive writes to a user's drive. It covers the staged copier in `src-tauri/src/copier.rs` and its wiring in `lib.rs`. Raw disk imaging, formatting and partitioning are **out of scope** and still forbidden (docs/10).
 
-_Review date: 2026-11-05. Status: **implemented, tested and used for real** (3,935 games copied and launched); only acceptance of the residual risks in §4 remains (see §6)._
+_Review date: 2026-11-05. Status: **implemented, tested and used for real** (3,935 games copied and launched); owner sign-off complete (§6)._
 
 ## 1. Scope and authorization
 
@@ -78,4 +78,4 @@ A separate high-effort code review (Claude Code `/code-review`) was run on the f
 - [x] Real USB drive copy: done 2026-11-05 (above).
 - [x] ~~Unplug the drive mid-copy~~: **waived by the owner** on 2026-11-05 (the available healthy drive also holds other data). Covered by automated tests only (H8).
 - [x] Real RetroBat: copied games appear and launch (owner, 2026-11-05: NES and Game Gear copied with RetroDrive, launched in RetroBat 8.3.1.1).
-- [ ] Accept the residual risks in §4.
+- [x] Residual risks in §4 accepted by the owner for now (2026-11-05).
