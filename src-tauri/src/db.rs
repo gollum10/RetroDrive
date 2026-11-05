@@ -4,6 +4,7 @@
 //! - v0: the v0.1 starter's single file-centric `game_files` table (no version set).
 //! - v1: normalized hybrid library (storage locations, indexed roots, games,
 //!   releases, files and file locations) as described in docs/05-DATA-MODEL.md.
+//! - v2: durable job log (`jobs`, `job_events`) for scans and later operations (RDS-002).
 //!
 //! Migration rules: back up an existing database before upgrading, run the upgrade
 //! in one transaction, verify row counts, and refuse to open a database written by
@@ -14,7 +15,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 1;
+pub const SCHEMA_VERSION: i32 = 2;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -110,6 +111,9 @@ pub fn migrate(connection: &mut Connection, db_path: Option<&Path>) -> Result<Mi
             report.legacy_rows_migrated = migrate_v0_rows(&tx)?;
             tx.execute_batch("DROP TABLE legacy_v0_game_files;").map_err(|e| e.to_string())?;
         }
+    }
+    if from_version < 2 {
+        tx.execute_batch(SCHEMA_V2).map_err(|e| e.to_string())?;
     }
     tx.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION};"))
         .map_err(|e| e.to_string())?;
@@ -314,6 +318,32 @@ CREATE TABLE file_locations (
 CREATE INDEX idx_file_locations_file ON file_locations(game_file_id);
 ";
 
+const SCHEMA_V2: &str = "
+CREATE TABLE jobs (
+    id             TEXT PRIMARY KEY,
+    kind           TEXT NOT NULL,
+    state          TEXT NOT NULL CHECK (state IN ('running','completed','cancelled','failed','interrupted')),
+    input_json     TEXT NOT NULL DEFAULT '{}',
+    progress_json  TEXT,
+    started_at     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_at    TEXT,
+    error_code     TEXT,
+    error_message  TEXT
+);
+CREATE INDEX idx_jobs_started ON jobs(started_at);
+CREATE INDEX idx_jobs_state ON jobs(state);
+
+CREATE TABLE job_events (
+    id           INTEGER PRIMARY KEY,
+    job_id       TEXT NOT NULL REFERENCES jobs(id) ON DELETE RESTRICT,
+    event_time   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    severity     TEXT NOT NULL CHECK (severity IN ('info','warning','error')),
+    event_code   TEXT NOT NULL,
+    detail_json  TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX idx_job_events_job ON job_events(job_id);
+";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -343,7 +373,7 @@ mod tests {
         assert_eq!(report.from_version, 0);
         assert_eq!(report.to_version, SCHEMA_VERSION);
         assert_eq!(user_version(&c).unwrap(), SCHEMA_VERSION);
-        for table in ["storage_locations", "indexed_roots", "games", "game_releases", "game_files", "file_locations"] {
+        for table in ["storage_locations", "indexed_roots", "games", "game_releases", "game_files", "file_locations", "jobs", "job_events"] {
             assert!(table_exists(&c, table).unwrap(), "{table} missing");
         }
     }
@@ -365,6 +395,32 @@ mod tests {
         assert!(err.contains("newer"));
         assert!(table_exists(&c, "marker").unwrap());
         assert_eq!(user_version(&c).unwrap(), 99);
+    }
+
+    #[test]
+    fn v1_catalog_upgrades_to_v2_keeping_data() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("retrodrive.sqlite");
+        {
+            let c = Connection::open(&db_path).unwrap();
+            c.execute_batch(SCHEMA_V1).unwrap();
+            c.execute_batch("PRAGMA user_version = 1;").unwrap();
+            let storage = upsert_storage_location(&c, SAMPLE_PATHS[1], "local").unwrap();
+            let file = insert_game_file(&c, "Kept", "NES", "Kept.nes", "nes", 1, None, "folder").unwrap();
+            c.execute(
+                "INSERT INTO file_locations (id, game_file_id, storage_location_id, relative_path) VALUES (?1, ?2, ?3, 'Kept.nes')",
+                params![new_id(), file, storage],
+            )
+            .unwrap();
+        }
+        let mut c = open(&db_path).unwrap();
+        let report = migrate(&mut c, Some(&db_path)).unwrap();
+        assert_eq!((report.from_version, report.to_version), (1, 2));
+        assert!(report.backup_path.is_some());
+        assert_eq!(count(&c, "games"), 1);
+        assert_eq!(count(&c, "file_locations"), 1);
+        assert!(table_exists(&c, "jobs").unwrap());
+        assert!(table_exists(&c, "job_events").unwrap());
     }
 
     #[test]

@@ -21,6 +21,7 @@ walkdir = "2"
 sysinfo = "0.32"
 uuid = { version = "1.29.0", features = ["v4"] }
 dunce = "1.0.5"
+serde_json = "1.0.154"
 
 [dev-dependencies]
 tempfile = "3.27.0"

@@ -28,7 +28,7 @@ Run with `cd src-tauri && cargo test`.
 | Test ID | Covered by | Status |
 |---|---|---|
 | QA-001 | `scanner::tests::indexes_only_game_files_and_never_modifies_source` | Automated, small fixture; the 1,000-file run and progress display are still manual |
-| QA-002 | — | Blocked on RDS-002 (cancellation) |
+| QA-002 | `scanner::tests::cancelled_scan_never_marks_files_missing`, `cancelled_scan_keeps_files_already_recorded`; manual 2026-11-04: 40,000-file fixture cancelled after 5,109 files, all 40,000 stayed present | Automated + manual |
 | QA-003 | `catalog::tests::availability_states` (unreachable volume → offline, rows kept) | Automated with a simulated volume; a real USB test is still manual |
 | QA-007 | `classify::tests::*`, scanner fixture with `.cue` + `.bin` and `.zip` | Partial: `.bin` tracks are skipped and archives are Unclassified; `.m3u` grouping is still open |
 | QA-008 | `paths::tests::unicode_round_trip`, scanner Unicode fixture | Automated; Windows long paths (>260 characters) are still untested |
@@ -36,6 +36,8 @@ Run with `cd src-tauri && cargo test`.
 | QA-010 | Empty catalog shows zeros (manual screenshot 2026-11-04) | Manual |
 | QA-014 | Links are not followed and are reported | Code path exists; creating a symlink in a test needs Windows Developer Mode |
 | QA-017 | `db::tests::v0_rows_are_preserved_and_backed_up` | Automated |
+
+RDS-002 tests: progress reporting and final counts, batched commits giving the same catalog as a single pass, a failed batch leaving no open transaction, job lifecycle and failure recording, and recovery of interrupted jobs (`jobs::tests`). Manual crash test 2026-11-04: force-killed the app mid-scan; on relaunch the job and folder showed `interrupted` and no catalog rows were lost.
 
 Other regression tests: rescans don't create duplicates, rescanning a subfolder only affects that subfolder, manual titles survive a rescan, and stored paths never have the `\\?\` prefix.
 
