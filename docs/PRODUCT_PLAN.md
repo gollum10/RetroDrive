@@ -1,4 +1,4 @@
-# RetroDrive Studio — Product Plan v1.0
+# RetroDrive — Product Plan v1.0
 
 ## Mission
 Make creation, configuration, library management, and maintenance of retro gaming drives accessible and safe.

@@ -1,8 +1,8 @@
 [package]
 name = "retrodrive-studio"
 version = "0.1.0"
-description = "RetroDrive Studio desktop backend"
-authors = ["an earlier publisher name"]
+description = "RetroDrive desktop backend"
+authors = ["RetroDrive"]
 edition = "2021"
 
 [lib]

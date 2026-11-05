@@ -1,4 +1,4 @@
-# RetroDrive Studio — Features
+# RetroDrive — Features
 
 The single list of what the app **does today** and what is **planned**. Update this file in the same change as the code. A feature is only listed as Shipped once it exists in source, has automated tests where it can, and has been run on Windows.
 
@@ -18,6 +18,7 @@ _Last updated: 2026-11-04 (RDS-005 branch; milestone M1 complete)_
 | Sidebar navigation: Dashboard, Game Library, Drive Manager, Emulation Systems, Settings | ✅ | Screen names differ from docs/03 (My Library, Drives, Systems); to be aligned. |
 | Dashboard counters: cataloged files, platforms, detected volumes, available / offline / missing | ✅ | Counts come from indexed catalog queries; no invented health scores. |
 | Dashboard duplicate hint with a "Review them" link | ✅ | Opens the library filtered to possible duplicates. |
+| RetroDrive branding: logo in the sidebar, "RetroDrive" window title and installer name | ✅ | ADR-017. an earlier publisher name removed from the app. |
 | Accurate status banner | ✅ | Separates "running in browser" from real catalog errors. |
 | Live scan progress panel with Cancel button | ✅ | RDS-002. Shows items checked, game files found, new files, unreadable count and the current file. The bar is indeterminate because the total isn't known in advance. |
 | Recent activity on the Dashboard | ✅ | Last 5 jobs with state (Completed / Cancelled / Failed / Interrupted), folder, file count, error and time. |

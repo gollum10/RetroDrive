@@ -1,4 +1,4 @@
-//! RetroDrive Studio native backend: Tauri commands over the catalog services.
+//! RetroDrive native backend: Tauri commands over the catalog services.
 //! The frontend is unprivileged; every command validates its own inputs.
 
 mod catalog;
@@ -233,5 +233,5 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![query_games, library_stats, list_storage_locations, start_scan, cancel_job, active_scan, recent_jobs, list_drives])
         .run(tauri::generate_context!())
-        .expect("error starting RetroDrive Studio");
+        .expect("error starting RetroDrive");
 }

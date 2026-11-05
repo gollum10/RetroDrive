@@ -1,10 +1,12 @@
-# RetroDrive Studio — Source + Full Design Documentation
+# RetroDrive — Source + Full Design Documentation
 
 **Start with [`docs/00-START-HERE.md`](docs/00-START-HERE.md).** This package combines the prior v0.1 desktop scaffold with a comprehensive design handoff.
 
-# RetroDrive Studio
+# RetroDrive
 
-**an earlier publisher name** — early Windows desktop application scaffold for a full retro gaming management suite.
+Early Windows desktop application for managing a full retro gaming setup.
+
+![RetroDrive logo](branding/retrodrive-logo-full.png)
 
 ## What works today
 Full, maintained list: **[Features.md](Features.md)**.
@@ -50,7 +52,7 @@ Original first-push steps, kept for reference:
 ```powershell
 git init
 git add .
-git commit -m "Initial RetroDrive Studio scaffold"
+git commit -m "Initial RetroDrive scaffold"
 git branch -M main
 git remote add origin https://github.com/YOUR_USERNAME/retrodrive-studio.git
 git push -u origin main
