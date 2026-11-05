@@ -5,6 +5,7 @@ rust,aho-corasick,1.1.5,Unlicense OR MIT,ok,,https://github.com/BurntSushi/aho-c
 rust,alloc-no-stdlib,3.0.0,BSD-3-Clause,ok,,https://github.com/dropbox/rust-alloc-no-stdlib
 rust,alloc-stdlib,0.3.0,BSD-3-Clause,ok,,https://github.com/dropbox/rust-alloc-no-stdlib
 rust,anyhow,1.0.104,MIT OR Apache-2.0,ok,,https://github.com/dtolnay/anyhow
+rust,atoi_simd,0.18.1,MIT OR Apache-2.0,ok,,https://github.com/RoDmitry/atoi_simd
 rust,autocfg,1.5.1,Apache-2.0 OR MIT,ok,,https://github.com/cuviper/autocfg
 rust,base64,0.23.1,MIT OR Apache-2.0,ok,,https://github.com/marshallpierce/rust-base64
 rust,bit-set,0.8.0,Apache-2.0 OR MIT,ok,,https://github.com/contain-rs/bit-set
@@ -15,8 +16,10 @@ rust,block-buffer,0.10.4,MIT OR Apache-2.0,ok,,https://github.com/RustCrypto/uti
 rust,brotli,9.1.1,BSD-3-Clause AND MIT,ok,,https://github.com/dropbox/rust-brotli
 rust,brotli-decompressor,6.2.0,BSD-3-Clause/MIT,ok,,https://github.com/dropbox/rust-brotli-decompressor
 rust,bs58,0.5.1,MIT/Apache-2.0,ok,,https://github.com/Nullus157/bs58-rs
+rust,bumpalo,3.20.3,MIT OR Apache-2.0,ok,,https://github.com/fitzgen/bumpalo
 rust,byteorder,1.5.0,Unlicense OR MIT,ok,,https://github.com/BurntSushi/byteorder
 rust,bytes,1.12.1,MIT,ok,,https://github.com/tokio-rs/bytes
+rust,calamine,0.38.0,MIT,ok,,https://github.com/tafia/calamine
 rust,camino,1.2.6,MIT OR Apache-2.0,ok,,https://github.com/camino-rs/camino
 rust,cargo-platform,0.1.9,MIT OR Apache-2.0,ok,,https://github.com/rust-lang/cargo
 rust,cargo_metadata,0.19.2,MIT,ok,,https://github.com/oli-obk/cargo_metadata
@@ -25,7 +28,9 @@ rust,cc,1.11.0,MIT OR Apache-2.0,ok,,https://github.com/rust-lang/cc-rs
 rust,cfb,0.14.0,MIT,ok,,https://github.com/mdsteele/rust-cfb
 rust,cfg-if,1.0.5,MIT OR Apache-2.0,ok,,https://github.com/rust-lang/cfg-if
 rust,chrono,0.4.45,MIT OR Apache-2.0,ok,,https://github.com/chronotope/chrono
+rust,codepage,0.1.3,Apache-2.0 OR MIT,ok,,https://github.com/hsivonen/codepage
 rust,cookie,0.18.2,MIT OR Apache-2.0,ok,,https://github.com/SergioBenitez/cookie-rs
+rust,core_detect,1.0.0,MIT/Apache-2.0,ok,,https://github.com/thomcc/core_detect
 rust,cpufeatures,0.2.17,MIT OR Apache-2.0,ok,,https://github.com/RustCrypto/utils
 rust,crc32fast,1.5.4,MIT OR Apache-2.0,ok,,https://github.com/srijs/rust-crc32fast
 rust,crossbeam-channel,0.5.17,MIT OR Apache-2.0,ok,,https://github.com/crossbeam-rs/crossbeam
@@ -35,10 +40,13 @@ rust,crossbeam-utils,0.8.23,MIT OR Apache-2.0,ok,,https://github.com/crossbeam-r
 rust,crypto-common,0.1.7,MIT OR Apache-2.0,ok,,https://github.com/RustCrypto/traits
 rust,cssparser,0.37.0,MPL-2.0,notice,MPL-2.0: ship notice and source location,https://github.com/servo/rust-cssparser
 rust,cssparser-macros,0.7.1,MPL-2.0,notice,MPL-2.0: ship notice and source location,https://github.com/servo/rust-cssparser
+rust,csv,1.4.0,Unlicense/MIT,ok,,https://github.com/BurntSushi/rust-csv
+rust,csv-core,0.1.13,Unlicense/MIT,ok,,https://github.com/BurntSushi/rust-csv
 rust,ctor,1.0.13,Apache-2.0 OR MIT,ok,,https://github.com/mmastrac/linktime
 rust,darling,0.24.1,MIT,ok,,https://github.com/TedDriggs/darling
 rust,darling_core,0.24.1,MIT,ok,,https://github.com/TedDriggs/darling
 rust,darling_macro,0.24.1,MIT,ok,,https://github.com/TedDriggs/darling
+rust,debug_unsafe,0.1.4,MIT OR Apache-2.0,ok,,https://github.com/RoDmitry/debug_unsafe
 rust,defmt,1.2.0,MIT OR Apache-2.0,ok,,https://github.com/knurling-rs/defmt
 rust,defmt-macros,1.2.0,MIT OR Apache-2.0,ok,,https://github.com/knurling-rs/defmt
 rust,defmt-parser,1.1.0,MIT OR Apache-2.0,ok,,https://github.com/knurling-rs/defmt
@@ -57,10 +65,12 @@ rust,dunce,1.0.5,CC0-1.0 OR MIT-0 OR Apache-2.0,ok,,https://gitlab.com/kornelski
 rust,dyn-clone,1.0.20,MIT OR Apache-2.0,ok,,https://github.com/dtolnay/dyn-clone
 rust,either,1.19.0,MIT OR Apache-2.0,ok,,https://github.com/rayon-rs/either
 rust,embed-resource,3.0.12,MIT,ok,,https://github.com/nabijaczleweli/rust-embed-resource
+rust,encoding_rs,0.8.44,(Apache-2.0 OR MIT) AND BSD-3-Clause,ok,,https://github.com/hsivonen/encoding_rs
 rust,equivalent,1.0.3,Apache-2.0 OR MIT,ok,,https://github.com/indexmap-rs/equivalent
 rust,erased-serde,0.4.11,MIT OR Apache-2.0,ok,,https://github.com/dtolnay/erased-serde
 rust,fallible-iterator,0.3.0,MIT/Apache-2.0,ok,,https://github.com/sfackler/rust-fallible-iterator
 rust,fallible-streaming-iterator,0.1.9,MIT/Apache-2.0,ok,,https://github.com/sfackler/fallible-streaming-iterator
+rust,fast-float2,0.2.4,MIT OR Apache-2.0,ok,,https://github.com/Alexhuszagh/fast-float-rust
 rust,fastrand,2.5.0,Apache-2.0 OR MIT,ok,,https://github.com/smol-rs/fastrand
 rust,fdeflate,0.3.7,MIT OR Apache-2.0,ok,,https://github.com/image-rs/fdeflate
 rust,find-msvc-tools,0.1.15,MIT OR Apache-2.0,ok,,https://github.com/rust-lang/cc-rs
@@ -114,6 +124,7 @@ rust,miniz_oxide,0.8.9,MIT OR Zlib OR Apache-2.0,ok,,https://github.com/Frommi/m
 rust,miniz_oxide,0.9.1,MIT OR Zlib OR Apache-2.0,ok,,https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide
 rust,mio,1.2.4,MIT,ok,,https://github.com/tokio-rs/mio
 rust,muda,0.20.0,Apache-2.0 OR MIT,ok,,https://github.com/tauri-apps/muda
+rust,multiversion_no_op,1.0.0,Apache-2.0 OR MIT,ok,,https://github.com/hsivonen/multiversion_no_op
 rust,new_debug_unreachable,1.0.6,MIT,ok,,https://github.com/mbrubeck/rust-debug-unreachable
 rust,ntapi,0.4.3,Apache-2.0 OR MIT,ok,,https://github.com/MSxDOS/ntapi
 rust,num-conv,0.2.2,MIT OR Apache-2.0,ok,,https://github.com/jhpratt/num-conv
@@ -150,6 +161,8 @@ rust,rfd,0.17.2,MIT,ok,,https://github.com/PolyMeilex/rfd
 rust,rusqlite,0.32.1,MIT,ok,,https://github.com/rusqlite/rusqlite
 rust,rustc-hash,2.1.3,Apache-2.0 OR MIT,ok,,https://github.com/rust-lang/rustc-hash
 rust,rustc_version,0.4.1,MIT OR Apache-2.0,ok,,https://github.com/djc/rustc-version-rs
+rust,rustversion,1.0.23,MIT OR Apache-2.0,ok,,https://github.com/dtolnay/rustversion
+rust,ryu,1.0.23,Apache-2.0 OR BSL-1.0,ok,,https://github.com/dtolnay/ryu
 rust,same-file,1.0.6,Unlicense/MIT,ok,,https://github.com/BurntSushi/same-file
 rust,schemars,0.8.22,MIT,ok,,https://github.com/GREsau/schemars
 rust,schemars,0.9.0,MIT,ok,,https://github.com/GREsau/schemars
@@ -174,6 +187,7 @@ rust,servo_arc,0.4.3,MIT OR Apache-2.0,ok,,https://github.com/servo/stylo
 rust,sha2,0.10.9,MIT OR Apache-2.0,ok,,https://github.com/RustCrypto/hashes
 rust,shlex,2.0.1,MIT OR Apache-2.0,ok,,https://github.com/comex/rust-shlex
 rust,simd-adler32,0.3.10,MIT,ok,,https://github.com/mcountryman/simd-adler32
+rust,simdutf8,0.1.5,MIT OR Apache-2.0,ok,,https://github.com/rusticstuff/simdutf8
 rust,siphasher,1.0.4,MIT OR Apache-2.0,ok,,https://github.com/jedisct1/rust-siphash
 rust,smallvec,1.16.4,MIT OR Apache-2.0,ok,,https://github.com/servo/rust-smallvec
 rust,socket2,0.6.5,MIT OR Apache-2.0,ok,,https://github.com/rust-lang/socket2
@@ -215,6 +229,7 @@ rust,toml_writer,1.2.0+spec-1.1.0,MIT OR Apache-2.0,ok,,https://github.com/toml-
 rust,tracing,0.1.44,MIT,ok,,https://github.com/tokio-rs/tracing
 rust,tracing-core,0.1.36,MIT,ok,,https://github.com/tokio-rs/tracing
 rust,tray-icon,0.25.1,MIT OR Apache-2.0,ok,,https://github.com/tauri-apps/tray-icon
+rust,typed-path,0.13.0,MIT OR Apache-2.0,ok,,https://github.com/chipsenkbeil/typed-path
 rust,typeid,1.0.3,MIT OR Apache-2.0,ok,,https://github.com/dtolnay/typeid
 rust,typenum,1.20.1,MIT OR Apache-2.0,ok,,https://github.com/paholg/typenum
 rust,unicode-ident,1.0.27,(MIT OR Apache-2.0) AND Unicode-3.0,ok,,https://github.com/dtolnay/unicode-ident
@@ -269,8 +284,10 @@ rust,zerofrom-derive,0.1.8,Unicode-3.0,ok,,https://github.com/unicode-org/icu4x
 rust,zerotrie,0.2.5,Unicode-3.0,ok,,https://github.com/unicode-org/icu4x
 rust,zerovec,0.11.9,Unicode-3.0,ok,,https://github.com/unicode-org/icu4x
 rust,zerovec-derive,0.11.7,Unicode-3.0,ok,,https://github.com/unicode-org/icu4x
+rust,zip,9.4.0,MIT,ok,,https://github.com/zip-rs/zip2
 rust,zlib-rs,0.6.8,Zlib,ok,,https://github.com/trifectatechfoundation/zlib-rs
 rust,zmij,1.0.23,MIT,ok,,https://github.com/dtolnay/zmij
+rust,zopfli,0.8.4,Apache-2.0,ok,,https://github.com/zopfli-rs/zopfli
 npm,@tauri-apps/api,2.12.4,Apache-2.0 OR MIT,ok,,https://registry.npmjs.org/@tauri-apps/api/-/api-2.12.4.tgz
 npm,@tauri-apps/plugin-dialog,2.8.4,MIT OR Apache-2.0,ok,,https://registry.npmjs.org/@tauri-apps/plugin-dialog/-/plugin-dialog-2.8.4.tgz
 npm,js-tokens,4.0.0,MIT,ok,,https://registry.npmjs.org/js-tokens/-/js-tokens-4.0.0.tgz

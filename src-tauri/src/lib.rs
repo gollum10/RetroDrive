@@ -11,6 +11,7 @@ mod drives;
 mod installations;
 mod jobs;
 mod paths;
+mod reference;
 mod scanner;
 mod volumes;
 
@@ -132,6 +133,24 @@ fn library_stats(catalog: State<'_, Catalog>) -> Result<catalog::LibraryStats, S
     catalog::library_stats(&connection, &volumes::presence)
 }
 
+/// Import the user's reference catalog (.xlsx/.csv) or a genre supplement, then match.
+#[tauri::command]
+async fn import_reference(catalog: State<'_, Catalog>, path: String) -> Result<reference::ImportSummary, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || reference::import(&db::open(&db_path)?, Path::new(&path))).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn reference_status(catalog: State<'_, Catalog>) -> Result<Option<reference::CatalogStatus>, String> {
+    reference::status(&db::open(&catalog.path()?)?)
+}
+
+/// Remove the reference catalog; the library itself is unchanged.
+#[tauri::command]
+fn remove_reference(catalog: State<'_, Catalog>) -> Result<bool, String> {
+    reference::remove(&db::open(&catalog.path()?)?)
+}
+
 /// Games and size per platform for the library's Systems page.
 #[tauri::command]
 async fn system_summary(catalog: State<'_, Catalog>) -> Result<Vec<catalog::SystemSummary>, String> {
@@ -173,7 +192,12 @@ fn run_scan(app: AppHandle, db_path: PathBuf, job_id: String, folder: String, ca
     let outcome = catch_unwind(AssertUnwindSafe(|| {
         let connection = db::open(&db_path)?;
         let mut observer = UiObserver { app: app.clone(), job_id: job_id.clone(), cancel };
-        scanner::scan_with(&connection, Path::new(&folder), &volumes::probe, &mut observer, scanner::ScanOptions::default())
+        let summary = scanner::scan_with(&connection, Path::new(&folder), &volumes::probe, &mut observer, scanner::ScanOptions::default())?;
+        // Link newly found games to the reference catalog, if one is imported.
+        if let Err(e) = reference::match_games(&connection, false) {
+            eprintln!("Reference matching after the scan failed: {e}");
+        }
+        Ok(summary)
     }))
     .unwrap_or_else(|_| Err("The scan stopped because of an internal error.".into()));
 
@@ -418,6 +442,9 @@ pub fn run() {
             remove_installation,
             deployment_plan,
             system_summary,
+            import_reference,
+            reference_status,
+            remove_reference,
             set_arcade_system,
             start_deployment,
             list_storage_locations, start_scan, cancel_job, active_scan, recent_jobs, list_drives])

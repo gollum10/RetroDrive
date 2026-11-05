@@ -90,6 +90,11 @@ Choices made while implementing (see ADR-010 and ADR-011 in docs/13):
 - **Older locations** from v0/v1 data have no fingerprint. A scan claims one only when sampled files from it exist on the scanned volume.
 - **Tests:** `db::tests::v2_catalog_upgrades_to_v3_keeping_references`, `same_volume_under_a_new_letter_is_recognized`, `different_volume_at_a_known_letter_gets_its_own_location`, `unidentified_location_is_claimed_only_when_its_files_are_there`.
 
+## Implemented schema v9 (2026-11-05)
+- **`reference_catalogs`:** `id`, `name`, `file_name`, `imported_at`, `entries`, `genres_added`. One row at a time (a new import replaces it).
+- **`reference_entries`:** `catalog_id` (cascade), `entry_key` (e.g. Game ID), `title`, `platform` (RetroDrive's name, e.g. *Game Boy Advance* → GBA), `platform_label` (as written), `year`, `genre`, `publisher`, `developer`, `source_id`, `source_name`, `variants`, `regions`. **No artwork column by design.**
+- **`game_reference`:** `game_id` (primary key, cascade with the game), `entry_id` (cascade), `method` (`name`, `variant`, `title`), `matched_at`.
+
 ## Implemented schema v8 (2026-11-05)
 - **`installations.arcade_system`:** `NULL` (arcade games not placed), `mame` or `fbneo` (CHECK constraint). Set by the user per installation; passed to the adapter as `PlacementOptions` (adapter contract v2).
 

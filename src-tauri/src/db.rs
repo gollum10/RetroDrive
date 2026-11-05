@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 8;
+pub const SCHEMA_VERSION: i32 = 9;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -154,6 +154,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 8 {
         tx.execute_batch(SCHEMA_V8).map_err(|e| e.to_string())?;
+    }
+    if from_version < 9 {
+        tx.execute_batch(SCHEMA_V9).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -702,6 +705,44 @@ CREATE INDEX idx_deployments_status ON deployments(status);
 /// placed); otherwise the emulator family whose romset the user has.
 const SCHEMA_V8: &str = "
 ALTER TABLE installations ADD COLUMN arcade_system TEXT CHECK (arcade_system IN ('mame', 'fbneo'));
+";
+
+/// v9: reference catalog (the user's own game list; `reference.rs`). Names and
+/// details only: there is deliberately no column for artwork. Kept apart from the
+/// library's own tables, so removing a catalog never changes the library.
+const SCHEMA_V9: &str = "
+CREATE TABLE reference_catalogs (
+    id            TEXT PRIMARY KEY,
+    name          TEXT NOT NULL,
+    file_name     TEXT NOT NULL,
+    imported_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    entries       INTEGER NOT NULL,
+    genres_added  INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE reference_entries (
+    id              INTEGER PRIMARY KEY,
+    catalog_id      TEXT NOT NULL REFERENCES reference_catalogs(id) ON DELETE CASCADE,
+    entry_key       TEXT,
+    title           TEXT NOT NULL,
+    platform        TEXT NOT NULL,
+    platform_label  TEXT NOT NULL,
+    year            INTEGER,
+    genre           TEXT,
+    publisher       TEXT,
+    developer       TEXT,
+    source_id       TEXT,
+    source_name     TEXT,
+    variants        TEXT,
+    regions         TEXT
+);
+CREATE INDEX idx_reference_entries_key ON reference_entries(catalog_id, entry_key);
+CREATE TABLE game_reference (
+    game_id     TEXT PRIMARY KEY REFERENCES games(id) ON DELETE CASCADE,
+    entry_id    INTEGER NOT NULL REFERENCES reference_entries(id) ON DELETE CASCADE,
+    method      TEXT NOT NULL,
+    matched_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_game_reference_entry ON game_reference(entry_id);
 ";
 
 #[cfg(test)]

@@ -53,6 +53,16 @@ Use platform folder semantics, file extension and optional metadata; record infe
 3. Same title across platforms: **not** duplicate for deletion.
 4. Arcade parent/clone dependency: not safe to infer redundancy from names.
 
+## Reference catalog (implemented 2026-11-05, `src-tauri/src/reference.rs`)
+The user can import their own game catalog (`.xlsx`/`.csv`) in **Settings → Reference catalog**.
+- **Columns** are recognized by header name (Title, Platform/System/Console, Year, Genre, Publisher, Developer, Source ID = No-Intro/MAME name, Source full name, Variants, Regions, Game ID). **Art columns ("Art…", image, thumbnail) are never read.** Rows without a title or system are skipped and counted.
+- **One catalog at a time:** importing a new one replaces the old one. A file with only *Game ID* and *Genre* columns is a **genre supplement** that fills empty genres (existing genres are kept).
+- **Matching** (per library game, by its primary file name without extension): (1) exact No-Intro/MAME name or full name, preferring the game's own system (an Unclassified game accepts a unique match on any system); (2) for arcade entries, a listed MAME clone/regional set; (3) the same title on the same system, ignoring bracket tags, punctuation and "Title, The" order. Ambiguous titles (e.g. two *Monopoly* entries on Genesis) are not matched. Games found by later scans are matched automatically.
+- **Display:** name and clone-set matches show the catalog title (clone sets add their set name, e.g. *10-Yard Fight (10yard85)*); title matches keep the file's title. Year and genre appear on cards and in list columns; publisher in the card tooltip.
+- **Separation:** reference data lives in its own tables; the library's own titles are never changed, and removing the catalog removes only the links.
+- **Measured on the owner's library (2026-11-05):** 63,793 entries imported in about 20 s; 47,840 of 116,405 games matched (24,156 by name, 4,539 by clone set, 19,145 by title): Arcade 93%, NES 80%, Genesis 79%, SNES 72%, Unclassified 4%. The 17,232-row genre supplement added 17,232 genres.
+- **Not yet:** searching by catalog titles (search still uses file titles), sorting by catalog title, and editing matches by hand.
+
 ## Metadata and scraping
 Provide approved providers (e.g. ScreenScraper with compatible account and terms) and import existing EmulationStation gamelist metadata. Store attribution/source ID/confidence; cache respectfully; respect API limits, licensing, permitted commercial usage, and removal requests. Manual editor allows corrections and local image selection.
 

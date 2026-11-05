@@ -7,7 +7,17 @@ import iconUrl from './assets/retrodrive-icon.png';
 import { Activity, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, CircleStop, Copy, Database, Eye, Plus, XCircle, FolderOpen, Gamepad2, HardDrive, LayoutDashboard, LayoutGrid, LibraryBig, List, RefreshCcw, Search, Settings2, ShieldCheck } from 'lucide-react';
 
 type Availability = 'online'|'offline'|'missing';
-type Game = { id: string; game_id: string; title: string; platform: string; path: string; file_size: number; disc_count: number; incomplete: boolean; storage_name: string; availability: Availability; duplicate_count: number };
+type Game = { id: string; game_id: string; title: string; platform: string; path: string; file_size: number; disc_count: number; incomplete: boolean; storage_name: string; availability: Availability; duplicate_count: number; reference: RefInfo|null };
+type RefInfo = { title: string; year: number|null; genre: string|null; publisher: string|null; developer: string|null; method: 'name'|'variant'|'title' };
+type MatchCounts = { by_name: number; by_variant: number; by_title: number };
+type PlatformMatch = { platform: string; games: number; matched: number };
+type CatalogStatus = { name: string; file_name: string; imported_at: string; entries: number; genres_added: number; matched: MatchCounts; platforms: PlatformMatch[] };
+type ImportSummary = { kind: 'catalog'|'genres'; file_name: string; entries: number; genres_added: number; skipped_rows: number; ignored_columns: string[]; matched: MatchCounts; platforms: PlatformMatch[] };
+/** The catalog title for confident (name/variant) matches; otherwise the game's own title. */
+const fileStem = (path: string) => { const name = path.split(/[\/]/).pop() ?? path; const dot = name.lastIndexOf('.'); return dot > 0 ? name.slice(0, dot) : name; };
+/** The catalog title for confident matches; clone sets also show their set name so they can be told apart. */
+const displayTitle = (g: Game) => !g.reference || g.reference.method === 'title' ? g.title : g.reference.method === 'variant' ? `${g.reference.title} (${fileStem(g.path)})` : g.reference.title;
+const refLine = (r: RefInfo|null) => r ? [r.year, r.genre].filter(Boolean).join(' · ') : '';
 type GamePage = { rows: Game[]; total: number; total_capped: boolean; offset: number; limit: number };
 type LibraryStats = { files: number; online: number; offline: number; missing: number; duplicate_files: number; platforms: { platform: string; files: number }[] };
 type SystemSummary = { platform: string; games: number; bytes: number };
@@ -95,6 +105,7 @@ export default function App() {
     return ()=>{ live=false; }; },[page,libraryMode,stats]);
   const chooseView=(v:LibraryView)=>{ setLibraryView(v); remember('rd.libraryView',v); };
   const [filters,setFilters]=useState<Filters>(noFilters); const [searchText,setSearchText]=useState(''); const [offset,setOffset]=useState(0);
+  const [refStatus,setRefStatus]=useState<CatalogStatus|null>(null); const [refBusy,setRefBusy]=useState(false); const [refResult,setRefResult]=useState<ImportSummary|null>(null); const [refRemoving,setRefRemoving]=useState(false);
   const [library,setLibrary]=useState<GamePage|null>(null); const [libraryLoading,setLibraryLoading]=useState(false); const [reloadKey,setReloadKey]=useState(0);
   const requestId=useRef(0); const finishedJobs=useRef(new Set<string>()); const resultRef=useRef<HTMLElement|null>(null);
   const [adapters,setAdapters]=useState<AdapterInfo[]>([]); const [installs,setInstalls]=useState<Installation[]>([]);
@@ -202,6 +213,24 @@ export default function App() {
     setCopy({...copy,cancelling:true}); setMessage('Cancelling the copy. The file in progress is discarded; verified files are kept.');
     try { await invoke<boolean>('cancel_job',{jobId:copy.job_id}); } catch(e){ setError(true); setMessage(`Could not cancel: ${String(e)}`); }
   };
+  const loadReference=async()=>{ try { setRefStatus(await invoke<CatalogStatus|null>('reference_status')); } catch { /* shown when used */ } };
+  useEffect(()=>{ if(native&&page==='Settings') void loadReference(); },[page]);
+  const importReference=async()=>{
+    try { const path=await open({multiple:false,directory:false,title:'Select your game catalog (.xlsx or .csv) or a genre supplement',filters:[{name:'Catalog',extensions:['xlsx','xlsm','csv']}]});
+      if(!path||typeof path!=='string') return;
+      setRefBusy(true); setRefResult(null); setError(false); setMessage('Importing the catalog and matching your games…');
+      const r=await invoke<ImportSummary>('import_reference',{path}); setRefResult(r);
+      const m=r.matched.by_name+r.matched.by_variant+r.matched.by_title;
+      setMessage(r.kind==='genres'?`Added ${r.genres_added.toLocaleString()} genres from ${r.file_name}.`:`Imported ${r.entries.toLocaleString()} catalog entries; ${m.toLocaleString()} of your games are matched. Your files weren't changed.`);
+      await loadReference(); setReloadKey(k=>k+1);
+    } catch(e){ setError(true); setMessage(`Could not import the catalog: ${String(e)}`); }
+    finally { setRefBusy(false); }
+  };
+  const removeReference=async()=>{
+    if(!refRemoving){ setRefRemoving(true); return; }
+    try { await invoke<boolean>('remove_reference'); setRefRemoving(false); setRefResult(null); await loadReference(); setReloadKey(k=>k+1); setMessage('Reference catalog removed. Your library and files are unchanged.'); }
+    catch(e){ setError(true); setMessage(`Could not remove the catalog: ${String(e)}`); }
+  };
   const cancelScan=async()=>{
     if(!scan) return;
     setScan({...scan,cancelling:true}); setMessage('Cancelling scan — finishing the current file...');
@@ -240,12 +269,12 @@ export default function App() {
         <label className="check"><input type="checkbox" checked={filters.duplicates_only} onChange={e=>updateFilters({duplicates_only:e.target.checked})}/> Possible duplicates only</label>
         {filtersActive&&<button className="link" onClick={clearFilters}>Clear filters</button>}
       </div>
-      {libraryView==='grid' ? <div className={'game-grid'+(libraryLoading?' loading':'')}>{library?.rows.map(g=><article key={g.id} className={'game-card '+g.availability} title={`${g.title}\n${g.path}\n${availabilityLabel[g.availability]}`}>
-        <div className="cover" style={{['--hue' as string]:platformHue(g.platform)}}><span className="cover-initials">{initials(g.title)}</span><span className="cover-platform">{g.platform}</span></div>
-        <div className="card-body"><b>{g.title}</b><small>{fmtSize(g.file_size)} · <span className={'state '+g.availability}>{g.availability==='online'?'Online':g.availability==='offline'?'Offline':'Missing'}</span></small>
+      {libraryView==='grid' ? <div className={'game-grid'+(libraryLoading?' loading':'')}>{library?.rows.map(g=><article key={g.id} className={'game-card '+g.availability} title={`${displayTitle(g)}${g.reference?.publisher?`\n${g.reference.publisher}`:''}\n${g.path}\n${availabilityLabel[g.availability]}`}>
+        <div className="cover" style={{['--hue' as string]:platformHue(g.platform)}}><span className="cover-initials">{initials(displayTitle(g))}</span><span className="cover-platform">{g.platform}</span></div>
+        <div className="card-body"><b>{displayTitle(g)}</b>{g.reference&&refLine(g.reference)&&<small className="ref-line">{refLine(g.reference)}</small>}<small>{fmtSize(g.file_size)} · <span className={'state '+g.availability}>{g.availability==='online'?'Online':g.availability==='offline'?'Offline':'Missing'}</span></small>
           <div className="card-badges">{g.disc_count>1&&<span className="disc-badge">{g.disc_count} discs</span>}{g.incomplete&&<span className="incomplete-badge">Incomplete</span>}{g.duplicate_count>1&&<span className="dup-badge" title="Possible duplicate copies (same platform, name and size)">×{g.duplicate_count}</span>}</div></div></article>)}
         {library&&library.rows.length===0&&<div className="empty"><Database size={26}/>{(stats?.files??0)===0?'No games yet. Import a ROM folder to begin.':<>No games match these filters. <button className="link" onClick={clearFilters}>Clear filters</button></>}</div>}</div>
-      : <div className={'table-wrap'+(libraryLoading?' loading':'')}><table><thead><tr><th>Game</th><th>Platform</th><th>Drive</th><th>Size</th><th>Availability</th></tr></thead><tbody>{library?.rows.map(g=><tr key={g.id}><td><b>{g.title}{g.disc_count>1&&<span className="disc-badge" title="Multi-disc game: discs listed by its .m3u playlist">{g.disc_count} discs</span>}{g.incomplete&&<span className="incomplete-badge" title="A disc or track file this game needs is missing. See the scan warnings.">Incomplete</span>}{g.duplicate_count>1&&<span className="dup-badge" title={`Possible duplicate: ${g.duplicate_count} files share this platform, file name and size. Review before removing anything; RetroDrive never deletes files.`}>×{g.duplicate_count}</span>}</b><small title={g.path}>{shortPath(g.path)}</small></td><td>{g.platform}</td><td className="drive-cell" title={g.storage_name}>{g.storage_name}</td><td>{fmtSize(g.file_size)}</td><td><span className={'state '+g.availability}>{availabilityLabel[g.availability]}</span></td></tr>)}</tbody></table>
+      : <div className={'table-wrap'+(libraryLoading?' loading':'')}><table><thead><tr><th>Game</th><th>Platform</th><th>Year</th><th>Genre</th><th>Drive</th><th>Size</th><th>Availability</th></tr></thead><tbody>{library?.rows.map(g=><tr key={g.id}><td><b>{displayTitle(g)}{g.disc_count>1&&<span className="disc-badge" title="Multi-disc game: discs listed by its .m3u playlist">{g.disc_count} discs</span>}{g.incomplete&&<span className="incomplete-badge" title="A disc or track file this game needs is missing. See the scan warnings.">Incomplete</span>}{g.duplicate_count>1&&<span className="dup-badge" title={`Possible duplicate: ${g.duplicate_count} files share this platform, file name and size. Review before removing anything; RetroDrive never deletes files.`}>×{g.duplicate_count}</span>}</b><small title={g.path}>{shortPath(g.path)}</small></td><td>{g.platform}</td><td>{g.reference?.year??''}</td><td className="genre-cell" title={g.reference?.genre??''}>{g.reference?.genre??''}</td><td className="drive-cell" title={g.storage_name}>{g.storage_name}</td><td>{fmtSize(g.file_size)}</td><td><span className={'state '+g.availability}>{availabilityLabel[g.availability]}</span></td></tr>)}</tbody></table>
         {library&&library.rows.length===0&&<div className="empty"><Database size={26}/>{(stats?.files??0)===0?'No games yet. Import a ROM folder to begin.':<>No games match these filters. <button className="link" onClick={clearFilters}>Clear filters</button></>}</div>}</div>
       }
       {library&&library.total>0&&<div className="pager"><span>{library.rows.length?`${(library.offset+1).toLocaleString()}–${(library.offset+library.rows.length).toLocaleString()}`:'0'} of {library.total_capped?`${(library.total-1).toLocaleString()}+`:library.total.toLocaleString()}</span>
@@ -330,7 +359,15 @@ export default function App() {
       <div className="actions"><button className="ghost" onClick={()=>setCopyResult(null)}>Close</button></div>
     </section>}
     </>}
-    {page==='Settings' && <section className="panel"><h2>Application settings</h2><p>RetroDrive currently stores its SQLite catalog in the operating system's application data folder. Imports index files in place and never copy, move, or delete them.</p><p>Future settings: metadata providers, library scan schedules, backup locations, and platform defaults.</p><h2 className="legal-heading">About and legal</h2><p>RetroDrive doesn't include or download games, BIOS or firmware. It only organizes and copies files you choose, so use only files you have the right to use. RetroDrive is for your own personal use; don't use it to prepare drives or machines with games or third-party software for others or for sale.</p><p className="legal-notice">RetroDrive is an independent retro gaming management application. All third-party product names and trademarks belong to their respective owners. Compatibility references do not imply sponsorship, affiliation, or endorsement.</p><small className="legal-draft">Draft wording from the legal assessment (docs/16), pending counsel review.</small></section>}
+    {page==='Settings' && <section className="panel"><h2>Reference catalog</h2>
+      <p>Import your own game catalog (.xlsx or .csv) to show proper titles, years, genres and publishers. RetroDrive matches games by their exact No-Intro or MAME name first, then by title on the same system. Only names and details are imported; <b>art columns are never read</b>. Your files are never changed, and removing the catalog leaves your library as it was.</p>
+      {refStatus ? <div className="ref-status"><div><b>{refStatus.name}</b><small>{refStatus.file_name} · {refStatus.entries.toLocaleString()} entries{refStatus.genres_added?` · ${refStatus.genres_added.toLocaleString()} genres added`:''} · imported {sqlTime(refStatus.imported_at)}</small></div>
+        <div className="plan-counts"><span className="pc copy"><b>{(refStatus.matched.by_name+refStatus.matched.by_variant+refStatus.matched.by_title).toLocaleString()}</b> games matched</span><span className="pc"><b>{refStatus.matched.by_name.toLocaleString()}</b> by exact name</span><span className="pc"><b>{refStatus.matched.by_variant.toLocaleString()}</b> by MAME clone set</span><span className="pc"><b>{refStatus.matched.by_title.toLocaleString()}</b> by title</span></div>
+        <div className="table-wrap"><table><thead><tr><th>System</th><th>Games</th><th>Matched</th></tr></thead><tbody>{refStatus.platforms.map(p=><tr key={p.platform}><td>{p.platform}</td><td>{p.games.toLocaleString()}</td><td>{p.matched.toLocaleString()} ({p.games?Math.round(100*p.matched/p.games):0}%)</td></tr>)}</tbody></table></div></div>
+      : <div className="empty">No reference catalog imported.</div>}
+      {refResult&&refResult.ignored_columns.length>0&&<p className="plan-notes">Not imported (by design): {refResult.ignored_columns.join(', ')}.{refResult.skipped_rows?` ${refResult.skipped_rows.toLocaleString()} rows had no title or system and were skipped.`:''}</p>}
+      <div className="actions"><button className="primary" disabled={!native||refBusy} onClick={()=>void importReference()}><FolderOpen size={17}/>{refBusy?'Importing…':refStatus?'Import a catalog or genre file':'Import catalog'}</button>{refStatus&&<button className="ghost" disabled={refBusy} onClick={()=>void removeReference()} onBlur={()=>setRefRemoving(false)}>{refRemoving?'Click again to remove':'Remove catalog'}</button>}</div>
+      <h2 className="legal-heading">Application settings</h2><p>RetroDrive currently stores its SQLite catalog in the operating system's application data folder. Imports index files in place and never copy, move, or delete them.</p><p>Future settings: metadata providers, library scan schedules, backup locations, and platform defaults.</p><h2 className="legal-heading">About and legal</h2><p>RetroDrive doesn't include or download games, BIOS or firmware. It only organizes and copies files you choose, so use only files you have the right to use. RetroDrive is for your own personal use; don't use it to prepare drives or machines with games or third-party software for others or for sale.</p><p className="legal-notice">RetroDrive is an independent retro gaming management application. All third-party product names and trademarks belong to their respective owners. Compatibility references do not imply sponsorship, affiliation, or endorsement.</p><small className="legal-draft">Draft wording from the legal assessment (docs/16), pending counsel review.</small></section>}
     <footer>RetroDrive · Early development build · Copies only after you confirm; never overwrites or deletes</footer>
     </main></div>;
 }

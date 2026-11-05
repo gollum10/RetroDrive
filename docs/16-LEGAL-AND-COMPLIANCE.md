@@ -243,6 +243,7 @@ Separating components technically can reduce risk but does not by itself guarant
 - [ ] **LEGAL-012:** Obtain qualified IP/software-license counsel review before commercial launch.
 - [ ] **LEGAL-013:** Review insurance, customer support, refunds, consumer protection, and distribution-channel terms.
 - [ ] **LEGAL-014:** Add a mandatory license/security approval gate to release CI and documentation.
+- [ ] **LEGAL-016:** Before **shipping** any game catalog data with RetroDrive (titles, years, genres, publishers), review each source's terms: MAME `-listxml`, progetto-SNAPS catver.ini, libretro-database, Wikipedia (CC BY-SA 4.0: attribution and share-alike) and Wikidata (CC0). Importing a user's own catalog file for personal use (implemented 2026-11-05) doesn't depend on this. Artwork is excluded either way (owner decision).
 - [ ] **LEGAL-015:** Review OneSauce/RetroFE (AtGames Legends Ultimate) as a target: OneSauce's own terms, the bundled BIOS, AtGames trademarks and terms, and the "personal use only" positioning (§6).
 
 ## 14. Decisions requiring legal sign-off
