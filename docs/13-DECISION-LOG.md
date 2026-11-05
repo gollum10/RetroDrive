@@ -15,6 +15,7 @@
 | ADR-010 | (2026-11-04) `storage_locations` = one row per volume root; user-authorized folders go in a separate `indexed_roots` table; file paths are stored relative to the volume with `/` | Overlapping scans can't duplicate files. A drive-letter change becomes one `root_path` update once RDS-003 adds stable IDs. Alternative considered: one storage location per scanned folder, which needs re-parenting when folders nest. |
 | ADR-011 | (2026-11-04) Schema versioning via `PRAGMA user_version`, with a `VACUUM INTO` backup before every upgrade, and newer catalogs refused | Needs no extra table; the backup is a consistent, openable copy. Affects docs/05 and docs/15 QA-017. |
 | ADR-012 | (2026-11-04) Repository is `gollum10/RetroInstaller` (private); working copy kept outside OneDrive | The user chose an existing repo. OneDrive syncing conflicts with Cargo's `target/` folder. |
+| ADR-013 | (2026-11-04) Scan jobs: batched commits (500 files / 1 s); cancel keeps saved work but skips missing-file detection; one scan at a time; jobs left `running` become `interrupted` at startup | One long transaction would lose everything on a crash and block job-log writes. Skipping missing detection keeps cancel from ever producing false "missing" results. Running one scan at a time avoids SQLite write contention. Alternative considered: rolling back everything on cancel, which wastes work on large libraries. Affects docs/04, 05, 07 and 15 (QA-002). |
 
 ## Recommended, awaiting implementation validation
 - Separate privileged helper for imaging, with hardened permissions.

@@ -5,12 +5,16 @@
 //! - Symbolic links and junctions are not followed and are reported as skipped.
 //! - Every unreadable entry is reported back to the caller instead of being dropped.
 //! - Previously indexed files under the scanned folder are marked `missing` only
-//!   after a scan that finished without any errors; catalog rows are never deleted.
+//!   after a scan that finished without any errors and was not cancelled; catalog
+//!   rows are never deleted.
+//! - Work is committed in batches with progress callbacks and cooperative
+//!   cancellation (RDS-002).
 
 use crate::{classify, db, paths};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 use std::path::Path;
+use std::time::{Duration, Instant};
 use walkdir::WalkDir;
 
 /// Detailed issues returned to the UI are capped; `issue_count` holds the total.
@@ -22,7 +26,7 @@ pub struct ScanIssue {
     pub message: String,
 }
 
-#[derive(Debug, Serialize, Default)]
+#[derive(Debug, Serialize, Default, Clone)]
 pub struct ScanSummary {
     /// Supported game files seen during this scan.
     pub indexed: usize,
@@ -34,8 +38,11 @@ pub struct ScanSummary {
     pub skipped_unsupported: usize,
     /// Symbolic links / junctions that were not followed.
     pub skipped_links: usize,
-    /// True when every entry was read; missing-file detection only runs then.
+    /// True when every entry was read and the scan was not cancelled;
+    /// missing-file detection only runs then.
     pub complete: bool,
+    /// True when the scan was stopped by a cancellation request.
+    pub cancelled: bool,
     pub issue_count: usize,
     pub issues: Vec<ScanIssue>,
 }
@@ -49,9 +56,102 @@ impl ScanSummary {
     }
 }
 
+/// Live progress reported while a scan runs.
+#[derive(Debug, Serialize, Clone, Default, PartialEq)]
+pub struct ScanProgress {
+    /// Directory entries examined so far (files and folders).
+    pub entries_checked: usize,
+    pub indexed: usize,
+    pub new_files: usize,
+    pub issue_count: usize,
+    /// The entry being examined when this progress was reported.
+    pub current_path: String,
+}
+
+/// Lets the caller observe progress and request cancellation.
+pub trait ScanObserver {
+    /// Checked before every entry; returning true stops the scan at the next entry.
+    fn cancelled(&self) -> bool {
+        false
+    }
+    /// Called at most every `ScanOptions::progress_interval`, and once at the end.
+    fn progress(&mut self, _progress: &ScanProgress) {}
+}
+
+/// Observer that never cancels and ignores progress.
+#[cfg(test)]
+pub struct Unobserved;
+#[cfg(test)]
+impl ScanObserver for Unobserved {}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ScanOptions {
+    /// Files recorded per committed batch. Committing in batches keeps work that
+    /// was already done if the app is closed, and lets other connections write
+    /// (job log) between batches.
+    pub batch_size: usize,
+    /// Longest time between commits regardless of batch size.
+    pub max_batch_time: Duration,
+    pub progress_interval: Duration,
+}
+
+impl Default for ScanOptions {
+    fn default() -> Self {
+        Self { batch_size: 500, max_batch_time: Duration::from_secs(1), progress_interval: Duration::from_millis(200) }
+    }
+}
+
+/// An explicit transaction that rolls back if dropped while open.
+struct Batch<'c> {
+    connection: &'c Connection,
+    open: bool,
+}
+
+impl<'c> Batch<'c> {
+    fn begin(connection: &'c Connection) -> Result<Self, String> {
+        connection.execute_batch("BEGIN IMMEDIATE").map_err(|e| e.to_string())?;
+        Ok(Self { connection, open: true })
+    }
+    fn commit(&mut self) -> Result<(), String> {
+        self.connection.execute_batch("COMMIT").map_err(|e| e.to_string())?;
+        self.open = false;
+        Ok(())
+    }
+    fn restart(&mut self) -> Result<(), String> {
+        self.commit()?;
+        self.connection.execute_batch("BEGIN IMMEDIATE").map_err(|e| e.to_string())?;
+        self.open = true;
+        Ok(())
+    }
+}
+
+impl Drop for Batch<'_> {
+    fn drop(&mut self) {
+        if self.open {
+            let _ = self.connection.execute_batch("ROLLBACK");
+        }
+    }
+}
+
+/// Scan `folder` into the catalog with default options and no observer.
+#[cfg(test)]
+pub fn scan(connection: &mut Connection, folder: &Path, volume_kind: &dyn Fn(&str) -> &'static str) -> Result<ScanSummary, String> {
+    scan_with(connection, folder, volume_kind, &mut Unobserved, ScanOptions::default())
+}
+
 /// Scan `folder` into the catalog. `volume_kind` maps a volume root such as `D:\`
 /// to `local`, `removable`, `network` or `unknown`.
-pub fn scan(connection: &mut Connection, folder: &Path, volume_kind: &dyn Fn(&str) -> &'static str) -> Result<ScanSummary, String> {
+///
+/// Work is committed in batches. If the scan is cancelled, files recorded so far
+/// are kept but missing-file detection is skipped, so a cancelled scan can never
+/// mark files missing (QA-002).
+pub fn scan_with(
+    connection: &Connection,
+    folder: &Path,
+    volume_kind: &dyn Fn(&str) -> &'static str,
+    observer: &mut dyn ScanObserver,
+    options: ScanOptions,
+) -> Result<ScanSummary, String> {
     let root = paths::normalize(folder).map_err(|e| format!("Cannot open {}: {e}", folder.display()))?;
     if !root.is_dir() {
         return Err("The selected location is not a directory".into());
@@ -60,13 +160,36 @@ pub fn scan(connection: &mut Connection, folder: &Path, volume_kind: &dyn Fn(&st
         .ok_or_else(|| format!("Unsupported folder path: {}", root.display()))?;
     let root_name = root.file_name().and_then(|s| s.to_str()).unwrap_or("").to_string();
 
-    let tx = connection.transaction().map_err(|e| e.to_string())?;
-    let storage_id = db::upsert_storage_location(&tx, &volume_root, volume_kind(&volume_root))?;
-    let indexed_root_id = upsert_indexed_root(&tx, &storage_id, &root_relative)?;
+    let mut batch = Batch::begin(connection)?;
+    let storage_id = db::upsert_storage_location(connection, &volume_root, volume_kind(&volume_root))?;
+    let indexed_root_id = upsert_indexed_root(connection, &storage_id, &root_relative)?;
     let scan_id = db::new_id();
+    batch.restart()?;
 
     let mut summary = ScanSummary::default();
+    let mut progress = ScanProgress::default();
+    let mut pending = 0usize;
+    let mut last_commit = Instant::now();
+    let mut last_progress: Option<Instant> = None;
+
     for entry in WalkDir::new(&root).follow_links(false) {
+        if observer.cancelled() {
+            summary.cancelled = true;
+            break;
+        }
+        progress.entries_checked += 1;
+        if last_progress.is_none_or(|t| t.elapsed() >= options.progress_interval) {
+            progress.indexed = summary.indexed;
+            progress.new_files = summary.new_files;
+            progress.issue_count = summary.issue_count;
+            progress.current_path = match &entry {
+                Ok(e) => e.path().display().to_string(),
+                Err(e) => e.path().map(|p| p.display().to_string()).unwrap_or_default(),
+            };
+            observer.progress(&progress);
+            last_progress = Some(Instant::now());
+        }
+
         let entry = match entry {
             Ok(entry) => entry,
             Err(error) => {
@@ -119,7 +242,7 @@ pub fn scan(connection: &mut Connection, folder: &Path, volume_kind: &dyn Fn(&st
         let title = path.file_stem().and_then(|s| s.to_str()).unwrap_or("Untitled").replace('_', " ");
 
         let is_new = record_file(
-            &tx,
+            connection,
             &storage_id,
             &relative_path,
             &scan_id,
@@ -129,21 +252,41 @@ pub fn scan(connection: &mut Connection, folder: &Path, volume_kind: &dyn Fn(&st
         if is_new {
             summary.new_files += 1;
         }
+        pending += 1;
+        if pending >= options.batch_size || last_commit.elapsed() >= options.max_batch_time {
+            batch.restart()?;
+            pending = 0;
+            last_commit = Instant::now();
+        }
     }
 
-    summary.complete = summary.issue_count == summary.skipped_links;
+    summary.complete = !summary.cancelled && summary.issue_count == summary.skipped_links;
     if summary.complete {
-        summary.marked_missing = mark_missing(&tx, &storage_id, &root_relative, &scan_id)?;
+        summary.marked_missing = mark_missing(connection, &storage_id, &root_relative, &scan_id)?;
     }
-    let status = if summary.complete { "completed" } else { "completed_with_errors" };
-    tx.execute(
-        "UPDATE indexed_roots SET last_scan_completed_at = CURRENT_TIMESTAMP, last_scan_status = ?2 WHERE id = ?1",
-        params![indexed_root_id, status],
-    )
-    .map_err(|e| e.to_string())?;
-    tx.execute("UPDATE storage_locations SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?1", [&storage_id])
+    let status = if summary.cancelled {
+        "cancelled"
+    } else if summary.complete {
+        "completed"
+    } else {
+        "completed_with_errors"
+    };
+    connection
+        .execute(
+            "UPDATE indexed_roots SET last_scan_completed_at = CURRENT_TIMESTAMP, last_scan_status = ?2 WHERE id = ?1",
+            params![indexed_root_id, status],
+        )
         .map_err(|e| e.to_string())?;
-    tx.commit().map_err(|e| e.to_string())?;
+    connection
+        .execute("UPDATE storage_locations SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?1", [&storage_id])
+        .map_err(|e| e.to_string())?;
+    batch.commit()?;
+
+    progress.indexed = summary.indexed;
+    progress.new_files = summary.new_files;
+    progress.issue_count = summary.issue_count;
+    progress.current_path.clear();
+    observer.progress(&progress);
     Ok(summary)
 }
 
@@ -400,5 +543,101 @@ mod tests {
         scan(&mut c, dir.path(), &local).unwrap();
         let root: String = c.query_row("SELECT root_path FROM storage_locations", [], |r| r.get(0)).unwrap();
         assert!(!root.starts_with(r"\\?\"), "{root}");
+    }
+
+    struct CancelAfter {
+        checks_left: std::cell::Cell<usize>,
+        progress_calls: usize,
+        last: ScanProgress,
+    }
+
+    impl CancelAfter {
+        fn new(n: usize) -> Self {
+            Self { checks_left: std::cell::Cell::new(n), progress_calls: 0, last: ScanProgress::default() }
+        }
+    }
+
+    impl ScanObserver for CancelAfter {
+        fn cancelled(&self) -> bool {
+            let left = self.checks_left.get();
+            if left == 0 {
+                return true;
+            }
+            self.checks_left.set(left - 1);
+            false
+        }
+        fn progress(&mut self, progress: &ScanProgress) {
+            self.progress_calls += 1;
+            self.last = progress.clone();
+        }
+    }
+
+    fn eager() -> ScanOptions {
+        ScanOptions { batch_size: 1, max_batch_time: Duration::from_secs(60), progress_interval: Duration::ZERO }
+    }
+
+    #[test]
+    fn cancelled_scan_never_marks_files_missing() {
+        let dir = fixture();
+        let mut c = catalog();
+        scan(&mut c, dir.path(), &local).unwrap();
+        fs::remove_file(dir.path().join("snes/Super Game (USA).sfc")).unwrap();
+
+        let mut observer = CancelAfter::new(3);
+        let summary = scan_with(&c, dir.path(), &local, &mut observer, eager()).unwrap();
+        assert!(summary.cancelled);
+        assert!(!summary.complete);
+        assert_eq!(summary.marked_missing, 0);
+        assert!(statuses(&c).iter().all(|(_, s)| s == "present"), "QA-002: no false missing after cancel");
+        let status: String = c.query_row("SELECT last_scan_status FROM indexed_roots", [], |r| r.get(0)).unwrap();
+        assert_eq!(status, "cancelled");
+    }
+
+    #[test]
+    fn cancelled_scan_keeps_files_already_recorded() {
+        let dir = fixture();
+        let c = catalog();
+        // Enough checks to get past the root and into some files, but not all.
+        let mut observer = CancelAfter::new(8);
+        let summary = scan_with(&c, dir.path(), &local, &mut observer, eager()).unwrap();
+        assert!(summary.cancelled);
+        let kept: i64 = c.query_row("SELECT COUNT(*) FROM file_locations", [], |r| r.get(0)).unwrap();
+        assert_eq!(kept as usize, summary.indexed);
+        assert!(summary.indexed < 4, "scan should have stopped early: {summary:?}");
+    }
+
+    #[test]
+    fn progress_is_reported_and_final_counts_match() {
+        let dir = fixture();
+        let c = catalog();
+        let mut observer = CancelAfter::new(usize::MAX);
+        let summary = scan_with(&c, dir.path(), &local, &mut observer, eager()).unwrap();
+        assert!(summary.complete);
+        assert!(observer.progress_calls > 1);
+        assert_eq!(observer.last.indexed, 4);
+        assert_eq!(observer.last.new_files, 4);
+        assert!(observer.last.entries_checked >= 8);
+        assert!(observer.last.current_path.is_empty(), "final progress clears the current path");
+    }
+
+    #[test]
+    fn batched_commits_produce_the_same_catalog() {
+        let dir = fixture();
+        let c = catalog();
+        scan_with(&c, dir.path(), &local, &mut Unobserved, eager()).unwrap();
+        let mut c2 = catalog();
+        scan(&mut c2, dir.path(), &local).unwrap();
+        assert_eq!(statuses(&c), statuses(&c2));
+        // No transaction is left open after a scan.
+        assert!(c.is_autocommit());
+    }
+
+    #[test]
+    fn errors_leave_no_open_transaction() {
+        let dir = fixture();
+        let c = catalog();
+        c.execute_batch("DROP TABLE file_locations;").unwrap();
+        assert!(scan_with(&c, dir.path(), &local, &mut Unobserved, eager()).is_err());
+        assert!(c.is_autocommit(), "failed batch must be rolled back");
     }
 }

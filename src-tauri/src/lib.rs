@@ -5,11 +5,22 @@ mod catalog;
 mod classify;
 mod db;
 mod drives;
+mod jobs;
 mod paths;
 mod scanner;
 
+use serde::Serialize;
+use serde_json::json;
+use std::collections::HashMap;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
-use tauri::Manager;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, Emitter, Manager, State};
+
+/// Events sent to the UI.
+const EVENT_SCAN_PROGRESS: &str = "scan-progress";
+const EVENT_SCAN_FINISHED: &str = "scan-finished";
 
 /// Catalog location, or the reason it could not be opened/migrated at startup.
 struct Catalog {
@@ -22,32 +33,164 @@ impl Catalog {
     }
 }
 
-fn init_catalog(handle: &tauri::AppHandle) -> Result<PathBuf, String> {
+/// Jobs running in this session, with their cancellation flags.
+#[derive(Default)]
+struct ActiveJobs {
+    jobs: Mutex<HashMap<String, ActiveJob>>,
+}
+
+struct ActiveJob {
+    cancel: Arc<AtomicBool>,
+    folder: String,
+}
+
+#[derive(Serialize, Clone)]
+struct ActiveScan {
+    job_id: String,
+    folder: String,
+}
+
+#[derive(Serialize, Clone)]
+struct ScanProgressEvent {
+    job_id: String,
+    progress: scanner::ScanProgress,
+}
+
+#[derive(Serialize, Clone)]
+struct ScanFinishedEvent {
+    job_id: String,
+    /// `completed`, `cancelled` or `failed`.
+    state: &'static str,
+    summary: Option<scanner::ScanSummary>,
+    error: Option<String>,
+}
+
+/// Forwards scanner progress to the UI and relays cancellation requests.
+struct UiObserver {
+    app: AppHandle,
+    job_id: String,
+    cancel: Arc<AtomicBool>,
+}
+
+impl scanner::ScanObserver for UiObserver {
+    fn cancelled(&self) -> bool {
+        self.cancel.load(Ordering::Relaxed)
+    }
+    fn progress(&mut self, progress: &scanner::ScanProgress) {
+        let _ = self
+            .app
+            .emit(EVENT_SCAN_PROGRESS, ScanProgressEvent { job_id: self.job_id.clone(), progress: progress.clone() });
+    }
+}
+
+fn init_catalog(handle: &AppHandle) -> Result<PathBuf, String> {
     let directory = handle.path().app_data_dir().map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
     let path = directory.join("retrodrive.sqlite");
     let mut connection = db::open(&path)?;
     db::migrate(&mut connection, Some(&path))?;
+    let interrupted = jobs::recover_interrupted(&connection)?;
+    if interrupted > 0 {
+        eprintln!("Marked {interrupted} unfinished job(s) from a previous session as interrupted");
+    }
     Ok(path)
 }
 
 #[tauri::command]
-fn list_games(state: tauri::State<'_, Catalog>) -> Result<Vec<catalog::GameRow>, String> {
-    let connection = db::open(&state.path()?)?;
+fn list_games(catalog: State<'_, Catalog>) -> Result<Vec<catalog::GameRow>, String> {
+    let connection = db::open(&catalog.path()?)?;
     catalog::list_games(&connection, &catalog::volume_reachable)
 }
 
-/// Runs on a worker thread so large scans do not freeze the window.
-/// Progress reporting and cancellation are planned in RDS-002.
+/// Start scanning `folder` in the background and return the job id immediately.
+/// Progress arrives as `scan-progress` events and the result as `scan-finished`.
+/// Only one scan runs at a time.
 #[tauri::command]
-async fn scan_library(state: tauri::State<'_, Catalog>, folder: String) -> Result<scanner::ScanSummary, String> {
-    let db_path = state.path()?;
-    tauri::async_runtime::spawn_blocking(move || {
-        let mut connection = db::open(&db_path)?;
-        scanner::scan(&mut connection, Path::new(&folder), &drives::volume_kind)
+fn start_scan(app: AppHandle, catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, folder: String) -> Result<String, String> {
+    let db_path = catalog.path()?;
+    let mut running = active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?;
+    if !running.is_empty() {
+        return Err("A scan is already running. Wait for it to finish or cancel it first.".into());
+    }
+    let connection = db::open(&db_path)?;
+    let job_id = jobs::create(&connection, jobs::KIND_SCAN, &json!({ "folder": folder }))?;
+    drop(connection);
+
+    let cancel = Arc::new(AtomicBool::new(false));
+    running.insert(job_id.clone(), ActiveJob { cancel: cancel.clone(), folder: folder.clone() });
+    drop(running);
+
+    let id = job_id.clone();
+    tauri::async_runtime::spawn_blocking(move || run_scan(app, db_path, id, folder, cancel));
+    Ok(job_id)
+}
+
+fn run_scan(app: AppHandle, db_path: PathBuf, job_id: String, folder: String, cancel: Arc<AtomicBool>) {
+    let outcome = catch_unwind(AssertUnwindSafe(|| {
+        let connection = db::open(&db_path)?;
+        let mut observer = UiObserver { app: app.clone(), job_id: job_id.clone(), cancel };
+        scanner::scan_with(&connection, Path::new(&folder), &drives::volume_kind, &mut observer, scanner::ScanOptions::default())
+    }))
+    .unwrap_or_else(|_| Err("The scan stopped because of an internal error.".into()));
+
+    let (state, summary, error) = match outcome {
+        Ok(summary) => (if summary.cancelled { "cancelled" } else { "completed" }, Some(summary), None),
+        Err(error) => ("failed", None, Some(error)),
+    };
+
+    if let Ok(connection) = db::open(&db_path) {
+        let progress = summary.as_ref().map(|s| {
+            json!({
+                "indexed": s.indexed,
+                "new_files": s.new_files,
+                "marked_missing": s.marked_missing,
+                "skipped_unsupported": s.skipped_unsupported,
+                "skipped_links": s.skipped_links,
+                "issue_count": s.issue_count,
+                "complete": s.complete,
+                "cancelled": s.cancelled,
+            })
+        });
+        if let Some(s) = &summary {
+            for issue in &s.issues {
+                let _ = jobs::event(&connection, &job_id, "warning", "scan_issue", &json!({ "path": issue.path, "message": issue.message }));
+            }
+        }
+        if let Err(e) = jobs::finish(&connection, &job_id, state, progress.as_ref(), error.as_deref().map(|e| ("scan_error", e))) {
+            eprintln!("Could not record the end of job {job_id}: {e}");
+        }
+    }
+
+    if let Ok(mut running) = app.state::<ActiveJobs>().jobs.lock() {
+        running.remove(&job_id);
+    }
+    let _ = app.emit(EVENT_SCAN_FINISHED, ScanFinishedEvent { job_id, state, summary, error });
+}
+
+/// Ask a running job to stop. Returns false when the job is not running.
+#[tauri::command]
+fn cancel_job(active: State<'_, ActiveJobs>, job_id: String) -> Result<bool, String> {
+    let running = active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?;
+    Ok(match running.get(&job_id) {
+        Some(job) => {
+            job.cancel.store(true, Ordering::Relaxed);
+            true
+        }
+        None => false,
     })
-    .await
-    .map_err(|e| format!("Scan worker failed: {e}"))?
+}
+
+/// The scan currently running in this session, if any (lets the UI recover after a reload).
+#[tauri::command]
+fn active_scan(active: State<'_, ActiveJobs>) -> Result<Option<ActiveScan>, String> {
+    let running = active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?;
+    Ok(running.iter().next().map(|(id, job)| ActiveScan { job_id: id.clone(), folder: job.folder.clone() }))
+}
+
+#[tauri::command]
+fn recent_jobs(catalog: State<'_, Catalog>, limit: Option<u32>) -> Result<Vec<jobs::JobRecord>, String> {
+    let connection = db::open(&catalog.path()?)?;
+    jobs::recent(&connection, limit.unwrap_or(10).min(100))
 }
 
 #[tauri::command]
@@ -58,6 +201,7 @@ fn list_drives() -> Vec<drives::Drive> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .manage(ActiveJobs::default())
         .setup(|app| {
             let path = init_catalog(app.handle());
             if let Err(error) = &path {
@@ -66,7 +210,7 @@ pub fn run() {
             app.manage(Catalog { path });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![list_games, scan_library, list_drives])
+        .invoke_handler(tauri::generate_handler![list_games, start_scan, cancel_job, active_scan, recent_jobs, list_drives])
         .run(tauri::generate_context!())
         .expect("error starting RetroDrive Studio");
 }

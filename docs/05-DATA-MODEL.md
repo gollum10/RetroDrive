@@ -74,6 +74,12 @@ Choices made while implementing (see ADR-010 and ADR-011 in docs/13):
 - **IDs** are random UUID v4 strings.
 - **Timestamps** are SQLite `CURRENT_TIMESTAMP` text (UTC). `modified_at` is in Unix seconds.
 
+## Implemented schema v2 (RDS-002, 2026-11-04)
+- **`jobs`:** `id`, `kind` (`library_scan`), `state` (`running` / `completed` / `cancelled` / `failed` / `interrupted`), `input_json`, `progress_json` (final counts), `started_at`, `finished_at`, `error_code`, `error_message`.
+- **`job_events`:** `id`, `job_id`, `event_time`, `severity` (`info` / `warning` / `error`), `event_code` (`started`, `completed`, `cancelled`, `failed`, `interrupted`, `scan_issue`), `detail_json`.
+- **`indexed_roots.last_scan_status`** now also takes `cancelled` and `interrupted`.
+- **v1 → v2:** adds the two tables (with a backup first, like every upgrade). Tested by `db::tests::v1_catalog_upgrades_to_v2_keeping_data`, and run for real on a live v1 catalog on 2026-11-04.
+
 ## Migrations
 - The version number is kept in `PRAGMA user_version`; the current version is `db::SCHEMA_VERSION`.
 - On startup, a catalog older than the app is first copied with `VACUUM INTO` to `retrodrive.sqlite.v<N>-backup-<unix time>`. It is then upgraded in a single transaction.

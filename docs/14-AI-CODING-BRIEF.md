@@ -18,7 +18,7 @@ Read `docs/00-START-HERE.md`, `docs/02-SCOPE-AND-REQUIREMENTS.md`, `docs/04-SYST
 10. Update the associated design docs and acceptance tests for each significant change.
 
 ## Next suggested coding task
-RDS-001 (normalized schema and migrations) is done; see docs/05. Next is `RDS-002`: turn the folder scan into a durable job, with a `jobs` / `job_events` migration (schema v2), progress events to the UI, and safe cancellation. A cancelled scan must never mark files missing (QA-002). Before changing files, report the plan, risk and test plan.
+RDS-001 (schema and migrations) and RDS-002 (scan jobs, progress, cancel) are done; see docs/05 and docs/04. Next is `RDS-003`: stable volume identity, so a drive that comes back under a different letter is matched to its existing `storage_locations` row (volume serial or GUID into `stable_id`), with confirmation when the match is ambiguous (QA-004, QA-015). Before changing files, report the plan, risk and test plan.
 
 ## Keep docs in sync
 Every change updates [`Features.md`](../Features.md) (feature status) and the affected docs here (architecture in 04, schema in 05, rules in 07/08, roadmap status in 11, QA coverage in 15, decisions in 13).

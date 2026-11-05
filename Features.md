@@ -6,7 +6,7 @@ The single list of what the app **does today** and what is **planned**. Update t
 
 Requirement IDs (FR/NFR) refer to [docs/02-SCOPE-AND-REQUIREMENTS.md](docs/02-SCOPE-AND-REQUIREMENTS.md); RDS IDs refer to [docs/11-ROADMAP-AND-BACKLOG.md](docs/11-ROADMAP-AND-BACKLOG.md).
 
-_Last updated: 2026-11-04 (RDS-001 branch)_
+_Last updated: 2026-11-04 (RDS-002 branch)_
 
 ---
 
@@ -18,7 +18,9 @@ _Last updated: 2026-11-04 (RDS-001 branch)_
 | Sidebar navigation: Dashboard, Game Library, Drive Manager, Emulation Systems, Settings | ✅ | Screen names differ from docs/03 (My Library, Drives, Systems); to be aligned. |
 | Dashboard counters: cataloged files, detected volumes, available titles | ✅ | Counts come from the catalog; no invented health scores. |
 | Accurate status banner | ✅ | Separates "running in browser" from real catalog errors. |
-| Job progress, pause and cancel | 📋 | RDS-002. |
+| Live scan progress panel with Cancel button | ✅ | RDS-002. Shows items checked, game files found, new files, unreadable count and the current file. The bar is indeterminate because the total isn't known in advance. |
+| Recent activity on the Dashboard | ✅ | Last 5 jobs with state (Completed / Cancelled / Failed / Interrupted), folder, file count, error and time. |
+| Pause / resume jobs | 📋 | Not planned for scans (just cancel and rescan). Will come with deployment jobs. |
 | Deployments, Artwork Studio, Profiles, Maintenance screens | 📋 | M2–M4. |
 
 ## Drive Manager (FR-02)
@@ -35,7 +37,7 @@ _Last updated: 2026-11-04 (RDS-001 branch)_
 
 | Feature | Status | Notes |
 |---|---|---|
-| Import (scan) a user-selected folder | ✅ | Runs on a background thread; the window stays responsive. Read only: tests confirm source files are unchanged. |
+| Import (scan) a user-selected folder | ✅ | Runs as a background job; the window stays responsive. Read only: tests confirm source files are unchanged. 40,000 files took about 3 s in a dev build. |
 | Platform detection from folder names | ✅ | Uses the nearest platform folder (e.g. `roms/psx/Game (USA)/game.cue`). The scanned folder's own name counts. |
 | Non-game files ignored inside platform folders | ✅ | `readme.txt`, `.srm` saves, `.state`, `gamelist.xml`, images and similar are skipped. |
 | Extension-only detection outside platform folders | ✅ | `.zip`, `.7z`, `.chd`, `.iso`, `.cue`, `.m3u` are recorded as **Unclassified**. |
@@ -52,7 +54,9 @@ _Last updated: 2026-11-04 (RDS-001 branch)_
 | Search by title or platform | 🟡 | Filters in the browser. Paginated, indexed search is planned (RDS-004, NFR-06). |
 | Duplicate candidates, hashing | 📋 | RDS-004; `sha256` / `crc32` columns reserved. |
 | Collections and favorites | 📋 | M2. |
-| Scan progress and cancellation | 📋 | RDS-002. |
+| Scan progress and cancellation | ✅ | RDS-002. Cancelling keeps files found so far and skips missing-file detection, so it can't mark files missing (QA-002). |
+| One scan at a time | ✅ | Starting a second scan is refused with a clear message. |
+| Scans survive crashes safely | ✅ | Work is saved in batches (500 files or 1 s). A scan cut off by a crash or forced close is marked **Interrupted** on the next launch; files already saved are kept. |
 
 ## Catalog database
 
@@ -63,6 +67,7 @@ _Last updated: 2026-11-04 (RDS-001 branch)_
 | Automatic backup before upgrading an existing catalog | ✅ | `retrodrive.sqlite.v<N>-backup-<unix time>` next to the catalog. |
 | v0.1 catalog upgrade without data loss | ✅ | Row counts are verified, otherwise rolled back (QA-017). |
 | Refuses a catalog from a newer app version, untouched | ✅ | |
+| Job log (schema v2): `jobs` and `job_events` | ✅ | Every scan records start, end state, counts, errors and each scan issue. |
 | Catalog export / delete controls | 📋 | docs/10 privacy defaults. |
 
 ## Platforms (FR-04) and deployment (FR-05)
@@ -93,9 +98,9 @@ _Last updated: 2026-11-04 (RDS-001 branch)_
 
 | Feature | Status | Notes |
 |---|---|---|
-| Rust unit tests (25): migrations, classifier, paths, scanner, availability | ✅ | `cd src-tauri && cargo test` |
+| Rust unit tests (34): migrations, classifier, paths, scanner, cancellation, batching, job log, availability | ✅ | `cd src-tauri && cargo test` |
 | TypeScript type-check and frontend build | ✅ | `npm run build` |
-| GitHub Actions CI on Windows (tests, clippy, build) | 🟡 | Workflow added; first run happens on the next push. |
+| GitHub Actions CI on Windows (tests, clippy, build) | ✅ | Runs on every push to `main` and every pull request. |
 | Pinned dependency lockfiles | ✅ | `package-lock.json`, `src-tauri/Cargo.lock`. |
 | Content Security Policy | 📋 | Still `null` in `tauri.conf.json`; needs testing in dev and release builds. |
 | Project license | 📋 | Open question #9 in docs/13. |

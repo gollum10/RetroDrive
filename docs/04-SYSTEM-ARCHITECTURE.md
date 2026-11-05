@@ -63,21 +63,26 @@ Frontend is unprivileged. Rust services validate all command arguments. A future
 - Handle Windows long paths, case-insensitive comparisons, network interruptions and filesystem permissions.
 - Never update catalog to reflect a write until verified.
 
-## Implemented today (updated 2026-11-04, RDS-001)
+## Implemented today (updated 2026-11-04, RDS-001 + RDS-002)
 Native backend modules in `src-tauri/src/`:
 
 | Module | Responsibility | Target module above |
 |---|---|---|
-| `lib.rs` | Tauri setup and the commands `list_games`, `scan_library`, `list_drives`. The catalog is migrated once at startup; if that fails, every command returns the error. | app services |
+| `lib.rs` | Tauri setup and commands: `list_games`, `start_scan`, `cancel_job`, `active_scan`, `recent_jobs`, `list_drives`. At startup it migrates the catalog and recovers interrupted jobs; if that fails, every command returns the error. Holds the in-memory registry of running jobs and their cancel flags. | app services |
+| `jobs.rs` | Durable job log: create, add events, finish, list recent, recover interrupted. | `jobs` |
 | `db.rs` | Opens connections (WAL, foreign keys, busy timeout). Versioned migrations via `PRAGMA user_version`, with a backup first and v0.1 data conversion. | `catalog` |
-| `scanner.rs` | Read-only folder indexer that returns a `ScanSummary` (counts plus issues). | `catalog` / `jobs` |
+| `scanner.rs` | Read-only folder indexer. Commits in batches, reports progress and accepts cancellation through a `ScanObserver`, and returns a `ScanSummary`. | `catalog` / `jobs` |
 | `classify.rs` | Infers the platform from folder names and extensions, and records where the hint came from. | `catalog` |
 | `catalog.rs` | Library listing with per-file availability (`online` / `offline` / `missing`). | `catalog` |
 | `paths.rs` | Path normalization without `\\?\`, plus volume-root and relative-path splitting. | `storage` |
 | `drives.rs` | Read-only volume listing; classifies volumes as local, removable or network. | `storage` |
 
 Behavior that differs from the target design, and is still open:
-- **Scans** run on a worker thread (`spawn_blocking`) but are not yet durable jobs: no progress events, cancellation, or `jobs` table (RDS-002).
+- **Scan jobs (RDS-002):** `start_scan` creates a `jobs` row, returns the job id right away, and runs the scan on a worker thread.
+  - **Events to the UI:** `scan-progress` (at most every 200 ms) and `scan-finished` (state `completed` / `cancelled` / `failed`, with the summary or error).
+  - **One at a time:** only one scan can run. A panic inside the scan is caught and recorded as `failed`, so the app can't get stuck in "scanning".
+  - **Not built yet:** the full lifecycle above (preflight, awaiting_confirmation, verifying, committing, paused) waits for deployment jobs.
+  - **New state:** `interrupted`, for jobs found still `running` at startup (ADR-013).
 - **Connections:** each command opens its own SQLite connection, with no pool.
 - **Commands** return errors as plain strings; structured error codes are still to come.
 - **Listing** returns the whole catalog; pagination is part of RDS-004.
