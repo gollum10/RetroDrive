@@ -59,7 +59,7 @@ Every GitHub issue should state: persona/problem, user-visible result, constrain
 5. ~~RDS-009 deployment plan (read-only).~~ Done 2026-11-05.
 6. ~~RDS-010 staged, verified copy.~~ Done 2026-11-05 (docs/18).
 7. ~~Arcade choice (RDS-016).~~ Done 2026-11-05.
-8. **Next candidates:** confirm copied games launch in RetroBat (docs/18 §6), RDS-017 conflict and clash choices, RDS-008 Batocera (read-only), collections, RDS-019 small-file speed.
+8. **Next candidates:** RDS-017 conflict and clash choices, RDS-008 Batocera (read-only), collections, RDS-019 small-file speed.
 
 ## Definition of done
 Code reviewed; automated tests passing; sample manual Windows test complete; failure/retry behavior tested; documentation updated; no unexpected file mutations; security-sensitive features assessed; versioned migration/backup path documented.
