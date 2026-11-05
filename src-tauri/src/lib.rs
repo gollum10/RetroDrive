@@ -97,10 +97,18 @@ fn init_catalog(handle: &AppHandle) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+/// One page of the library with filters applied (RDS-004).
 #[tauri::command]
-fn list_games(catalog: State<'_, Catalog>) -> Result<Vec<catalog::GameRow>, String> {
+fn query_games(catalog: State<'_, Catalog>, query: catalog::GameQuery) -> Result<catalog::GamePage, String> {
     let connection = db::open(&catalog.path()?)?;
-    catalog::list_games(&connection, &volumes::presence)
+    catalog::query_games(&connection, &query, &volumes::presence)
+}
+
+/// Library totals and platform list for the dashboard and filter menus.
+#[tauri::command]
+fn library_stats(catalog: State<'_, Catalog>) -> Result<catalog::LibraryStats, String> {
+    let connection = db::open(&catalog.path()?)?;
+    catalog::library_stats(&connection, &volumes::presence)
 }
 
 /// Every drive the catalog knows about, including ones not plugged in right now.
@@ -219,7 +227,7 @@ pub fn run() {
             app.manage(Catalog { path });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![list_games, list_storage_locations, start_scan, cancel_job, active_scan, recent_jobs, list_drives])
+        .invoke_handler(tauri::generate_handler![query_games, library_stats, list_storage_locations, start_scan, cancel_job, active_scan, recent_jobs, list_drives])
         .run(tauri::generate_context!())
         .expect("error starting RetroDrive Studio");
 }

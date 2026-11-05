@@ -32,6 +32,12 @@ Use platform folder semantics, file extension and optional metadata; record infe
 - **Manual titles:** existing titles are never overwritten by a rescan, so manual corrections survive.
 - **Batched saving:** files are committed in batches of 500 or every second. A cancelled or crashed scan keeps what it had already saved; the next full scan completes the picture.
 
+### Implemented duplicate candidates (RDS-004)
+- **Rule:** files with the same platform, file name (ignoring case) and non-zero size are flagged as *possible duplicates*: a ×N badge, a filter, and a count on the Dashboard.
+- **Categories covered:** this catches category 1 below when two copies are byte-identical, without proving it. It never merges or deletes anything.
+- **Not flagged:** the same title across platforms (category 3), and different dumps with different sizes.
+- **Next step:** hash-verified grouping needs background hashing (planned).
+
 ## Duplicate categories
 1. Exact file: identical cryptographic hash.
 2. Same release/edition: different dump or compression; manual validation before merge.
@@ -48,4 +54,6 @@ Use externally sourced compatibility requirement data and user-supplied BIOS fil
 Storage `offline` is not `deleted`. On reconnect, verify a stable identity before matching; rerun incremental scan. Only mark a previously indexed file absent after a complete scan of that root succeeds. Archive directory disappearance should not trigger automatic file deletion anywhere.
 
 ## Scaling
+*Implemented (RDS-004):* 100-row pages, indexed search and sorts, capped filtered counts; see docs/15 for measured timings.
+
 Paginate, stream, background hash and art; index titles, source statuses and hashes; support millions of file paths without loading the whole catalog into React memory. Use removable-device edge-case tests.
