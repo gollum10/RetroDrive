@@ -19,8 +19,12 @@ Navigation, basic read-only mounted volume discovery, folder scan into simple SQ
 - RDS-007 RetroBat adapter: identify an existing installation, validate folders and plan placement. **Done 2026-11-04**: detection, layout checks, folder mapping verified against the RetroBat wiki, saved installations (schema v6), Emulation Systems page and placement preview.
 - RDS-008 Batocera adapter: inspect accessible userdata layout, report limitations.
 - RDS-009 Build capacity and file-conflict preview; preflight all paths. **Done 2026-11-05**: read-only deployment plan with per-file actions, FAT32 limits, link and clash checks, measured capacity with reserve and staging, platform selection and a plan fingerprint (docs/08, ADR-020).
-- RDS-010 Build transactional staged copier with hash verify, recovery journal and manifest. **Done 2026-11-05**: staged temp files, SHA-256 with unbuffered read-back, no-replace rename, journal (schema v7), content check for existing files, cancel, crash cleanup, manifest in the catalog and the installation; safety review docs/18 (owner sign-off pending a real USB unplug test).
+- RDS-010 Build transactional staged copier with hash verify, recovery journal and manifest. **Done 2026-11-05**: staged temp files, SHA-256 with unbuffered read-back, no-replace rename, journal (schema v7), content check for existing files, cancel, crash cleanup, manifest in the catalog and the installation; safety review docs/18. Real-world run 2026-11-05: 3,436 NES games copied to a real RetroBat 8.3.1.1 on a 2 TB exFAT drive, all verified; the unplug test was waived by the owner.
 - RDS-011 Add user-confirmed deletion/overwrite policy and safety tests.
+- RDS-016 Arcade choice per installation (MAME or FinalBurn Neo). **Done 2026-11-05** (schema v8, adapter contract v2, ADR-022).
+- RDS-017 Conflict and clash choices: for a different existing file, or two library files with the same name (25 pairs in the owner's NES library), let the user pick one version or keep both side by side; replace only with a backup and explicit confirmation (docs/08). Needs a safety review.
+- RDS-018 Format check per target: warn when a target won't show a file type (e.g. OneSauce's NES collection accepts only `.nes`, while many libraries are zipped). Unzipping would be a new kind of change and needs its own design and safety review.
+- RDS-019 Faster copies of many small files (each file is synced and read back; thousands of tiny ROMs take longer than their size suggests) without weakening verification.
 
 ### M3: Install and guide
 - RDS-012 RetroBat portable installation guided workflow and official download validation. **⛔ Blocked on LEGAL-002/003** (RetroBat's written permission for commercial download/install; docs/16 §5).
@@ -33,6 +37,9 @@ Metadata/artwork matching and attribution; gamelist imports; BIOS checker; profi
 
 ### M5: Advanced suite
 Arcade Builder, additional adapters, cloning/migration, optional AI diagnostics, optional secure remote/NAS optimization.
+- RDS-020 **OneSauce / RetroFE adapter** (AtGames Legends Ultimate): read-only first, reading collections and accepted file types from the drive's own `settings.conf`. **⛔ Blocked on LEGAL-015** (docs/16 §6).
+- RDS-021 **Emulator customizer:** per-system emulator/core, display (shaders, bezels), controls and per-game overrides, described by each adapter. Must change the frontend's own settings (RetroBat rewrites many emulator configs at launch; verify first), back up before changing anything, show the exact change, support undo, and get its own safety review (like docs/18).
+- **Excluded:** preparing drives or machines with RetroBat or games for others or for sale (docs/16 §5).
 
 ### Compliance track (runs alongside the milestones; see docs/16 §13 and §18)
 - LEGAL-001 inventory: 🟡 software done (docs/17); add each platform or asset as it is considered.
@@ -51,7 +58,8 @@ Every GitHub issue should state: persona/problem, user-visible result, constrain
    - **Follow-up found by measurement:** first-time scans got about 4× slower with the search index (39,300 files in 12 s, versus about 3 s before). Option: bulk-load the search index at the end of a scan instead of one trigger per file.
 5. ~~RDS-009 deployment plan (read-only).~~ Done 2026-11-05.
 6. ~~RDS-010 staged, verified copy.~~ Done 2026-11-05 (docs/18).
-7. **Next:** complete the docs/18 owner sign-off (real USB unplug test, real RetroBat launch). Then candidates: RDS-008 Batocera (read-only), conflict choices (keep / skip / side-by-side rename; replace only with backup and explicit confirmation, docs/08), collections for deployment, or the Arcade (MAME vs FinalBurn Neo) choice.
+7. ~~Arcade choice (RDS-016).~~ Done 2026-11-05.
+8. **Next candidates:** confirm copied games launch in RetroBat (docs/18 §6), RDS-017 conflict and clash choices, RDS-008 Batocera (read-only), collections, RDS-019 small-file speed.
 
 ## Definition of done
 Code reviewed; automated tests passing; sample manual Windows test complete; failure/retry behavior tested; documentation updated; no unexpected file mutations; security-sensitive features assessed; versioned migration/backup path documented.

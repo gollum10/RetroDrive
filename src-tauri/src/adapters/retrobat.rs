@@ -4,14 +4,23 @@
 //! - Folder structure (https://wiki.retrobat.org/get-started/retrobat-folder-structure):
 //!   `RetroBat.exe`, `retrobat.ini`, `emulationstation\`, `emulators\`, `roms\`
 //!   (one folder per system), `bios\`, `saves\`, `system\` (replaced on update).
-//!   No version file is documented, so the version is reported as unknown.
+//!   No version file is documented. Observed on a real 8.3.1.1 install (2026-11-05):
+//!   `system\version.info` and `emulationstation\version.info` both contain
+//!   `8.3.1.1-stable-win64` (`RetroBat.exe` itself still says 8.3.0.0), and `system\`
+//!   is replaced on every update, so RetroDrive reads that file. `retrobat.ini` doesn't
+//!   exist until RetroBat has run, so it is supporting evidence only.
 //! - Install advice (https://wiki.retrobat.org/get-started/installation-and-first-startup):
 //!   avoid spaces and special characters in the path and don't install at a drive root.
 //! - System folder names (https://wiki.retrobat.org/systems-and-emulators/supported-game-systems):
 //!   nes, fds, snes, megadrive, mastersystem, gamegear, psx, ps2, gb, gbc, gba, n64;
 //!   arcade has no single folder (`mame` and `fbneo` take different ROM sets).
+//! - Arcade guide (https://wiki.retrobat.org/systems-and-emulators/arcade-guide, checked
+//!   2026-11-05): MAME games go in `roms\mame`, FinalBurn Neo in `roms\fbneo`; the romset
+//!   version must match the emulator; games stay zipped ("Do not unzip"); a CHD goes in a
+//!   folder named exactly like its game zip (`roms\mame\kinst\kinst.chd`); non-merged sets
+//!   are recommended, split sets need their parent zips, merged sets aren't supported.
 
-use super::{AdapterKind, Capabilities, CheckStatus, Confidence, Detection, LayoutCheck, Placement, PlacementRequest, PlatformAdapter};
+use super::{AdapterKind, ArcadeSystem, Capabilities, CheckStatus, Confidence, Detection, LayoutCheck, Placement, PlacementOptions, PlacementRequest, PlatformAdapter};
 use std::path::Path;
 
 pub struct RetroBat;
@@ -28,7 +37,7 @@ fn has_entry(root: &Path, name: &str, want_dir: bool) -> bool {
 }
 
 /// RetroBat `roms\` folder for a catalog platform; `Err` explains why a game can't be placed.
-fn system_folder(platform: &str, extension: &str) -> Result<&'static str, String> {
+fn system_folder(platform: &str, extension: &str, options: PlacementOptions) -> Result<&'static str, String> {
     Ok(match platform {
         "NES" if extension == "fds" => "fds",
         "NES" => "nes",
@@ -42,12 +51,49 @@ fn system_folder(platform: &str, extension: &str) -> Result<&'static str, String
         "Game Boy Color" => "gbc",
         "GBA" => "gba",
         "N64" => "n64",
-        "Arcade" => {
-            return Err("Arcade games need a choice between MAME and FinalBurn Neo (they use different ROM sets), so they aren't placed automatically yet.".into())
-        }
+        "Arcade" => return arcade_folder(extension, options),
         "Unclassified" => return Err("The platform isn't known (e.g. a loose .zip or .iso), so RetroDrive can't tell which system folder it belongs in.".into()),
         other => return Err(format!("RetroDrive doesn't map {other} to a RetroBat folder yet.")),
     })
+}
+
+/// Arcade games go to the folder of the emulator family the user chose. Only the
+/// game archives themselves are placed, unchanged (their names are the romset names).
+fn arcade_folder(extension: &str, options: PlacementOptions) -> Result<&'static str, String> {
+    let Some(system) = options.arcade else {
+        return Err("Choose MAME or FinalBurn Neo for this installation to place arcade games (they use different ROM sets, so RetroDrive doesn't guess).".into());
+    };
+    match extension {
+        "zip" | "7z" => Ok(match system {
+            ArcadeSystem::Mame => "mame",
+            ArcadeSystem::Fbneo => "fbneo",
+        }),
+        "chd" => Err("CHD disks must go in a folder named after their game's zip; RetroDrive doesn't link CHDs to their games yet.".into()),
+        other => Err(format!("Arcade .{other} files aren't game archives, so they aren't placed.")),
+    }
+}
+
+/// RetroBat's version from `system\version.info` (fallback `emulationstation\version.info`),
+/// e.g. `8.3.1.1-stable-win64`. Reads at most 128 bytes and accepts only a short
+/// version-like string, so an unexpected file can't inject text into the UI.
+fn read_version(root: &Path) -> Option<String> {
+    use std::io::Read;
+    for relative in ["system/version.info", "emulationstation/version.info"] {
+        let Ok(file) = std::fs::File::open(root.join(relative)) else { continue };
+        let mut text = String::new();
+        if file.take(128).read_to_string(&mut text).is_err() {
+            continue;
+        }
+        let version = text.trim();
+        let valid = !version.is_empty()
+            && version.len() <= 64
+            && version.starts_with(|c: char| c.is_ascii_digit())
+            && version.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'));
+        if valid {
+            return Some(version.to_string());
+        }
+    }
+    None
 }
 
 /// Path problems the RetroBat wiki warns about (pure, for testing).
@@ -99,7 +145,8 @@ impl PlatformAdapter for RetroBat {
             (true, _) => Confidence::Possible,
             _ => Confidence::NotDetected,
         };
-        Detection { adapter_id: ID, display_name: NAME, kind: AdapterKind::PortableApp, confidence, evidence, version: None }
+        let version = if confidence == Confidence::NotDetected { None } else { read_version(root) };
+        Detection { adapter_id: ID, display_name: NAME, kind: AdapterKind::PortableApp, confidence, evidence, version }
     }
 
     fn validate_layout(&self, root: &Path) -> Vec<LayoutCheck> {
@@ -126,17 +173,25 @@ impl PlatformAdapter for RetroBat {
             status: if warnings.is_empty() { CheckStatus::Ok } else { CheckStatus::Warning },
             detail: if warnings.is_empty() { "The path follows the RetroBat wiki's advice.".into() } else { warnings.join(" ") },
         });
-        checks.push(LayoutCheck {
-            id: "version",
-            label: "Version".into(),
-            status: CheckStatus::Warning,
-            detail: "RetroBat doesn't document a version file, so the version is unknown.".into(),
+        checks.push(match read_version(root) {
+            Some(version) => LayoutCheck {
+                id: "version",
+                label: "Version".into(),
+                status: CheckStatus::Ok,
+                detail: format!("RetroBat {version} (from system\\version.info)."),
+            },
+            None => LayoutCheck {
+                id: "version",
+                label: "Version".into(),
+                status: CheckStatus::Warning,
+                detail: "No readable system\\version.info, so the version is unknown.".into(),
+            },
         });
         checks
     }
 
     fn plan_placement(&self, request: &PlacementRequest) -> Placement {
-        let system = match system_folder(&request.platform, &request.extension) {
+        let system = match system_folder(&request.platform, &request.extension, request.options) {
             Ok(s) => s,
             Err(reason) => return Placement::Unsupported { reason },
         };
@@ -188,6 +243,7 @@ mod tests {
             platform: platform.into(),
             extension: ext.into(),
             files: files.iter().map(|f| PlacementFile { relative_to_primary: f.to_string(), size: 1 }).collect(),
+            options: PlacementOptions::default(),
         }
     }
 
@@ -198,7 +254,28 @@ mod tests {
         let d = RetroBat.detect(dir.path());
         assert_eq!(d.confidence, Confidence::Detected);
         assert_eq!(d.evidence.len(), 3, "{:?}", d.evidence);
-        assert_eq!(d.version, None, "no documented version file");
+        assert_eq!(d.version, None, "no version file in this folder");
+    }
+
+    #[test]
+    fn a_fresh_install_reports_its_version() {
+        // Layout of a real 8.3.1.1 install before first launch: no retrobat.ini.
+        let dir = tempfile::tempdir().unwrap();
+        install(dir.path(), &[("RetroBat.exe", false), ("emulationstation", true), ("roms", true), ("bios", true), ("emulators", true), ("system", true)]);
+        fs::write(dir.path().join("system/version.info"), b"8.3.1.1-stable-win64").unwrap();
+        let d = RetroBat.detect(dir.path());
+        assert_eq!(d.confidence, Confidence::Detected);
+        assert_eq!(d.version.as_deref(), Some("8.3.1.1-stable-win64"));
+        let version = RetroBat.validate_layout(dir.path()).into_iter().find(|c| c.id == "version").unwrap();
+        assert_eq!(version.status, CheckStatus::Ok);
+        assert!(version.detail.contains("8.3.1.1"));
+
+        // Falls back to emulationstation\version.info; ignores junk.
+        fs::write(dir.path().join("system/version.info"), b"<script>alert(1)</script>").unwrap();
+        fs::write(dir.path().join("emulationstation/version.info"), b"8.3.1.1-stable-win64\r\n").unwrap();
+        assert_eq!(RetroBat.detect(dir.path()).version.as_deref(), Some("8.3.1.1-stable-win64"));
+        fs::remove_file(dir.path().join("emulationstation/version.info")).unwrap();
+        assert_eq!(RetroBat.detect(dir.path()).version, None);
     }
 
     #[test]
@@ -256,6 +333,29 @@ mod tests {
         for platform in ["Arcade", "Unclassified", "Atari Jaguar"] {
             assert!(matches!(RetroBat.plan_placement(&request(platform, "zip", &["a.zip"])), Placement::Unsupported { .. }), "{platform}");
         }
+    }
+
+    #[test]
+    fn arcade_games_follow_the_chosen_emulator_and_keep_their_names() {
+        let with = |system, ext: &str, file: &str| {
+            let mut r = request("Arcade", ext, &[file]);
+            r.options.arcade = system;
+            RetroBat.plan_placement(&r)
+        };
+        assert_eq!(with(Some(ArcadeSystem::Mame), "zip", "sf2.zip"), Placement::Planned { system_folder: "mame".into(), destinations: vec!["roms/mame/sf2.zip".into()] });
+        assert_eq!(with(Some(ArcadeSystem::Fbneo), "7z", "mslug.7z"), Placement::Planned { system_folder: "fbneo".into(), destinations: vec!["roms/fbneo/mslug.7z".into()] });
+        match with(None, "zip", "sf2.zip") {
+            Placement::Unsupported { reason } => assert!(reason.contains("Choose MAME or FinalBurn Neo"), "{reason}"),
+            other => panic!("{other:?}"),
+        }
+        match with(Some(ArcadeSystem::Mame), "chd", "kinst.chd") {
+            Placement::Unsupported { reason } => assert!(reason.contains("CHD"), "{reason}"),
+            other => panic!("{other:?}"),
+        }
+        // Other platforms ignore the arcade choice.
+        let mut nes = request("NES", "nes", &["Kid.nes"]);
+        nes.options.arcade = Some(ArcadeSystem::Fbneo);
+        assert_eq!(RetroBat.plan_placement(&nes), Placement::Planned { system_folder: "nes".into(), destinations: vec!["roms/nes/Kid.nes".into()] });
     }
 
     #[test]

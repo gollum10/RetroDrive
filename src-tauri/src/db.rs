@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 7;
+pub const SCHEMA_VERSION: i32 = 8;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -151,6 +151,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 7 {
         tx.execute_batch(SCHEMA_V7).map_err(|e| e.to_string())?;
+    }
+    if from_version < 8 {
+        tx.execute_batch(SCHEMA_V8).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -693,6 +696,12 @@ CREATE TABLE deployment_items (
 );
 CREATE INDEX idx_deployment_items_state ON deployment_items(deployment_id, state);
 CREATE INDEX idx_deployments_status ON deployments(status);
+";
+
+/// v8: per-installation arcade choice. `NULL` = not chosen (arcade games aren't
+/// placed); otherwise the emulator family whose romset the user has.
+const SCHEMA_V8: &str = "
+ALTER TABLE installations ADD COLUMN arcade_system TEXT CHECK (arcade_system IN ('mame', 'fbneo'));
 ";
 
 #[cfg(test)]

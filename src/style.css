@@ -74,3 +74,5 @@ th.pick,td.pick{width:34px}tr.unpicked td{opacity:.5}
 .copy-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:18px}
 .confirm{border:1px solid #2f5d8f;background:#101d2c;border-radius:12px;padding:14px 18px;max-width:720px}.confirm p{margin:0 0 6px}.confirm ul{margin:0 0 12px;padding-left:20px;font-size:13px;color:#b5c7dc;line-height:1.8}
 .bar>div{height:100%;background:#4fa3ff;border-radius:inherit;transition:width .2s}
+.inline-progress{width:100%}.inline-progress .scan-progress{margin:0}
+.arcade-choice{margin:12px 0 4px;display:flex;flex-direction:column;gap:6px;font-size:13px;color:#c4d3e4}.arcade-choice select{margin-left:10px;background:#0f1724;color:#e9edf5;border:1px solid #32465f;border-radius:8px;padding:7px 10px}.arcade-choice small{color:#7d8ea6;font-size:12px;max-width:760px}

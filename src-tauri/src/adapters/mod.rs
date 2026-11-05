@@ -12,7 +12,8 @@ use std::path::Path;
 
 /// Bump when the trait or its data types change incompatibly. Stored with each
 /// saved installation so later versions can tell which contract recorded it.
-pub const CONTRACT_VERSION: u32 = 1;
+/// v2 (2026-11-05): `PlacementRequest` carries the installation's `PlacementOptions`.
+pub const CONTRACT_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -82,6 +83,38 @@ pub struct PlacementFile {
     pub size: i64,
 }
 
+/// Which arcade emulator family's romset the user has. MAME and FinalBurn Neo
+/// use different, version-specific romsets, so RetroDrive never guesses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArcadeSystem {
+    Mame,
+    Fbneo,
+}
+
+impl ArcadeSystem {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "mame" => Some(Self::Mame),
+            "fbneo" => Some(Self::Fbneo),
+            _ => None,
+        }
+    }
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Mame => "mame",
+            Self::Fbneo => "fbneo",
+        }
+    }
+}
+
+/// Per-installation choices that affect placement.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PlacementOptions {
+    /// `None`: arcade games aren't placed.
+    pub arcade: Option<ArcadeSystem>,
+}
+
 /// A game to plan, as the catalog knows it.
 #[derive(Debug, Clone)]
 pub struct PlacementRequest {
@@ -91,6 +124,7 @@ pub struct PlacementRequest {
     pub extension: String,
     /// The primary file first, then its discs and tracks.
     pub files: Vec<PlacementFile>,
+    pub options: PlacementOptions,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -216,6 +250,7 @@ mod tests {
             platform: "NES".into(),
             extension: "nes".into(),
             files: vec![PlacementFile { relative_to_primary: "X.nes".into(), size: 1 }],
+            options: PlacementOptions::default(),
         });
         assert_eq!(plan, Placement::Planned { system_folder: "all".into(), destinations: vec!["games/X.nes".into()] });
     }

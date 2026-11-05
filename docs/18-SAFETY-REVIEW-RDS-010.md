@@ -57,6 +57,8 @@ A separate high-effort code review (Claude Code `/code-review`) was run on the f
 - **Re-check cost.** "Already there" files are read in full on both sides each run (that is the price of never trusting size alone).
 - **Hard crash.** Temporary files from a crash stay on the drive until RetroDrive next starts with that drive connected.
 - **Folders.** Folders created for a copy that later fails are left in place (empty); nothing is deleted.
+- **Failing drives.** A drive with bad blocks can hang a write inside Windows; Cancel then waits until Windows gives up. Nothing is marked verified without a successful read-back.
+- **Unplug test waived** (owner decision, 2026-11-05).
 
 ## 5. Test record
 
@@ -66,8 +68,14 @@ A separate high-effort code review (Claude Code `/code-review`) was run on the f
   - **Stale plan:** starting a copy from a plan built before a library rescan was refused with "nothing was copied", and no progress bar got stuck.
   - **Cancel:** a 1 GB copy was cancelled at about 160 MB. The temporary file was removed, `Big.iso` never appeared, and earlier copies were intact.
 
+### Real-world run (owner, 2026-11-05)
+- RetroBat 8.3.1.1 installed by the owner on a healthy 2 TB exFAT USB drive (`G:`). 3,436 NES games copied from a NAS library: **copy finished, every file verified**; independently re-checked: 3,436 files / 351.1 MB on the drive, no `.rdpart-` files, manifest shows 3,436 verified, 5 random copies re-hashed equal to the recorded SHA-256.
+- The plan correctly accounted for exFAT's large clusters (351 MB of games needed 1.7 GB of space).
+- **Field finding:** an earlier USB drive with bad blocks (Windows `disk` event 7) froze RetroBat's own installer and needed reboots. A copy to such a drive could likewise block inside a Windows write call, where Cancel can't interrupt it; verification still prevents a damaged copy from being marked complete. Added to residual risks.
+
 ## 6. Owner sign-off (to complete)
 
-- [ ] Real USB drive: copy a few games, then **unplug the drive mid-copy**; reconnect, start RetroDrive, and confirm no `.rdpart-` files remain and a second copy finishes the job.
+- [x] Real USB drive copy: done 2026-11-05 (above).
+- [x] ~~Unplug the drive mid-copy~~: **waived by the owner** on 2026-11-05 (the available healthy drive also holds other data). Covered by automated tests only (H8).
 - [ ] Real RetroBat: confirm copied games appear and launch in RetroBat.
 - [ ] Accept the residual risks in §4.

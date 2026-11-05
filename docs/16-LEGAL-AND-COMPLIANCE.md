@@ -84,6 +84,17 @@ Proprietary console BIOS and firmware files can be protected by copyright and ot
 
 **Action:** Contact RetroBat maintainers and seek written clarification/permission for proposed commercial integration and distribution scenarios.
 
+### Evidence: license shown by the RetroBat installer (recorded 2026-11-05)
+The project owner captured this text from the RetroBat **8.3.1.1** stable installer (it is also installed as `license.txt`). Quoted for counsel; engineering reading only.
+
+> RetroBat is free and open source project. It should not be used for commercial purposes. […] All the code written by RetroBat Team, unless covered by a licence from an upstream project, is given under the LGPL v3 licence. […] It is not allowed to sell RetroBat on a pre-installed machine or on any storage devices. RetroBat includes softwares which cannot be associated with any commercial activities. Shipping RetroBat with additional proprietary and copyrighted content is illegal, strictly forbidden and strongly discouraged by the RetroBat Team. […] the license which concerns the entire RetroBat Project as a work, in particular the written or graphic content broadcast on its various media, is conditioned by the terms of the CC BY-NC-SA 4.0 license.
+
+**Engineering implications (for counsel to confirm):**
+- It strengthens the existing block on downloading or installing RetroBat from a paid RetroDrive (RDS-012, LEGAL-002/003).
+- RetroDrive must not be marketed or designed as a way to **prepare drives or machines with RetroBat (with or without games) for sale or for others**. A "prepare drives for others" feature is excluded from the roadmap unless counsel approves it.
+- RetroBat's written and graphic content is CC BY-NC-SA 4.0 (non-commercial): RetroDrive uses no RetroBat logos, graphics or documentation text, and must keep it that way.
+- RetroDrive's current behavior (copy the user's own files into a RetroBat the user installed, for personal use) is consistent with the assessment's "manage a user-installed copy" position. A "personal use" statement is added to the app and README as draft wording.
+
 ## 6. Batocera and other emulation projects
 
 Batocera's own published license and project guidance should be reviewed before commercial redistribution, use in preloaded drives, or modifications. Supporting user-installed Batocera is not automatically the same thing as redistributing it.
@@ -97,6 +108,14 @@ Likewise, RetroArch, individual Libretro cores, emulators, launchers, and utilit
 - Comply with applicable license text, notices, source-offer or source-distribution requirements, and attribution obligations.
 - Do not assume that an umbrella project's license covers every included emulator or core.
 - Maintain adapter boundaries so third-party components can be reviewed, replaced, or excluded independently.
+
+### OneSauce / RetroFE builds for AtGames Legends Ultimate (considered 2026-11-05)
+The owner asked whether RetroDrive could target **OneSauce** (successor to "Awesome Sauce"), a community drive build for the AtGames Legends Ultimate cabinet that runs the RetroFE frontend. An existing drive was inspected read-only:
+- Layout: `RETROFE_PATH` → `appdata/retrofe`; games go in `content/retrofe/collections/<collection name>/roms/`; each collection's `settings.conf` lists accepted extensions and emulators (140 collections configured). Version files: OneSauce v2.0b6, appdata v2.0b46, base_assets v2.0b18.
+- **The build ships BIOS files** (`base_assets/bios`, 156 entries), and community listings sell pre-loaded drives with "22,000+ games". No license file for OneSauce itself was found.
+- Community reports (unverified) say it needs a v1.0 cabinet on older firmware.
+
+**Position until counsel reviews it (LEGAL-015):** a OneSauce adapter could manage the user's own files the same way as RetroBat (no BIOS, no packs, no downloads, personal use only), but it is **not started** until the OneSauce terms are known and counsel agrees. AtGames and Legends Ultimate are trademarks, used only to describe compatibility.
 
 ### ES-DE opportunity
 
@@ -224,6 +243,7 @@ Separating components technically can reduce risk but does not by itself guarant
 - [ ] **LEGAL-012:** Obtain qualified IP/software-license counsel review before commercial launch.
 - [ ] **LEGAL-013:** Review insurance, customer support, refunds, consumer protection, and distribution-channel terms.
 - [ ] **LEGAL-014:** Add a mandatory license/security approval gate to release CI and documentation.
+- [ ] **LEGAL-015:** Review OneSauce/RetroFE (AtGames Legends Ultimate) as a target: OneSauce's own terms, the bundled BIOS, AtGames trademarks and terms, and the "personal use only" positioning (§6).
 
 ## 14. Decisions requiring legal sign-off
 
@@ -295,7 +315,10 @@ This is an engineering status record, not a legal conclusion.
 | No download links or integrations for unauthorized games | ✅ None exist. Rule added to the AI coding brief (docs/14). | docs/14 |
 | User-controlled import and indexing | ✅ The user picks every folder; scans are read-only. | docs/07 |
 | RetroBat: manage a user-installed copy only | ✅ The adapter only reads an existing folder the user picks; nothing is bundled, downloaded or modified. | docs/06, ADR-018 |
-| RetroBat download/install (RDS-012) | ⛔ **Blocked on LEGAL-002/003** (written permission). | docs/11 |
+| RetroBat download/install (RDS-012) | ⛔ **Blocked on LEGAL-002/003** (written permission). The installer license recorded in §5 (2026-11-05) supports this block. | docs/11 |
+| RetroBat: copying the user's games into their own install (RDS-010) | ✅ Personal-use copying only; no RetroBat files are touched; no "prepare drives for sale" feature. | docs/18 |
+| Personal-use statement | 🟡 Draft wording in Settings and README, pending counsel. | `src/App.tsx`, README |
+| OneSauce / RetroFE target | ⛔ **Not started; blocked on LEGAL-015.** | §6, docs/11 |
 | Batocera images and installs (RDS-013/014) | ⛔ **Blocked on LEGAL-004** (plus the existing safety review). | docs/11 |
 | Metadata and artwork providers | ⛔ **Blocked on LEGAL-007.** | docs/11 |
 | Independence statement | 🟡 The proposed disclaimer is shown in the app (Settings) and in the README, marked as pending counsel review. | `src/App.tsx`, README |

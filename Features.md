@@ -6,7 +6,7 @@ The single list of what the app **does today** and what is **planned**. Update t
 
 Requirement IDs (FR/NFR) refer to [docs/02-SCOPE-AND-REQUIREMENTS.md](docs/02-SCOPE-AND-REQUIREMENTS.md); RDS IDs refer to [docs/11-ROADMAP-AND-BACKLOG.md](docs/11-ROADMAP-AND-BACKLOG.md).
 
-_Last updated: 2026-11-05 (RDS-010 verified copy)_
+_Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 
 ---
 
@@ -106,7 +106,14 @@ _Last updated: 2026-11-05 (RDS-010 verified copy)_
 | Choose which platforms to deploy | ✅ | Tick or untick each RetroBat system folder; the plan updates. Collections come later. |
 | Destination safety checks | ✅ | Blocks files too big for FAT32, names that clash only by upper/lower case, links or junctions on the way, folders in the way, and paths outside the installation. Warns about paths over 260 characters. |
 | RetroBat folder mapping (verified against the RetroBat wiki) | ✅ | nes, fds (Famicom Disk `.fds`), snes, megadrive, mastersystem, gamegear, psx, ps2, gb, gbc, gba, n64. Multi-disc games get their own subfolder so playlists keep working. |
-| Arcade placement (MAME vs FinalBurn Neo) | 📋 | Not guessed: the two use different ROM sets. Needs a user choice. |
+| Arcade placement (MAME or FinalBurn Neo) | ✅ | Per installation: *Arcade games go to* MAME (`roms\mame`) or FinalBurn Neo (`roms\fbneo`); not chosen by default, so nothing is guessed. Arcade zips keep their exact names. CHD disks aren't placed yet. |
+| RetroBat version shown | ✅ | Read from `system\version.info` (e.g. 8.3.1.1-stable-win64). |
+| Copy progress where you clicked | ✅ | Progress and Cancel replace the Copy button, and the result scrolls into view (owner feedback). |
+| Name clashes show their source files | ✅ | "Needs your attention" shows which library file each row is. |
+| Conflict and clash choices | 📋 | RDS-017: pick one version or keep both; replace only with backup and confirmation. |
+| File-type check per target | 📋 | RDS-018: warn when a target won't show a file type (e.g. zipped NES games on OneSauce). |
+| OneSauce / RetroFE (AtGames Legends Ultimate) | ⛔ | RDS-020, blocked on LEGAL-015 (docs/16 §6). |
+| Emulator customizer | 📋 | RDS-021: emulators, display, controls; backup and undo; own safety review. |
 | Batocera adapter | 📋 | RDS-008. |
 | Copy games to RetroBat (verified) | ✅ | RDS-010. After you confirm, copies the plan in the background with progress and Cancel. Re-checks the plan, the drive's identity and free space first. Each file goes to a temporary name, is checked with SHA-256 by reading it back from the drive, and only then gets its real name. **Never overwrites or deletes** your files (a file that appears mid-copy is kept). Safety review: docs/18. |
 | Existing files checked by content | ✅ | "Already there" files are compared byte for byte before being skipped; if they differ, the existing file is kept and reported. |
@@ -134,6 +141,7 @@ _Last updated: 2026-11-05 (RDS-010 verified copy)_
 |---|---|---|
 | No games, BIOS, firmware or artwork shipped or downloaded | ✅ | Checked in docs/17 §5. |
 | RetroBat support limited to the user's own installation | ✅ | RetroDrive works only with a RetroBat you installed: it checks the folder and copies games into it after you confirm. Downloading or installing RetroBat is blocked on LEGAL-002/003. |
+| Personal-use statement (Settings, README) | 🟡 | Draft: RetroDrive is for your own games, for personal use; not for preparing drives or machines for others or for sale (ADR-023). |
 | Independence statement in the app (Settings) and README | 🟡 | Draft wording from docs/16 §8, pending counsel review. |
 | Third-party component manifest (LEGAL-001) | 🟡 | Software dependencies inventoried (280; 5 MPL-2.0 via Tauri need notices). Platforms and assets are listed by hand. |
 | CI license gate (LEGAL-014) | 🟡 | `scripts/check-licenses.py` fails CI on copyleft or unknown licenses; release sign-off still to be defined. |

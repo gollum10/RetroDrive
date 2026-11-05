@@ -264,6 +264,13 @@ fn remove_installation(catalog: State<'_, Catalog>, id: String) -> Result<bool, 
     installations::remove(&connection, &id)
 }
 
+/// Choose MAME or FinalBurn Neo (or neither) for an installation's arcade games.
+#[tauri::command]
+fn set_arcade_system(catalog: State<'_, Catalog>, installation_id: String, system: Option<String>) -> Result<(), String> {
+    let connection = db::open(&catalog.path()?)?;
+    installations::set_arcade_system(&connection, &installation_id, system.as_deref())
+}
+
 /// Deployment plan for an installation (RDS-009): actions, conflicts and capacity.
 /// `systems` limits it to those system folders; `None` plans all. Nothing is written.
 #[tauri::command]
@@ -398,6 +405,7 @@ pub fn run() {
             list_installations,
             remove_installation,
             deployment_plan,
+            set_arcade_system,
             start_deployment,
             list_storage_locations, start_scan, cancel_job, active_scan, recent_jobs, list_drives])
         .run(tauri::generate_context!())

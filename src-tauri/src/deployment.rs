@@ -184,7 +184,7 @@ pub(crate) fn build(connection: &Connection, installation_id: &str, systems: Opt
     }
     let adapter = adapters::find(&install.adapter_id).ok_or_else(|| format!("Unknown platform adapter: {}", install.adapter_id))?;
     let install_root = install.root.display().to_string();
-    let gathered = gather(connection, adapter.as_ref(), &install_root, presence)?;
+    let gathered = gather(connection, adapter.as_ref(), &install_root, install.options, presence)?;
 
     // System folders on offer, and the selection.
     let mut choices: BTreeMap<String, SystemChoice> = BTreeMap::new();
@@ -446,7 +446,7 @@ struct Gathered {
 }
 
 /// Every available catalog game, placed by the adapter.
-fn gather(connection: &Connection, adapter: &dyn adapters::PlatformAdapter, install_root: &str, presence: PresenceFn) -> Result<Gathered, String> {
+fn gather(connection: &Connection, adapter: &dyn adapters::PlatformAdapter, install_root: &str, options: adapters::PlacementOptions, presence: PresenceFn) -> Result<Gathered, String> {
     // Discs and tracks per release, on the same storage location as the primary.
     let mut members: Members = HashMap::new();
     {
@@ -516,7 +516,7 @@ fn gather(connection: &Connection, adapter: &dyn adapters::PlatformAdapter, inst
             files.push(PlacementFile { relative_to_primary, size: *member_size });
             sources.push((member_relative.clone(), member_id.clone()));
         }
-        let request = PlacementRequest { title: title.clone(), platform: platform.clone(), extension, files };
+        let request = PlacementRequest { title: title.clone(), platform: platform.clone(), extension, files, options };
         match adapter.plan_placement(&request) {
             Placement::Planned { system_folder, destinations } => {
                 let files = sources
@@ -655,6 +655,21 @@ mod tests {
 
         let again = super::plan(&f.catalog, &f.id, None, &connected, &roomy).unwrap();
         assert_eq!(again.fingerprint, plan.fingerprint, "same state, same fingerprint");
+    }
+
+    #[test]
+    fn arcade_games_are_planned_once_an_emulator_is_chosen() {
+        let f = fixture(&[("arcade/sf2.zip", b"sf2"), ("arcade/kinst.chd", b"chd")]);
+        let before = plan(&f.catalog, &f.id, None, &connected, &roomy).unwrap();
+        assert_eq!(before.selected_games, 0);
+        assert!(before.unsupported.iter().any(|u| u.platform == "Arcade" && u.reason.contains("Choose MAME")));
+
+        installations::set_arcade_system(&f.catalog, &f.id, Some("fbneo")).unwrap();
+        let after = plan(&f.catalog, &f.id, None, &connected, &roomy).unwrap();
+        assert_eq!(after.games.copy, 1);
+        assert!(game(&after, "sf2").destination.replace('\\', "/").ends_with("RetroBat/roms/fbneo/sf2.zip"));
+        assert!(after.unsupported.iter().any(|u| u.reason.contains("CHD")), "CHDs are not placed yet");
+        assert_ne!(after.fingerprint, before.fingerprint, "changing the choice changes the plan");
     }
 
     #[test]
