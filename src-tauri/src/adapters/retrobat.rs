@@ -13,6 +13,12 @@
 //!   avoid spaces and special characters in the path and don't install at a drive root.
 //! - System folder names (https://wiki.retrobat.org/systems-and-emulators/supported-game-systems):
 //!   nes, fds, snes, megadrive, mastersystem, gamegear, psx, ps2, gb, gbc, gba, n64;
+//!   rechecked 2026-11-05 for: amstradcpc, gx4000, atari800, atarist, atari2600, atari5200,
+//!   atari7800, lynx, jaguar, c64, amiga500, amiga1200, amigacd32, x68000, msx1, msx2, zx81,
+//!   zxspectrum, pcengine, pcenginecd, supergrafx, nds, neogeo, neogeocd, ngp, ngpc,
+//!   intellivision, sg1000, odyssey2, wswan, wswanc, colecovision, vectrex, gameandwatch,
+//!   sega32x, megacd, pokemini, virtualboy, supervision, cps1, cps2, cps3, dreamcast, naomi,
+//!   atomiswave, saturn, 3do;
 //!   arcade has no single folder (`mame` and `fbneo` take different ROM sets).
 //! - Arcade guide (https://wiki.retrobat.org/systems-and-emulators/arcade-guide, checked
 //!   2026-11-05): MAME games go in `roms\mame`, FinalBurn Neo in `roms\fbneo`; the romset
@@ -51,6 +57,55 @@ fn system_folder(platform: &str, extension: &str, options: PlacementOptions) -> 
         "Game Boy Color" => "gbc",
         "GBA" => "gba",
         "N64" => "n64",
+        "Famicom Disk System" => "fds",
+        "Amstrad CPC" => "amstradcpc",
+        "Amstrad GX4000" => "gx4000",
+        "Atari 800" => "atari800",
+        "Atari ST" => "atarist",
+        "Atari 2600" => "atari2600",
+        "Atari 5200" => "atari5200",
+        "Atari 7800" => "atari7800",
+        "Atari Lynx" => "lynx",
+        "Atari Jaguar" => "jaguar",
+        "Commodore 64" => "c64",
+        "Amiga" => "amiga500",
+        "Amiga 1200" => "amiga1200",
+        "Amiga CD32" => "amigacd32",
+        "Sharp X68000" => "x68000",
+        "MSX" => "msx1",
+        "MSX2" => "msx2",
+        "ZX81" => "zx81",
+        "ZX Spectrum" => "zxspectrum",
+        "PC Engine" => "pcengine",
+        "PC Engine CD" => "pcenginecd",
+        "SuperGrafx" => "supergrafx",
+        "Nintendo DS" => "nds",
+        "Neo Geo" => "neogeo",
+        "Neo Geo CD" => "neogeocd",
+        "Neo Geo Pocket" => "ngp",
+        "Neo Geo Pocket Color" => "ngpc",
+        "Intellivision" => "intellivision",
+        "SG-1000" => "sg1000",
+        "Odyssey 2" => "odyssey2",
+        "WonderSwan" => "wswan",
+        "WonderSwan Color" => "wswanc",
+        "ColecoVision" => "colecovision",
+        "Vectrex" => "vectrex",
+        "Game & Watch" => "gameandwatch",
+        "Sega 32X" => "sega32x",
+        "Sega CD" => "megacd",
+        "Pokemon Mini" => "pokemini",
+        "Virtual Boy" => "virtualboy",
+        "Watara Supervision" => "supervision",
+        "CPS1" => "cps1",
+        "CPS2" => "cps2",
+        "CPS3" => "cps3",
+        "Dreamcast" => "dreamcast",
+        "Naomi" => "naomi",
+        "Atomiswave" => "atomiswave",
+        "Sega Saturn" => "saturn",
+        "3DO" => "3do",
+        "BIOS" => return Err("BIOS files belong in RetroBat's bios folder, not with games; RetroDrive doesn't copy BIOS files.".into()),
         "Arcade" => return arcade_folder(extension, options),
         "Unclassified" => return Err("The platform isn't known (e.g. a loose .zip or .iso), so RetroDrive can't tell which system folder it belongs in.".into()),
         other => return Err(format!("RetroDrive doesn't map {other} to a RetroBat folder yet.")),
@@ -329,8 +384,20 @@ mod tests {
     }
 
     #[test]
+    fn new_systems_map_to_retrobat_folders_and_bios_is_never_placed() {
+        let plan = |p: &str| RetroBat.plan_placement(&request(p, "zip", &["a.zip"]));
+        for (platform, folder) in [("Commodore 64", "c64"), ("Amiga", "amiga500"), ("MSX", "msx1"), ("Atari Lynx", "lynx"), ("Sega CD", "megacd"), ("WonderSwan Color", "wswanc"), ("Famicom Disk System", "fds")] {
+            match plan(platform) {
+                Placement::Planned { system_folder, .. } => assert_eq!(system_folder, folder, "{platform}"),
+                other => panic!("{platform}: {other:?}"),
+            }
+        }
+        assert!(matches!(plan("BIOS"), Placement::Unsupported { .. }));
+    }
+
+    #[test]
     fn arcade_and_unknown_platforms_are_not_guessed() {
-        for platform in ["Arcade", "Unclassified", "Atari Jaguar"] {
+        for platform in ["Arcade", "Unclassified", "Nintendo Switch"] {
             assert!(matches!(RetroBat.plan_placement(&request(platform, "zip", &["a.zip"])), Placement::Unsupported { .. }), "{platform}");
         }
     }

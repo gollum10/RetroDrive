@@ -14,6 +14,14 @@ The catalog is a cross-drive inventory, not a requirement to consolidate media. 
 ## Recognition
 Use platform folder semantics, file extension and optional metadata; record inferred confidence and avoid false certainty. Generic files (`.zip`, `.chd`, `.iso`) are ambiguous without context. Support multidisc assets (`.cue/.bin`, `.m3u`) and avoid counting a playlist and its disc files as independent games. Arcade ROM sets may depend on parent/clone archives and specific emulator core versions, so don't 'clean up duplicates' blindly.
 
+### More systems, hack folders and BIOS (2026-11-05)
+- **49 systems** are recognized (was 12), including Amstrad CPC/GX4000, Atari 800/ST/2600/5200/7800/Lynx/Jaguar, Commodore 64, Amiga/Amiga 1200/CD32, Sharp X68000, MSX/MSX2, ZX81/ZX Spectrum, PC Engine/CD, SuperGrafx, Nintendo DS, Famicom Disk System, Neo Geo/CD/Pocket/Pocket Color, Intellivision, SG-1000, Odyssey 2, WonderSwan/Color, ColecoVision, Vectrex, Game & Watch, Sega 32X/CD/Saturn, Pokemon Mini, Virtual Boy, Watara Supervision, CPS1/2/3, Dreamcast, Naomi, Atomiswave and 3DO. Folder names include both RetroBat's (`msx1`, `lynx`, `wswanc`, `megacd`…) and other common spellings (`msx`, `atarilynx`, `wonderswancolor`, `segacd`, `sgfx`, `sg-1000`, `neocd`, `coleco`, `odyssey`).
+- **Hack folders** count as their system: `nesh`→NES, `snesh`→SNES, `genh` and `megadrive-japan`→Genesis, `gbh`/`gbch`/`gbah`→Game Boy/Color/Advance, `gamegearh`→Game Gear.
+- Extensions shared by several computers (`.dsk`, `.tap`, `.rom`, `.cas`, `.hdf`) count only inside a matching system folder; unique ones (`.d64`, `.adf`, `.st`, `.lnx`, `.pce`, `.nds`…) count anywhere.
+- **BIOS:** files in a folder named `bios`, or named like `[BIOS] …`, get the system **BIOS**. They are kept out of game lists' system counts (shown last on the Systems page as "files"), and are never placed or copied as games.
+- **Rescans move games** whose primary file is now recognized differently (e.g. a `c64` folder that used to be Unclassified) to the new system; search follows. Legacy v0.1 rows keep theirs.
+- **Owner's library check (2026-11-05, snapshot):** of 60,558 Unclassified games, 60,554 are now recognized; 4 remain (the `ports` folder). No file became "not a game", so rescans won't mark anything missing.
+
 ### Implemented recognition rules (2026-11-04)
 `src-tauri/src/classify.rs`:
 - **Platform folders:** the nearest folder named after a platform decides, searching from the file's parent up to and including the scanned folder. Inside that folder, only that platform's extensions (plus `.zip` / `.7z` for cartridge systems) count as games. Anything else, such as saves, states, readme files or gamelists, is ignored.

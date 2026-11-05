@@ -30,6 +30,8 @@ pub struct Classification {
 }
 
 pub const UNCLASSIFIED: &str = "Unclassified";
+/// BIOS and firmware files (a folder named `bios`, or a name starting with `[BIOS]`).
+pub const BIOS: &str = "BIOS";
 
 struct Platform {
     name: &'static str,
@@ -44,18 +46,70 @@ const CARTRIDGE_ARCHIVES: [&str; 2] = ["zip", "7z"];
 // `.bin` is accepted only in Genesis folders; for disc systems it is a data track
 // referenced by a `.cue`, so counting it separately would double-count games (QA-007).
 const PLATFORMS: &[Platform] = &[
-    Platform { name: "NES", folders: &["nes", "fc", "famicom"], extensions: &["nes", "fds", "unf", "unif"], folder_only: &[] },
-    Platform { name: "SNES", folders: &["snes", "sfc", "superfamicom"], extensions: &["sfc", "smc"], folder_only: &[] },
-    Platform { name: "Genesis", folders: &["megadrive", "genesis", "md"], extensions: &["md", "gen", "smd"], folder_only: &["bin"] },
+    Platform { name: "NES", folders: &["nes", "fc", "famicom", "nesh"], extensions: &["nes", "unf", "unif"], folder_only: &["fds"] },
+    Platform { name: "Famicom Disk System", folders: &["fds"], extensions: &["fds"], folder_only: &[] },
+    Platform { name: "SNES", folders: &["snes", "sfc", "superfamicom", "snesh"], extensions: &["sfc", "smc"], folder_only: &[] },
+    Platform { name: "Genesis", folders: &["megadrive", "genesis", "md", "genh", "megadrive-japan"], extensions: &["md", "gen", "smd"], folder_only: &["bin"] },
     Platform { name: "Arcade", folders: &["arcade", "mame", "fbneo"], extensions: &["chd"], folder_only: &[] },
     Platform { name: "PlayStation", folders: &["psx", "ps1", "psone", "playstation"], extensions: &["cue", "chd", "iso", "pbp", "m3u"], folder_only: &[] },
     Platform { name: "PlayStation 2", folders: &["ps2"], extensions: &["iso", "chd", "cso"], folder_only: &[] },
-    Platform { name: "GBA", folders: &["gba"], extensions: &["gba"], folder_only: &[] },
-    Platform { name: "Game Boy", folders: &["gb"], extensions: &["gb"], folder_only: &[] },
-    Platform { name: "Game Boy Color", folders: &["gbc"], extensions: &["gbc"], folder_only: &["gb"] },
+    Platform { name: "GBA", folders: &["gba", "gbah"], extensions: &["gba"], folder_only: &[] },
+    Platform { name: "Game Boy", folders: &["gb", "gbh"], extensions: &["gb"], folder_only: &[] },
+    Platform { name: "Game Boy Color", folders: &["gbc", "gbch"], extensions: &["gbc"], folder_only: &["gb"] },
     Platform { name: "N64", folders: &["n64"], extensions: &["n64", "z64", "v64"], folder_only: &[] },
     Platform { name: "Master System", folders: &["mastersystem", "sms"], extensions: &["sms"], folder_only: &[] },
-    Platform { name: "Game Gear", folders: &["gamegear", "gg"], extensions: &["gg"], folder_only: &[] },
+    Platform { name: "Game Gear", folders: &["gamegear", "gg", "gamegearh"], extensions: &["gg"], folder_only: &[] },
+    // Added 2026-11-05 (folder names from the owner's library and the RetroBat wiki).
+    Platform { name: "Amstrad CPC", folders: &["amstradcpc", "cpc"], extensions: &["cdt"], folder_only: &["dsk"] },
+    Platform { name: "Amstrad GX4000", folders: &["amstradgx4000", "gx4000"], extensions: &["cpr"], folder_only: &[] },
+    Platform { name: "Atari 800", folders: &["atari800"], extensions: &["atr", "xex", "xfd", "atx"], folder_only: &["car", "bin"] },
+    Platform { name: "Atari ST", folders: &["atarist"], extensions: &["st", "msa", "stx"], folder_only: &[] },
+    Platform { name: "Atari 2600", folders: &["atari2600"], extensions: &["a26"], folder_only: &["bin"] },
+    Platform { name: "Atari 5200", folders: &["atari5200"], extensions: &["a52"], folder_only: &["bin"] },
+    Platform { name: "Atari 7800", folders: &["atari7800"], extensions: &["a78"], folder_only: &["bin"] },
+    Platform { name: "Atari Lynx", folders: &["atarilynx", "lynx"], extensions: &["lnx"], folder_only: &[] },
+    Platform { name: "Atari Jaguar", folders: &["atarijaguar", "jaguar"], extensions: &["j64", "jag"], folder_only: &[] },
+    Platform { name: "Commodore 64", folders: &["c64"], extensions: &["d64", "t64", "crt", "g64"], folder_only: &["tap", "prg"] },
+    Platform { name: "Amiga", folders: &["amiga", "amiga500", "amiga600"], extensions: &["adf", "ipf"], folder_only: &["hdf", "lha"] },
+    Platform { name: "Amiga 1200", folders: &["amiga1200"], extensions: &[], folder_only: &["adf", "ipf", "hdf", "lha"] },
+    Platform { name: "Amiga CD32", folders: &["amigacd32", "cd32"], extensions: &[], folder_only: &["cue", "chd", "iso"] },
+    Platform { name: "Sharp X68000", folders: &["x68000"], extensions: &["dim", "xdf", "hdm"], folder_only: &["m3u", "hdf"] },
+    Platform { name: "MSX", folders: &["msx", "msx1"], extensions: &["mx1"], folder_only: &["rom", "dsk", "cas"] },
+    Platform { name: "MSX2", folders: &["msx2"], extensions: &["mx2"], folder_only: &["rom", "dsk", "cas"] },
+    Platform { name: "ZX81", folders: &["zx81"], extensions: &["p", "81"], folder_only: &[] },
+    Platform { name: "ZX Spectrum", folders: &["zxspectrum", "spectrum"], extensions: &["tzx", "z80", "sna"], folder_only: &["tap", "dsk"] },
+    Platform { name: "PC Engine", folders: &["pcengine", "tg16", "turbografx16"], extensions: &["pce"], folder_only: &[] },
+    Platform { name: "PC Engine CD", folders: &["pcenginecd", "tgcd"], extensions: &[], folder_only: &["cue", "chd", "iso", "m3u"] },
+    Platform { name: "SuperGrafx", folders: &["supergrafx", "sgfx"], extensions: &["sgx"], folder_only: &[] },
+    Platform { name: "Nintendo DS", folders: &["nds"], extensions: &["nds"], folder_only: &[] },
+    Platform { name: "Neo Geo", folders: &["neogeo"], extensions: &[], folder_only: &[] },
+    Platform { name: "Neo Geo CD", folders: &["neocd", "neogeocd"], extensions: &[], folder_only: &["chd", "cue", "iso", "m3u"] },
+    Platform { name: "Neo Geo Pocket", folders: &["ngp"], extensions: &["ngp"], folder_only: &[] },
+    Platform { name: "Neo Geo Pocket Color", folders: &["ngpc"], extensions: &["ngc"], folder_only: &["ngp"] },
+    Platform { name: "Intellivision", folders: &["intellivision"], extensions: &["int"], folder_only: &["bin", "rom"] },
+    Platform { name: "SG-1000", folders: &["sg-1000", "sg1000"], extensions: &["sg"], folder_only: &[] },
+    Platform { name: "Odyssey 2", folders: &["odyssey", "odyssey2", "videopac"], extensions: &[], folder_only: &["bin"] },
+    Platform { name: "WonderSwan", folders: &["wonderswan", "wswan"], extensions: &["ws"], folder_only: &[] },
+    Platform { name: "WonderSwan Color", folders: &["wonderswancolor", "wswanc"], extensions: &["wsc"], folder_only: &["ws"] },
+    Platform { name: "ColecoVision", folders: &["coleco", "colecovision"], extensions: &["col"], folder_only: &["rom", "bin"] },
+    Platform { name: "Vectrex", folders: &["vectrex"], extensions: &["vec"], folder_only: &["bin"] },
+    Platform { name: "Game & Watch", folders: &["gameandwatch", "gw"], extensions: &["mgw"], folder_only: &[] },
+    Platform { name: "Sega 32X", folders: &["sega32x", "32x"], extensions: &["32x"], folder_only: &["bin"] },
+    Platform { name: "Sega CD", folders: &["segacd", "megacd"], extensions: &[], folder_only: &["chd", "cue", "iso", "m3u"] },
+    Platform { name: "Pokemon Mini", folders: &["pokemini"], extensions: &["min"], folder_only: &[] },
+    Platform { name: "Virtual Boy", folders: &["virtualboy"], extensions: &["vb"], folder_only: &[] },
+    Platform { name: "Watara Supervision", folders: &["supervision"], extensions: &["sv"], folder_only: &[] },
+    Platform { name: "CPS1", folders: &["cps1"], extensions: &[], folder_only: &[] },
+    Platform { name: "CPS2", folders: &["cps2"], extensions: &[], folder_only: &[] },
+    Platform { name: "CPS3", folders: &["cps3"], extensions: &[], folder_only: &[] },
+    Platform { name: "Dreamcast", folders: &["dreamcast", "dc"], extensions: &["cdi", "gdi"], folder_only: &["chd", "cue", "m3u"] },
+    Platform { name: "Naomi", folders: &["naomi"], extensions: &[], folder_only: &["chd"] },
+    Platform { name: "Atomiswave", folders: &["atomiswave"], extensions: &[], folder_only: &[] },
+    Platform { name: "Sega Saturn", folders: &["saturn"], extensions: &[], folder_only: &["chd", "cue", "iso", "m3u"] },
+    Platform { name: "3DO", folders: &["3do"], extensions: &[], folder_only: &["chd", "cue", "iso"] },
+    // BIOS and firmware files the user keeps with their games: recognized so they
+    // aren't listed as games, never placed or copied as games.
+    Platform { name: BIOS, folders: &["bios"], extensions: &[], folder_only: &["bin", "rom", "img"] },
 ];
 
 /// Extensions that are valid game containers but say nothing about the platform.
@@ -65,6 +119,11 @@ fn accepts(platform: &Platform, extension: &str) -> bool {
     platform.extensions.contains(&extension)
         || platform.folder_only.contains(&extension)
         || (platform.name != "PlayStation" && platform.name != "PlayStation 2" && CARTRIDGE_ARCHIVES.contains(&extension))
+}
+
+/// True for files named like `[BIOS] Game Boy Advance (World).zip`.
+pub fn looks_like_bios(filename: &str) -> bool {
+    filename.trim_start().to_ascii_lowercase().starts_with("[bios]")
 }
 
 /// Classify a file. `folders` are the folder names between the scan root (inclusive)
@@ -157,5 +216,40 @@ mod tests {
         assert_eq!(platform(&["Downloads"], "exe"), None);
         assert_eq!(platform(&["Downloads"], "bin"), None);
         assert_eq!(platform(&["Downloads"], ""), None);
+    }
+
+    #[test]
+    fn more_systems_and_the_owners_folder_names_are_recognized() {
+        for (folder, ext, expected) in [
+            ("amstradcpc", "zip", "Amstrad CPC"),
+            ("atari800", "zip", "Atari 800"),
+            ("atarist", "zip", "Atari ST"),
+            ("c64", "zip", "Commodore 64"),
+            ("amiga", "zip", "Amiga"),
+            ("amiga1200", "adf", "Amiga 1200"),
+            ("x68000", "m3u", "Sharp X68000"),
+            ("nesh", "zip", "NES"),
+            ("snesh", "zip", "SNES"),
+            ("genh", "zip", "Genesis"),
+            ("megadrive-japan", "zip", "Genesis"),
+            ("msx", "zip", "MSX"),
+            ("fds", "zip", "Famicom Disk System"),
+            ("neocd", "chd", "Neo Geo CD"),
+            ("segacd", "chd", "Sega CD"),
+            ("sgfx", "zip", "SuperGrafx"),
+            ("sg-1000", "zip", "SG-1000"),
+            ("wonderswancolor", "zip", "WonderSwan Color"),
+            ("cps2", "zip", "CPS2"),
+            ("bios", "zip", "BIOS"),
+        ] {
+            assert_eq!(platform(&["roms II", folder], ext), Some(expected), "{folder}/{ext}");
+        }
+        assert_eq!(platform(&["roms"], "d64"), Some("Commodore 64"), "a unique extension needs no folder");
+        assert_eq!(platform(&["roms"], "fds"), Some("Famicom Disk System"));
+        assert_eq!(platform(&["roms", "nes"], "fds"), Some("NES"), "a .fds file in an NES folder stays NES");
+        assert_eq!(platform(&["roms"], "dsk"), None, "disk images shared by several computers need a folder");
+        assert_eq!(platform(&["roms", "segacd"], "bin"), None, "disc tracks aren't counted as games");
+        assert!(looks_like_bios("[BIOS] Game Boy Advance (World).zip"));
+        assert!(!looks_like_bios("Bioshock.iso"));
     }
 }
