@@ -18,6 +18,16 @@ npm run tauri dev
 ```
 Frontend-only preview: `npm run dev` (native Tauri APIs not available in a plain browser). Build frontend: `npm run build`; Windows desktop distributable: `npm run tauri build` after local prerequisites are met.
 
+Tests and lint:
+```powershell
+cd src-tauri
+cargo test
+cargo clippy --all-targets
+```
+The same checks run in GitHub Actions on `windows-latest` (`.github/workflows/ci.yml`).
+
+Keep the working copy **outside OneDrive** (e.g. `C:\dev\RetroInstaller`). Cargo's `target/` folder is several GB, and OneDrive sync locks break builds. `vite.config.ts` ignores `src-tauri/**` for the same reason. The catalog lives at `%APPDATA%\com.retrodrive.desktop\retrodrive.sqlite`; delete it to start fresh (migration backups sit next to it).
+
 ## Suggested repository layout
 ```text
 retrodrive-studio/
@@ -31,7 +41,7 @@ retrodrive-studio/
 Later split Rust modules by catalog, storage, jobs, platforms and deployment. Avoid premature multi-repository fragmentation.
 
 ## GitHub setup
-Create an empty **private** repo `retrodrive-studio`. In the extracted directory:
+The repository is **`gollum10/RetroInstaller`** (private). To clone: `git clone https://github.com/gollum10/RetroInstaller.git`. Original first-push steps, kept for reference:
 ```powershell
 git init
 git add .

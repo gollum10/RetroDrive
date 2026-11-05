@@ -21,12 +21,12 @@ Existing source files must not be silently moved or deleted. Missing drives are 
 - [x] SQLite file index (starter)
 - [x] Read-only mounted volume discovery (starter)
 - [x] Import from folder, basic classification (starter)
-- [ ] Normalize game identity from physical assets
+- [x] Normalize game identity from physical assets (schema v1, RDS-001; matching/grouping still open)
 - [ ] Platform-specific Batocera and RetroBat folder adapters
 - [ ] Cancellable scan jobs and import progress
 - [ ] Deployment preview with free-space and compatibility checks
 - [ ] Verified transactional copy with resume/recovery
-- [ ] Unit tests and automated CI
+- [x] Unit tests and automated CI (25 Rust tests; Windows CI workflow)
 
 ### M2 — Library Studio
 - [ ] Game identity matching, disc sets, duplicates and hashes

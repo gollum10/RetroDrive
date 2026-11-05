@@ -25,6 +25,8 @@
 | [14 AI implementation brief](14-AI-CODING-BRIEF.md) | Ready-to-use instructions for coding assistants |
 | [15 QA matrix](15-QUALITY-AND-TESTS.md) | Repeatable functional and safety tests |
 
+**Feature status:** see [`../Features.md`](../Features.md) for what is shipped vs planned.
+
 ## Where to start in VS Code
 
 1. Unzip this package; open the **RetroDrive-Studio-Complete** folder in VS Code.
@@ -33,7 +35,7 @@
 4. Start with the Phase 1 issues in `11-ROADMAP-AND-BACKLOG.md`.
 5. Use `14-AI-CODING-BRIEF.md` as the implementation guardrails for coding assistants.
 
-**Important distinction:** The shipped scaffold already provides a UI, read-only mounted-volume discovery, and a basic SQLite file indexer. It does **not** install or image Batocera, deploy ROMs, synchronize saves, perform repairs, or support the normalized schema below. Design documents describe the intended system, not proven features.
+**Important distinction:** The app today provides a UI, read-only volume discovery, a read-only folder indexer, and the normalized v1 catalog schema with migrations (RDS-001). It does **not** install or image Batocera, deploy ROMs, synchronize saves or perform repairs. Design documents describe the intended system, not proven features.
 
 ## Delivery contents
 - `docs/`: design specifications and development handoff.

@@ -63,5 +63,23 @@ Frontend is unprivileged. Rust services validate all command arguments. A future
 - Handle Windows long paths, case-insensitive comparisons, network interruptions and filesystem permissions.
 - Never update catalog to reflect a write until verified.
 
-## State of existing scaffold
-The starter currently uses a simpler file-centric SQLite schema and synchronous scan. Refactor in migrations; do not represent the target architecture as already shipped.
+## Implemented today (updated 2026-11-04, RDS-001)
+Native backend modules in `src-tauri/src/`:
+
+| Module | Responsibility | Target module above |
+|---|---|---|
+| `lib.rs` | Tauri setup and the commands `list_games`, `scan_library`, `list_drives`. The catalog is migrated once at startup; if that fails, every command returns the error. | app services |
+| `db.rs` | Opens connections (WAL, foreign keys, busy timeout). Versioned migrations via `PRAGMA user_version`, with a backup first and v0.1 data conversion. | `catalog` |
+| `scanner.rs` | Read-only folder indexer that returns a `ScanSummary` (counts plus issues). | `catalog` / `jobs` |
+| `classify.rs` | Infers the platform from folder names and extensions, and records where the hint came from. | `catalog` |
+| `catalog.rs` | Library listing with per-file availability (`online` / `offline` / `missing`). | `catalog` |
+| `paths.rs` | Path normalization without `\\?\`, plus volume-root and relative-path splitting. | `storage` |
+| `drives.rs` | Read-only volume listing; classifies volumes as local, removable or network. | `storage` |
+
+Behavior that differs from the target design, and is still open:
+- **Scans** run on a worker thread (`spawn_blocking`) but are not yet durable jobs: no progress events, cancellation, or `jobs` table (RDS-002).
+- **Connections:** each command opens its own SQLite connection, with no pool.
+- **Commands** return errors as plain strings; structured error codes are still to come.
+- **Listing** returns the whole catalog; pagination is part of RDS-004.
+- **Availability** comes from the last scan, plus one reachability check per volume. Listing never checks individual files.
+- **Security policy:** `tauri.conf.json` still has `csp: null`.

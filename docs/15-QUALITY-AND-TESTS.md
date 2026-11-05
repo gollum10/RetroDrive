@@ -22,6 +22,23 @@
 | QA-017 | Catalog DB migration from starter | Original rows preserved or migration safely aborted |
 | QA-018 | Network share disconnect mid-scan | Offline/unknown state, no mass catalog removal |
 
+## Automated coverage (2026-11-04)
+Run with `cd src-tauri && cargo test`.
+
+| Test ID | Covered by | Status |
+|---|---|---|
+| QA-001 | `scanner::tests::indexes_only_game_files_and_never_modifies_source` | Automated, small fixture; the 1,000-file run and progress display are still manual |
+| QA-002 | — | Blocked on RDS-002 (cancellation) |
+| QA-003 | `catalog::tests::availability_states` (unreachable volume → offline, rows kept) | Automated with a simulated volume; a real USB test is still manual |
+| QA-007 | `classify::tests::*`, scanner fixture with `.cue` + `.bin` and `.zip` | Partial: `.bin` tracks are skipped and archives are Unclassified; `.m3u` grouping is still open |
+| QA-008 | `paths::tests::unicode_round_trip`, scanner Unicode fixture | Automated; Windows long paths (>260 characters) are still untested |
+| QA-009 | Scanner reports issues and continues | Code path exists; no locked-file fixture yet |
+| QA-010 | Empty catalog shows zeros (manual screenshot 2026-11-04) | Manual |
+| QA-014 | Links are not followed and are reported | Code path exists; creating a symlink in a test needs Windows Developer Mode |
+| QA-017 | `db::tests::v0_rows_are_preserved_and_backed_up` | Automated |
+
+Other regression tests: rescans don't create duplicates, rescanning a subfolder only affects that subfolder, manual titles survive a rescan, and stored paths never have the `\\?\` prefix.
+
 ## Later raw disk operations (not in starter)
 - Protect Windows system/boot and source disks.
 - Verify exact physical disk identity before raw write.
