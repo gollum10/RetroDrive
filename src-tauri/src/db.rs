@@ -13,6 +13,7 @@
 //! - v5: multi-file games. `game_files.file_role` (`primary` / `disc` / `track`),
 //!   `parent_file_id`, and `payload_bytes` (total size of a primary file's game)
 //!   so `.cue`+`.bin` sets and `.m3u` multi-disc games count once (RDS-005).
+//! - v6: `installations` — platform installations recognized by an adapter (RDS-006/007).
 //!
 //! Migration rules: back up an existing database before upgrading, run the upgrade
 //! in one transaction, verify row counts, and refuse to open a database written by
@@ -24,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 5;
+pub const SCHEMA_VERSION: i32 = 6;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -144,6 +145,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 5 {
         tx.execute_batch(SCHEMA_V5).map_err(|e| e.to_string())?;
+    }
+    if from_version < 6 {
+        tx.execute_batch(SCHEMA_V6).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -633,6 +637,21 @@ CREATE INDEX idx_game_files_duplicate_key ON game_files(size_bytes, filename COL
 CREATE INDEX idx_game_files_release_role ON game_files(release_id, file_role);
 ";
 
+/// v6: saved platform installations (RetroBat folders etc.).
+const SCHEMA_V6: &str = "
+CREATE TABLE installations (
+    id                   TEXT PRIMARY KEY,
+    adapter_id           TEXT NOT NULL,
+    adapter_contract     INTEGER NOT NULL,
+    storage_location_id  TEXT NOT NULL REFERENCES storage_locations(id) ON DELETE RESTRICT,
+    relative_path        TEXT NOT NULL COLLATE NOCASE,
+    version_string       TEXT,
+    added_at             TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_checked_at      TEXT,
+    UNIQUE (storage_location_id, relative_path)
+);
+";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -676,7 +695,7 @@ mod tests {
         assert_eq!(report.from_version, 0);
         assert_eq!(report.to_version, SCHEMA_VERSION);
         assert_eq!(user_version(&c).unwrap(), SCHEMA_VERSION);
-        for table in ["storage_locations", "indexed_roots", "games", "game_releases", "game_files", "file_locations", "jobs", "job_events", "games_fts"] {
+        for table in ["storage_locations", "indexed_roots", "games", "game_releases", "game_files", "file_locations", "jobs", "job_events", "games_fts", "installations"] {
             assert!(table_exists(&c, table).unwrap(), "{table} missing");
         }
     }

@@ -36,7 +36,7 @@ flowchart TD
 - `jobs`: state machine and cancellations; events for UI progress; durable log.
 - `settings`: provider keys stored through platform secure storage as feasible; user-approved roots and options.
 
-## Platform adapter contract (conceptual)
+## Platform adapter contract (implemented as contract v1 in `src-tauri/src/adapters/mod.rs`; the TypeScript below is the original concept)
 ```typescript
 interface PlatformAdapter {
   id: string;
@@ -63,13 +63,16 @@ Frontend is unprivileged. Rust services validate all command arguments. A future
 - Handle Windows long paths, case-insensitive comparisons, network interruptions and filesystem permissions.
 - Never update catalog to reflect a write until verified.
 
-## Implemented today (updated 2026-11-04, RDS-001 to RDS-005, milestone M1)
+## Implemented today (updated 2026-11-04, M1 plus RDS-006/007)
 Native backend modules in `src-tauri/src/`:
 
 | Module | Responsibility | Target module above |
 |---|---|---|
-| `lib.rs` | Tauri setup and commands: `query_games`, `library_stats`, `list_storage_locations`, `start_scan`, `cancel_job`, `active_scan`, `recent_jobs`, `list_drives`. At startup it migrates the catalog and recovers interrupted jobs; if that fails, every command returns the error. Holds the in-memory registry of running jobs and their cancel flags. | app services |
+| `lib.rs` | Tauri setup and commands: `query_games`, `library_stats`, `list_adapters`, `inspect_installation`, `add_installation`, `list_installations`, `remove_installation`, `placement_preview`, `list_storage_locations`, `start_scan`, `cancel_job`, `active_scan`, `recent_jobs`, `list_drives`. At startup it migrates the catalog and recovers interrupted jobs; if that fails, every command returns the error. Holds the in-memory registry of running jobs and their cancel flags. | app services |
 | `jobs.rs` | Durable job log: create, add events, finish, list recent, recover interrupted. | `jobs` |
+| `adapters/mod.rs` | `PlatformAdapter` trait (contract v1, read-only), `registry()`, `detect_all()`, `catalog()` and `folder_name()` for Windows-safe names. | `platforms` |
+| `adapters/retrobat.rs` | RetroBat detection, layout checks and placement rules, with facts cited from the RetroBat wiki in the module docs. | `platforms` |
+| `installations.rs` | Inspect a folder, save, list and forget installations; `placement_preview` builds the read-only plan from the catalog. | `platforms` / `deployment` |
 | `db.rs` | Opens connections (WAL, foreign keys, busy timeout). Versioned migrations via `PRAGMA user_version`, with a backup first and v0.1 data conversion. | `catalog` |
 | `scanner.rs` | Read-only folder indexer. Commits in batches, reports progress and accepts cancellation through a `ScanObserver`. After the walk, a grouping pass reads `.cue` and `.m3u` files and links tracks and discs into one game. Returns a `ScanSummary` with errors and warnings kept separate. | `catalog` / `jobs` |
 | `classify.rs` | Infers the platform from folder names and extensions, and records where the hint came from. | `catalog` |

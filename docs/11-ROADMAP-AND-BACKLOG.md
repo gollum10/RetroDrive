@@ -15,8 +15,8 @@ Navigation, basic read-only mounted volume discovery, folder scan into simple SQ
 **M1 status: complete.** One follow-up remains: first-scan speed with the search index (below).
 
 ### M2: First real game deployment
-- RDS-006 Define versioned `PlatformAdapter` interface.
-- RDS-007 RetroBat adapter: identify an existing installation, validate folders and plan placement.
+- RDS-006 Define versioned `PlatformAdapter` interface. **Done 2026-11-04**: contract v1 (read-only) with a mock-adapter test.
+- RDS-007 RetroBat adapter: identify an existing installation, validate folders and plan placement. **Done 2026-11-04**: detection, layout checks, folder mapping verified against the RetroBat wiki, saved installations (schema v6), Emulation Systems page and placement preview.
 - RDS-008 Batocera adapter: inspect accessible userdata layout, report limitations.
 - RDS-009 Build capacity and file-conflict preview; preflight all paths.
 - RDS-010 Build transactional staged copier with hash verify, recovery journal and manifest.
@@ -43,7 +43,7 @@ Every GitHub issue should state: persona/problem, user-visible result, constrain
 3. ~~Add tests and normalized schema migrations.~~ RDS-001.
 4. ~~Build read-only robust catalog before any writes.~~ M1 done (RDS-001 to RDS-005).
    - **Follow-up found by measurement:** first-time scans got about 4× slower with the search index (39,300 files in 12 s, versus about 3 s before). Option: bulk-load the search index at the end of a scan instead of one trigger per file.
-5. **Next:** M2, starting with RDS-006 (versioned `PlatformAdapter` interface) and RDS-007 (RetroBat: detect an existing installation and plan file placement, read-only). Then RetroBat folder deployment becomes the first end-to-end data-moving feature.
+5. **Next:** RDS-009, the deployment preview with real capacity (free space minus a reserve) and destination conflict checks (same name, different file), still read-only. Then RDS-010, the first copy: staged, verified and journaled. RDS-008 (Batocera, read-only) can run in parallel.
 
 ## Definition of done
 Code reviewed; automated tests passing; sample manual Windows test complete; failure/retry behavior tested; documentation updated; no unexpected file mutations; security-sensitive features assessed; versioned migration/backup path documented.

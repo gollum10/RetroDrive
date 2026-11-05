@@ -1,10 +1,12 @@
 //! RetroDrive native backend: Tauri commands over the catalog services.
 //! The frontend is unprivileged; every command validates its own inputs.
 
+mod adapters;
 mod catalog;
 mod classify;
 mod db;
 mod drives;
+mod installations;
 mod jobs;
 mod paths;
 mod scanner;
@@ -214,6 +216,52 @@ fn recent_jobs(catalog: State<'_, Catalog>, limit: Option<u32>) -> Result<Vec<jo
     jobs::recent(&connection, limit.unwrap_or(10).min(100))
 }
 
+/// Platforms this build supports, with what each can do.
+#[tauri::command]
+fn list_adapters() -> Vec<adapters::AdapterInfo> {
+    adapters::catalog()
+}
+
+/// Inspect a folder for a known platform installation (read-only).
+#[tauri::command]
+async fn inspect_installation(folder: String) -> Result<installations::Inspection, String> {
+    tauri::async_runtime::spawn_blocking(move || installations::inspect(Path::new(&folder)))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Save a recognized installation; refused if the adapter doesn't detect it.
+#[tauri::command]
+fn add_installation(catalog: State<'_, Catalog>, folder: String, adapter_id: String) -> Result<String, String> {
+    let connection = db::open(&catalog.path()?)?;
+    installations::add(&connection, Path::new(&folder), &adapter_id, &volumes::probe)
+}
+
+#[tauri::command]
+fn list_installations(catalog: State<'_, Catalog>) -> Result<Vec<installations::InstallationRow>, String> {
+    let connection = db::open(&catalog.path()?)?;
+    installations::list(&connection, &volumes::presence)
+}
+
+/// Forget a saved installation. Only the catalog record is removed.
+#[tauri::command]
+fn remove_installation(catalog: State<'_, Catalog>, id: String) -> Result<bool, String> {
+    let connection = db::open(&catalog.path()?)?;
+    installations::remove(&connection, &id)
+}
+
+/// Where every available game would go in an installation. Nothing is written.
+#[tauri::command]
+async fn placement_preview(catalog: State<'_, Catalog>, installation_id: String) -> Result<installations::PlacementPreview, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let connection = db::open(&db_path)?;
+        installations::placement_preview(&connection, &installation_id, &volumes::presence)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 fn list_drives() -> Vec<drives::Drive> {
     drives::list()
@@ -231,7 +279,16 @@ pub fn run() {
             app.manage(Catalog { path });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![query_games, library_stats, list_storage_locations, start_scan, cancel_job, active_scan, recent_jobs, list_drives])
+        .invoke_handler(tauri::generate_handler![
+            query_games,
+            library_stats,
+            list_adapters,
+            inspect_installation,
+            add_installation,
+            list_installations,
+            remove_installation,
+            placement_preview,
+            list_storage_locations, start_scan, cancel_job, active_scan, recent_jobs, list_drives])
         .run(tauri::generate_context!())
         .expect("error starting RetroDrive");
 }

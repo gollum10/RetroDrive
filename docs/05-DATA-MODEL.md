@@ -90,6 +90,11 @@ Choices made while implementing (see ADR-010 and ADR-011 in docs/13):
 - **Older locations** from v0/v1 data have no fingerprint. A scan claims one only when sampled files from it exist on the scanned volume.
 - **Tests:** `db::tests::v2_catalog_upgrades_to_v3_keeping_references`, `same_volume_under_a_new_letter_is_recognized`, `different_volume_at_a_known_letter_gets_its_own_location`, `unidentified_location_is_claimed_only_when_its_files_are_there`.
 
+## Implemented schema v6 (RDS-006/007, 2026-11-04)
+- **`installations`:** `id`, `adapter_id`, `adapter_contract` (the adapter contract version that saved it), `storage_location_id` (fingerprinted, so letter changes are handled), `relative_path`, `version_string` (null when unknown), `added_at`, `last_checked_at`. Unique per (storage location, relative path).
+- **Status** isn't stored: "connected" is checked live, and layout checks run live while the drive is connected.
+- **Forgetting** an installation deletes only this row, never files.
+
 ## Implemented schema v5 (RDS-005, 2026-11-04)
 - **`game_files.file_role`:** `primary` (the file listed in the library), `disc` (listed by an `.m3u`) or `track` (referenced by a `.cue`).
 - **`parent_file_id`:** the `.m3u` or `.cue` that references the file.

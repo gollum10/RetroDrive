@@ -6,7 +6,7 @@ The single list of what the app **does today** and what is **planned**. Update t
 
 Requirement IDs (FR/NFR) refer to [docs/02-SCOPE-AND-REQUIREMENTS.md](docs/02-SCOPE-AND-REQUIREMENTS.md); RDS IDs refer to [docs/11-ROADMAP-AND-BACKLOG.md](docs/11-ROADMAP-AND-BACKLOG.md).
 
-_Last updated: 2026-11-04 (RDS-005 branch; milestone M1 complete)_
+_Last updated: 2026-11-04 (RDS-006/007 branch; M2 started)_
 
 ---
 
@@ -86,6 +86,7 @@ _Last updated: 2026-11-04 (RDS-005 branch; milestone M1 complete)_
 | v0.1 catalog upgrade without data loss | ✅ | Row counts are verified, otherwise rolled back (QA-017). |
 | Refuses a catalog from a newer app version, untouched | ✅ | |
 | Job log (schema v2): `jobs` and `job_events` | ✅ | Every scan records start, end state, counts, errors and each scan issue. |
+| Saved installations (schema v6) | ✅ | `installations` table: adapter, contract version, fingerprinted storage location and relative path. |
 | Multi-file game records (schema v5) | ✅ | `game_files.file_role` (primary / disc / track), `parent_file_id`, `payload_bytes`, `missing_parts`. Upgrades from every earlier schema are tested. |
 | Search and query indexes (schema v4) | ✅ | `games_fts` trigram index kept in sync by triggers; indexes for duplicate keys, platform+title, storage+status. |
 | Volume fingerprints (schema v3) | ✅ | `storage_locations` rebuilt: unique `stable_id`, non-unique `root_path`, plus label, filesystem, serial, GUID and size. References are checked before commit. |
@@ -95,9 +96,15 @@ _Last updated: 2026-11-04 (RDS-005 branch; milestone M1 complete)_
 
 | Feature | Status | Notes |
 |---|---|---|
-| Batocera / RetroBat shown as planned | ✅ | Informational only. |
-| `PlatformAdapter` interface | 📋 | RDS-006. |
-| RetroBat / Batocera layout detection | 📋 | RDS-007 / RDS-008. |
+| `PlatformAdapter` contract v1 (read-only) | ✅ | RDS-006. Detect, layout checks and placement plans; adapters can't install or write. A mock adapter test proves the contract works for any implementation. |
+| Emulation Systems page: platform list with each adapter's abilities | ✅ | Shown from the adapters themselves, including what isn't possible yet. |
+| Add an existing RetroBat installation | ✅ | RDS-007. Pick a folder; RetroDrive shows the evidence (RetroBat.exe, emulationstation, retrobat.ini, roms) and layout checks before saving. Unrecognized folders are refused, with a hint when a folder looks partly like RetroBat. |
+| RetroBat layout checks | ✅ | roms, bios, emulators and emulationstation folders, plus the install location (the wiki advises against spaces, accents and drive roots). The version is shown as unknown because RetroBat doesn't document a version file. |
+| Saved installations survive drive-letter changes | ✅ | Stored against the drive's volume ID, like scanned folders. |
+| Placement preview | ✅ | For each saved installation: which `roms\<system>` folder each game would go to, games and total size per folder, example destinations, and what can't be placed and why. Copies nothing (verified: the installation folder is unchanged). |
+| RetroBat folder mapping (verified against the RetroBat wiki) | ✅ | nes, fds (Famicom Disk `.fds`), snes, megadrive, mastersystem, gamegear, psx, ps2, gb, gbc, gba, n64. Multi-disc games get their own subfolder so playlists keep working. |
+| Arcade placement (MAME vs FinalBurn Neo) | 📋 | Not guessed: the two use different ROM sets. Needs a user choice. |
+| Batocera adapter | 📋 | RDS-008. |
 | Deployment preview, capacity, conflicts | 📋 | RDS-009. |
 | Verified staged copy with manifest and recovery | 📋 | RDS-010. |
 | Guided installs and imaging | ⛔ | RDS-012 to RDS-014, gated. |
@@ -119,7 +126,7 @@ _Last updated: 2026-11-04 (RDS-005 branch; milestone M1 complete)_
 
 | Feature | Status | Notes |
 |---|---|---|
-| Rust unit tests (62): migrations, classifier, paths, long paths, locked files, scanner, disc grouping, cancellation, batching, job log, drive identity, search, filters, duplicates, paging | ✅ | `cd src-tauri && cargo test` |
+| Rust unit tests (77): migrations, classifier, paths, long paths, locked files, scanner, disc grouping, cancellation, batching, job log, drive identity, search, filters, duplicates, paging, adapter contract, RetroBat detection and placement, installations and preview | ✅ | `cd src-tauri && cargo test` |
 | 100k-file performance benchmark | ✅ | `cargo test --release benchmark_100k -- --ignored --nocapture`; results in docs/15. |
 | TypeScript type-check and frontend build | ✅ | `npm run build` |
 | GitHub Actions CI on Windows (tests, clippy, build) | ✅ | Runs on every push to `main` and every pull request. |
