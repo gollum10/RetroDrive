@@ -11,6 +11,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 pub const KIND_SCAN: &str = "library_scan";
+pub const KIND_DEPLOY: &str = "deployment";
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct JobRecord {

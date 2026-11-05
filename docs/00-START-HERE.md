@@ -25,6 +25,7 @@
 | [15 QA matrix](15-QUALITY-AND-TESTS.md) | Repeatable functional and safety tests |
 | [16 Legal and compliance](16-LEGAL-AND-COMPLIANCE.md) | Legal-risk assessment, LEGAL-001…014 backlog, sign-off decisions, engineering status |
 | [17 Third-party components](17-THIRD-PARTY-COMPONENTS.md) | Manifest of shipped dependencies, platforms, assets and content (LEGAL-001) |
+| [18 Safety review: first disk writes](18-SAFETY-REVIEW-RDS-010.md) | Hazards, mitigations, tests, review findings and owner sign-off for the staged copier (RDS-010) |
 
 **Feature status:** see [`../Features.md`](../Features.md) for what is shipped vs planned.
 

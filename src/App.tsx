@@ -49,8 +49,13 @@ function presenceText(s: StorageRow): string {
 }
 type ScanProgress = { entries_checked: number; indexed: number; new_files: number; issue_count: number; current_path: string };
 type ScanFinished = { job_id: string; state: 'completed'|'cancelled'|'failed'; summary: ScanSummary|null; error: string|null };
-type ActiveScan = { job_id: string; folder: string; progress?: ScanProgress; cancelling?: boolean };
-type JobRecord = { id: string; kind: string; state: string; input: { folder?: string }; progress: Partial<ScanSummary>|null; started_at: string; finished_at: string|null; error_message: string|null };
+type ActiveScan = { job_id: string; folder: string; kind?: string; progress?: ScanProgress; cancelling?: boolean };
+type DeployProgress = { games_done: number; games_total: number; files_done: number; files_total: number; bytes_done: number; bytes_total: number; current: string };
+type DeploySummary = { deployment_id: string; status: 'completed'|'completed_with_issues'|'cancelled'|'interrupted'; games_copied: number; games_already_there: number; games_incomplete: number; games_conflict: number; files_copied: number; bytes_copied: number; files_identical: number; files_failed: number; files_not_attempted: number; cancelled: boolean; drive_lost: boolean; destination: string; manifest_path: string|null; manifest_error: string|null; issues: { game: string; path: string; message: string }[] };
+type ActiveCopy = { job_id: string; folder: string; progress?: DeployProgress; cancelling?: boolean };
+type CopyResult = { summary: DeploySummary|null; error: string|null };
+const copyHeadline: Record<DeploySummary['status'],string> = { completed:'Copy finished: every file was verified.', completed_with_issues:'Copy finished, with some games needing attention.', cancelled:'Copy cancelled. Games already verified were kept; nothing half-written was left behind.', interrupted:'Copy stopped: the drive was disconnected. Verified files were kept; run the copy again to finish.' };
+type JobRecord = { id: string; kind: string; state: string; input: { folder?: string }; progress: (Partial<ScanSummary>&Partial<DeploySummary>)|null; started_at: string; finished_at: string|null; error_message: string|null };
 const jobStateLabel: Record<string,string> = { running:'Running', completed:'Completed', cancelled:'Cancelled', failed:'Failed', interrupted:'Interrupted (app closed)' };
 function describeScan(r: ScanSummary): string {
   const moved = r.remounted_from ? `Recognized this drive from before (it was at ${r.remounted_from}); catalog paths now use the new drive letter. ` : '';
@@ -76,12 +81,13 @@ export default function App() {
   const [stats,setStats]=useState<LibraryStats|null>(null); const [drives,setDrives]=useState<Drive[]>([]); const [storage,setStorage]=useState<StorageRow[]>([]);
   const [filters,setFilters]=useState<Filters>(noFilters); const [searchText,setSearchText]=useState(''); const [offset,setOffset]=useState(0);
   const [library,setLibrary]=useState<GamePage|null>(null); const [libraryLoading,setLibraryLoading]=useState(false); const [reloadKey,setReloadKey]=useState(0);
-  const requestId=useRef(0);
+  const requestId=useRef(0); const finishedJobs=useRef(new Set<string>());
   const [adapters,setAdapters]=useState<AdapterInfo[]>([]); const [installs,setInstalls]=useState<Installation[]>([]);
   const [inspection,setInspection]=useState<Inspection|null>(null); const [plan,setPlan]=useState<DeploymentPlan|null>(null);
   const [planLoading,setPlanLoading]=useState<string|null>(null); const [planBuilt,setPlanBuilt]=useState<Date|null>(null); const [forgetting,setForgetting]=useState<string|null>(null);
   const [scan,setScan]=useState<ActiveScan|null>(null); const [jobs,setJobs]=useState<JobRecord[]>([]);
-  const [message,setMessage]=useState('Ready. Connect a drive or import your existing ROM folder.'); const busy=scan!==null;
+  const [copy,setCopy]=useState<ActiveCopy|null>(null); const [copyResult,setCopyResult]=useState<CopyResult|null>(null); const [confirming,setConfirming]=useState(false);
+  const [message,setMessage]=useState('Ready. Connect a drive or import your existing ROM folder.'); const busy=scan!==null||copy!==null;
   const native=isTauri(); const [issues,setIssues]=useState<ScanIssue[]>([]); const [error,setError]=useState(false);
   const load=async()=>{
     if(!native){setError(true);setMessage('Desktop commands require the Tauri application. Use npm run tauri dev, not the browser preview.');return;}
@@ -108,22 +114,29 @@ export default function App() {
   useEffect(()=>{
     void load();
     if(!native) return;
-    void invoke<ActiveScan|null>('active_scan').then(a=>{ if(a){ setScan(a); setMessage('Scan in progress. You can keep using the app while it runs.'); } });
+    void invoke<ActiveScan|null>('active_scan').then(a=>{ if(!a) return; if(a.kind==='deployment'){ setCopy({job_id:a.job_id,folder:a.folder}); setMessage('Copy in progress.'); } else { setScan(a); setMessage('Scan in progress. You can keep using the app while it runs.'); } });
     const progress=listen<{job_id:string;progress:ScanProgress}>('scan-progress',e=>setScan(s=>s&&s.job_id===e.payload.job_id?{...s,progress:e.payload.progress}:s));
     const finished=listen<ScanFinished>('scan-finished',e=>{
-      const f=e.payload; setScan(null);
+      const f=e.payload; finishedJobs.current.add(f.job_id); setScan(null);
       if(f.summary){ setError(f.summary.error_count>0); setIssues(f.summary.issues); setMessage(describeScan(f.summary)); }
       else { setError(true); setMessage(`Import failed: ${f.error??'unknown error'}`); }
       void load();
     });
-    return ()=>{ void progress.then(u=>u()); void finished.then(u=>u()); };
+    const copyProgress=listen<{job_id:string;progress:DeployProgress}>('deploy-progress',e=>setCopy(c=>c&&c.job_id===e.payload.job_id?{...c,progress:e.payload.progress}:c));
+    const copyFinished=listen<{job_id:string;state:string;summary:DeploySummary|null;error:string|null}>('deploy-finished',e=>{
+      const f=e.payload; finishedJobs.current.add(f.job_id); setCopy(null); setPlan(null); setCopyResult({summary:f.summary,error:f.error});
+      if(f.summary){ setError(f.summary.status!=='completed'); setMessage(copyHeadline[f.summary.status]); }
+      else { setError(true); setMessage(`The copy didn't complete: ${f.error??'unknown error'}`); }
+      void load();
+    });
+    return ()=>{ void progress.then(u=>u()); void finished.then(u=>u()); void copyProgress.then(u=>u()); void copyFinished.then(u=>u()); };
   },[]);
   const importFolder=async()=>{
     try { const folder=await open({directory:true,multiple:false,title:'Select a folder containing games'});
       if(!folder || typeof folder!=='string')return;
       setError(false);setIssues([]);setMessage('Scan in progress. You can keep using the app while it runs.');
       const jobId=await invoke<string>('start_scan',{folder});
-      setScan(s=>s??{job_id:jobId,folder});
+      if(!finishedJobs.current.has(jobId)) setScan(s=>s??{job_id:jobId,folder});
     } catch(e){setError(true);setMessage(`Import failed: ${String(e)}`)}
   };
   const addInstallation=async()=>{
@@ -139,7 +152,7 @@ export default function App() {
     } catch(e){ setError(true); setMessage(`Could not add the installation: ${String(e)}`); }
   };
   const showPlan=async(id:string, systems:string[]|null=null)=>{
-    setPlanLoading(id);
+    setPlanLoading(id); setConfirming(false); setCopyResult(null);
     try { setPlan(await invoke<DeploymentPlan>('deployment_plan',{installationId:id, systems})); setPlanBuilt(new Date()); }
     catch(e){ setError(true); setMessage(`Could not build the deployment plan: ${String(e)}`); }
     finally { setPlanLoading(null); }
@@ -154,6 +167,19 @@ export default function App() {
     try { await invoke<boolean>('remove_installation',{id}); setForgetting(null); if(plan?.installation_id===id) setPlan(null); setMessage('Installation forgotten. No files were touched.'); await load(); }
     catch(e){ setError(true); setMessage(`Could not forget the installation: ${String(e)}`); }
   };
+  const startCopy=async()=>{
+    if(!plan) return; setConfirming(false); setCopyResult(null);
+    const systems=plan.systems.filter(x=>x.selected).map(x=>x.system_folder);
+    try { setError(false); setMessage('Copying. Each file is verified before it gets its real name.');
+      const jobId=await invoke<string>('start_deployment',{installationId:plan.installation_id, systems, fingerprint:plan.fingerprint, destination:plan.installation_path});
+      if(!finishedJobs.current.has(jobId)) setCopy(c=>c??{job_id:jobId,folder:plan.installation_path});
+    } catch(e){ setError(true); setMessage(`Could not start the copy: ${String(e)}`); }
+  };
+  const cancelCopy=async()=>{
+    if(!copy) return;
+    setCopy({...copy,cancelling:true}); setMessage('Cancelling the copy. The file in progress is discarded; verified files are kept.');
+    try { await invoke<boolean>('cancel_job',{jobId:copy.job_id}); } catch(e){ setError(true); setMessage(`Could not cancel: ${String(e)}`); }
+  };
   const cancelScan=async()=>{
     if(!scan) return;
     setScan({...scan,cancelling:true}); setMessage('Cancelling scan — finishing the current file...');
@@ -162,7 +188,7 @@ export default function App() {
   return <div className="app">
     <aside className="sidebar"><div className="brand"><img className="brand-icon" src={iconUrl} alt="" width={46} height={46}/><div><strong>RETRODRIVE</strong><small>LIBRARY MANAGER</small></div></div>
       <div className="nav-label">WORKSPACE</div><nav>{menus.map(item=><button key={item.title} className={'nav-item '+(page===item.title?'selected':'')} onClick={()=>setPage(item.title)}><item.icon size={19}/>{item.title}</button>)}</nav>
-      <div className="aside-bottom"><img className="sidebar-logo" src={logoUrl} alt="RetroDrive" width={192} height={192}/><div className="aside-status"><ShieldCheck size={17}/> Read-only disk discovery</div><small>v0.1.0 · dev build</small></div>
+      <div className="aside-bottom"><img className="sidebar-logo" src={logoUrl} alt="RetroDrive" width={192} height={192}/><div className="aside-status"><ShieldCheck size={17}/> Never overwrites or deletes</div><small>v0.1.0 · dev build</small></div>
     </aside>
     <main><header><div><div className="eyebrow">RETRO GAMING COMMAND CENTER</div><h1>{page}</h1></div><button className="ghost" onClick={()=>void load()}><RefreshCcw size={16}/> Refresh</button></header>
     <div className={'notice '+(error?'warn':'')}><Activity size={17}/>{message}</div>
@@ -170,9 +196,13 @@ export default function App() {
       <div className="bar indeterminate"><div/></div>
       <div className="scan-stats"><span><b>{(scan.progress?.entries_checked??0).toLocaleString()}</b> items checked</span><span><b>{(scan.progress?.indexed??0).toLocaleString()}</b> game files found</span><span><b>{(scan.progress?.new_files??0).toLocaleString()}</b> new</span>{(scan.progress?.issue_count??0)>0&&<span className="warn-text"><b>{scan.progress?.issue_count}</b> unreadable</span>}</div>
       <small className="scan-current" title={scan.progress?.current_path}>{scan.progress?.current_path||'Starting...'}</small></section>}
+    {copy && (()=>{ const p=copy.progress; const pct=p&&p.bytes_total>0?Math.min(100,p.bytes_done/p.bytes_total*100):0; return <section className="scan-progress" aria-live="polite"><div className="scan-head"><div><b>Copying to</b> <span className="scan-folder" title={copy.folder}>{copy.folder}</span></div><button className="ghost" disabled={copy.cancelling} onClick={()=>void cancelCopy()}><CircleStop size={16}/>{copy.cancelling?'Cancelling...':'Cancel copy'}</button></div>
+      <div className="bar"><div style={{width:`${pct}%`}}/></div>
+      <div className="scan-stats"><span><b>{(p?.games_done??0).toLocaleString()}</b> of {(p?.games_total??0).toLocaleString()} games</span><span><b>{(p?.files_done??0).toLocaleString()}</b> of {(p?.files_total??0).toLocaleString()} files</span><span><b>{fmtSize(p?.bytes_done??0)}</b> of {fmtSize(p?.bytes_total??0)}</span></div>
+      <small className="scan-current">{p?.current||'Checking the drive and the plan...'}</small></section>; })()}
     {issues.length>0 && <details className="issues"><summary><AlertTriangle size={15}/> {issues.length} scan issue(s){issues.length>=200?' (first 200 shown)':''}</summary><ul>{issues.map((i,n)=><li key={n} className={'issue-'+i.severity}><b>{i.severity==='error'?'Error':'Warning'}:</b> <code>{i.path}</code> — {i.message}</li>)}</ul></details>}
-    {page==='Dashboard' && <><section className="stats"><article><span>Cataloged games</span><strong>{(stats?.files??0).toLocaleString()}</strong><small>{stats?.platforms.length??0} platforms · local database</small></article><article><span>Detected volumes</span><strong>{drives.length}</strong><small>Read-only discovery</small></article><article><span>Available titles</span><strong>{(stats?.online??0).toLocaleString()}</strong><small>{stats&&(stats.offline||stats.missing)?`${stats.offline.toLocaleString()} offline · ${stats.missing.toLocaleString()} missing`:'Files currently accessible'}</small></article></section><div className="twocol"><section className="panel"><h2>Quick actions</h2><p>Get started with your existing library. Scanning never changes game files.</p><button className="primary" disabled={!native||busy} onClick={importFolder}><FolderOpen size={18}/>{busy?'Scanning...':'Import ROM folder'}</button><button className="subtle" onClick={()=>setPage('Game Library')}><LibraryBig size={18}/> Browse library</button>{(stats?.duplicate_files??0)>0&&<p className="dup-hint"><Copy size={15}/> {stats!.duplicate_files.toLocaleString()} files look like duplicate copies. <button className="link" onClick={reviewDuplicates}>Review them</button> (nothing is deleted).</p>}</section><section className="panel"><h2>Platform roadmap</h2><div className="platform-row"><span>Batocera</span><em>Adapter planned</em></div><div className="platform-row"><span>RetroBat</span><em>{installs.length?`${installs.length} installation${installs.length>1?'s':''} · deployment plan available`:'Recognize & plan (read-only)'}</em></div><div className="platform-row"><span>More systems</span><em>Future milestone</em></div></section></div>
-    <section className="panel activity"><h2>Recent activity</h2>{jobs.length===0?<p>No scans yet.</p>:jobs.map(j=><div className="platform-row" key={j.id}><span><b className={'job '+j.state}>{jobStateLabel[j.state]??j.state}</b> <span className="job-folder" title={j.input.folder}>{j.input.folder??j.kind}</span></span><em>{j.progress?.indexed!=null?`${j.progress.indexed} files · `:''}{j.error_message?j.error_message+' · ':''}{new Date(j.started_at.replace(' ','T')+'Z').toLocaleString()}</em></div>)}</section></>}
+    {page==='Dashboard' && <><section className="stats"><article><span>Cataloged games</span><strong>{(stats?.files??0).toLocaleString()}</strong><small>{stats?.platforms.length??0} platforms · local database</small></article><article><span>Detected volumes</span><strong>{drives.length}</strong><small>Read-only discovery</small></article><article><span>Available titles</span><strong>{(stats?.online??0).toLocaleString()}</strong><small>{stats&&(stats.offline||stats.missing)?`${stats.offline.toLocaleString()} offline · ${stats.missing.toLocaleString()} missing`:'Files currently accessible'}</small></article></section><div className="twocol"><section className="panel"><h2>Quick actions</h2><p>Get started with your existing library. Scanning never changes game files.</p><button className="primary" disabled={!native||busy} onClick={importFolder}><FolderOpen size={18}/>{scan?'Scanning...':copy?'Copying...':'Import ROM folder'}</button><button className="subtle" onClick={()=>setPage('Game Library')}><LibraryBig size={18}/> Browse library</button>{(stats?.duplicate_files??0)>0&&<p className="dup-hint"><Copy size={15}/> {stats!.duplicate_files.toLocaleString()} files look like duplicate copies. <button className="link" onClick={reviewDuplicates}>Review them</button> (nothing is deleted).</p>}</section><section className="panel"><h2>Platform roadmap</h2><div className="platform-row"><span>Batocera</span><em>Adapter planned</em></div><div className="platform-row"><span>RetroBat</span><em>{installs.length?`${installs.length} installation${installs.length>1?'s':''} · deployment plan available`:'Recognize & plan (read-only)'}</em></div><div className="platform-row"><span>More systems</span><em>Future milestone</em></div></section></div>
+    <section className="panel activity"><h2>Recent activity</h2>{jobs.length===0?<p>No scans or copies yet.</p>:jobs.map(j=><div className="platform-row" key={j.id}><span><b className={'job '+j.state}>{jobStateLabel[j.state]??j.state}</b> <span className="job-folder" title={j.input.folder}>{j.kind==='deployment'?'Copy to ':''}{j.input.folder??j.kind}</span></span><em>{j.progress?.indexed!=null?`${j.progress.indexed} files · `:''}{j.progress?.files_copied!=null?`${j.progress.files_copied} files copied · `:''}{j.error_message?j.error_message+' · ':''}{new Date(j.started_at.replace(' ','T')+'Z').toLocaleString()}</em></div>)}</section></>}
     {page==='Game Library' && <section className="panel library-panel">
       <div className="section-heading"><div><h2>Master game catalog</h2><p>One searchable view across every imported folder and drive, including drives that aren't plugged in.</p></div><button className="primary" disabled={!native||busy} onClick={importFolder}><FolderOpen size={17}/> Import folder</button></div>
       <label className="search"><Search size={18}/><input placeholder="Search titles or systems" value={searchText} onChange={e=>setSearchText(e.target.value)} aria-label="Search titles or systems"/></label>
@@ -199,10 +229,10 @@ export default function App() {
     </section></>}
     {page==='Emulation Systems' && <>
     <section className="panel">
-      <div className="section-heading"><div><h2>Emulation systems</h2><p>Platforms RetroDrive works with. This page is read-only for now: RetroDrive recognizes an installation, plans where your games would go and checks drive space and existing files, but doesn't copy anything yet.</p></div><button className="primary" disabled={!native} onClick={()=>void addInstallation()}><Plus size={17}/> Add existing installation</button></div>
+      <div className="section-heading"><div><h2>Emulation systems</h2><p>Platforms RetroDrive works with. RetroDrive recognizes an installation, plans where your games would go, checks drive space and existing files, and copies only after you confirm. It never overwrites or deletes files on the drive.</p></div><button className="primary" disabled={!native} onClick={()=>void addInstallation()}><Plus size={17}/> Add existing installation</button></div>
       <div className="adapter-grid">
         {adapters.map(a=><article className="adapter" key={a.id}><b>{a.display_name}</b><small>{kindLabel[a.kind]??a.kind}</small>
-          <ul className="caps"><li className={a.capabilities.detect?'yes':'no'}>Recognizes installations</li><li className={a.capabilities.validate_layout?'yes':'no'}>Checks folder layout</li><li className={a.capabilities.plan_placement?'yes':'no'}>Plans deployment (space and conflicts)</li><li className="no">Copies games (coming in M2)</li><li className="no">Installs RetroBat (needs RetroBat's written permission first)</li></ul></article>)}
+          <ul className="caps"><li className={a.capabilities.detect?'yes':'no'}>Recognizes installations</li><li className={a.capabilities.validate_layout?'yes':'no'}>Checks folder layout</li><li className={a.capabilities.plan_placement?'yes':'no'}>Plans deployment (space and conflicts)</li><li className="yes">Copies games (verified; never overwrites)</li><li className="no">Installs RetroBat (needs RetroBat's written permission first)</li></ul></article>)}
         <article className="adapter planned"><b>Batocera</b><small>Bootable operating system</small><ul className="caps"><li className="no">Planned next (RDS-008)</li></ul></article>
       </div>
     </section>
@@ -229,7 +259,7 @@ export default function App() {
     </section>
     {plan && (()=>{ const c=plan.capacity; const g=plan.games; const verdict=c.fits===true?'ok':c.fits===false?'problem':'warn'; return <section className="panel">
       <h2>Deployment plan: {plan.adapter_name}</h2>
-      <p>What copying your games to <span className="mono">{plan.installation_path}</span> would do. <b>Nothing has been copied or changed</b>; copying comes in a later update, and it will check everything again first.</p>
+      <p>What copying your games to <span className="mono">{plan.installation_path}</span> would do. <b>Nothing has been copied yet.</b> When you copy, RetroDrive checks everything again first, verifies every file, and never overwrites or deletes anything on the drive.</p>
       <div className={'verdict '+verdict}>{verdict==='ok'?<CheckCircle2 size={18}/>:verdict==='problem'?<XCircle size={18}/>:<AlertTriangle size={18}/>}
         {c.fits===true?(plan.files_to_copy===0?' Nothing new to copy.':' Fits on this drive.'):c.fits===false?" Doesn't fit: free up space or choose fewer platforms.":" Free space couldn't be measured on this drive."}</div>
       {c.measured&&<div className="capacity"><div className="capacity-bar"><span className="need" style={{width:`${Math.min(100,c.required_bytes/Math.max(1,c.free_bytes)*100)}%`}}/><span className="reserve" style={{width:`${Math.min(100,c.reserve_bytes/Math.max(1,c.free_bytes)*100)}%`}}/></div>
@@ -249,10 +279,23 @@ export default function App() {
       {plan.attention.length>0&&<><h3>Needs your attention</h3><p className="plan-notes">These games won't be copied. Files already on the drive are always kept.</p><div className="table-wrap"><table><thead><tr><th>Game</th><th>What happens</th><th>Why</th></tr></thead><tbody>{plan.attention.map(x=><tr key={x.source}><td><b>{x.title}</b><small title={x.destination}>{shortPath(x.destination)}</small></td><td><span className={'tag '+x.action}>{actionLabel[x.action]}</span></td><td>{x.reason}</td></tr>)}</tbody></table></div></>}
       {plan.unsupported.length>0&&<><h3>Not placed automatically</h3><ul className="unsupported">{plan.unsupported.map(u=><li key={u.platform+u.reason}><b>{u.platform}</b> ({u.games.toLocaleString()} {u.games===1?'game':'games'}): {u.reason}</li>)}</ul></>}
       {plan.sample.length>0&&<><h3>Examples</h3><div className="table-wrap"><table><thead><tr><th>Game</th><th>Would be copied to</th><th>Files</th><th>Size</th></tr></thead><tbody>{plan.sample.map(x=><tr key={x.source}><td><b>{x.title}</b><small title={x.source}>{shortPath(x.source)}</small></td><td className="mono" title={x.destination}>{shortPath(x.destination)}</td><td>{x.files}</td><td>{fmtSize(x.bytes_to_copy)}</td></tr>)}</tbody></table></div></>}
+      <div className="copy-actions">{confirming ? <div className="confirm"><p><b>{g.copy>0?`Copy ${g.copy.toLocaleString()} ${g.copy===1?'game':'games'} (${fmtSize(plan.bytes_to_copy)})`:`Check ${g.already_there.toLocaleString()} ${g.already_there===1?'game':'games'} already`}</b> {g.copy>0?'to':'on'} <span className="mono">{plan.installation_path}</span>?</p><ul><li>Files already on the drive are never overwritten or deleted.</li><li>Every copy is read back and checked before it gets its real name.</li>{g.already_there>0&&<li>{g.already_there.toLocaleString()} {g.already_there===1?'game':'games'} already there will be checked by content.</li>}<li>You can cancel at any time; verified games are kept.</li></ul><div className="actions"><button className="primary" onClick={()=>void startCopy()}><Copy size={16}/> {g.copy>0?'Yes, copy now':'Yes, check them'}</button><button className="ghost" onClick={()=>setConfirming(false)}>Not now</button></div></div>
+        : <button className="primary" disabled={!native||busy||planLoading!==null||c.fits!==true||g.copy+g.already_there===0} onClick={()=>setConfirming(true)}><Copy size={16}/>{g.copy>0?`Copy ${g.copy.toLocaleString()} ${g.copy===1?'game':'games'}`:'Check the games already there'}</button>}
+        {c.fits!==true&&<small className="warn-text">Copying needs a plan that fits on the drive.</small>}</div>
       <small className="plan-id">Plan {plan.fingerprint}{planBuilt?` · built ${planBuilt.toLocaleTimeString()}`:''}. Build it again if the drive changes.</small>
     </section>; })()}
+    {copyResult && <section className="panel">
+      <h2>Copy result</h2>
+      {copyResult.summary ? (()=>{ const r=copyResult.summary; return <>
+        <div className={'verdict '+(r.status==='completed'?'ok':r.status==='completed_with_issues'?'warn':'problem')}>{r.status==='completed'?<CheckCircle2 size={18}/>:<AlertTriangle size={18}/>} {copyHeadline[r.status]}</div>
+        <div className="plan-counts"><span className="pc copy"><b>{r.games_copied.toLocaleString()}</b> games copied<small>{r.files_copied.toLocaleString()} files · {fmtSize(r.bytes_copied)}</small></span><span className="pc"><b>{r.games_already_there.toLocaleString()}</b> already there<small>checked by content</small></span>{r.games_incomplete>0&&<span className="pc conflict"><b>{r.games_incomplete}</b> incomplete<small>run the copy again to finish</small></span>}{r.games_conflict>0&&<span className="pc conflict"><b>{r.games_conflict}</b> conflicts<small>existing files kept</small></span>}{r.files_not_attempted>0&&<span className="pc"><b>{r.files_not_attempted}</b> files not reached</span>}</div>
+        {r.issues.length>0&&<div className="table-wrap"><table><thead><tr><th>Game</th><th>What happened</th></tr></thead><tbody>{r.issues.map((x,n)=><tr key={n}><td><b>{x.game}</b><small title={x.path}>{shortPath(x.path)}</small></td><td>{x.message}</td></tr>)}</tbody></table></div>}
+        {r.manifest_path&&<p className="plan-notes">A record of this copy was saved to <span className="mono">{shortPath(r.manifest_path)}</span>.</p>}{r.manifest_error&&<p className="warn-text">{r.manifest_error}</p>}
+      </>; })() : <div className="verdict problem"><XCircle size={18}/> {copyResult.error}</div>}
+      <div className="actions"><button className="ghost" onClick={()=>setCopyResult(null)}>Close</button></div>
+    </section>}
     </>}
     {page==='Settings' && <section className="panel"><h2>Application settings</h2><p>RetroDrive currently stores its SQLite catalog in the operating system's application data folder. Imports index files in place and never copy, move, or delete them.</p><p>Future settings: metadata providers, library scan schedules, backup locations, and platform defaults.</p><h2 className="legal-heading">About and legal</h2><p>RetroDrive doesn't include or download games, BIOS or firmware. It only organizes and copies files you choose, so use only files you have the right to use.</p><p className="legal-notice">RetroDrive is an independent retro gaming management application. All third-party product names and trademarks belong to their respective owners. Compatibility references do not imply sponsorship, affiliation, or endorsement.</p><small className="legal-draft">Draft wording from the legal assessment (docs/16), pending counsel review.</small></section>}
-    <footer>RetroDrive · Early development build · No disk writes or platform installation features</footer>
+    <footer>RetroDrive · Early development build · Copies only after you confirm; never overwrites or deletes</footer>
     </main></div>;
 }

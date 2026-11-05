@@ -90,6 +90,12 @@ Choices made while implementing (see ADR-010 and ADR-011 in docs/13):
 - **Older locations** from v0/v1 data have no fingerprint. A scan claims one only when sampled files from it exist on the scanned volume.
 - **Tests:** `db::tests::v2_catalog_upgrades_to_v3_keeping_references`, `same_volume_under_a_new_letter_is_recognized`, `different_volume_at_a_known_letter_gets_its_own_location`, `unidentified_location_is_claimed_only_when_its_files_are_there`.
 
+## Implemented schema v7 (RDS-010, 2026-11-05)
+- **`deployments`:** `id`, `job_id`, `installation_id` (set to null if the installation is forgotten, so history survives), `adapter_id`, `adapter_contract`, `destination_root` and `destination_stable_id` (snapshots), `plan_fingerprint`, `systems_json`, `status` (`running`, `completed`, `completed_with_issues`, `cancelled`, `interrupted`, `failed`), `manifest_path`, `created_at`, `finished_at`.
+- **`deployment_items`:** one row per planned file, written before copying starts: `deployment_id`, `game_index`, `game_title`, `game_file_id`, `source_path`, `destination_path`, `temp_path` (set while a temporary file may exist; used for crash cleanup), `size_bytes`, `planned_action`, `state` (`pending`, `copying`, `verified`, `identical`, `conflict`, `failed`, `cancelled`, `skipped`, `not_attempted`, `interrupted`), `sha256`, `message`, `updated_at`.
+- **`game_files.sha256`** is now filled in when a file is verified during a copy.
+- These replace the proposed `deployments`/`deployment_items` columns above (`plan_hash` became `plan_fingerprint`; `expected_hash`/`outcome` became `sha256`/`state`).
+
 ## Implemented schema v6 (RDS-006/007, 2026-11-04)
 - **`installations`:** `id`, `adapter_id`, `adapter_contract` (the adapter contract version that saved it), `storage_location_id` (fingerprinted, so letter changes are handled), `relative_path`, `version_string` (null when unknown), `added_at`, `last_checked_at`. Unique per (storage location, relative path).
 - **Status** isn't stored: "connected" is checked live, and layout checks run live while the drive is connected.

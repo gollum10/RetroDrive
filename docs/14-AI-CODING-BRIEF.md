@@ -18,7 +18,7 @@ Read `docs/00-START-HERE.md`, `docs/02-SCOPE-AND-REQUIREMENTS.md`, `docs/04-SYST
 10. Update the associated design docs and acceptance tests for each significant change.
 
 ## Next suggested coding task
-M1, RDS-006/007 and RDS-009 are done (adapter contract v1, read-only RetroBat support, read-only deployment plan in `deployment.rs`); see docs/04, 06 and 08. Next is `RDS-010`, the first feature that **writes**: a staged copier (temp file in the destination folder, streamed hash, verify, atomic rename), a recovery journal and a manifest. It must rebuild the plan and match its fingerprint, re-check the destination's volume identity (QA-015) and free space immediately before copying, never overwrite (conflicts are kept), and compare contents before treating a same-size file as already there. **Get the user's explicit go-ahead and do a dedicated safety review before writing any copy code** (AGENTS.md). Report the plan, risk and test plan first.
+M1, RDS-006/007, RDS-009 and RDS-010 are done: read-only RetroBat support, the deployment plan (`deployment.rs`) and the staged, verified copier (`copier.rs`); see docs/04, 08 and the safety review in docs/18. **Any change to `copier.rs` must keep every hazard in docs/18 §2 covered by a test**, and must never add overwrite or delete behavior without a new user-authorized plan and safety review. Next candidates are listed in docs/11 (owner sign-off first). Report the plan, risk and test plan before changing files.
 
 ## Keep docs in sync
 Every change updates [`Features.md`](../Features.md) (feature status) and the affected docs here (architecture in 04, schema in 05, rules in 07/08, roadmap status in 11, QA coverage in 15, decisions in 13).

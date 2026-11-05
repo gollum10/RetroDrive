@@ -54,7 +54,7 @@ Installation and updates intentionally require independent, more privileged inte
 `queued -> preflight -> awaiting_confirmation -> running -> verifying -> committing -> completed` with branches to `paused`, `cancelling`, `cancelled`, `failed`, `recovery_required`. Persist state at safe boundaries so a restart can identify unfinished jobs. Write temporary files in target filesystem when possible; atomic rename on completion when supported; no manifest success before verification.
 
 ## Trust boundaries
-Frontend is unprivileged. Rust services validate all command arguments. A future high-privilege disk helper, if needed, must use a narrow allowlist, per-operation user approval, a verified physical disk identity and no generic command interpreter.
+Frontend is unprivileged. Rust services validate all command arguments. The only file writes are the copier's (docs/18): user-confirmed, scoped to one installation, never overwriting or deleting, never through links, and re-checked against the reviewed plan's fingerprint and the drive's identity. A future high-privilege disk helper, if needed, must use a narrow allowlist, per-operation user approval, a verified physical disk identity and no generic command interpreter.
 
 ## Performance and reliability
 - Paginate game lists; index title/platform/status.
@@ -63,17 +63,18 @@ Frontend is unprivileged. Rust services validate all command arguments. A future
 - Handle Windows long paths, case-insensitive comparisons, network interruptions and filesystem permissions.
 - Never update catalog to reflect a write until verified.
 
-## Implemented today (updated 2026-11-05, M1 plus RDS-006/007/009)
+## Implemented today (updated 2026-11-05, M1 plus RDS-006/007/009/010)
 Native backend modules in `src-tauri/src/`:
 
 | Module | Responsibility | Target module above |
 |---|---|---|
-| `lib.rs` | Tauri setup and commands: `query_games`, `library_stats`, `list_adapters`, `inspect_installation`, `add_installation`, `list_installations`, `remove_installation`, `deployment_plan`, `list_storage_locations`, `start_scan`, `cancel_job`, `active_scan`, `recent_jobs`, `list_drives`. At startup it migrates the catalog and recovers interrupted jobs; if that fails, every command returns the error. Holds the in-memory registry of running jobs and their cancel flags. | app services |
+| `lib.rs` | Tauri setup and commands: `query_games`, `library_stats`, `list_adapters`, `inspect_installation`, `add_installation`, `list_installations`, `remove_installation`, `deployment_plan`, `start_deployment`, `list_storage_locations`, `start_scan`, `cancel_job`, `active_scan`, `recent_jobs`, `list_drives`. At startup it migrates the catalog and recovers interrupted jobs; if that fails, every command returns the error. Holds the in-memory registry of running jobs and their cancel flags. | app services |
 | `jobs.rs` | Durable job log: create, add events, finish, list recent, recover interrupted. | `jobs` |
 | `adapters/mod.rs` | `PlatformAdapter` trait (contract v1, read-only), `registry()`, `detect_all()`, `catalog()` and `folder_name()` for Windows-safe names. | `platforms` |
 | `adapters/retrobat.rs` | RetroBat detection, layout checks and placement rules, with facts cited from the RetroBat wiki in the module docs. | `platforms` |
 | `installations.rs` | Inspect a folder, save, list and forget installations. | `platforms` |
 | `deployment.rs` | RDS-009 deployment plan (read-only): places every available game with the adapter, classifies each destination file (copy, already there, already in place, duplicate, conflict, blocked), measures capacity and returns a plan fingerprint. Only reads metadata; never creates or writes. | `deployment` |
+| `copier.rs` | RDS-010 staged copier, the only code that writes game files: re-checks the plan fingerprint, volume identity and space; journals every item (`deployments`, `deployment_items`); streams each file to a `.rdpart-` temp with SHA-256, syncs, reads it back past the cache, and commits with a rename that refuses to replace; compares "already there" files by content; writes a manifest; recovers and cleans interrupted copies at startup. Rules and evidence: docs/18. | `deployment` |
 | `db.rs` | Opens connections (WAL, foreign keys, busy timeout). Versioned migrations via `PRAGMA user_version`, with a backup first and v0.1 data conversion. | `catalog` |
 | `scanner.rs` | Read-only folder indexer. Commits in batches, reports progress and accepts cancellation through a `ScanObserver`. After the walk, a grouping pass reads `.cue` and `.m3u` files and links tracks and discs into one game. Returns a `ScanSummary` with errors and warnings kept separate. | `catalog` / `jobs` |
 | `classify.rs` | Infers the platform from folder names and extensions, and records where the hint came from. | `catalog` |

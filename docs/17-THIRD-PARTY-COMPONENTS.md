@@ -2,7 +2,7 @@
 
 Inventory of everything RetroDrive ships, fetches or works with, using the fields from docs/16 §11. This is an engineering record for counsel review, not a legal conclusion. Update it whenever a component is added or considered.
 
-_Last updated: 2026-11-04._
+_Last updated: 2026-11-05._
 
 ## How this is kept current
 
@@ -23,6 +23,7 @@ Measured 2026-11-04: **280 shipped dependencies**, 275 under permissive licenses
 | rusqlite / libsqlite3-sys | 0.32.1 / 0.30.1 | MIT | Bundled | Permissive | Notices |
 | SQLite (compiled in by `libsqlite3-sys` "bundled") | 3.x | Public domain | Bundled | Unrestricted | None required |
 | walkdir, sysinfo, serde, serde_json, uuid, windows-sys | see CSV | MIT / Apache-2.0 / Unlicense | Bundled | Permissive | Notices |
+| sha2 (SHA-256 for copy verification, RDS-010) | 0.10.9 | MIT OR Apache-2.0 | Bundled; already shipped through Tauri before it became a direct dependency (count unchanged) | Permissive | Notices |
 | **cssparser, cssparser-macros, selectors, dtoa-short** | 0.37.0, 0.7.1, 0.38.0, 0.3.5 | **MPL-2.0** | Bundled, unmodified, pulled in by `tauri-utils` → `dom_query` | Allowed | **Ship the MPL-2.0 notice and say where the source of these files is available (crates.io).** Modified MPL files would have to be published; we don't modify them. |
 | **option-ext** | 0.2.0 | **MPL-2.0** | Bundled, unmodified, via `tauri-build` → `dirs` | Allowed | Same as above |
 | Other transitive crates | see CSV | Permissive (MIT, Apache-2.0, BSD, Zlib, Unicode-3.0, Unlicense, CC0, 0BSD) | Bundled | Permissive | Notices |
