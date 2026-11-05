@@ -1153,9 +1153,11 @@ mod tests {
         let deployment: String = f.catalog.query_row("SELECT id FROM deployments", [], |r| r.get(0)).unwrap();
         let marker = format!("{TEMP_MARKER}{}", &deployment[..8]);
         // Simulate a crash mid-copy: a running deployment with a recorded temp file.
-        let temp = f.root.join("roms/nes").join(format!("Half.nes{marker}"));
+        // Use the canonical installation path, as RetroDrive records it (CI temp dirs use 8.3 short names).
+        let root = crate::paths::normalize(&f.root).unwrap();
+        let temp = root.join("roms/nes").join(format!("Half.nes{marker}"));
         fs::write(&temp, b"half").unwrap();
-        let precious = f.root.join("roms/nes/Kid.nes");
+        let precious = root.join("roms/nes/Kid.nes");
         let outside = f.dir.path().join(format!("outside.nes{marker}"));
         fs::write(&outside, b"not in the installation").unwrap();
         f.catalog.execute("UPDATE deployments SET status = 'running'", []).unwrap();
