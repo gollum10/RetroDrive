@@ -245,3 +245,5 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** images on a NAS that isn't connected are skipped (reported); undo leaves the copied images in `images` (unused once the list is restored).
 
+**Update (2026-11-07, speed):** checks and image copies now run 16 at a time. Each image is still copied to a temporary name, read back and renamed without replacing; an image already at the name is compared by size, then contents. If any image fails, no game list is changed (images already copied are new, unused files).
+

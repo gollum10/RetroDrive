@@ -535,13 +535,21 @@ async fn undo_design_application(catalog: State<'_, Catalog>, active: State<'_, 
 
 /// What adding game art and details to RetroBat's game lists would do (reads only).
 #[tauri::command]
-async fn preview_retrobat_art(catalog: State<'_, Catalog>, installation_id: String) -> Result<gamelists::ArtPreview, String> {
+async fn preview_retrobat_art(app: AppHandle, catalog: State<'_, Catalog>, installation_id: String) -> Result<gamelists::ArtPreview, String> {
     let db_path = catalog.path()?;
-    tauri::async_runtime::spawn_blocking(move || gamelists::preview(&db::open(&db_path)?, &installation_id, None, &volumes::presence)).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        gamelists::preview(&db::open(&db_path)?, &installation_id, None, &volumes::presence, &|phase, done, total| {
+            let _ = app.emit("art-progress", ArtProgress { phase: phase.to_string(), done, total });
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[derive(Serialize, Clone)]
 struct ArtProgress {
+    /// `checking` (games) or `copying` (images).
+    phase: String,
     done: usize,
     total: usize,
 }
@@ -552,8 +560,8 @@ async fn apply_retrobat_art(app: AppHandle, catalog: State<'_, Catalog>, active:
     claim_drive_change(&active)?;
     let db_path = catalog.path()?;
     let result = tauri::async_runtime::spawn_blocking(move || {
-        gamelists::apply(&db::open(&db_path)?, &installation_id, None, Some(&list_shas), &volumes::presence, &customizer::retrobat_running, &|done, total| {
-            let _ = app.emit("art-progress", ArtProgress { done, total });
+        gamelists::apply(&db::open(&db_path)?, &installation_id, None, Some(&list_shas), &volumes::presence, &customizer::retrobat_running, &|phase, done, total| {
+            let _ = app.emit("art-progress", ArtProgress { phase: phase.to_string(), done, total });
         })
     })
     .await
@@ -848,7 +856,7 @@ fn run_deployment(
         (Some(s), true) if matches!(s.status.as_str(), "completed" | "completed_with_issues" | "cancelled") && s.files_copied + s.files_replaced + s.files_identical > 0 => {
             db::open(&db_path).ok().and_then(|connection| {
                 let is_retrobat: bool = connection.query_row("SELECT adapter_id = 'retrobat' FROM installations WHERE id = ?1", [&installation_id], |r| r.get(0)).unwrap_or(false);
-                is_retrobat.then(|| match gamelists::apply(&connection, &installation_id, Some(&s.deployment_id), None, &volumes::presence, &customizer::retrobat_running, &|_, _| {}) {
+                is_retrobat.then(|| match gamelists::apply(&connection, &installation_id, Some(&s.deployment_id), None, &volumes::presence, &customizer::retrobat_running, &|_, _, _| {}) {
                     Ok(message) => message,
                     Err(e) => format!("Game art wasn't added: {e} You can add it later under Customize."),
                 })
