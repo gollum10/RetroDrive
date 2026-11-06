@@ -83,6 +83,28 @@ pub struct Remix {
     /// Font file in the theme (relative path) -> the user's own font file.
     #[serde(default)]
     pub fonts: BTreeMap<String, String>,
+    /// Set when a design creates the remix (recorded in the manifest).
+    #[serde(default)]
+    pub design: Option<String>,
+}
+
+impl Remix {
+    /// A stable fingerprint of what the remix contains (to recognise a remix a design already made).
+    pub fn recipe(&self) -> String {
+        let text = serde_json::json!({ "base": self.base, "name": self.name, "colors": self.colors, "images": self.images, "fonts": self.fonts }).to_string();
+        crate::customizer::hex_sha(text.as_bytes())
+    }
+}
+
+/// The design id and recipe recorded in a theme RetroDrive made, if any.
+pub fn made_by(theme_dir: &Path) -> Option<(String, String)> {
+    let v: serde_json::Value = serde_json::from_str(&fs::read_to_string(theme_dir.join(MANIFEST)).ok()?).ok()?;
+    Some((v["design"].as_str()?.to_string(), v["recipe"].as_str()?.to_string()))
+}
+
+/// Size in bytes of a theme folder (what a remix copies).
+pub fn theme_bytes(dir: &Path) -> i64 {
+    walk_size(dir).0
 }
 
 // ---------- reading theme.xml ----------
@@ -337,7 +359,7 @@ fn base64(bytes: &[u8]) -> String {
 }
 
 /// A folder name for the new theme (letters, digits, spaces, dashes, underscores).
-fn folder_for(name: &str) -> Result<String, String> {
+pub fn folder_for(name: &str) -> Result<String, String> {
     let cleaned: String = name.chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, ' ' | '-' | '_')).collect();
     let cleaned = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
     if cleaned.is_empty() {
@@ -548,6 +570,8 @@ pub fn create(connection: &Connection, installation_id: &str, remix: &Remix, pre
             "colors": remix.colors,
             "images": images.iter().map(|(n, f, r)| (n.clone(), serde_json::json!({ "file": r, "from": f.file_name().map(|x| x.to_string_lossy().into_owned()) }))).collect::<serde_json::Map<_, _>>(),
             "fonts": fonts.iter().map(|(r, f)| (r.clone(), serde_json::json!(f.file_name().map(|x| x.to_string_lossy().into_owned())))).collect::<serde_json::Map<_, _>>(),
+            "design": remix.design,
+            "recipe": remix.recipe(),
         });
         replace_in_copy(&temp, &temp.join(MANIFEST), None, Some(serde_json::to_string_pretty(&manifest).unwrap_or_default().as_bytes()))?;
         crate::copier::rename_no_replace(&temp, &themes_dir.join(&folder)).map_err(|e| format!("Couldn't give the new theme its name: {e}"))
@@ -666,6 +690,7 @@ mod tests {
             colors: [("baseColor".to_string(), "ff00ff".to_string())].into_iter().collect(),
             images: [("backgroundImage".to_string(), s.files.join("stars.jpg").display().to_string())].into_iter().collect(),
             fonts: [("art/fonts/Cabin-Bold.ttf".to_string(), s.files.join("Neon.ttf").display().to_string())].into_iter().collect(),
+            design: None,
         };
         let folder = create(&s.catalog, &s.install, &remix, &connected, &roomy).unwrap();
         assert_eq!(folder, "My Neon");

@@ -138,3 +138,17 @@ button.link{background:none;border:none;color:#7fb3ff;cursor:pointer;padding:0;f
 .customize .tabs{margin:6px 0 12px}.cust-target{color:#8fa3b8;margin:0 0 8px}
 .cust-pick{display:flex;flex-direction:column;gap:4px;font-size:13px}
 .music-list{margin:6px 0;padding-left:18px;columns:2;font-size:13px}
+.studio-bar{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:10px;flex-wrap:wrap}
+.studio-bar .eyebrow{display:block;text-transform:uppercase;letter-spacing:.12em;color:#8fa3b8;font-size:11px}
+.design-name{font-size:22px;font-weight:700;background:transparent;border:none;border-bottom:1px dashed rgba(255,255,255,.25);color:inherit;padding:2px 0;margin:2px 0 6px;min-width:280px}
+.designs-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.design-new{padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:#0d1520;color:inherit;min-width:200px}
+.design-card .design-summary{margin:4px 0;padding-left:16px;font-size:13px;color:#b5c7dc}
+.radio-row{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}.radio-row label{display:flex;gap:8px;align-items:center}
+.theme-card{cursor:default}.studio .theme-card{cursor:pointer}
+.own-file{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0}
+.own-music{list-style:none;padding:0;display:flex;flex-direction:column;gap:6px}.own-music li{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.num-pick{display:flex;gap:6px;align-items:center}
+button.danger{background:#7f1d1d;border:1px solid #b91c1c;color:#fff}
+.apply-design ul li{margin:3px 0}
+.studio-bar small.plan-notes{display:block;max-width:640px}
