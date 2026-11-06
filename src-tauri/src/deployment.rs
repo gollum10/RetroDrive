@@ -1202,9 +1202,9 @@ mod tests {
         // Pretend both NES games were copied before, then Gone was deleted from the drive.
         write(&f.root, "roms/nes/Kid.nes", b"nes");
         f.catalog.execute("INSERT INTO deployments (id, installation_id, adapter_id, adapter_contract, destination_root, plan_fingerprint, status) VALUES ('d1', ?1, 'retrobat', 1, 'x', 'f', 'completed')", [&f.id]).unwrap();
-        for name in ["Kid.nes", "Gone.nes"] {
-            let dest = f.root.join("roms").join("nes").join(name).display().to_string();
-            f.catalog.execute("INSERT INTO deployment_items (deployment_id, game_index, game_title, source_path, destination_path, size_bytes, planned_action, state) VALUES ('d1', 0, ?1, 'src', ?2, 3, 'copy', 'verified')", [name, &dest]).unwrap();
+        // Destinations exactly as the plan writes them (CI's temp folder has short 8.3 names).
+        for g in p.sample.iter().filter(|g| g.system_folder == "nes") {
+            f.catalog.execute("INSERT INTO deployment_items (deployment_id, game_index, game_title, source_path, destination_path, size_bytes, planned_action, state) VALUES ('d1', 0, ?1, 'src', ?2, 3, 'copy', 'verified')", [&g.title, &g.destination]).unwrap();
         }
         let before = snapshot(&f.root);
         let p = plan_sync(&f.catalog, &f.id, &Choices::new(), &connected, &roomy).unwrap();
