@@ -131,7 +131,7 @@ pub(crate) struct Entry {
     end: usize,
 }
 
-fn unescape(text: &str) -> String {
+pub(crate) fn unescape(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(i) = rest.find('&') {
@@ -247,7 +247,7 @@ pub(crate) fn entries(text: &str) -> Result<Vec<Entry>, String> {
 
 /// Parses with a real XML reader, as RetroBat does: a file it couldn't read would
 /// make RetroBat ignore every setting.
-fn well_formed(text: &str) -> Result<(), String> {
+pub(crate) fn well_formed(text: &str) -> Result<(), String> {
     let mut reader = Reader::from_str(text);
     loop {
         match reader.read_event() {

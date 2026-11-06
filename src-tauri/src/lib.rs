@@ -11,6 +11,7 @@ mod copier;
 mod db;
 mod deployment;
 mod drives;
+mod gamelists;
 mod duplicates;
 mod installations;
 mod jobs;
@@ -532,6 +533,35 @@ async fn undo_design_application(catalog: State<'_, Catalog>, active: State<'_, 
     result?
 }
 
+/// What adding game art and details to RetroBat's game lists would do (reads only).
+#[tauri::command]
+async fn preview_retrobat_art(catalog: State<'_, Catalog>, installation_id: String) -> Result<gamelists::ArtPreview, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || gamelists::preview(&db::open(&db_path)?, &installation_id, None, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+#[derive(Serialize, Clone)]
+struct ArtProgress {
+    done: usize,
+    total: usize,
+}
+
+/// Add the user's art and catalog details to RetroBat's game lists (reviewed; undoable). Emits `art-progress`.
+#[tauri::command]
+async fn apply_retrobat_art(app: AppHandle, catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, list_shas: std::collections::BTreeMap<String, String>) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        gamelists::apply(&db::open(&db_path)?, &installation_id, None, Some(&list_shas), &volumes::presence, &customizer::retrobat_running, &|done, total| {
+            let _ = app.emit("art-progress", ArtProgress { done, total });
+        })
+    })
+    .await
+    .map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
 /// Games and size per platform for the library's Systems page.
 #[tauri::command]
 async fn system_summary(catalog: State<'_, Catalog>) -> Result<Vec<catalog::SystemSummary>, String> {
@@ -740,6 +770,8 @@ struct DeployFinishedEvent {
     state: String,
     summary: Option<copier::DeploySummary>,
     error: Option<String>,
+    /// What happened with game art and details after the copy (RetroBat).
+    art: Option<String>,
 }
 
 /// Copy the reviewed plan to an installation (RDS-010). `fingerprint` must match
@@ -758,6 +790,7 @@ fn start_deployment(
     destination: String,
     choices: Option<deployment::Choices>,
     collection_id: Option<String>,
+    add_art: Option<bool>,
 ) -> Result<String, String> {
     let db_path = catalog.path()?;
     let mut running = active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?;
@@ -781,7 +814,7 @@ fn start_deployment(
 
     let id = job_id.clone();
     let choices = choices.unwrap_or_default();
-    tauri::async_runtime::spawn_blocking(move || run_deployment(app, db_path, id, installation_id, systems, fingerprint, choices, collection_id, cancel));
+    tauri::async_runtime::spawn_blocking(move || run_deployment(app, db_path, id, installation_id, systems, fingerprint, choices, collection_id, add_art.unwrap_or(false), cancel));
     Ok(job_id)
 }
 
@@ -795,6 +828,7 @@ fn run_deployment(
     fingerprint: String,
     choices: deployment::Choices,
     collection_id: Option<String>,
+    add_art: bool,
     cancel: Arc<AtomicBool>,
 ) {
     let outcome = catch_unwind(AssertUnwindSafe(|| {
@@ -808,6 +842,19 @@ fn run_deployment(
     let (state, summary, error) = match outcome {
         Ok(summary) => (summary.status.clone(), Some(summary), None),
         Err(error) => ("failed".to_string(), None, Some(error)),
+    };
+    // Game art and details for the games just copied (RetroBat; the user ticked it when confirming).
+    let art = match (&summary, add_art) {
+        (Some(s), true) if matches!(s.status.as_str(), "completed" | "completed_with_issues" | "cancelled") && s.files_copied + s.files_replaced + s.files_identical > 0 => {
+            db::open(&db_path).ok().and_then(|connection| {
+                let is_retrobat: bool = connection.query_row("SELECT adapter_id = 'retrobat' FROM installations WHERE id = ?1", [&installation_id], |r| r.get(0)).unwrap_or(false);
+                is_retrobat.then(|| match gamelists::apply(&connection, &installation_id, Some(&s.deployment_id), None, &volumes::presence, &customizer::retrobat_running, &|_, _| {}) {
+                    Ok(message) => message,
+                    Err(e) => format!("Game art wasn't added: {e} You can add it later under Customize."),
+                })
+            })
+        }
+        _ => None,
     };
     if let Ok(connection) = db::open(&db_path) {
         if let Some(s) = &summary {
@@ -830,7 +877,7 @@ fn run_deployment(
     if let Ok(mut running) = app.state::<ActiveJobs>().jobs.lock() {
         running.remove(&job_id);
     }
-    let _ = app.emit(EVENT_DEPLOY_FINISHED, DeployFinishedEvent { job_id, state, summary, error });
+    let _ = app.emit(EVENT_DEPLOY_FINISHED, DeployFinishedEvent { job_id, state, summary, error, art });
 }
 
 #[tauri::command]
@@ -866,6 +913,8 @@ pub fn run() {
             deployment_plan,
             system_summary,
             list_backups,
+            preview_retrobat_art,
+            apply_retrobat_art,
             list_designs,
             create_design,
             save_design_draft,

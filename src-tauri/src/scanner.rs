@@ -422,9 +422,6 @@ fn link_media(
                 continue;
             }
             for (kind, image) in &entry.images {
-                if *kind == "marquee" {
-                    continue; // a logo, not a cover
-                }
                 let found = media::resolve_relative(folder, image).and_then(|r| images.get(&r.to_lowercase()));
                 if let Some(actual) = found {
                     chosen.entry(record.file_id.as_str()).or_default().push((kind, "gamelist", actual.clone()));
@@ -1425,7 +1422,7 @@ mod tests {
         let summary = scan(&mut c, &root, &unknown).unwrap();
         assert_eq!(summary.games, 3);
         assert_eq!(summary.images_found, 4);
-        assert_eq!(summary.images_linked, 2);
+        assert_eq!(summary.images_linked, 3, "two covers, plus a marquee logo kept as its own kind");
         assert_eq!(summary.skipped_unsupported, 1, "only gamelist.xml; images are counted separately");
         let art = |file: &str| -> Option<(String, String, String)> {
             c.query_row(
@@ -1441,7 +1438,10 @@ mod tests {
         assert!(tom.2.ends_with("nes/media/screenshot/Tom & Jerry (USA).png"), "{}", tom.2);
         let kid = art("Kid Icarus (USA).zip").unwrap();
         assert_eq!((kid.0.as_str(), kid.1.as_str()), ("image", "folder"));
-        assert_eq!(art("No Art (USA).zip"), None, "an image outside the scanned folder and a marquee logo are not used");
+        // The image outside the scanned folder is ignored; the marquee is kept as a logo, never a cover.
+        assert_eq!(art("No Art (USA).zip").map(|a| a.0), Some("marquee".into()));
+        let no_art: String = c.query_row("SELECT id FROM game_files WHERE filename = 'No Art (USA).zip'", [], |r| r.get(0)).unwrap();
+        assert_eq!(media::resolve(&c, &no_art, &|_: &str, _: Option<&str>| crate::volumes::Presence::Connected).unwrap(), None, "a logo is never shown as the cover");
         let after: Vec<_> = walkdir::WalkDir::new(&root).sort_by_file_name().into_iter().map(|e| e.unwrap().path().to_path_buf()).collect();
         assert_eq!(before, after, "scanning never creates or copies files");
 
@@ -1452,7 +1452,7 @@ mod tests {
         media::set_user_art(&c, &kid_id, &picked, &unknown).unwrap();
         scan(&mut c, &root, &unknown).unwrap();
         let rows: i64 = c.query_row("SELECT COUNT(*) FROM game_media", [], |r| r.get(0)).unwrap();
-        assert_eq!(rows, 3, "two scanned links plus the user's pick");
+        assert_eq!(rows, 4, "two scanned covers, one marquee, plus the user's pick");
         let best = media::resolve(&c, &kid_id, &|_, _| crate::volumes::Presence::Connected).unwrap().unwrap();
         assert!(best.0.ends_with("my art.png"), "the user's pick wins: {:?}", best.0);
         assert_eq!(best.1, "image/png");
