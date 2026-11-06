@@ -47,6 +47,7 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 | Browse by system (Plex-style) | ✅ | Systems page: a card per platform with game count and size; click to see that system's games. |
 | Grid or list view | ✅ | Grid shows cover tiles (coloured placeholders until box art); list is the detailed table. Your choice is remembered. |
 | Reference catalog import (names, details, genres) | ✅ | Settings → Reference catalog: import your `.xlsx`/`.csv` and an optional genre file. Games are matched by exact No-Intro/MAME name, MAME clone set, then title per system; cards and the list show catalog titles, year and genre. Art columns are never read. On your library: 47,840 of 116,405 games matched (Arcade 93%). |
+| Catalog import waits for scans and copies | ✅ | Its buttons are greyed out during a scan or copy, and scans wait for an import (instead of a "database is locked" error). |
 | Search and sort by catalog titles | 📋 | Search still uses file titles today. |
 | Arcade routing by source folder (`mame`/`fbneo`) | 📋 | Your library already separates them. |
 | Box art from your own images | ✅ | Found automatically during scans (your `gamelist.xml` from Skraper/ScreenScraper, or images named like the game in `media`, `images`, `boxart`, `covers`…), or pick one with **Add art** on a game card. Shown from where it is; never copied or shipped. On your NAS's NES folder: 1,520 of 1,520 images linked. |
