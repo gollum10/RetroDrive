@@ -122,6 +122,8 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 | RetroBat version shown | ✅ | Read from `system\version.info` (e.g. 8.3.1.1-stable-win64). |
 | Copy progress where you clicked | ✅ | Progress and Cancel replace the Copy button, and the result scrolls into view (owner feedback). |
 | Name clashes show their source files | ✅ | "Needs your attention" shows which library file each row is. |
+| Leave games out of the library | ✅ | **Leave out** on any game card or list row; Status: *Left out of library* shows them, with **Bring back**. Left-out games are never copied. The files stay on your drives. |
+| Clean up duplicates | ✅ | Keeps one copy of each set of identical files and leaves the rest out, after a preview with examples. Nothing is deleted. |
 | Conflict and clash choices | 📋 | RDS-017: pick one version or keep both; replace only with backup and confirmation. |
 | File-type check per target | 📋 | RDS-018: warn when a target won't show a file type (e.g. zipped NES games on OneSauce). |
 | OneSauce / RetroFE (AtGames Legends Ultimate) | ⛔ | RDS-020, blocked on LEGAL-015 (docs/16 §6). |

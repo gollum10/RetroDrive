@@ -8,6 +8,7 @@ mod copier;
 mod db;
 mod deployment;
 mod drives;
+mod duplicates;
 mod installations;
 mod jobs;
 mod media;
@@ -202,6 +203,29 @@ fn remove_reference(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>) 
         return Err("A scan, copy or import is running. Remove the catalog when it has finished.".into());
     }
     reference::remove(&db::open(&catalog.path()?)?)
+}
+
+/// Leave files out of the library, or bring them back (catalog only; files untouched).
+#[tauri::command]
+fn set_left_out(catalog: State<'_, Catalog>, file_ids: Vec<String>, left_out: bool) -> Result<i64, String> {
+    duplicates::set_left_out(&db::open(&catalog.path()?)?, &file_ids, left_out)
+}
+
+/// What "Clean up duplicates" would do. Reads only.
+#[tauri::command]
+async fn duplicate_cleanup_preview(catalog: State<'_, Catalog>) -> Result<duplicates::CleanupPreview, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || duplicates::preview(&db::open(&db_path)?, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Keep one copy of each duplicate group; leave the rest out (catalog only).
+#[tauri::command]
+async fn clean_up_duplicates(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>) -> Result<i64, String> {
+    if !active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?.is_empty() {
+        return Err("A scan or copy is running. Clean up duplicates when it has finished.".into());
+    }
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || duplicates::clean_up(&db::open(&db_path)?, &volumes::presence)).await.map_err(|e| e.to_string())?
 }
 
 /// Games and size per platform for the library's Systems page.
@@ -506,6 +530,9 @@ pub fn run() {
             remove_installation,
             deployment_plan,
             system_summary,
+            set_left_out,
+            duplicate_cleanup_preview,
+            clean_up_duplicates,
             import_reference,
             reference_status,
             remove_reference,
