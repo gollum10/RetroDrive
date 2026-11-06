@@ -131,3 +131,10 @@ button.link{background:none;border:none;color:#7fb3ff;cursor:pointer;padding:0;f
 .mock-art{position:absolute;top:18%;right:6%;width:30%;height:56%;border:2px solid;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#ffffff99;background:rgba(0,0,0,.3)}
 .mock-bar{position:absolute;bottom:0;left:0;right:0;padding:2% 4%;font-size:11px;color:#fff}
 @media (max-width:900px){.remix{grid-template-columns:1fr}}
+.option-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px 18px;margin:8px 0}
+.option-grid label{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.03)}
+.option-grid label span{display:flex;flex-direction:column;font-size:14px}.option-grid label small{color:#8fa3b8;font-size:12px}
+.option-grid input.num{width:90px;padding:5px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:#0d1520;color:inherit}
+.customize .tabs{margin:6px 0 12px}.cust-target{color:#8fa3b8;margin:0 0 8px}
+.cust-pick{display:flex;flex-direction:column;gap:4px;font-size:13px}
+.music-list{margin:6px 0;padding-left:18px;columns:2;font-size:13px}
