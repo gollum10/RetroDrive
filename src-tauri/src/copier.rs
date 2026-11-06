@@ -76,6 +76,8 @@ pub struct DeployRequest<'a> {
     pub fingerprint: &'a str,
     /// The user's conflict and clash choices (part of the fingerprint).
     pub choices: &'a deployment::Choices,
+    /// Copy only the games in this collection.
+    pub collection: Option<&'a str>,
 }
 
 #[derive(Debug, Serialize, Clone, Default)]
@@ -145,7 +147,7 @@ enum Outcome {
 /// pre-check fails; otherwise a summary, even when some files failed.
 pub fn deploy(connection: &Connection, job_id: Option<&str>, request: &DeployRequest, presence: PresenceFn, space: SpaceFn, observer: &mut dyn DeployObserver) -> Result<DeploySummary, String> {
     // 1. Re-check everything. No writes before this passes.
-    let (plan, items) = deployment::build(connection, request.installation_id, request.systems, request.choices, presence, space)?;
+    let (plan, items) = deployment::build(connection, request.installation_id, request.systems, request.collection, request.choices, presence, space)?;
     if plan.fingerprint != request.fingerprint {
         return Err("The drive or your library changed since you reviewed the plan, so nothing was copied. Review the updated plan and try again.".into());
     }
@@ -1104,11 +1106,11 @@ mod tests {
             Fixture { dir, root, library, catalog, id, choices: deployment::Choices::new() }
         }
         fn fingerprint(&self) -> String {
-            deployment::plan_with(&self.catalog, &self.id, None, &self.choices, &connected, &roomy).unwrap().fingerprint
+            deployment::plan_with(&self.catalog, &self.id, None, None, &self.choices, &connected, &roomy).unwrap().fingerprint
         }
         fn deploy_with(&mut self, observer: &mut dyn DeployObserver) -> Result<DeploySummary, String> {
             let fingerprint = self.fingerprint();
-            deploy(&self.catalog, None, &DeployRequest { installation_id: &self.id, systems: None, fingerprint: &fingerprint, choices: &self.choices }, &connected, &roomy, observer)
+            deploy(&self.catalog, None, &DeployRequest { installation_id: &self.id, systems: None, fingerprint: &fingerprint, choices: &self.choices, collection: None }, &connected, &roomy, observer)
         }
         fn deploy(&mut self) -> DeploySummary {
             self.deploy_with(&mut Quiet).unwrap()
@@ -1186,16 +1188,16 @@ mod tests {
         write(&f.library, "nes/Late.nes", b"late");
         scanner::scan(&mut f.catalog, &f.library, &unknown).unwrap();
         let before = snapshot(&f.root);
-        let err = deploy(&f.catalog, None, &DeployRequest { installation_id: &f.id, systems: None, fingerprint: &stale, choices: &deployment::Choices::new() }, &connected, &roomy, &mut Quiet).unwrap_err();
+        let err = deploy(&f.catalog, None, &DeployRequest { installation_id: &f.id, systems: None, fingerprint: &stale, choices: &deployment::Choices::new(), collection: None }, &connected, &roomy, &mut Quiet).unwrap_err();
         assert!(err.contains("changed since you reviewed"), "{err}");
 
         let fresh = f.fingerprint();
         let tiny = |_: &Path| Some(VolumeSpace { free_bytes: 1 << 20, total_bytes: 10 << 30, filesystem: Some("NTFS".into()), cluster_bytes: 4096 });
-        let err = deploy(&f.catalog, None, &DeployRequest { installation_id: &f.id, systems: None, fingerprint: &fresh, choices: &deployment::Choices::new() }, &connected, &tiny, &mut Quiet).unwrap_err();
+        let err = deploy(&f.catalog, None, &DeployRequest { installation_id: &f.id, systems: None, fingerprint: &fresh, choices: &deployment::Choices::new(), collection: None }, &connected, &tiny, &mut Quiet).unwrap_err();
         assert!(err.contains("enough free space"), "{err}");
-        let err = deploy(&f.catalog, None, &DeployRequest { installation_id: &f.id, systems: None, fingerprint: &fresh, choices: &deployment::Choices::new() }, &connected, &|_: &Path| None, &mut Quiet).unwrap_err();
+        let err = deploy(&f.catalog, None, &DeployRequest { installation_id: &f.id, systems: None, fingerprint: &fresh, choices: &deployment::Choices::new(), collection: None }, &connected, &|_: &Path| None, &mut Quiet).unwrap_err();
         assert!(err.contains("couldn't be measured"), "{err}");
-        let err = deploy(&f.catalog, None, &DeployRequest { installation_id: &f.id, systems: None, fingerprint: &fresh, choices: &deployment::Choices::new() }, &|_, _| Presence::OtherVolume, &roomy, &mut Quiet).unwrap_err();
+        let err = deploy(&f.catalog, None, &DeployRequest { installation_id: &f.id, systems: None, fingerprint: &fresh, choices: &deployment::Choices::new(), collection: None }, &|_, _| Presence::OtherVolume, &roomy, &mut Quiet).unwrap_err();
         assert!(err.contains("isn't connected"), "a different drive at the same letter is refused: {err}");
 
         assert_eq!(snapshot(&f.root), before, "refusals write nothing");
@@ -1465,7 +1467,7 @@ mod tests {
         // The junction appears after the plan was reviewed.
         let made = std::process::Command::new("cmd").args(["/C", "mklink", "/J"]).arg(f.root.join("roms").join("nes")).arg(&elsewhere).output().unwrap();
         assert!(made.status.success());
-        let result = deploy(&f.catalog, None, &DeployRequest { installation_id: &f.id, systems: None, fingerprint: &fingerprint, choices: &deployment::Choices::new() }, &connected, &roomy, &mut Quiet);
+        let result = deploy(&f.catalog, None, &DeployRequest { installation_id: &f.id, systems: None, fingerprint: &fingerprint, choices: &deployment::Choices::new(), collection: None }, &connected, &roomy, &mut Quiet);
         // Either the changed plan is refused, or the copy refuses the link; nothing lands elsewhere.
         if let Ok(summary) = result {
             assert_eq!(summary.files_copied, 0);
@@ -1592,9 +1594,9 @@ mod tests {
         scanner::scan(&mut catalog, &dir.path().join("library"), &unknown).unwrap();
         let id = installations::add(&catalog, &root, "retrobat", &unknown).unwrap();
         let choices = deployment::Choices::new();
-        let fingerprint = deployment::plan_with(&catalog, &id, None, &choices, &connected, &roomy).unwrap().fingerprint;
+        let fingerprint = deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap().fingerprint;
         let started = std::time::Instant::now();
-        let summary = deploy(&catalog, None, &DeployRequest { installation_id: &id, systems: None, fingerprint: &fingerprint, choices: &choices }, &connected, &roomy, &mut Quiet).unwrap();
+        let summary = deploy(&catalog, None, &DeployRequest { installation_id: &id, systems: None, fingerprint: &fingerprint, choices: &choices, collection: None }, &connected, &roomy, &mut Quiet).unwrap();
         let elapsed = started.elapsed();
         assert_eq!(summary.files_copied, count);
         eprintln!("copied {count} x 40 KB files in {:?} ({:.1} files/s)", elapsed, count as f64 / elapsed.as_secs_f64());

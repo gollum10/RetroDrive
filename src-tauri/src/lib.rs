@@ -4,6 +4,7 @@
 mod adapters;
 mod catalog;
 mod classify;
+mod collections;
 mod copier;
 mod db;
 mod deployment;
@@ -228,6 +229,49 @@ async fn clean_up_duplicates(catalog: State<'_, Catalog>, active: State<'_, Acti
     tauri::async_runtime::spawn_blocking(move || duplicates::clean_up(&db::open(&db_path)?, &volumes::presence)).await.map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+fn list_collections(catalog: State<'_, Catalog>) -> Result<Vec<collections::Collection>, String> {
+    collections::list(&db::open(&catalog.path()?)?)
+}
+
+#[tauri::command]
+fn create_collection(catalog: State<'_, Catalog>, name: String) -> Result<String, String> {
+    collections::create(&db::open(&catalog.path()?)?, &name)
+}
+
+#[tauri::command]
+fn rename_collection(catalog: State<'_, Catalog>, id: String, name: String) -> Result<(), String> {
+    collections::rename(&db::open(&catalog.path()?)?, &id, &name)
+}
+
+/// Delete a collection (the list only; games and files are untouched).
+#[tauri::command]
+fn delete_collection(catalog: State<'_, Catalog>, id: String) -> Result<bool, String> {
+    collections::delete(&db::open(&catalog.path()?)?, &id)
+}
+
+/// Add games to a collection: the given file ids, or every game matching `query` (up to 10,000).
+#[tauri::command]
+async fn add_to_collection(catalog: State<'_, Catalog>, id: String, file_ids: Option<Vec<String>>, query: Option<catalog::GameQuery>) -> Result<i64, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let connection = db::open(&db_path)?;
+        let files = match (file_ids, query) {
+            (Some(files), _) => files,
+            (None, Some(query)) => catalog::matching_file_ids(&connection, &query, &volumes::presence, 10_000)?,
+            (None, None) => Vec::new(),
+        };
+        collections::add(&connection, &id, &files)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn remove_from_collection(catalog: State<'_, Catalog>, id: String, file_ids: Vec<String>) -> Result<i64, String> {
+    collections::remove(&db::open(&catalog.path()?)?, &id, &file_ids)
+}
+
 /// Games and size per platform for the library's Systems page.
 #[tauri::command]
 async fn system_summary(catalog: State<'_, Catalog>) -> Result<Vec<catalog::SystemSummary>, String> {
@@ -390,11 +434,17 @@ fn set_arcade_system(catalog: State<'_, Catalog>, installation_id: String, syste
 /// Deployment plan for an installation (RDS-009): actions, conflicts and capacity.
 /// `systems` limits it to those system folders; `None` plans all. Nothing is written.
 #[tauri::command]
-async fn deployment_plan(catalog: State<'_, Catalog>, installation_id: String, systems: Option<Vec<String>>, choices: Option<deployment::Choices>) -> Result<deployment::DeploymentPlan, String> {
+async fn deployment_plan(
+    catalog: State<'_, Catalog>,
+    installation_id: String,
+    systems: Option<Vec<String>>,
+    choices: Option<deployment::Choices>,
+    collection_id: Option<String>,
+) -> Result<deployment::DeploymentPlan, String> {
     let db_path = catalog.path()?;
     tauri::async_runtime::spawn_blocking(move || {
         let connection = db::open(&db_path)?;
-        deployment::plan_with(&connection, &installation_id, systems.as_deref(), &choices.unwrap_or_default(), &volumes::presence, &volumes::space)
+        deployment::plan_with(&connection, &installation_id, systems.as_deref(), collection_id.as_deref(), &choices.unwrap_or_default(), &volumes::presence, &volumes::space)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -440,6 +490,7 @@ fn start_deployment(
     fingerprint: String,
     destination: String,
     choices: Option<deployment::Choices>,
+    collection_id: Option<String>,
 ) -> Result<String, String> {
     let db_path = catalog.path()?;
     let mut running = active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?;
@@ -460,7 +511,7 @@ fn start_deployment(
 
     let id = job_id.clone();
     let choices = choices.unwrap_or_default();
-    tauri::async_runtime::spawn_blocking(move || run_deployment(app, db_path, id, installation_id, systems, fingerprint, choices, cancel));
+    tauri::async_runtime::spawn_blocking(move || run_deployment(app, db_path, id, installation_id, systems, fingerprint, choices, collection_id, cancel));
     Ok(job_id)
 }
 
@@ -473,12 +524,13 @@ fn run_deployment(
     systems: Option<Vec<String>>,
     fingerprint: String,
     choices: deployment::Choices,
+    collection_id: Option<String>,
     cancel: Arc<AtomicBool>,
 ) {
     let outcome = catch_unwind(AssertUnwindSafe(|| {
         let connection = db::open(&db_path)?;
         let mut observer = DeployUi { app: app.clone(), job_id: job_id.clone(), cancel };
-        let request = copier::DeployRequest { installation_id: &installation_id, systems: systems.as_deref(), fingerprint: &fingerprint, choices: &choices };
+        let request = copier::DeployRequest { installation_id: &installation_id, systems: systems.as_deref(), fingerprint: &fingerprint, choices: &choices, collection: collection_id.as_deref() };
         copier::deploy(&connection, Some(&job_id), &request, &volumes::presence, &volumes::space, &mut observer)
     }))
     .unwrap_or_else(|_| Err("The copy stopped because of an internal error. Files already verified were kept; unfinished temporary files are cleaned up next time.".into()));
@@ -543,6 +595,12 @@ pub fn run() {
             remove_installation,
             deployment_plan,
             system_summary,
+            list_collections,
+            create_collection,
+            rename_collection,
+            delete_collection,
+            add_to_collection,
+            remove_from_collection,
             set_left_out,
             duplicate_cleanup_preview,
             clean_up_duplicates,

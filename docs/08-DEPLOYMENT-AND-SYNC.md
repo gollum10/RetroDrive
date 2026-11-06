@@ -44,7 +44,7 @@ A game takes its most serious file action, so a game with one conflicting file i
 
 **Capacity:** `required = Σ copy files rounded up to whole clusters + one cluster per new folder + the largest copy file (staging/retry room)`. It fits when `required ≤ free − reserve`, where `reserve = max(1 GiB, 2% of the drive)` and `free` is what Windows lets this user write (quotas included). An empty plan always fits; if the drive can't be measured, "fits" is unknown, never yes.
 
-**Selection:** the plan lists every system folder with placeable games; the user picks a subset (collections come later).
+**Selection:** the plan lists every system folder with placeable games; the user picks a subset. Since step 7 (2026-11-05) the plan can instead be limited to one collection ("What to copy"); the platform ticks then apply within it, and the collection id is part of the fingerprint.
 
 **Fingerprint:** a stable 64-bit FNV-1a hash over adapter, contract, installation, and every source, destination, size and action. RDS-010 must rebuild the plan right before copying and refuse to start if the fingerprint changed.
 

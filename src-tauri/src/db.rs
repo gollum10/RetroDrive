@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 12;
+pub const SCHEMA_VERSION: i32 = 13;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -166,6 +166,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 12 {
         tx.execute_batch(SCHEMA_V12).map_err(|e| e.to_string())?;
+    }
+    if from_version < 13 {
+        tx.execute_batch(SCHEMA_V13).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -781,6 +784,23 @@ ALTER TABLE game_files ADD COLUMN excluded_reason TEXT;
 /// restore it after a failure or crash; the backup itself is never deleted.
 const SCHEMA_V12: &str = "
 ALTER TABLE deployment_items ADD COLUMN backup_path TEXT;
+";
+
+/// v13: collections, the user's own game lists (`collections.rs`). Lists only;
+/// deleting a collection never touches games or files.
+const SCHEMA_V13: &str = "
+CREATE TABLE collections (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE collection_games (
+    collection_id  TEXT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+    game_file_id   TEXT NOT NULL REFERENCES game_files(id) ON DELETE CASCADE,
+    added_at       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (collection_id, game_file_id)
+);
+CREATE INDEX idx_collection_games_file ON collection_games(game_file_id);
 ";
 
 #[cfg(test)]

@@ -67,6 +67,8 @@ pub struct GameQuery {
     pub left_out: bool,
     /// Only titles starting with this letter (`A`-`Z`), or `#` for digits and symbols.
     pub letter: Option<String>,
+    /// Only games in this collection.
+    pub collection_id: Option<String>,
     /// `title` (default), `platform` or `size`.
     pub sort: Option<String>,
     pub offset: u32,
@@ -183,13 +185,9 @@ fn like_pattern(text: &str) -> String {
     format!("%{escaped}%")
 }
 
-/// Run a page of the library with filters applied.
-///
-/// Two phases: (1) find the ids for the requested page using only indexed columns,
-/// (2) load full details, availability and duplicate counts for just those rows.
-pub fn query_games(connection: &Connection, query: &GameQuery, presence: PresenceFn) -> Result<GamePage, String> {
-    let limit = query.limit.unwrap_or(DEFAULT_PAGE_SIZE).clamp(1, MAX_PAGE_SIZE);
-    let offline = offline_storage_ids(connection, presence)?;
+/// WHERE clause, bound values and whether the query is filtered, for a library query.
+fn filter_sql(query: &GameQuery, offline: &str) -> Result<(String, Vec<Value>, bool), String> {
+    let offline = offline.to_string();
     // Always list primary files only. The unary `+` stops SQLite from choosing the
     // role index for this term, which would scan every primary file instead of
     // walking the title index or the search results.
@@ -247,10 +245,35 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
         }
         Some(other) => return Err(format!("Unknown letter filter: {other}")),
     }
+    if let Some(collection) = query.collection_id.as_deref().filter(|c| !c.is_empty()) {
+        conditions.push("gf.id IN (SELECT game_file_id FROM collection_games WHERE collection_id = ?)");
+        values.push(Value::Text(collection.to_string()));
+    }
     let filtered = conditions.len() > 1 || query.left_out;
     // Left-out files are hidden unless asked for; this alone doesn't make a query "filtered".
     conditions.push(if query.left_out { "gf.excluded_at IS NOT NULL" } else { "gf.excluded_at IS NULL" });
     let where_clause = format!("WHERE {}", conditions.join(" AND "));
+    Ok((where_clause, values, filtered))
+}
+
+/// Every primary file id matching a library query (up to `cap`), e.g. to add all
+/// shown games to a collection.
+pub fn matching_file_ids(connection: &Connection, query: &GameQuery, presence: PresenceFn, cap: usize) -> Result<Vec<String>, String> {
+    let offline = offline_storage_ids(connection, presence)?;
+    let (where_clause, values, _) = filter_sql(query, &offline)?;
+    let mut statement = connection.prepare(&format!("SELECT gf.id {FROM} {where_clause} LIMIT {cap}")).map_err(|e| e.to_string())?;
+    let rows = statement.query_map(params_from_iter(values.iter()), |r| r.get(0)).map_err(|e| e.to_string())?;
+    rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
+}
+
+/// Run a page of the library with filters applied.
+///
+/// Two phases: (1) find the ids for the requested page using only indexed columns,
+/// (2) load full details, availability and duplicate counts for just those rows.
+pub fn query_games(connection: &Connection, query: &GameQuery, presence: PresenceFn) -> Result<GamePage, String> {
+    let limit = query.limit.unwrap_or(DEFAULT_PAGE_SIZE).clamp(1, MAX_PAGE_SIZE);
+    let offline = offline_storage_ids(connection, presence)?;
+    let (where_clause, values, filtered) = filter_sql(query, &offline)?;
     let (page_from, order) = match query.sort.as_deref() {
         Some("platform") => (FROM_BY_GAME, "g.platform, g.canonical_title COLLATE NOCASE, g.rowid, fl.id"),
         Some("size") => (FROM_BY_FILE, "gf.file_role DESC, gf.payload_bytes DESC, fl.id"),
