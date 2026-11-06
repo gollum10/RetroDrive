@@ -390,11 +390,11 @@ fn set_arcade_system(catalog: State<'_, Catalog>, installation_id: String, syste
 /// Deployment plan for an installation (RDS-009): actions, conflicts and capacity.
 /// `systems` limits it to those system folders; `None` plans all. Nothing is written.
 #[tauri::command]
-async fn deployment_plan(catalog: State<'_, Catalog>, installation_id: String, systems: Option<Vec<String>>) -> Result<deployment::DeploymentPlan, String> {
+async fn deployment_plan(catalog: State<'_, Catalog>, installation_id: String, systems: Option<Vec<String>>, choices: Option<deployment::Choices>) -> Result<deployment::DeploymentPlan, String> {
     let db_path = catalog.path()?;
     tauri::async_runtime::spawn_blocking(move || {
         let connection = db::open(&db_path)?;
-        deployment::plan(&connection, &installation_id, systems.as_deref(), &volumes::presence, &volumes::space)
+        deployment::plan_with(&connection, &installation_id, systems.as_deref(), &choices.unwrap_or_default(), &volumes::presence, &volumes::space)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -430,6 +430,7 @@ struct DeployFinishedEvent {
 /// Runs in the background; progress arrives as `deploy-progress`, the result as
 /// `deploy-finished`. Only one scan or copy runs at a time.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // Tauri commands take their arguments flat.
 fn start_deployment(
     app: AppHandle,
     catalog: State<'_, Catalog>,
@@ -438,6 +439,7 @@ fn start_deployment(
     systems: Option<Vec<String>>,
     fingerprint: String,
     destination: String,
+    choices: Option<deployment::Choices>,
 ) -> Result<String, String> {
     let db_path = catalog.path()?;
     let mut running = active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?;
@@ -457,15 +459,26 @@ fn start_deployment(
     drop(running);
 
     let id = job_id.clone();
-    tauri::async_runtime::spawn_blocking(move || run_deployment(app, db_path, id, installation_id, systems, fingerprint, cancel));
+    let choices = choices.unwrap_or_default();
+    tauri::async_runtime::spawn_blocking(move || run_deployment(app, db_path, id, installation_id, systems, fingerprint, choices, cancel));
     Ok(job_id)
 }
 
-fn run_deployment(app: AppHandle, db_path: PathBuf, job_id: String, installation_id: String, systems: Option<Vec<String>>, fingerprint: String, cancel: Arc<AtomicBool>) {
+#[allow(clippy::too_many_arguments)]
+fn run_deployment(
+    app: AppHandle,
+    db_path: PathBuf,
+    job_id: String,
+    installation_id: String,
+    systems: Option<Vec<String>>,
+    fingerprint: String,
+    choices: deployment::Choices,
+    cancel: Arc<AtomicBool>,
+) {
     let outcome = catch_unwind(AssertUnwindSafe(|| {
         let connection = db::open(&db_path)?;
         let mut observer = DeployUi { app: app.clone(), job_id: job_id.clone(), cancel };
-        let request = copier::DeployRequest { installation_id: &installation_id, systems: systems.as_deref(), fingerprint: &fingerprint };
+        let request = copier::DeployRequest { installation_id: &installation_id, systems: systems.as_deref(), fingerprint: &fingerprint, choices: &choices };
         copier::deploy(&connection, Some(&job_id), &request, &volumes::presence, &volumes::space, &mut observer)
     }))
     .unwrap_or_else(|_| Err("The copy stopped because of an internal error. Files already verified were kept; unfinished temporary files are cleaned up next time.".into()));

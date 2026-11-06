@@ -61,6 +61,8 @@ A game takes its most serious file action, so a game with one conflicting file i
 Stage temporary files in destination where feasible; stream chunks and hashes; atomically rename completed files where supported; journal each item. The full multi-file job cannot always be globally atomic, so clearly mark partial completion and support recovery/cleanup. Never mark a deployment item completed before verification.
 
 ## Conflict options
+**Implemented 2026-11-05 (step 5b, ADR-028, docs/18 §7):** per item in "Needs your attention": keep the existing file (default), **keep both** (new copy as `Name (2).ext`, single-file games, not arcade-type sets), **replace** (existing file moved to `.retrodrive/backup/<deployment>/…` first, put back on failure, cancel or crash). Clashes between library versions: copy neither (default), **use this version**, or keep both. Choices are part of the plan fingerprint.
+
 - Keep destination (default when contents differ).
 - Skip this item.
 - Replace after optional backup and explicit confirmation.

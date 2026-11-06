@@ -79,3 +79,39 @@ A separate high-effort code review (Claude Code `/code-review`) was run on the f
 - [x] ~~Unplug the drive mid-copy~~: **waived by the owner** on 2026-11-05 (the available healthy drive also holds other data). Covered by automated tests only (H8).
 - [ ] Real RetroBat: confirm copied games appear and launch in RetroBat.
 - [ ] Accept the residual risks in §4.
+
+## 7. Addendum: copy choices (step 5b, 2026-11-05)
+
+Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept duplicates named `(2)`). Adds three user-chosen outcomes to the plan. Nothing changes unless the user picks it; the defaults are unchanged (keep existing files, copy neither clashing version).
+
+| Choice | Offered for | What happens on disk |
+|---|---|---|
+| **Use this version** | Clashes (two different library files, one destination name) | The chosen file copies; the others are skipped. |
+| **Keep both** | Clashes and conflicts, **single-file games only**, **never** arcade-type sets (Arcade, Neo Geo, CPS1–3, Naomi, Atomiswave: names are romset names) | The extra copy is written as `Name (2).ext`, or the next number not used on the drive or in the plan. The existing file is untouched. |
+| **Replace** | Conflicts (a different file already on the drive), single-file games only | The existing file is **moved** (no-replace rename, same drive) to `<installation>/.retrodrive/backup/<deployment id>/<same path>`, its arrival is checked by size, then the new file is copied the usual staged, verified way. |
+
+### Hazards, mitigations and evidence
+
+| # | Hazard | Mitigation | Test |
+|---|---|---|---|
+| H15 | Replace destroys the user's file | The original is moved, never deleted or overwritten; the move uses the no-replace rename; the backup is never removed by RetroDrive | `copier::tests::replace_moves_the_original_to_the_backup_folder_then_copies` |
+| H16 | The new copy fails after the original was moved | The original is moved back into its (free) name; the item reports "your original file was put back"; if the name is somehow taken, the message gives the backup location | `a_failed_replace_puts_the_original_back` |
+| H17 | Cancel during a replace | Same as H16: cancel puts the original back | `cancelling_during_a_replace_puts_the_original_back` |
+| H18 | Crash or unplugged drive during a replace | The backup path is journaled **before** the move. On the next start, on the confirmed drive only and only for paths inside that installation's backup folder: if the new file never got its name, the original is moved back (`restored`); if it did, the replace completed (`replaced`) and the backup stays | `an_interrupted_replace_is_put_right_on_the_next_start` |
+| H19 | Keep both overwrites another file | The numbered name must be free on the drive and unused by the plan; taken numbers are skipped; the copy still uses `create_new` and the no-replace rename | `keep_both_copies_under_the_next_free_number` |
+| H20 | Renaming breaks games | Keep both and Replace are offered only for single-file games (playlists and cue sheets keep working) and never for arcade-type sets | `deployment::tests::clash_choices_pick_a_version_or_keep_both`, `conflict_choices_and_multi_file_games` |
+| H21 | The user reviewed different choices than the copy uses | Choices change destinations and actions, which are part of the plan fingerprint; the copy rebuilds the plan with the same choices and refuses on a mismatch | `clash_choices_pick_a_version_or_keep_both` (fingerprint differs) |
+| H22 | A choice that isn't offered sneaks in | Unknown or not-offered choices fall back to the default | same test ("an option that isn't offered is ignored") |
+| H23 | Windows long-path handling | Found while testing: `\\?\` paths are literal, so `/` is now converted to `\` before Win32 renames | covered by H18's test |
+
+### Evidence
+- `cargo test`: 129 passing (7 new for 5b), clippy clean.
+- Manual in the app (separate test catalog, mock RetroBat, 2026-11-05): a conflict set to **Replace** and a clash set to **Keep both** → copy finished, every file verified; on disk: `Diff.nes` = new version, original in `.retrodrive\backup\<id>\roms\nes\Diff.nes`; `Clash.nes` and `Clash (2).nes` hold the two versions; manifest records the backup path.
+
+### Residual risks (5b)
+- **Backups accumulate.** RetroDrive never deletes them; the user removes `.retrodrive\backup` folders when no longer needed. A "restore from backup" and "clear old backups" screen is a follow-up.
+- **Space.** The backup stays on the same drive, so a replace needs room for both files (counted in the plan as a copy).
+
+### Owner sign-off
+- [ ] Try one Replace and one Keep both on a real drive; confirm the backup folder and the `(2)` file.
+

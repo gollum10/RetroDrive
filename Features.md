@@ -125,7 +125,8 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 | Name clashes show their source files | ✅ | "Needs your attention" shows which library file each row is. |
 | Leave games out of the library | ✅ | **Leave out** on any game card or list row; Status: *Left out of library* shows them, with **Bring back**. Left-out games are never copied. The files stay on your drives. |
 | Clean up duplicates | ✅ | Keeps one copy of each set of identical files and leaves the rest out, after a preview with examples. Nothing is deleted. |
-| Conflict and clash choices | 📋 | RDS-017: pick one version or keep both; replace only with backup and confirmation. |
+| Conflict and clash choices | ✅ | In "Needs your attention": keep the existing file (default), **keep both** (saved as `Game (2).zip`), or **replace** (the original is moved to `.retrodriveackup` on the drive first and put back if anything goes wrong). For two different library versions: copy neither, **use this version**, or keep both. Arcade sets are never renamed. Safety review: docs/18 §7. |
+| Restore from backup / clear old backups | 📋 | Follow-up; today the originals stay in `.retrodriveackup`. |
 | File-type check per target | 📋 | RDS-018: warn when a target won't show a file type (e.g. zipped NES games on OneSauce). |
 | OneSauce / RetroFE (AtGames Legends Ultimate) | ⛔ | RDS-020, blocked on LEGAL-015 (docs/16 §6). |
 | Emulator customizer | 📋 | RDS-021: emulators, display, controls; backup and undo; own safety review. |
