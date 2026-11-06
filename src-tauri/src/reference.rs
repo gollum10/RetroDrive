@@ -92,6 +92,7 @@ fn retrodrive_platform(label: &str) -> String {
         "Super Nintendo" | "Super Nintendo Entertainment System" | "Super Famicom" => "SNES",
         "Sony PlayStation" | "PS1" => "PlayStation",
         "Sony PlayStation 2" | "PS2" => "PlayStation 2",
+        "Sony PSP" | "PlayStation Portable" | "Sony PlayStation Portable" => "PSP",
         "Neo Geo AES" | "Neo Geo MVS" => "Neo Geo",
         "TurboGrafx-16 / PC Engine" | "TurboGrafx-16" | "PC Engine / TurboGrafx-16" => "PC Engine",
         "TurboGrafx-CD" | "PC Engine CD-ROM" => "PC Engine CD",

@@ -47,6 +47,7 @@ pub(super) fn system_folder(platform: &str, extension: &str, options: PlacementO
         "Game Gear" => "gamegear",
         "PlayStation" => "psx",
         "PlayStation 2" => "ps2",
+        "PSP" => "psp",
         "Game Boy" => "gb",
         "Game Boy Color" => "gbc",
         "GBA" => "gba",
@@ -356,7 +357,7 @@ mod tests {
         assert_eq!(plan("NES", "nes", "Kid.nes"), Placement::Planned { system_folder: "nes".into(), destinations: vec!["roms/nes/Kid.nes".into()] });
         assert_eq!(plan("NES", "fds", "Disk.fds"), Placement::Planned { system_folder: "fds".into(), destinations: vec!["roms/fds/Disk.fds".into()] });
         assert_eq!(plan("Genesis", "md", "S.md"), Placement::Planned { system_folder: "megadrive".into(), destinations: vec!["roms/megadrive/S.md".into()] });
-        for (platform, folder) in [("SNES", "snes"), ("Master System", "mastersystem"), ("Game Gear", "gamegear"), ("PlayStation 2", "ps2"), ("Game Boy", "gb"), ("Game Boy Color", "gbc"), ("GBA", "gba"), ("N64", "n64")] {
+        for (platform, folder) in [("SNES", "snes"), ("Master System", "mastersystem"), ("Game Gear", "gamegear"), ("PlayStation 2", "ps2"), ("PSP", "psp"), ("Game Boy", "gb"), ("Game Boy Color", "gbc"), ("GBA", "gba"), ("N64", "n64")] {
             match plan(platform, "x", "a.x") {
                 Placement::Planned { system_folder, .. } => assert_eq!(system_folder, folder),
                 other => panic!("{platform}: {other:?}"),
