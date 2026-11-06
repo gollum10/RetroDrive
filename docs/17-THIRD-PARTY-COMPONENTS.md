@@ -69,4 +69,5 @@ RetroDrive uses names like "RetroBat", "NES", "SNES", "PlayStation" and "Genesis
 |---|---|
 | Game ROMs or disc images | **None shipped or downloaded.** Test fixtures are generated at test time (empty or zero-filled files with game-like names) and deleted afterwards. |
 | BIOS or firmware | None shipped or downloaded. |
+| RetroBat themes (e.g. Carbon, CC BY-NC-SA) | Nothing shipped. The theme builder copies a theme already on the user's drive into a new folder for personal use, keeps its credits and license, and adds a note. Users choose their own pictures and fonts. | No | Remixes stay on the user's drive. |
 | Game artwork, screenshots, manuals or metadata | None shipped or fetched; online providers are not planned (ADR-033). Images already on the user's drives are linked and displayed locally, never copied (ADR-025). |

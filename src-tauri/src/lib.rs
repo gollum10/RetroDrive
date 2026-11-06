@@ -17,6 +17,7 @@ mod media;
 mod paths;
 mod reference;
 mod restore;
+mod themes;
 mod scanner;
 mod volumes;
 
@@ -364,6 +365,48 @@ async fn undo_emulator_settings(catalog: State<'_, Catalog>, active: State<'_, A
     result?
 }
 
+/// RetroBat's themes and what can be changed in each (reads only).
+#[tauri::command]
+async fn list_themes(catalog: State<'_, Catalog>, installation_id: String) -> Result<themes::ThemeList, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || themes::list(&db::open(&db_path)?, &installation_id, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// A picture or font as a data URL for the theme preview.
+#[tauri::command]
+async fn theme_preview_asset(path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || themes::preview_asset(&path)).await.map_err(|e| e.to_string())?
+}
+
+/// Save a remix of an installed theme as a new theme folder (the original is never changed).
+#[tauri::command]
+async fn create_theme_remix(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, remix: themes::Remix) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || themes::create(&db::open(&db_path)?, &installation_id, &remix, &volumes::presence, &|p: &Path| volumes::space(p).map(|s| s.free_bytes)))
+        .await
+        .map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
+/// What making a theme RetroBat's theme would change (reads only).
+#[tauri::command]
+async fn preview_theme_switch(catalog: State<'_, Catalog>, installation_id: String, theme: String) -> Result<customizer::Preview, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || customizer::preview_theme(&db::open(&db_path)?, &installation_id, &theme, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Make a theme RetroBat's theme (reviewed, backed up, undoable like other settings).
+#[tauri::command]
+async fn apply_theme_switch(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, theme: String, file_sha: String) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || customizer::apply_theme(&db::open(&db_path)?, &installation_id, &theme, &file_sha, &volumes::presence, &customizer::retrobat_running)).await.map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
 /// Games and size per platform for the library's Systems page.
 #[tauri::command]
 async fn system_summary(catalog: State<'_, Catalog>) -> Result<Vec<catalog::SystemSummary>, String> {
@@ -698,6 +741,11 @@ pub fn run() {
             deployment_plan,
             system_summary,
             list_backups,
+            list_themes,
+            theme_preview_asset,
+            create_theme_remix,
+            preview_theme_switch,
+            apply_theme_switch,
             emulator_settings,
             preview_emulator_settings,
             apply_emulator_settings,

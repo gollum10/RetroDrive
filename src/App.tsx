@@ -4,7 +4,7 @@ import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import sidebarArtUrl from './assets/retrodrive-sidebar-art.png';
 import iconUrl from './assets/retrodrive-icon.png';
-import { Activity, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, CircleStop, Copy, Database, Eye, History, Plus, SlidersHorizontal, Undo2, XCircle, FolderOpen, Gamepad2, HardDrive, LayoutDashboard, LayoutGrid, LibraryBig, List, RefreshCcw, Search, Settings2, ShieldCheck } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, CircleStop, Copy, Database, Eye, History, Palette, Plus, SlidersHorizontal, Undo2, XCircle, FolderOpen, Gamepad2, HardDrive, LayoutDashboard, LayoutGrid, LibraryBig, List, RefreshCcw, Search, Settings2, ShieldCheck } from 'lucide-react';
 
 type Availability = 'online'|'offline'|'missing';
 type Game = { id: string; game_id: string; title: string; platform: string; path: string; file_size: number; disc_count: number; incomplete: boolean; storage_name: string; availability: Availability; duplicate_count: number; reference: RefInfo|null; file_id: string; art: string|null };
@@ -53,12 +53,41 @@ type AdapterInfo = { id: string; display_name: string; kind: 'portable_app'|'boo
 type Detection = { adapter_id: string; display_name: string; kind: string; confidence: 'not_detected'|'possible'|'detected'; evidence: string[]; version: string|null; hint: string|null };
 type LayoutCheck = { id: string; label: string; status: 'ok'|'warning'|'problem'; detail: string };
 type Inspection = { path: string; detections: Detection[]; best: Detection|null; checks: LayoutCheck[] };
+type ThemeVar = { name: string; value: string; kind: 'color'|'image'; path: string|null };
+type ThemeInfo = { folder: string; path: string; active: boolean; credits: string[]; variables: ThemeVar[]; fonts: string[]; bytes: number; files: number; remixed_from: string|null; problem: string|null };
+type ThemeList = { installation_path: string; themes_path: string; active: string|null; themes: ThemeInfo[] };
+/** Words from a theme variable name: baseColor -> Base color. */
+const varLabel=(n:string)=>{ const w=n.replace(/([a-z])([A-Z])/g,'$1 $2').toLowerCase(); return w.charAt(0).toUpperCase()+w.slice(1); };
+/** ES colors are RRGGBB or RRGGBBAA; CSS takes #RRGGBBAA. */
+const cssColor=(v:string|undefined, fallback:string)=> v&&/^[0-9a-f]{6}([0-9a-f]{2})?$/i.test(v) ? `#${v}` : fallback;
+/** Preview fonts loaded so far: data URL -> font family name. */
+const previewFonts=new Map<string,string>();
+function previewFamily(url:string|null):string|null { if(!url) return null; let family=previewFonts.get(url); if(!family){ family=`RDThemeFont${previewFonts.size+1}`; previewFonts.set(url,family); try { const ff=new FontFace(family,`url(${url})`); void ff.load().then(f=>{ document.fonts.add(f); }).catch(()=>undefined); } catch { /* preview only */ } } return family; }
+const SAMPLE_GAMES=['Adventure Island','Battle Racer','Castle Quest','Dragon Valley','Echo Run','Final Lap','Galaxy Force','Hero Tales'];
+/** An approximate RetroBat screen in the theme's colors, picture and font (only RetroBat draws the real thing). */
+function ThemeMockup({ vars, background, font }: { vars: Record<string,string>; background: string|null; font: string|null }) {
+  const accent=cssColor(vars.baseColor??Object.values(vars).find(v=>/^[0-9a-f]{6}/i.test(v)), '#3675ca');
+  const bg=cssColor(vars.backgroundColor,'#101820'); const bar=cssColor(vars.bottomBarColor,accent); const glow=cssColor(vars.glowColor,'#ffffff20'); const fade=cssColor(vars.centerFadeColor,'#00000000'); const info=cssColor(vars.systemInfoColor,'#ffffffcc');
+  const family=font?`${font}, sans-serif`:'sans-serif';
+  const screen:React.CSSProperties={ background:`${bg}`, backgroundImage:background?`radial-gradient(circle, ${fade}, transparent 70%), url("${background}")`:`radial-gradient(circle, ${fade}, transparent 70%)`, backgroundSize:'cover', fontFamily:family };
+  return <div className="mockups">
+    <div className="mock" style={screen}><div className="mock-title" style={{color:info}}>SYSTEMS</div>
+      <div className="mock-carousel">{['NES','Super Nintendo','Genesis'].map((n,i)=><div key={n} className="mock-tile" style={i===1?{borderColor:accent, boxShadow:`0 0 18px ${glow}`, color:'#fff'}:{color:info}}>{n}</div>)}</div>
+      <div className="mock-info" style={{color:info}}>214 games · 48 favorites</div>
+      <div className="mock-bar" style={{background:bar}}>A select · B back · START menu</div></div>
+    <div className="mock" style={screen}><div className="mock-title" style={{color:info}}>SUPER NINTENDO</div>
+      <div className="mock-list">{SAMPLE_GAMES.map((g,i)=><div key={g} style={i===2?{background:accent, color:'#fff'}:{color:info}}>{g}</div>)}</div>
+      <div className="mock-art" style={{borderColor:accent}}>box art</div>
+      <div className="mock-bar" style={{background:bar}}>A launch · Y favorite · SELECT options</div></div>
+    <small className="plan-notes">Approximate preview: RetroBat lays the theme out its own way.</small>
+  </div>;
+}
 type EmuChoice = { label: string; value: string };
 type SystemSettings = { system: string; name: string; has_games: boolean; emulators: { emulator: string; cores: string[] }[]; current: Record<string,string> };
 type SettingsOptions = { installation_path: string; systems: SystemSettings[]; shaders: EmuChoice[]; bezels: EmuChoice[]; ratios: EmuChoice[]; integer_scaling: EmuChoice[]; file_sha: string; blocked: string|null };
 type SettingChange = { system: string; key: string; before: string|null; after: string|null };
 type SettingsHistory = { id: number; when: string; state: string; changes: SettingChange[]; message: string|null; blocked: string|null };
-const settingLabel: Record<string,string> = { emulator:'Emulator', core:'Core', shaderset:'Shader', bezel:'Bezel', ratio:'Aspect ratio', integerscale:'Integer scaling' };
+const settingLabel: Record<string,string> = { emulator:'Emulator', core:'Core', shaderset:'Shader', bezel:'Bezel', ratio:'Aspect ratio', integerscale:'Integer scaling', ThemeSet:'Theme' };
 type BackupRow = { item_id: number; game_title: string; path: string; state: 'replaced'|'undone'; backup: string|null; backup_bytes: number|null; when: string; blocked: string|null };
 type BackupList = { installation_path: string; connected: boolean; rows: BackupRow[]; folder_bytes: number };
 type Installation = { id: string; adapter_id: string; adapter_name: string; path: string; version: string|null; presence: 'connected'|'not_connected'|'other_volume'; checks: LayoutCheck[]; added_at: string; arcade_system: 'mame'|'fbneo'|null };
@@ -264,6 +293,20 @@ export default function App() {
     try { const m=await invoke<string>('undo_emulator_settings',{changeId:h.id}); setError(false); setMessage(`RetroBat settings: ${m}`); }
     catch(e){ setError(true); setMessage(`Could not undo: ${String(e)}`); }
     finally { setEmuBusy(false); setEmuUndo(null); try { await loadEmu(emu.id); } catch { /* refresh is best effort */ } } };
+  const [themes,setThemes]=useState<{id:string; list:ThemeList}|null>(null); const [remix,setRemix]=useState<{base:ThemeInfo; name:string; colors:Record<string,string>; images:Record<string,string>; fonts:Record<string,string>}|null>(null);
+  const [assets,setAssets]=useState<Record<string,string>>({}); const [themeBusy,setThemeBusy]=useState(false); const [switchTo,setSwitchTo]=useState<{theme:string; changes:SettingChange[]; file_sha:string}|null>(null); const [switchConfirm,setSwitchConfirm]=useState(false);
+  const asset=async(path:string|null|undefined)=>{ if(!path) return null; if(assets[path]) return assets[path]; try { const url=await invoke<string>('theme_preview_asset',{path}); setAssets(a=>({...a,[path]:url})); return url; } catch { return null; } };
+  const loadThemes=async(id:string)=>setThemes({id, list: await invoke<ThemeList>('list_themes',{installationId:id})});
+  const showThemes=async(id:string)=>{ if(themes?.id===id){ setThemes(null); setRemix(null); return; } setRemix(null); setSwitchTo(null); try { await loadThemes(id); } catch(e){ setError(true); setMessage(`Could not read the themes: ${String(e)}`); } };
+  const startRemix=(t:ThemeInfo)=>{ setRemix({base:t, name:`${t.folder} remix`, colors:{}, images:{}, fonts:{}}); const bg=t.variables.find(v=>v.kind==='image'); void asset(bg?.path); const f=t.fonts.find(x=>/regular/i.test(x))??t.fonts[0]; if(f) void asset(`${t.path}\\${f.replace(/\//g,'\\')}`); };
+  const pickRemixFile=async(kind:'images'|'fonts', key:string)=>{ const path=await open({multiple:false,directory:false,title:kind==='images'?'Choose your picture':'Choose your font',filters:[kind==='images'?{name:'Pictures',extensions:['png','jpg','jpeg']}:{name:'Fonts',extensions:['ttf','otf']}]}); if(!path||typeof path!=='string') return; await asset(path); setRemix(r=>r&&({...r,[kind]:{...r[kind],[key]:path}})); };
+  const saveRemix=async()=>{ if(!themes||!remix) return; setThemeBusy(true); setMessage(`Saving "${remix.name}": copying ${fmtSize(remix.base.bytes)} of ${remix.base.folder}. This can take a few minutes on a USB drive…`); setError(false);
+    try { const folder=await invoke<string>('create_theme_remix',{installationId:themes.id, remix:{base:remix.base.folder, name:remix.name, colors:remix.colors, images:remix.images, fonts:remix.fonts}}); setMessage(`Theme "${folder}" saved next to ${remix.base.folder} (which wasn't changed). Use it in RetroBat when you're ready.`); setRemix(null); await loadThemes(themes.id); }
+    catch(e){ setError(true); setMessage(`Could not save the theme: ${String(e)}`); } finally { setThemeBusy(false); } };
+  const reviewSwitch=async(theme:string)=>{ if(!themes) return; try { const p=await invoke<{changes:SettingChange[]; file_sha:string}>('preview_theme_switch',{installationId:themes.id, theme}); setSwitchTo({theme, ...p}); setSwitchConfirm(false); } catch(e){ setError(true); setMessage(String(e)); } };
+  const applySwitch=async()=>{ if(!themes||!switchTo) return; if(!switchConfirm){ setSwitchConfirm(true); return; } setThemeBusy(true);
+    try { const m=await invoke<string>('apply_theme_switch',{installationId:themes.id, theme:switchTo.theme, fileSha:switchTo.file_sha}); setError(false); setMessage(`RetroBat theme: ${m} Undo it under Emulator settings → Changes made.`); setSwitchTo(null); await loadThemes(themes.id); }
+    catch(e){ setError(true); setMessage(`Could not switch the theme: ${String(e)}`); } finally { setThemeBusy(false); setSwitchConfirm(false); } };
   const openBackupFolder=async(id:string)=>{ try { await invoke('open_backup_folder',{installationId:id}); } catch(e){ setError(true); setMessage(String(e)); } };
   const forgetInstallation=async(id:string)=>{
     if(forgetting!==id){ setForgetting(id); return; }
@@ -414,9 +457,33 @@ export default function App() {
       <h2>Your installations</h2>
       {installs.length===0 ? <div className="empty">No installations yet. Click <b>&nbsp;Add existing installation&nbsp;</b> and pick your RetroBat folder or Batocera game folder.</div> : installs.map(ins=><article className="installation" key={ins.id}>
         <div className="installation-head"><div><b>{ins.adapter_name}</b><small className="mono">{ins.path}</small><small className={'presence '+ins.presence}>{installPresence[ins.presence]} · {ins.version?`Version ${ins.version}`:'Version unknown'}</small></div>
-          <div className="actions"><button className="primary" disabled={ins.presence!=='connected'||planLoading!==null} onClick={()=>void showPlan(ins.id, null, {}, '')}><Eye size={16}/>{planLoading===ins.id?'Planning...':'Plan deployment'}</button>{ins.adapter_id==='retrobat'&&<button className="ghost" onClick={()=>void showEmu(ins.id)}><SlidersHorizontal size={16}/>{emu?.id===ins.id?'Hide emulator settings':'Emulator settings'}</button>}<button className="ghost" onClick={()=>void showBackups(ins.id)}><History size={16}/>{backups?.id===ins.id?'Hide backups':'Backups'}</button><button className="ghost" onClick={()=>void forgetInstallation(ins.id)} onBlur={()=>setForgetting(null)}>{forgetting===ins.id?'Click again to forget':'Forget'}</button></div></div>
+          <div className="actions"><button className="primary" disabled={ins.presence!=='connected'||planLoading!==null} onClick={()=>void showPlan(ins.id, null, {}, '')}><Eye size={16}/>{planLoading===ins.id?'Planning...':'Plan deployment'}</button>{ins.adapter_id==='retrobat'&&<button className="ghost" onClick={()=>void showThemes(ins.id)}><Palette size={16}/>{themes?.id===ins.id?'Hide themes':'Themes'}</button>}{ins.adapter_id==='retrobat'&&<button className="ghost" onClick={()=>void showEmu(ins.id)}><SlidersHorizontal size={16}/>{emu?.id===ins.id?'Hide emulator settings':'Emulator settings'}</button>}<button className="ghost" onClick={()=>void showBackups(ins.id)}><History size={16}/>{backups?.id===ins.id?'Hide backups':'Backups'}</button><button className="ghost" onClick={()=>void forgetInstallation(ins.id)} onBlur={()=>setForgetting(null)}>{forgetting===ins.id?'Click again to forget':'Forget'}</button></div></div>
         <div className="arcade-choice"><label>Arcade games go to <select value={ins.arcade_system??''} disabled={busy} onChange={e=>void setArcade(ins.id, e.target.value)}><option value="">Not chosen (arcade games aren't placed)</option><option value="mame">MAME (roms\mame)</option><option value="fbneo">FinalBurn Neo (roms\fbneo)</option></select></label>
           <small>Pick the emulator your arcade romset was made for: romset versions must match the emulator.{ins.adapter_id==='retrobat'?' RetroBat recommends non-merged sets and doesn\'t support merged ones.':''}{ins.adapter_id==='batocera'?' On Batocera, CPS1/2/3 games go here too.':''} CHD disks aren't placed yet.</small></div>
+        {themes?.id===ins.id&&<div className="backups themes"><h3>Themes</h3>
+          <p className="plan-notes">The look of RetroBat's menus. <b>Remix</b> makes your own version of a theme with your colors, pictures and fonts. It's saved as a new theme; the original is never changed. Theme credits and licenses stay with every remix.</p>
+          {!remix&&<div className="theme-grid">{themes.list.themes.map(t=><article key={t.folder} className={'theme-card'+(t.active?' active':'')}>
+            <div className="swatches">{t.variables.filter(v=>v.kind==='color').slice(0,6).map(v=><span key={v.name} title={`${varLabel(v.name)}: ${v.value}`} style={{background:cssColor(v.value,'#000')}}/>)}</div>
+            <b>{t.folder}</b>{t.active&&<span className="tag identical">In use</span>}<small>{t.remixed_from?`Remix of ${t.remixed_from} · `:''}{fmtSize(t.bytes)} · {t.files.toLocaleString()} files</small>
+            {t.credits.length>0&&<small className="credits" title={t.credits.join('\n')}>{t.credits.slice(0,2).join(' · ')}</small>}
+            <div className="actions"><button className="ghost" disabled={!!t.problem||themeBusy} title={t.problem??''} onClick={()=>startRemix(t)}><Palette size={15}/> Remix</button>{!t.active&&<button className="ghost" disabled={themeBusy} onClick={()=>void reviewSwitch(t.folder)}>Use in RetroBat</button>}</div>
+            {t.problem&&<small className="warn-text">{t.problem}</small>}</article>)}</div>}
+          {switchTo&&!remix&&<div className="confirm"><p><b>Make "{switchTo.theme}" RetroBat's theme?</b></p><ul>{switchTo.changes.map(c=><li key={c.key}>Theme: {c.before??'default'} → <b>{c.after}</b></li>)}<li>Only works while RetroBat is closed. The previous settings file is kept and you can undo.</li></ul>
+            <div className="actions"><button className="primary" disabled={themeBusy} onClick={()=>void applySwitch()}>{switchConfirm?'Click again to switch':'Switch theme'}</button><button className="ghost" onClick={()=>setSwitchTo(null)}>Not now</button></div></div>}
+          {remix&&(()=>{ const vars:Record<string,string>={}; remix.base.variables.forEach(v=>{ vars[v.name]=remix.colors[v.name]??v.value; });
+            const bgVar=remix.base.variables.find(v=>v.kind==='image'); const bgPath=bgVar?(remix.images[bgVar.name]??bgVar.path):null; const regular=remix.base.fonts.find(x=>/regular/i.test(x))??remix.base.fonts[0];
+            const fontPath=regular?(remix.fonts[regular]??`${remix.base.path}\\${regular.replace(/\//g,'\\')}`):null; const fontUrl=fontPath?assets[fontPath]??null:null;
+            return <div className="remix"><div className="remix-form">
+              <label>New theme name <input value={remix.name} maxLength={60} onChange={e=>setRemix({...remix, name:e.target.value})}/></label>
+              <small className="plan-notes">Based on <b>{remix.base.folder}</b>. Saving copies it ({fmtSize(remix.base.bytes)}), then changes only the copy.</small>
+              <h4>Colors</h4>{remix.base.variables.filter(v=>v.kind==='color').map(v=>{ const value=remix.colors[v.name]??v.value; const alpha=value.length===8?value.slice(6):'';
+                return <label key={v.name} className="color-row"><input type="color" value={`#${value.slice(0,6)}`} onChange={e=>setRemix({...remix, colors:{...remix.colors,[v.name]:e.target.value.slice(1)+alpha}})}/>{varLabel(v.name)}<span className="mono">{value}</span>{remix.colors[v.name]&&<button className="link" onClick={()=>{ const c={...remix.colors}; delete c[v.name]; setRemix({...remix, colors:c}); }}>reset</button>}</label>; })}
+              {remix.base.variables.filter(v=>v.kind==='image').map(v=><div key={v.name}><h4>{varLabel(v.name)}</h4><button className="ghost" onClick={()=>void pickRemixFile('images',v.name)}>Choose your picture…</button> <small className="mono">{remix.images[v.name]?shortPath(remix.images[v.name]):v.value}</small></div>)}
+              {remix.base.fonts.length>0&&<><h4>Fonts</h4>{remix.base.fonts.map(f=><div key={f} className="font-row"><span className="mono">{f.split('/').pop()}</span><button className="ghost" onClick={()=>void pickRemixFile('fonts',f)}>Replace with my font…</button>{remix.fonts[f]&&<small className="mono">{shortPath(remix.fonts[f])}</small>}</div>)}</>}
+              <div className="actions"><button className="primary" disabled={themeBusy||!remix.name.trim()||(Object.keys(remix.colors).length+Object.keys(remix.images).length+Object.keys(remix.fonts).length===0)} onClick={()=>void saveRemix()}>{themeBusy?'Saving…':'Save theme'}</button><button className="ghost" disabled={themeBusy} onClick={()=>setRemix(null)}>Cancel</button></div>
+              <small className="plan-notes">Use only pictures and fonts you have the right to use. They stay on your drive; RetroDrive never shares them.</small>
+            </div><ThemeMockup vars={vars} background={bgPath?assets[bgPath]??null:null} font={previewFamily(fontUrl)}/></div>; })()}
+        </div>}
         {emu?.id===ins.id&&(()=>{ const o=emu.options; const shown=o.systems.filter(x=>emuAll||x.has_games||Object.keys(x.current).length>0); const count=Object.keys(pending).length;
           const pick=(sys:SystemSettings,key:string,choices:EmuChoice[])=> <select className="choice" aria-label={`${sys.name} ${settingLabel[key]}`} value={emuValue(sys,key)} disabled={emuBusy} onChange={e=>setEmuValue(sys,{[key]:e.target.value||null})}><option value="">AUTO</option>{choices.map(c=><option key={c.value} value={c.value}>{c.label}</option>)}{emuValue(sys,key)&&!choices.some(c=>c.value===emuValue(sys,key))&&<option value={emuValue(sys,key)}>{emuValue(sys,key)} (current)</option>}</select>;
           return <div className="backups emu"><h3>Emulator settings</h3>
