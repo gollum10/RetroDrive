@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 14;
+pub const SCHEMA_VERSION: i32 = 15;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -172,6 +172,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 14 {
         tx.execute_batch(SCHEMA_V14).map_err(|e| e.to_string())?;
+    }
+    if from_version < 15 {
+        tx.execute_batch(SCHEMA_V15).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -857,6 +860,12 @@ END;
 CREATE INDEX idx_game_files_included_role ON game_files(file_role) WHERE excluded_at IS NULL;
 -- Table statistics let SQLite pick the title index for the A-Z bar instead of scanning every file.
 ANALYZE;
+";
+
+/// v15: undoing a replace (`restore.rs`). `undo_path` is where RetroDrive's copy was
+/// moved when the original was put back; item states add `undoing` and `undone`.
+const SCHEMA_V15: &str = "
+ALTER TABLE deployment_items ADD COLUMN undo_path TEXT;
 ";
 
 #[cfg(test)]

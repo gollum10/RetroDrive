@@ -105,3 +105,6 @@ th.pick,td.pick{width:34px}tr.unpicked td{opacity:.5}
 .what-to-copy{margin:6px 0 10px;font-size:13px;color:#c4d3e4}.what-to-copy select{margin-left:10px;background:#0f1724;color:#e9edf5;border:1px solid #32465f;border-radius:8px;padding:7px 10px}
 
 .preview-note{display:flex;align-items:center;gap:8px;margin:0;color:#b5c7dc;font-size:14px}
+.backups{margin:14px 0;padding:14px 16px;border:1px solid rgba(255,255,255,.08);border-radius:12px}
+.backups h3{margin:0 0 6px}
+.backups td small{display:block}

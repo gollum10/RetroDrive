@@ -4,7 +4,7 @@ import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import sidebarArtUrl from './assets/retrodrive-sidebar-art.png';
 import iconUrl from './assets/retrodrive-icon.png';
-import { Activity, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, CircleStop, Copy, Database, Eye, Plus, XCircle, FolderOpen, Gamepad2, HardDrive, LayoutDashboard, LayoutGrid, LibraryBig, List, RefreshCcw, Search, Settings2, ShieldCheck } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, CircleStop, Copy, Database, Eye, History, Plus, Undo2, XCircle, FolderOpen, Gamepad2, HardDrive, LayoutDashboard, LayoutGrid, LibraryBig, List, RefreshCcw, Search, Settings2, ShieldCheck } from 'lucide-react';
 
 type Availability = 'online'|'offline'|'missing';
 type Game = { id: string; game_id: string; title: string; platform: string; path: string; file_size: number; disc_count: number; incomplete: boolean; storage_name: string; availability: Availability; duplicate_count: number; reference: RefInfo|null; file_id: string; art: string|null };
@@ -38,6 +38,8 @@ function remember(key: string, value: string) { try { localStorage.setItem(key, 
 function platformHue(name: string): number { let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
 function initials(title: string): string { const words = title.replace(/\(.*?\)|\[.*?\]/g, '').split(/[\s:\-_]+/).filter(w => /[A-Za-z0-9]/.test(w)); return (words.slice(0, 2).map(w => w[0]).join('') || '?').toUpperCase(); }
 /** Keep the drive and the last folders visible, e.g. C:\…\roms\snes\Game.sfc */
+/** SQLite timestamps are UTC (`YYYY-MM-DD HH:MM:SS`); show them in local time. */
+function localTime(utc: string): string { const d=new Date(utc.replace(' ','T')+'Z'); return isNaN(d.getTime())?utc:d.toLocaleString(); }
 function shortPath(path: string): string {
   const sep = path.includes('\\') ? '\\' : '/';
   const unc = path.startsWith('\\\\');
@@ -51,6 +53,8 @@ type AdapterInfo = { id: string; display_name: string; kind: 'portable_app'|'boo
 type Detection = { adapter_id: string; display_name: string; kind: string; confidence: 'not_detected'|'possible'|'detected'; evidence: string[]; version: string|null; hint: string|null };
 type LayoutCheck = { id: string; label: string; status: 'ok'|'warning'|'problem'; detail: string };
 type Inspection = { path: string; detections: Detection[]; best: Detection|null; checks: LayoutCheck[] };
+type BackupRow = { item_id: number; game_title: string; path: string; state: 'replaced'|'undone'; backup: string|null; backup_bytes: number|null; when: string; blocked: string|null };
+type BackupList = { installation_path: string; connected: boolean; rows: BackupRow[]; folder_bytes: number };
 type Installation = { id: string; adapter_id: string; adapter_name: string; path: string; version: string|null; presence: 'connected'|'not_connected'|'other_volume'; checks: LayoutCheck[]; added_at: string; arcade_system: 'mame'|'fbneo'|null };
 type PlanAction = 'in_place'|'already_there'|'duplicate'|'skipped'|'copy'|'replace'|'conflict'|'blocked';
 type ChoiceInfo = { key: string; situation: 'conflict'|'clash'; options: ('keep'|'use'|'keep_both'|'replace')[]; current: 'keep'|'use'|'keep_both'|'replace'; file_id: string };
@@ -228,6 +232,16 @@ export default function App() {
       setError(false); setMessage(system?`Arcade games will go to roms\\${system}. Nothing has been copied.`:'Arcade games will not be placed.');
     } catch(e){ setError(true); setMessage(`Could not save the arcade choice: ${String(e)}`); }
   };
+  const [backups,setBackups]=useState<{id:string; list:BackupList}|null>(null); const [undoing,setUndoing]=useState<number|null>(null); const [undoBusy,setUndoBusy]=useState(false);
+  const showBackups=async(id:string)=>{ if(backups?.id===id){ setBackups(null); return; } try { setBackups({id, list: await invoke<BackupList>('list_backups',{installationId:id})}); setUndoing(null); } catch(e){ setError(true); setMessage(`Could not list the backups: ${String(e)}`); } };
+  const undoReplace=async(id:string, row:BackupRow)=>{
+    if(undoing!==row.item_id){ setUndoing(row.item_id); return; }
+    setUndoBusy(true);
+    try { const m=await invoke<string>('undo_replace',{itemId:row.item_id}); setError(false); setMessage(`${row.game_title}: ${m}`); }
+    catch(e){ setError(true); setMessage(`Could not undo the replace: ${String(e)}`); }
+    finally { setUndoBusy(false); setUndoing(null); try { setBackups({id, list: await invoke<BackupList>('list_backups',{installationId:id})}); } catch { /* list refresh is best effort */ } }
+  };
+  const openBackupFolder=async(id:string)=>{ try { await invoke('open_backup_folder',{installationId:id}); } catch(e){ setError(true); setMessage(String(e)); } };
   const forgetInstallation=async(id:string)=>{
     if(forgetting!==id){ setForgetting(id); return; }
     try { await invoke<boolean>('remove_installation',{id}); setForgetting(null); if(plan?.installation_id===id) setPlan(null); setMessage('Installation forgotten. No files were touched.'); await load(); }
@@ -377,9 +391,16 @@ export default function App() {
       <h2>Your installations</h2>
       {installs.length===0 ? <div className="empty">No installations yet. Click <b>&nbsp;Add existing installation&nbsp;</b> and pick your RetroBat folder or Batocera game folder.</div> : installs.map(ins=><article className="installation" key={ins.id}>
         <div className="installation-head"><div><b>{ins.adapter_name}</b><small className="mono">{ins.path}</small><small className={'presence '+ins.presence}>{installPresence[ins.presence]} · {ins.version?`Version ${ins.version}`:'Version unknown'}</small></div>
-          <div className="actions"><button className="primary" disabled={ins.presence!=='connected'||planLoading!==null} onClick={()=>void showPlan(ins.id, null, {}, '')}><Eye size={16}/>{planLoading===ins.id?'Planning...':'Plan deployment'}</button><button className="ghost" onClick={()=>void forgetInstallation(ins.id)} onBlur={()=>setForgetting(null)}>{forgetting===ins.id?'Click again to forget':'Forget'}</button></div></div>
+          <div className="actions"><button className="primary" disabled={ins.presence!=='connected'||planLoading!==null} onClick={()=>void showPlan(ins.id, null, {}, '')}><Eye size={16}/>{planLoading===ins.id?'Planning...':'Plan deployment'}</button><button className="ghost" onClick={()=>void showBackups(ins.id)}><History size={16}/>{backups?.id===ins.id?'Hide backups':'Backups'}</button><button className="ghost" onClick={()=>void forgetInstallation(ins.id)} onBlur={()=>setForgetting(null)}>{forgetting===ins.id?'Click again to forget':'Forget'}</button></div></div>
         <div className="arcade-choice"><label>Arcade games go to <select value={ins.arcade_system??''} disabled={busy} onChange={e=>void setArcade(ins.id, e.target.value)}><option value="">Not chosen (arcade games aren't placed)</option><option value="mame">MAME (roms\mame)</option><option value="fbneo">FinalBurn Neo (roms\fbneo)</option></select></label>
           <small>Pick the emulator your arcade romset was made for: romset versions must match the emulator.{ins.adapter_id==='retrobat'?' RetroBat recommends non-merged sets and doesn\'t support merged ones.':''}{ins.adapter_id==='batocera'?' On Batocera, CPS1/2/3 games go here too.':''} CHD disks aren't placed yet.</small></div>
+        {backups?.id===ins.id&&<div className="backups"><h3>Replaced files</h3>
+          <p className="plan-notes">When you chose <b>Replace</b>, the drive's original was moved to <span className="mono">.retrodrive\backup</span>. <b>Undo replace</b> puts the original back and moves RetroDrive's copy into the backup folder instead. Nothing is deleted.{backups.list.folder_bytes>0?` The backup folder holds ${fmtSize(backups.list.folder_bytes)}.`:''}</p>
+          {backups.list.rows.length===0?<p className="plan-notes">No files have been replaced on this installation.</p>:<div className="table-wrap"><table><thead><tr><th>Game</th><th>File</th><th>When</th><th></th></tr></thead><tbody>{backups.list.rows.map(r=><tr key={r.item_id}><td><b>{r.game_title}</b>{r.backup&&<small className="mono" title={r.backup}>{r.state==='undone'?'RetroDrive’s copy: ':'Original: '}{shortPath(r.backup)}{r.backup_bytes!==null?` · ${fmtSize(r.backup_bytes)}`:''}</small>}</td><td className="mono" title={r.path}>{shortPath(r.path)}</td><td>{localTime(r.when)}</td>
+            <td>{r.state==='undone'?<span className="tag identical">Undone</span>:r.blocked?<small className="warn-text" title={r.blocked}>{r.blocked}</small>:<button className={undoing===r.item_id?'primary':'ghost'} disabled={undoBusy||busy} onClick={()=>void undoReplace(ins.id, r)} onBlur={()=>{ if(!undoBusy) setUndoing(null); }}><Undo2 size={15}/>{undoBusy&&undoing===r.item_id?'Undoing…':undoing===r.item_id?'Click again to undo':'Undo replace'}</button>}</td></tr>)}</tbody></table></div>}
+          <div className="actions"><button className="ghost" disabled={!backups.list.connected} onClick={()=>void openBackupFolder(ins.id)}><FolderOpen size={16}/> Open backup folder</button></div>
+          <small className="plan-notes">To free up space, delete files from the backup folder yourself; RetroDrive never deletes them.</small>
+        </div>}
         {ins.checks.length>0&&<Checks checks={ins.checks}/>}
       </article>)}
     </section>

@@ -15,6 +15,7 @@ mod jobs;
 mod media;
 mod paths;
 mod reference;
+mod restore;
 mod scanner;
 mod volumes;
 
@@ -51,9 +52,12 @@ struct ActiveJobs {
     /// True while a reference catalog is being imported (it rewrites catalog tables,
     /// so scans and copies wait for it, and it waits for them).
     importing: AtomicBool,
+    /// True while a replace is being undone (it moves files on a drive).
+    undoing: AtomicBool,
 }
 
 const BUSY_IMPORTING: &str = "The reference catalog is being imported. Start this when it has finished.";
+const BUSY_UNDOING: &str = "A replace is being undone. Start this when it has finished.";
 
 struct ActiveJob {
     cancel: Arc<AtomicBool>,
@@ -149,6 +153,9 @@ async fn import_reference(app: AppHandle, catalog: State<'_, Catalog>, active: S
         let running = active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?;
         if !running.is_empty() {
             return Err("A scan or copy is running. Import the catalog when it has finished.".into());
+        }
+        if active.undoing.load(Ordering::SeqCst) {
+            return Err(BUSY_UNDOING.into());
         }
         if active.importing.swap(true, Ordering::SeqCst) {
             return Err(BUSY_IMPORTING.into());
@@ -272,6 +279,38 @@ fn remove_from_collection(catalog: State<'_, Catalog>, id: String, file_ids: Vec
     collections::remove(&db::open(&catalog.path()?)?, &id, &file_ids)
 }
 
+/// Replaced files and their backups for one installation.
+#[tauri::command]
+async fn list_backups(catalog: State<'_, Catalog>, installation_id: String) -> Result<restore::BackupList, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || restore::list(&db::open(&db_path)?, &installation_id, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Undo one replace: swap the original back (docs/18 §10). Never deletes anything.
+#[tauri::command]
+async fn undo_replace(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, item_id: i64) -> Result<String, String> {
+    {
+        let running = active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?;
+        if !running.is_empty() || active.importing.load(Ordering::SeqCst) {
+            return Err("A scan, copy or import is running. Undo the replace when it has finished.".into());
+        }
+        if active.undoing.swap(true, Ordering::SeqCst) {
+            return Err("Another undo is running.".into());
+        }
+    }
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || restore::undo(&db::open(&db_path)?, item_id, &volumes::presence)).await.map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
+/// Show the installation's backup folder in File Explorer, so the user can manage it.
+#[tauri::command]
+fn open_backup_folder(catalog: State<'_, Catalog>, installation_id: String) -> Result<(), String> {
+    let folder = restore::backup_folder(&db::open(&catalog.path()?)?, &installation_id, &volumes::presence)?;
+    std::process::Command::new("explorer.exe").arg(&folder).spawn().map(|_| ()).map_err(|e| format!("Couldn't open File Explorer: {e}"))
+}
+
 /// Games and size per platform for the library's Systems page.
 #[tauri::command]
 async fn system_summary(catalog: State<'_, Catalog>) -> Result<Vec<catalog::SystemSummary>, String> {
@@ -298,6 +337,9 @@ fn start_scan(app: AppHandle, catalog: State<'_, Catalog>, active: State<'_, Act
     }
     if active.importing.load(Ordering::SeqCst) {
         return Err(BUSY_IMPORTING.into());
+    }
+    if active.undoing.load(Ordering::SeqCst) {
+        return Err(BUSY_UNDOING.into());
     }
     let connection = db::open(&db_path)?;
     let job_id = jobs::create(&connection, jobs::KIND_SCAN, &json!({ "folder": folder }))?;
@@ -504,6 +546,9 @@ fn start_deployment(
     if active.importing.load(Ordering::SeqCst) {
         return Err(BUSY_IMPORTING.into());
     }
+    if active.undoing.load(Ordering::SeqCst) {
+        return Err(BUSY_UNDOING.into());
+    }
     let connection = db::open(&db_path)?;
     let input = json!({ "folder": destination, "installation_id": installation_id, "systems": systems, "fingerprint": fingerprint });
     let job_id = jobs::create(&connection, jobs::KIND_DEPLOY, &input)?;
@@ -599,6 +644,9 @@ pub fn run() {
             remove_installation,
             deployment_plan,
             system_summary,
+            list_backups,
+            undo_replace,
+            open_backup_folder,
             list_collections,
             create_collection,
             rename_collection,

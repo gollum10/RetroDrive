@@ -13,6 +13,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-05 (collections, step 7):** a **Collections** tab next to Systems and Games, with a card per collection (Open, Rename, Delete; delete asks twice and says the games stay in the library) and a "New collection" box. Game cards have **Add to collection**; inside a collection they also have **Remove from collection**. **Add all shown to a collection…** adds every game matching the current filters. The add window lists collections and can create one on the spot.
 
+**Implemented 2026-11-06 (Backups):** each saved installation has a **Backups** button listing the files replaced there (game, path, when, where the original is and its size) and the backup folder's total size. **Undo replace** asks twice ("Click again to undo"); rows that can't be undone say why (drive not connected, original missing, file changed). Undone rows show where RetroDrive's copy went. **Open backup folder** opens File Explorer; the screen says RetroDrive never deletes backups.
+
 ## Drives
 Inventory: manufacturer/model, bus type when known, capacity, filesystem, free space, label, stable identity, mount point, safety classification (system/unknown/removable). Selected drive details: partitions, managed installations, activity, backup state. No prominent 'Erase' control in default view. Clearly distinguish physical disks from mounted volumes.
 

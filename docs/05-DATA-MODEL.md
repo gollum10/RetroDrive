@@ -90,6 +90,9 @@ Choices made while implementing (see ADR-010 and ADR-011 in docs/13):
 - **Older locations** from v0/v1 data have no fingerprint. A scan claims one only when sampled files from it exist on the scanned volume.
 - **Tests:** `db::tests::v2_catalog_upgrades_to_v3_keeping_references`, `same_volume_under_a_new_letter_is_recognized`, `different_volume_at_a_known_letter_gets_its_own_location`, `unidentified_location_is_claimed_only_when_its_files_are_there`.
 
+## Implemented schema v15 (2026-11-06)
+- **`deployment_items.undo_path`:** where RetroDrive's copy was moved when a replace was undone (`.retrodrive/backup/undo-<item>/…`). Item states add `undoing` (journaled before the first move) and `undone`. See `restore.rs` and docs/18 §10.
+
 ## Implemented schema v14 (2026-11-06)
 - **`games.display_title`:** the title the library shows: the matched reference entry's title, else `canonical_title`. Kept in sync by triggers on `games` (insert, title change) and `game_reference` (insert, update, delete), so importing, rematching or removing the catalog updates it. Indexed alone and with `platform` (both `COLLATE NOCASE`).
 - **`games_fts`** is rebuilt with a `display_title` column, so catalog titles are searchable.

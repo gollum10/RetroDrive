@@ -50,7 +50,7 @@ const CHUNK: usize = 1 << 20;
 pub const TEMP_MARKER: &str = ".rdpart-";
 const MANIFEST_DIR: &str = ".retrodrive/deployments";
 /// Where replaced originals are kept: `<installation>/.retrodrive/backup/<deployment id>/<path>`.
-const BACKUP_DIR: &str = ".retrodrive/backup";
+pub(crate) const BACKUP_DIR: &str = ".retrodrive/backup";
 const ISSUE_LIMIT: usize = 200;
 const PROGRESS_EVERY: Duration = Duration::from_millis(200);
 
@@ -632,7 +632,7 @@ impl From<io::Error> for Halt {
 
 /// Create each missing folder between the installation and the file, one level at a
 /// time. Refuses links and files in the way.
-fn ensure_folders(install_root: &Path, relative: &str) -> Result<(), String> {
+pub(crate) fn ensure_folders(install_root: &Path, relative: &str) -> Result<(), String> {
     let parts: Vec<&str> = relative.split(['/', '\\']).collect();
     if parts.iter().any(|p| p.is_empty() || *p == "." || *p == ".." || p.contains(':')) {
         return Err("The destination would be outside the installation folder.".into());
@@ -665,6 +665,16 @@ fn remove_own_temp(temp: &Path, marker: &str) -> bool {
         Ok(m) if named && m.is_file() && !m.file_type().is_symlink() => fs::remove_file(temp).is_ok(),
         Ok(_) => false,
     }
+}
+
+/// SHA-256 of a file (used by undo to confirm a file is unchanged).
+pub(crate) fn sha256_of(path: &Path) -> io::Result<String> {
+    struct Never;
+    impl DeployObserver for Never {}
+    hash_file(path, &mut Never).map_err(|e| match e {
+        Halt::Io(e) => e,
+        Halt::Cancelled => io::Error::other("cancelled"),
+    })
 }
 
 fn hash_file(path: &Path, observer: &mut dyn DeployObserver) -> Result<String, Halt> {
@@ -767,7 +777,7 @@ fn hex(bytes: &[u8]) -> String {
 /// Rename that fails with `AlreadyExists` instead of replacing the destination.
 /// (`std::fs::rename` replaces existing files on Windows.)
 #[cfg(windows)]
-fn rename_no_replace(from: &Path, to: &Path) -> io::Result<()> {
+pub(crate) fn rename_no_replace(from: &Path, to: &Path) -> io::Result<()> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Storage::FileSystem::{MoveFileExW, MOVEFILE_WRITE_THROUGH};
     let wide = |p: &Path| -> Vec<u16> { long_path(p).as_os_str().encode_wide().chain(std::iter::once(0)).collect() };
@@ -781,7 +791,7 @@ fn rename_no_replace(from: &Path, to: &Path) -> io::Result<()> {
 }
 
 #[cfg(not(windows))]
-fn rename_no_replace(from: &Path, to: &Path) -> io::Result<()> {
+pub(crate) fn rename_no_replace(from: &Path, to: &Path) -> io::Result<()> {
     fs::hard_link(from, to)?;
     fs::remove_file(from)
 }
@@ -895,7 +905,7 @@ fn write_manifest(connection: &Connection, deployment_id: &str, install_root: &P
 
 /// Whether `path` is strictly inside `root`, compared by path components and
 /// without regard to case (works for drive roots like `E:\`).
-fn is_inside(path: &str, root: &str) -> bool {
+pub(crate) fn is_inside(path: &str, root: &str) -> bool {
     let (path, root) = (PathBuf::from(path.to_lowercase()), PathBuf::from(root.to_lowercase()));
     path != root && path.starts_with(&root)
 }
@@ -960,7 +970,7 @@ pub fn cleanup_leftovers(connection: &Connection, presence: PresenceFn) -> Resul
                 .map_err(|e| e.to_string())?;
         }
     }
-    Ok(removed + recover_by_name(connection, presence)? + restore_interrupted_replaces(connection, presence)?)
+    Ok(removed + recover_by_name(connection, presence)? + restore_interrupted_replaces(connection, presence)? + crate::restore::recover_undo(connection, presence)?)
 }
 
 /// Recovery that doesn't rely on the last journal entries (which a power loss can
@@ -974,7 +984,7 @@ fn recover_by_name(connection: &Connection, presence: PresenceFn) -> Result<usiz
                 "SELECT i.id, i.destination_path, d.destination_root, d.destination_stable_id, d.id, i.planned_action
                  FROM deployment_items i JOIN deployments d ON d.id = i.deployment_id
                  WHERE d.status IN ('interrupted', 'failed', 'cancelled') AND i.temp_path IS NULL
-                   AND i.state NOT IN ('verified', 'identical', 'replaced', 'restored', 'skipped', 'conflict')",
+                   AND i.state NOT IN ('verified', 'identical', 'replaced', 'restored', 'skipped', 'conflict', 'undoing', 'undone')",
             )
             .map_err(|e| e.to_string())?;
         let mapped = statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?))).map_err(|e| e.to_string())?;
@@ -1020,7 +1030,7 @@ fn restore_interrupted_replaces(connection: &Connection, presence: PresenceFn) -
             .prepare(
                 "SELECT i.id, i.backup_path, i.destination_path, d.destination_root, d.destination_stable_id
                  FROM deployment_items i JOIN deployments d ON d.id = i.deployment_id
-                 WHERE i.backup_path IS NOT NULL AND i.state NOT IN ('replaced', 'restored') AND d.status <> 'running'",
+                 WHERE i.backup_path IS NOT NULL AND i.state NOT IN ('replaced', 'restored', 'undoing', 'undone') AND d.status <> 'running'",
             )
             .map_err(|e| e.to_string())?;
         let mapped = statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))).map_err(|e| e.to_string())?;
