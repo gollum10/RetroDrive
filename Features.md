@@ -18,7 +18,7 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 | Sidebar navigation: Dashboard, Game Library, Drive Manager, Emulation Systems, Settings | ✅ | Screen names differ from docs/03 (My Library, Drives, Systems); to be aligned. |
 | Dashboard counters: cataloged files, platforms, detected volumes, available / offline / missing | ✅ | Counts come from indexed catalog queries; no invented health scores. |
 | Dashboard duplicate hint with a "Review them" link | ✅ | Opens the library filtered to possible duplicates. |
-| RetroDrive branding: logo in the sidebar, "RetroDrive" window title and installer name | ✅ | ADR-017. an earlier publisher name removed from the app. |
+| RetroDrive branding: art in the sidebar, "RetroDrive" window title and installer name | ✅ | ADR-017. an earlier publisher name removed from the app. Since 2026-11-05 the bottom-left of the side menu shows the owner's neon "cartridges streaming onto a drive" art; the RetroDrive logo stays in `branding/`. |
 | RetroDrive app icon (taskbar, window, installer, sidebar header) | ✅ | The cartridge emblem from the logo on a rounded navy square, generated from `branding/retrodrive-icon.png` with `npx tauri icon`. Replaces the starter's placeholder icons. |
 | Accurate status banner | ✅ | Separates "running in browser" from real catalog errors. |
 | Live scan progress panel with Cancel button | ✅ | RDS-002. Shows items checked, game files found, new files, unreadable count and the current file. The bar is indeterminate because the total isn't known in advance. |

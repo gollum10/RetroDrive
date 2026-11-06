@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import logoUrl from './assets/retrodrive-logo.png';
+import sidebarArtUrl from './assets/retrodrive-sidebar-art.png';
 import iconUrl from './assets/retrodrive-icon.png';
 import { Activity, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, CircleStop, Copy, Database, Eye, Plus, XCircle, FolderOpen, Gamepad2, HardDrive, LayoutDashboard, LayoutGrid, LibraryBig, List, RefreshCcw, Search, Settings2, ShieldCheck } from 'lucide-react';
 
@@ -257,7 +257,7 @@ export default function App() {
   return <div className="app">
     <aside className="sidebar"><div className="brand"><img className="brand-icon" src={iconUrl} alt="" width={46} height={46}/><div><strong>RETRODRIVE</strong><small>LIBRARY MANAGER</small></div></div>
       <div className="nav-label">WORKSPACE</div><nav>{menus.map(item=><button key={item.title} className={'nav-item '+(page===item.title?'selected':'')} onClick={()=>setPage(item.title)}><item.icon size={19}/>{item.title}</button>)}</nav>
-      <div className="aside-bottom"><img className="sidebar-logo" src={logoUrl} alt="RetroDrive" width={192} height={192}/><div className="aside-status"><ShieldCheck size={17}/> Never overwrites or deletes</div><small>v0.1.0 · dev build</small></div>
+      <div className="aside-bottom"><img className="sidebar-logo" src={sidebarArtUrl} alt="RetroDrive: retro cartridges and disks streaming onto a drive" width={192} height={192}/><div className="aside-status"><ShieldCheck size={17}/> Never overwrites or deletes</div><small>v0.1.0 · dev build</small></div>
     </aside>
     <main><header><div><div className="eyebrow">RETRO GAMING COMMAND CENTER</div><h1>{page}</h1></div><button className="ghost" onClick={()=>void load()}><RefreshCcw size={16}/> Refresh</button></header>
     <div className={'notice '+(error?'warn':'')}><Activity size={17}/>{message}</div>
