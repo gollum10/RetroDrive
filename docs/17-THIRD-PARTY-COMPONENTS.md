@@ -57,7 +57,8 @@ RetroDrive uses names like "RetroBat", "NES", "SNES", "PlayStation" and "Genesis
 
 | Asset | Source | Notes / open questions |
 |---|---|---|
-| RetroDrive logo (`branding/retrodrive-logo-full.png`, `src/assets/retrodrive-logo.png`) | Generated with ChatGPT and supplied by the project owner (2026-11-04) | **For counsel (LEGAL-008/012):** confirm the image-generation service's terms on output ownership and commercial use, whether a purely AI-generated image can be protected by copyright, and trademark clearance for the name and logo. The logo contains no third-party marks. |
+| RetroDrive logo (`branding/retrodrive-logo-full.png`; `src/assets/retrodrive-logo.png` is no longer shown in the app) | Generated with ChatGPT and supplied by the project owner (2026-11-04) | **For counsel (LEGAL-008/012):** confirm the image-generation service's terms on output ownership and commercial use, whether a purely AI-generated image can be protected by copyright, and trademark clearance for the name and logo. The logo contains no third-party marks. |
+| Side menu art (`branding/retrodrive-sidebar-art-full.png`, `src/assets/retrodrive-sidebar-art.png`) | Supplied by the project owner (2026-11-05); replaces the logo in the bottom-left of the side menu | Same open questions as the logo (provenance, generation-service terms, LEGAL-008/012). Contains no third-party marks or logos; the cartridge shapes are generic. |
 | App icon (`branding/retrodrive-icon.png`, `src-tauri/icons/*`) | Cropped from the RetroDrive logo (ADR-017) | Same as the logo. |
 | UI icons | lucide-react (ISC) | Covered in §1. |
 | Fonts | None bundled; the system's Segoe UI / Inter fallbacks | None. |
