@@ -152,3 +152,5 @@ button.link{background:none;border:none;color:#7fb3ff;cursor:pointer;padding:0;f
 button.danger{background:#7f1d1d;border:1px solid #b91c1c;color:#fff}
 .apply-design ul li{margin:3px 0}
 .studio-bar small.plan-notes{display:block;max-width:640px}
+.track-picks{margin-top:14px}.track-list{list-style:none;padding:0;margin:6px 0;columns:2;font-size:13px}.track-list li{break-inside:avoid;margin:2px 0}.track-list label{display:flex;gap:6px;align-items:center}
+.track-actions{display:flex;gap:12px;align-items:center}

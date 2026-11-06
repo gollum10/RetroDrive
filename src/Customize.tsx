@@ -10,7 +10,7 @@ type ThemeVar = { name: string; value: string; kind: 'color'|'image'; path: stri
 type ThemeInfo = { folder: string; path: string; active: boolean; credits: string[]; variables: ThemeVar[]; fonts: string[]; bytes: number; files: number; remixed_from: string|null; problem: string|null };
 type ThemeList = { installation_path: string; themes_path: string; active: string|null; themes: ThemeInfo[] };
 type IniOption = { section: string; key: string; label: string; help: string; kind: 'bool'|'choice'|'number'; choices: { label: string; value: string }[] };
-type LookOptions = { options: IniOption[]; values: Record<string,string>; videos: string[]; videos_path: string; default_video_folder: boolean; music: string[]; music_path: string; file_sha: string; blocked: string|null };
+type LookOptions = { options: IniOption[]; values: Record<string,string>; videos: string[]; videos_path: string; default_video_folder: boolean; music: string[]; music_path: string; tracks: string[]; favorites: string[]|null; file_sha: string; blocked: string|null };
 type EmuChoice = { label: string; value: string };
 type SystemSettings = { system: string; name: string; has_games: boolean; emulators: { emulator: string; cores: string[] }[]; current: Record<string,string> };
 type SettingsOptions = { installation_path: string; systems: SystemSettings[]; shaders: EmuChoice[]; bezels: EmuChoice[]; ratios: EmuChoice[]; integer_scaling: EmuChoice[]; file_sha: string; blocked: string|null };
@@ -19,9 +19,9 @@ type SettingsHistory = { id: number; when: string; state: string; changes: Setti
 type MusicSetting = { key: string; kind: 'bool'|'int'; label: string; current: string|null };
 type ThemeChoice = { kind: 'existing'; folder: string } | { kind: 'remix'; base: string; name: string; colors: Record<string,string>; images: Record<string,string>; fonts: Record<string,string> };
 type OwnMusic = { path: string; system: string|null };
-type DesignSpec = { theme: ThemeChoice|null; ini: Record<string,string>; own_video: string|null; music: Record<string,string>; own_music: OwnMusic[]; systems: Record<string,string|null> };
+type DesignSpec = { theme: ThemeChoice|null; ini: Record<string,string>; own_video: string|null; music: Record<string,string>; own_music: OwnMusic[]; systems: Record<string,string|null>; play_tracks: string[]|null };
 type Design = { id: string; name: string; platform: string; spec: DesignSpec|null; draft: DesignSpec|null; updated_at: string; finished_at: string|null };
-type DesignPreview = { design: string; theme_action: string|null; theme_folder: string|null; theme_bytes: number; files: { name: string; folder: string; action: string }[]; es_changes: SettingChange[]; ini_changes: SettingChange[]; es_sha: string; ini_sha: string; nothing: boolean };
+type DesignPreview = { design: string; theme_action: string|null; theme_folder: string|null; theme_bytes: number; files: { name: string; folder: string; action: string }[]; es_changes: SettingChange[]; ini_changes: SettingChange[]; es_sha: string; ini_sha: string; tracks_playing: number|null; tracks_left_out: number|null; nothing: boolean };
 type Application = { id: number; design_id: string|null; design_name: string; state: string; added: string[]; when: string };
 export type CustomizeInstall = { id: string; adapter_id: string; adapter_name: string; path: string; presence: string };
 
@@ -29,9 +29,9 @@ export type CustomizeInstall = { id: string; adapter_id: string; adapter_name: s
 const settingLabel: Record<string,string> = { emulator:'Emulator', core:'Core', shaderset:'Shader', bezel:'Bezel', ratio:'Aspect ratio', integerscale:'Integer scaling', ThemeSet:'Theme',
   EnableIntro:'Boot video on', RandomVideo:'Random video', FileName:'Boot video', WaitForVideoEnd:'Wait for the video to end', GamepadVideoKill:'Skip with a gamepad', KillVideoWhenESReady:'Stop the video when ready', VideoDelay:'Video delay (ms)',
   InterfaceMode:'Interface mode', Fullscreen:'Fullscreen', FullscreenBorderless:'Borderless fullscreen', RandomTheme:'Random theme', NoExitMenu:'Hide the Quit option', VSync:'VSync in menus', DrawFramerate:'Show frame rate', LanguageDetection:"Use Windows' language", DisableWindowsInterface:'Hide Windows while playing',
-  'audio.bgmusic':'Menu music', 'audio.persystem':'Music per system', 'audio.thememusics':"Theme's music", 'audio.display_titles':'Song titles', 'audio.display_titles_time':'Title time (s)', MusicVolume:'Music volume', StopMusicOnScreenSaver:'Stop music in screensaver', VideoLowersMusic:'Lower music for videos' };
+  'audio.bgmusic':'Frontend music', 'audio.persystem':'Only system-specific music folder', 'audio.thememusics':'System-specific music (theme)', 'audio.useFavoriteMusic':'Play only favorite songs', favorites:'Tracks that play', 'audio.display_titles':'Song titles', 'audio.display_titles_time':'Title time (s)', MusicVolume:'Music volume', StopMusicOnScreenSaver:'Stop music in screensaver', VideoLowersMusic:'Lower music for videos' };
 const INI_SECTIONS=['SplashScreen','EmulationStation','RetroBat'];
-const MUSIC_KEYS=['audio.bgmusic','audio.persystem','audio.thememusics','audio.display_titles','audio.display_titles_time','MusicVolume','StopMusicOnScreenSaver','VideoLowersMusic'];
+const MUSIC_KEYS=['audio.useFavoriteMusic','audio.bgmusic','audio.persystem','audio.thememusics','audio.display_titles','audio.display_titles_time','MusicVolume','StopMusicOnScreenSaver','VideoLowersMusic'];
 const ON_OFF_KEYS=['EnableIntro','RandomVideo','WaitForVideoEnd','GamepadVideoKill','KillVideoWhenESReady','Fullscreen','FullscreenBorderless','RandomTheme','NoExitMenu','VSync','DrawFramerate','LanguageDetection','integerscale'];
 const showSetting=(key:string, v:string|null)=> v===null ? 'AUTO' : ON_OFF_KEYS.includes(key) ? (v==='1'?'On':v==='0'?'Off':v) : v==='true' ? 'On' : v==='false' ? 'Off' : key==='InterfaceMode' ? ({'0':'Normal','1':'Kiosk','2':'Kid'}[v]??v) : key==='DisableWindowsInterface' ? ({'0':'No','1':'Notifications','2':'Notifications and desktop'}[v]??v) : v;
 /** One change in words. Music settings are whole keys (e.g. audio.persystem); others are system + key. */
@@ -40,7 +40,7 @@ const changeText=(c:SettingChange)=>{ const full=c.system?`${c.system}.${c.key}`
   return `${!music&&c.system&&!INI_SECTIONS.includes(c.system)?c.system+' ':''}${settingLabel[key]??key}: ${show(c.before)} → ${show(c.after)}`; };
 const varLabel=(n:string)=>{ const w=n.replace(/([a-z])([A-Z])/g,'$1 $2').toLowerCase(); return w.charAt(0).toUpperCase()+w.slice(1); };
 const cssColor=(v:string|undefined, fallback:string)=> v&&/^[0-9a-f]{6}([0-9a-f]{2})?$/i.test(v) ? `#${v}` : fallback;
-const emptySpec=():DesignSpec=>({ theme:null, ini:{}, own_video:null, music:{}, own_music:[], systems:{} });
+const emptySpec=():DesignSpec=>({ theme:null, ini:{}, own_video:null, music:{}, own_music:[], systems:{}, play_tracks:null });
 const LEAVE='__leave';
 
 // ---------- theme preview ----------
@@ -71,7 +71,8 @@ function summary(spec:DesignSpec|null):string[] {
   const out:string[]=[];
   if(spec.theme) out.push(spec.theme.kind==='existing'?`Theme: ${spec.theme.folder}`:`Theme: "${spec.theme.name}" (remix of ${spec.theme.base})`);
   if(spec.own_video) out.push(`Boot video: ${baseName(spec.own_video)} (yours)`); else if(spec.ini['SplashScreen.EnableIntro']==='0') out.push('Boot video: off'); else if(spec.ini['SplashScreen.RandomVideo']==='1') out.push('Boot video: random'); else if(spec.ini['SplashScreen.FileName']) out.push(`Boot video: ${spec.ini['SplashScreen.FileName']}`);
-  const music=Object.keys(spec.music).length; if(music||spec.own_music.length) out.push(`Music: ${music} setting${music===1?'':'s'}${spec.own_music.length?`, ${spec.own_music.length} track${spec.own_music.length===1?'':'s'}`:''}`);
+  const music=Object.keys(spec.music).length; if(music||spec.own_music.length) out.push(`Music: ${music} setting${music===1?'':'s'}${spec.own_music.length?`, ${spec.own_music.length} track${spec.own_music.length===1?'':'s'} added`:''}`);
+  if(spec.play_tracks) out.push(`Plays only ${spec.play_tracks.length} chosen track${spec.play_tracks.length===1?'':'s'}`);
   const behavior=Object.keys(spec.ini).filter(k=>!k.startsWith('SplashScreen.')).length; if(behavior) out.push(`Behavior: ${behavior}`);
   const emu=new Set(Object.keys(spec.systems).map(k=>k.split('.')[0])).size; if(emu) out.push(`Emulators: ${emu} system${emu===1?'':'s'}`);
   return out.length?out:['No changes yet'];
@@ -150,7 +151,7 @@ export default function Customize({ installs, native, busy, notify }: { installs
       <div className="studio-bar"><div><small className="eyebrow">Design studio</small><input className="design-name" aria-label="Design name" value={editing.name} maxLength={60} onChange={e=>rename(e.target.value)}/>
         <small className="plan-notes">Nothing changes on RetroBat while you design. Your draft is saved as you go; you can leave and come back. Settings you don't touch are left as they are.</small></div>
         <div className="actions"><button className={confirm==='abandon'?'danger':'ghost'} disabled={working} onClick={()=>void abandon()} onBlur={()=>{ if(confirm==='abandon') setConfirm(null); }}><X size={16}/>{confirm==='abandon'?(editing.finishedBefore?'Click again to throw away these edits':'Click again to abandon'):'Abandon design'}</button>
-          <button className="primary" disabled={working||!editing.name.trim()} onClick={()=>void finish()}><Check size={16}/> Finish design</button></div></div>
+          <button className="primary" disabled={working||!editing.name.trim()||(editing.spec.play_tracks!==null&&editing.spec.play_tracks.length===0)} onClick={()=>void finish()}><Check size={16}/> Finish design</button></div></div>
       <div className="tabs" role="tablist">{([['theme','Theme'],['boot','Boot video'],['music','Music'],['behavior','Behavior'],['emulators','Emulators']] as const).map(([k,l])=><button key={k} role="tab" aria-selected={tab===k} className={tab===k?'on':''} onClick={()=>setTab(k)}>{l}</button>)}</div>
       {!connected&&<p className="warn-text">The drive for {target.path} isn't connected, so its themes and choices can't be listed. You can still edit what's already in the design.</p>}
 
@@ -185,16 +186,30 @@ export default function Customize({ installs, native, busy, notify }: { installs
         <small className="plan-notes">Your video is copied to RetroBat's video folder when you apply the design (never over another file) and becomes the boot video.</small></div>}
 
       {tab==='music'&&<div className="backups"><h3>Music</h3><p className="plan-notes">When and where RetroBat plays music in its menus. With <b>Music per system</b>, tracks in a system's own folder play while you browse that system.</p>
-        <div className="option-grid">{(music??[]).map(m=>{ const v=s.music[m.key]; const now=m.current;
+        <div className="option-grid">{(music??[]).filter(m=>m.key!=='audio.useFavoriteMusic').map(m=>{ const v=s.music[m.key]; const now=m.current;
           return <label key={m.key}><span>{m.label}</span>{m.kind==='bool'
             ?<select className="choice" value={v??LEAVE} onChange={e=>setMusicSetting(m.key,e.target.value)}><option value={LEAVE}>Leave as is{now?` (${showSetting(m.key,now)})`:' (default)'}</option><option value="true">On</option><option value="false">Off</option></select>
-            :<span className="num-pick"><select className="choice" value={v===undefined?LEAVE:'set'} onChange={e=>setMusicSetting(m.key, e.target.value===LEAVE?LEAVE:(now??(m.key==='MusicVolume'?'128':'10')))}><option value={LEAVE}>Leave as is{now?` (${now})`:' (default)'}</option><option value="set">Set to…</option></select>{v!==undefined&&<input className="num" type="number" min={0} max={m.key==='MusicVolume'?128:60} value={v} onChange={e=>setMusicSetting(m.key,e.target.value)}/>}</span>}</label>; })}</div>
+            :<span className="num-pick"><select className="choice" value={v===undefined?LEAVE:'set'} onChange={e=>setMusicSetting(m.key, e.target.value===LEAVE?LEAVE:(now??(m.key==='MusicVolume'?'100':'10')))}><option value={LEAVE}>Leave as is{now?` (${now})`:' (default)'}</option><option value="set">Set to…</option></select>{v!==undefined&&<input className="num" type="number" min={0} max={m.key==='MusicVolume'?100:60} value={v} onChange={e=>setMusicSetting(m.key,e.target.value)}/>}</span>}</label>; })}</div>
         <h4>Your own music</h4>
         {s.own_music.length===0?<p className="plan-notes">None yet. RetroBat already has {look?.music.length??0} track{look?.music.length===1?'':'s'}.</p>:<ul className="own-music">{s.own_music.map((m,i)=><li key={i}><span className="mono">{baseName(m.path)}</span>
           <select className="choice" value={m.system??''} onChange={e=>update(x=>({...x, own_music:x.own_music.map((y,j)=>j===i?{...y, system:e.target.value||null}:y)}))}><option value="">All systems (main music folder)</option>{(emu?.systems??[]).filter(x=>x.has_games||x.system===m.system).map(x=><option key={x.system} value={x.system}>{x.name} only</option>)}</select>
           <button className="link" onClick={()=>update(x=>({...x, own_music:x.own_music.filter((_,j)=>j!==i)}))}>remove</button></li>)}</ul>}
         <button className="ghost" onClick={()=>void chooseFile('Choose your music (.ogg or .mp3)','Music',['ogg','mp3']).then(p=>{ if(p) update(x=>({...x, own_music:[...x.own_music, {path:p, system:null}]})); })}><Plus size={15}/> Add my own music…</button>
-        <small className="plan-notes">Tracks are copied when you apply the design, as new files. A track for one system plays there only when Music per system is on. Use only music you have the right to use.</small></div>}
+        <small className="plan-notes">Tracks are copied when you apply the design, as new files. A track for one system plays there only when Music per system is on. Use only music you have the right to use.</small>
+        {(()=>{ const added=s.own_music.map(m=>m.system?`${m.system}/${baseName(m.path)}`:baseName(m.path)); const all=[...(look?.tracks??[]), ...added.filter(a=>!(look?.tracks??[]).some(t=>t.toLowerCase()===a.toLowerCase()))];
+          const fav=look?.favorites; const usingFav=(music??[]).find(m=>m.key==='audio.useFavoriteMusic')?.current==='true';
+          const picking=s.play_tracks!==null; const chosen=new Set((s.play_tracks??[]).map(t=>t.toLowerCase()));
+          const toggle=(t:string)=>update(x=>{ const list=x.play_tracks??[]; const has=list.some(y=>y.toLowerCase()===t.toLowerCase()); return {...x, play_tracks: has?list.filter(y=>y.toLowerCase()!==t.toLowerCase()):[...list, t]}; });
+          return <div className="track-picks"><h4>Which tracks play</h4>
+            <p className="plan-notes">Untick the songs you don't want to hear. They aren't deleted; RetroBat just won't play them (this uses RetroBat's own <b>Play only songs from your favorites playlist</b>).</p>
+            <div className="radio-row">
+              <label><input type="radio" checked={!picking} onChange={()=>update(x=>({...x, play_tracks:null}))}/> Leave as is ({usingFav&&fav?`RetroBat plays its favorites list: ${fav.length} track${fav.length===1?'':'s'}`:`all ${all.length} tracks can play`})</label>
+              <label><input type="radio" checked={picking} onChange={()=>update(x=>({...x, play_tracks: usingFav&&fav&&fav.length?fav:all}))}/> Play only the tracks I tick</label>
+            </div>
+            {picking&&<><div className="track-actions"><small>{chosen.size} playing · {Math.max(0, all.length-chosen.size)} left out</small><button className="link" onClick={()=>update(x=>({...x, play_tracks:all}))}>tick all</button></div>
+              <ul className="track-list">{all.map(t=><li key={t}><label><input type="checkbox" checked={chosen.has(t.toLowerCase())} onChange={()=>toggle(t)}/> <span className="mono">{t.replace(/\//g,' › ')}</span>{added.includes(t)&&<small className="tag identical">yours</small>}</label></li>)}</ul>
+              {chosen.size===0&&<p className="warn-text">Tick at least one track, or turn Frontend music off above.</p>}</>}
+          </div>; })()}</div>}
 
       {tab==='behavior'&&<div className="backups"><h3>Behavior</h3><p className="plan-notes">How RetroBat starts and what players can do.</p>{iniGrid(s, o=>o.section!=='SplashScreen')}</div>}
 
@@ -234,6 +249,7 @@ export default function Customize({ installs, native, busy, notify }: { installs
         {applyFor.preview.theme_action==='create'&&<li>Create the theme <b>{applyFor.preview.theme_folder}</b> (copies {fmtSize(applyFor.preview.theme_bytes)}; the original theme isn't changed).</li>}
         {applyFor.preview.theme_action==='reuse'&&<li>Use the theme <b>{applyFor.preview.theme_folder}</b> this design made before.</li>}
         {applyFor.preview.files.filter(f=>f.action==='add').map(f=><li key={f.folder+f.name}>Add <span className="mono">{f.name}</span> to <span className="mono">{f.folder.replace(/\//g,'\\')}</span></li>)}
+        {applyFor.preview.tracks_playing!==null&&<li>Play only {applyFor.preview.tracks_playing} chosen track{applyFor.preview.tracks_playing===1?'':'s'}{applyFor.preview.tracks_left_out?` (${applyFor.preview.tracks_left_out} left out, not deleted)`:''}</li>}
         {applyFor.preview.es_changes.map(c=><li key={'e'+c.system+c.key}>{changeText(c)}</li>)}
         {applyFor.preview.ini_changes.map(c=><li key={'i'+c.system+c.key}>{changeText(c)}</li>)}
         <li className="plan-notes">Everything else stays as it is. RetroBat's settings files are backed up first; Undo puts them back in one step. Added files are kept.</li></ul>}
