@@ -158,3 +158,18 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** the per-file order on the drive differs from the plan order, so a crash leaves up to 4 games partly copied instead of 1; the next run finishes them (ADR-021).
 
+## 12. Addendum: RetroBat emulator settings (RDS-021 version 1, 2026-11-06)
+**Scope and authorization:** the owner approved this plan on 2026-11-06: per-system emulator/core, shader, bezel, aspect ratio and integer scaling in RetroBat's `es_settings.cfg`; exact before → after shown first; refused while RetroBat runs; previous file moved to `.retrodrive\backup`, never deleted; untouched settings kept exactly; undo. Code: `src-tauri/src/customizer.rs`; schema v16.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| RetroBat overwrites the change (it saves settings when it closes) | Refused while `RetroBat.exe`, `emulationstation.exe` or `emulatorLauncher.exe` runs (checked before apply and undo; the UI disables Apply) | `apply_backs_up_then_changes_and_undo_puts_it_back`, `undo_refuses_when_retrobat_changed_the_settings_since` |
+| Losing settings written since the user reviewed | Apply needs the file's SHA-256 from the review; undo needs the file to still be exactly what RetroDrive wrote | same tests |
+| Damaging other settings | Only the changed entries are edited; the result must parse as XML, keep every other entry's value and count, and set exactly the wanted values; files with duplicate keys or unusual layouts are refused | `edits_touch_only_the_changed_lines`; real-file check (`real_retrobat_files_parse_and_edit_cleanly`) |
+| Writing a value RetroBat doesn't know (or a path) | Only choices read from the install; emulator and core must belong together; no newlines | `only_offered_choices_are_accepted` |
+| Data loss during the write | Journal first; new file written with `create_new`, synced and read back; current file moved (no-replace) to the backup folder; new file renamed in (no-replace); on failure the current file is moved back | `apply_backs_up_then_changes_and_undo_puts_it_back` |
+| Crash mid-change | At startup with the drive confirmed: apply finished → `applied`; not started → temp removed, `failed`; half done → previous file moved back. Undo half done → changed file moved back (`applied`); finished → `undone` | `interrupted_changes_are_put_right_at_startup` |
+| Racing a copy, scan, import or undo | Refused while any runs; they're refused during a settings change (shared drive-change flag) | code review (`lib.rs`) |
+
+**Residual risks:** RetroBat could start between the running check and the rename (a window of milliseconds). A setting is ignored when the chosen emulator doesn't support it (RetroBat's own behaviour). The file format is undocumented; it was checked on RetroBat 8.3.1.1 and in RetroBat's launcher source.
+

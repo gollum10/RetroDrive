@@ -977,7 +977,7 @@ pub(crate) fn ensure_folders(install_root: &Path, relative: &str) -> Result<(), 
 
 /// Remove a temporary file only if its name carries the expected marker and it is a
 /// plain file (never a link or folder).
-fn remove_own_temp(temp: &Path, marker: &str) -> bool {
+pub(crate) fn remove_own_temp(temp: &Path, marker: &str) -> bool {
     let named = temp.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.ends_with(marker) && n.len() > marker.len());
     match fs::symlink_metadata(temp) {
         Err(e) if e.kind() == io::ErrorKind::NotFound => true,
@@ -1289,7 +1289,7 @@ pub fn cleanup_leftovers(connection: &Connection, presence: PresenceFn) -> Resul
                 .map_err(|e| e.to_string())?;
         }
     }
-    Ok(removed + recover_by_name(connection, presence)? + restore_interrupted_replaces(connection, presence)? + crate::restore::recover_undo(connection, presence)?)
+    Ok(removed + recover_by_name(connection, presence)? + restore_interrupted_replaces(connection, presence)? + crate::restore::recover_undo(connection, presence)? + crate::customizer::recover(connection, presence)?)
 }
 
 /// Recovery that doesn't rely on the last journal entries (which a power loss can

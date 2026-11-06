@@ -5,6 +5,7 @@ mod adapters;
 mod catalog;
 mod classify;
 mod collections;
+mod customizer;
 mod copier;
 mod db;
 mod deployment;
@@ -52,12 +53,12 @@ struct ActiveJobs {
     /// True while a reference catalog is being imported (it rewrites catalog tables,
     /// so scans and copies wait for it, and it waits for them).
     importing: AtomicBool,
-    /// True while a replace is being undone (it moves files on a drive).
+    /// True while a replace is undone or RetroBat settings change (both move files on a drive).
     undoing: AtomicBool,
 }
 
 const BUSY_IMPORTING: &str = "The reference catalog is being imported. Start this when it has finished.";
-const BUSY_UNDOING: &str = "A replace is being undone. Start this when it has finished.";
+const BUSY_UNDOING: &str = "A change on the drive is in progress (undo or emulator settings). Start this when it has finished.";
 
 struct ActiveJob {
     cancel: Arc<AtomicBool>,
@@ -309,6 +310,58 @@ async fn undo_replace(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>
 fn open_backup_folder(catalog: State<'_, Catalog>, installation_id: String) -> Result<(), String> {
     let folder = restore::backup_folder(&db::open(&catalog.path()?)?, &installation_id, &volumes::presence)?;
     std::process::Command::new("explorer.exe").arg(&folder).spawn().map(|_| ()).map_err(|e| format!("Couldn't open File Explorer: {e}"))
+}
+
+/// RetroBat's current emulator settings and the choices its install offers (reads only).
+#[tauri::command]
+async fn emulator_settings(catalog: State<'_, Catalog>, installation_id: String) -> Result<customizer::SettingsOptions, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || customizer::options(&db::open(&db_path)?, &installation_id, &volumes::presence, &customizer::retrobat_running)).await.map_err(|e| e.to_string())?
+}
+
+/// The exact before -> after values of a settings change (reads only).
+#[tauri::command]
+async fn preview_emulator_settings(catalog: State<'_, Catalog>, installation_id: String, changes: Vec<customizer::Change>) -> Result<customizer::Preview, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || customizer::preview(&db::open(&db_path)?, &installation_id, &changes, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Claim the "drive change" slot, or explain why not.
+fn claim_drive_change(active: &ActiveJobs) -> Result<(), String> {
+    let running = active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?;
+    if !running.is_empty() || active.importing.load(Ordering::SeqCst) {
+        return Err("A scan, copy or import is running. Try again when it has finished.".into());
+    }
+    if active.undoing.swap(true, Ordering::SeqCst) {
+        return Err(BUSY_UNDOING.into());
+    }
+    Ok(())
+}
+
+/// Write a reviewed settings change to RetroBat (docs/18 §12).
+#[tauri::command]
+async fn apply_emulator_settings(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, changes: Vec<customizer::Change>, file_sha: String) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || customizer::apply(&db::open(&db_path)?, &installation_id, &changes, &file_sha, &volumes::presence, &customizer::retrobat_running)).await.map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
+#[tauri::command]
+async fn emulator_settings_history(catalog: State<'_, Catalog>, installation_id: String) -> Result<Vec<customizer::HistoryRow>, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || customizer::history(&db::open(&db_path)?, &installation_id, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Put RetroBat's previous settings back.
+#[tauri::command]
+async fn undo_emulator_settings(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, change_id: i64) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || customizer::undo(&db::open(&db_path)?, change_id, &volumes::presence, &customizer::retrobat_running)).await.map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
 }
 
 /// Games and size per platform for the library's Systems page.
@@ -645,6 +698,11 @@ pub fn run() {
             deployment_plan,
             system_summary,
             list_backups,
+            emulator_settings,
+            preview_emulator_settings,
+            apply_emulator_settings,
+            emulator_settings_history,
+            undo_emulator_settings,
             undo_replace,
             open_backup_folder,
             list_collections,

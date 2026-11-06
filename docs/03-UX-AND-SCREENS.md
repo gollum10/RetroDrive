@@ -15,6 +15,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-06 (Backups):** each saved installation has a **Backups** button listing the files replaced there (game, path, when, where the original is and its size) and the backup folder's total size. **Undo replace** asks twice ("Click again to undo"); rows that can't be undone say why (drive not connected, original missing, file changed). Undone rows show where RetroDrive's copy went. **Open backup folder** opens File Explorer; the screen says RetroDrive never deletes backups.
 
+**Implemented 2026-11-06 (Emulator settings, RetroBat):** an **Emulator settings** button on RetroBat installations opens a table of systems (those with games or existing settings; "Show all" lists every system) with Emulator (emulator: core), Shader, Bezel, Aspect ratio and Integer scaling, each with AUTO. **Review changes (N)** lists exact before → after values; **Apply** asks twice and is disabled while RetroBat runs (with a *Check again* button). **Changes made** lists past changes with **Undo** (asks twice) or why undo isn't possible.
+
 ## Drives
 Inventory: manufacturer/model, bus type when known, capacity, filesystem, free space, label, stable identity, mount point, safety classification (system/unknown/removable). Selected drive details: partitions, managed installations, activity, backup state. No prominent 'Erase' control in default view. Clearly distinguish physical disks from mounted volumes.
 

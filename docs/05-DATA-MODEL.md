@@ -90,6 +90,9 @@ Choices made while implementing (see ADR-010 and ADR-011 in docs/13):
 - **Older locations** from v0/v1 data have no fingerprint. A scan claims one only when sampled files from it exist on the scanned volume.
 - **Tests:** `db::tests::v2_catalog_upgrades_to_v3_keeping_references`, `same_volume_under_a_new_letter_is_recognized`, `different_volume_at_a_known_letter_gets_its_own_location`, `unidentified_location_is_claimed_only_when_its_files_are_there`.
 
+## Implemented schema v16 (2026-11-06)
+- **`settings_changes`:** one row per RetroBat settings change (`customizer.rs`): `installation_id` (set null if forgotten), `file_path`, `root_path` and `stable_id` (drive identity snapshot), `backup_path`, `temp_path`, `undo_path`, `old_sha` and `new_sha` (SHA-256 of the file before and after), `changes_json` (system, key, before, after), `state` (`applying`, `applied`, `failed`, `undoing`, `undone`), `message`, timestamps. Journaled before any file moves; used for undo and crash repair.
+
 ## Implemented schema v15 (2026-11-06)
 - **`deployment_items.undo_path`:** where RetroDrive's copy was moved when a replace was undone (`.retrodrive/backup/undo-<item>/…`). Item states add `undoing` (journaled before the first move) and `undone`. See `restore.rs` and docs/18 §10.
 

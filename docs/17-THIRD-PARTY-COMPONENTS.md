@@ -22,7 +22,7 @@ Measured 2026-11-04: **280 shipped dependencies**, 275 under permissive licenses
 | lucide-react (icons) | 0.468.0 | ISC | Bundled (frontend) | Permissive | Notices |
 | rusqlite / libsqlite3-sys | 0.32.1 / 0.30.1 | MIT | Bundled | Permissive | Notices |
 | SQLite (compiled in by `libsqlite3-sys` "bundled") | 3.x | Public domain | Bundled | Unrestricted | None required |
-| walkdir, sysinfo, serde, serde_json, uuid, windows-sys | see CSV | MIT / Apache-2.0 / Unlicense | Bundled | Permissive | Notices |
+| walkdir, sysinfo, serde, serde_json, uuid, windows-sys (features: storage, foundation, ToolHelp process list since 2026-11-06) | see CSV | MIT / Apache-2.0 / Unlicense | Bundled | Permissive | Notices |
 | quick-xml (reads `gamelist.xml`; already shipped via calamine) | 0.42.0 | MIT | Bundled | Permissive | Notices |
 | calamine (reads the user's `.xlsx` catalog) | 0.38.0 | MIT | Bundled | Permissive | Notices |
 | csv (reads `.csv` catalogs) | 1.x | Unlicense OR MIT | Bundled | Permissive | Notices |
