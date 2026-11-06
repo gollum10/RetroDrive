@@ -54,7 +54,8 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 | Box art from your own images | ✅ | Found automatically during scans (your `gamelist.xml` from Skraper/ScreenScraper, or images named like the game in `media`, `images`, `boxart`, `covers`…), or pick one with **Add art** on a game card. Shown from where it is; never copied or shipped. On your NAS's NES folder: 1,520 of 1,520 images linked. |
 | Scan summary counts images separately | ✅ | "N images found, N games linked to art" instead of "non-game files ignored". |
 | Game details from gamelist.xml (descriptions, players, rating) | 📋 | Follow-up. |
-| Scraper (e.g. ScreenScraper) | ⛔ | Blocked on LEGAL-007. |
+| Scraper (e.g. ScreenScraper) | ❌ | Not planned: RetroDrive is free and doesn't fetch online metadata or art (owner decision, 2026-11-06). |
+| Search and sort by catalog title | ✅ | Matched games are listed, sorted and A–Z filtered by their catalog title (e.g. *'88 Games* for `konami88.zip`); search finds file titles and catalog titles. Library pages are also much faster on big libraries (e.g. the A–Z bar went from about 3 s to under 0.25 s on 145,000 games). |
 | Import (scan) a user-selected folder | ✅ | Runs as a background job; the window stays responsive. Read only: tests confirm source files are unchanged. 40,000 files took about 3 s in a dev build. |
 | 49 systems recognized, incl. your hack folders | ✅ | C64, Amiga, Amstrad, Atari, MSX, X68000, PC Engine, Neo Geo, WonderSwan and many more; `nesh`/`snesh`/`genh`/`megadrive-japan` join their systems. On your library: Unclassified drops from 60,558 to 4 after a rescan. RetroBat folders mapped for all of them. |
 | BIOS files kept out of the game list | ✅ | `bios` folders and `[BIOS] …` names become **BIOS** (never placed or copied as games). A BIOS checker is planned (M4). |

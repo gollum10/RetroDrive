@@ -603,6 +603,39 @@ GBA-x,Golden Sun,Game Boy Advance,2001,RPG,Nintendo,Camelot,\"Golden Sun (USA, E
     }
 
     #[test]
+    fn the_library_searches_and_sorts_by_the_title_it_shows() {
+        use crate::catalog::{query_games, GameQuery};
+        use crate::volumes::Presence;
+        let connected = |_: &str, _: Option<&str>| Presence::Connected;
+        let (dir, c) = library(&["arcade/konami88.zip", "nes/Kid Icarus (USA).zip", "snes/Super Metroid (Japan, USA) (En).sfc"]);
+        let shown = |q: GameQuery| -> Vec<String> {
+            query_games(&c, &GameQuery { sort: Some("title".into()), ..q }, &connected).unwrap().rows.into_iter().map(|r| r.title).collect()
+        };
+        let search = |text: &str| shown(GameQuery { text: Some(text.into()), ..GameQuery::default() });
+        let letter = |l: &str| shown(GameQuery { letter: Some(l.into()), ..GameQuery::default() });
+        assert_eq!(shown(GameQuery::default()), ["Kid Icarus (USA)", "konami88", "Super Metroid (Japan, USA) (En)"], "file titles before a catalog");
+        assert!(search("88 gam").is_empty());
+
+        import(&c, &write_csv(dir.path(), "catalog.csv", CSV)).unwrap();
+        let display: String = c.query_row("SELECT display_title FROM games WHERE canonical_title = 'konami88'", [], |r| r.get(0)).unwrap();
+        assert_eq!(display, "'88 Games", "a MAME clone shows its catalog title");
+        assert_eq!(shown(GameQuery::default()), ["konami88", "Kid Icarus (USA)", "Super Metroid (Japan, USA) (En)"], "sorted by '88 Games, Kid Icarus, Super Metroid");
+        assert_eq!(search("88 gam"), ["konami88"], "catalog titles are searchable");
+        assert_eq!(search("88"), ["konami88"], "short searches look at catalog titles too");
+        assert_eq!(letter("#"), ["konami88"]);
+        assert!(letter("K").iter().all(|t| t != "konami88"), "the A-Z bar follows the shown title");
+
+        // Renaming the file title keeps the catalog title; removing the catalog brings file titles back.
+        c.execute("UPDATE games SET canonical_title = 'K88' WHERE canonical_title = 'konami88'", []).unwrap();
+        assert_eq!(search("88 gam"), ["K88"]);
+        assert!(remove(&c).unwrap());
+        assert!(search("88 gam").is_empty());
+        assert_eq!(shown(GameQuery::default()), ["K88", "Kid Icarus (USA)", "Super Metroid (Japan, USA) (En)"]);
+        let stale: i64 = c.query_row("SELECT COUNT(*) FROM games WHERE display_title IS NOT canonical_title", [], |r| r.get(0)).unwrap();
+        assert_eq!(stale, 0);
+    }
+
+    #[test]
     fn unhelpful_files_get_clear_errors() {
         let (dir, c) = library(&["nes/Kid.nes"]);
         let genres_first = write_csv(dir.path(), "g.csv", "Game ID,Genre\nX,Y\n");

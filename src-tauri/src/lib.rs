@@ -321,6 +321,10 @@ fn run_scan(app: AppHandle, db_path: PathBuf, job_id: String, folder: String, ca
         if let Err(e) = reference::match_games(&connection, false) {
             eprintln!("Reference matching after the scan failed: {e}");
         }
+        // Refresh table statistics when they're stale, so library pages stay fast as it grows.
+        if let Err(e) = connection.execute_batch("PRAGMA optimize;") {
+            eprintln!("Optimizing the catalog after the scan failed: {e}");
+        }
         Ok(summary)
     }))
     .unwrap_or_else(|_| Err("The scan stopped because of an internal error.".into()));

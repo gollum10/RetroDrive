@@ -200,9 +200,10 @@ fn filter_sql(query: &GameQuery, offline: &str) -> Result<(String, Vec<Value>, b
             conditions.push("g.id IN (SELECT game_id FROM games_fts WHERE games_fts MATCH ?)");
             values.push(Value::Text(fts_phrase(text)));
         } else {
-            conditions.push("(g.canonical_title LIKE ? ESCAPE '\\' OR g.platform LIKE ? ESCAPE '\\')");
-            values.push(Value::Text(like_pattern(text)));
-            values.push(Value::Text(like_pattern(text)));
+            conditions.push("(g.canonical_title LIKE ? ESCAPE '\\' OR g.display_title LIKE ? ESCAPE '\\' OR g.platform LIKE ? ESCAPE '\\')");
+            for _ in 0..3 {
+                values.push(Value::Text(like_pattern(text)));
+            }
         }
     }
     if let Some(platform) = query.platform.as_deref().filter(|p| !p.is_empty()) {
@@ -234,12 +235,12 @@ fn filter_sql(query: &GameQuery, offline: &str) -> Result<(String, Vec<Value>, b
     }
     match query.letter.as_deref().map(str::trim).filter(|l| !l.is_empty()) {
         None => {}
-        Some("#") => conditions.push("NOT (lower(substr(g.canonical_title, 1, 1)) BETWEEN 'a' AND 'z')"),
+        Some("#") => conditions.push("NOT (lower(substr(g.display_title, 1, 1)) BETWEEN 'a' AND 'z')"),
         Some(letter) if letter.len() == 1 && letter.chars().all(|c| c.is_ascii_alphabetic()) => {
             // A range on the title keeps the title index usable.
             let low = letter.to_ascii_lowercase();
             let high = ((low.as_bytes()[0]) + 1) as char;
-            conditions.push("g.canonical_title >= ? COLLATE NOCASE AND g.canonical_title < ? COLLATE NOCASE");
+            conditions.push("g.display_title >= ? COLLATE NOCASE AND g.display_title < ? COLLATE NOCASE");
             values.push(Value::Text(low));
             values.push(Value::Text(high.to_string()));
         }
@@ -275,11 +276,21 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
     let offline = offline_storage_ids(connection, presence)?;
     let (where_clause, values, filtered) = filter_sql(query, &offline)?;
     let (page_from, order) = match query.sort.as_deref() {
-        Some("platform") => (FROM_BY_GAME, "g.platform, g.canonical_title COLLATE NOCASE, g.rowid, fl.id"),
+        Some("platform") => (FROM_BY_GAME, "g.platform, g.display_title COLLATE NOCASE, g.rowid, fl.id"),
         Some("size") => (FROM_BY_FILE, "gf.file_role DESC, gf.payload_bytes DESC, fl.id"),
-        Some("title") | None => (FROM_BY_GAME, "g.canonical_title COLLATE NOCASE, g.rowid, fl.id"),
+        // The title the library shows (catalog title when matched), so the list reads in order.
+        Some("title") | None => (FROM_BY_GAME, "g.display_title COLLATE NOCASE, g.rowid, fl.id"),
         Some(other) => return Err(format!("Unknown sort: {other}")),
     };
+
+    // Filters on the game alone (search, platform, letter) count fastest from the games
+    // table; filters on files or drives let SQLite choose (measured: docs/15).
+    let game_only = query.availability.as_deref().unwrap_or("").is_empty()
+        && query.storage_id.as_deref().unwrap_or("").is_empty()
+        && query.collection_id.as_deref().unwrap_or("").is_empty()
+        && !query.duplicates_only
+        && !query.left_out;
+    let count_from = if game_only { FROM_BY_GAME } else { FROM };
 
     // Every game_files row has exactly one file_locations row (the scanner creates
     // them in pairs), so primary files can be counted straight from the role index.
@@ -287,7 +298,7 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
         connection.query_row("SELECT COUNT(*) FROM game_files WHERE file_role = 'primary' AND excluded_at IS NULL", [], |r| r.get(0))
     } else {
         connection.query_row(
-            &format!("SELECT COUNT(*) FROM (SELECT 1 {FROM} {where_clause} LIMIT {})", COUNT_CAP + 1),
+            &format!("SELECT COUNT(*) FROM (SELECT 1 {count_from} {where_clause} LIMIT {})", COUNT_CAP + 1),
             params_from_iter(values.iter()),
             |r| r.get(0),
         )
@@ -717,6 +728,35 @@ mod tests {
         eprintln!("{:<28} systems={:>4}  {:?}", "system_summary", systems.len(), t.elapsed());
         assert_eq!(stats.files, 100_000);
         assert_eq!(stats.duplicate_files, 2_000);
+    }
+
+    /// Times the upgrade and common pages on a **copy** of a real catalog:
+    /// `RETRODRIVE_BENCH_DB=<copy.sqlite> cargo test --release benchmark_real_catalog -- --ignored --nocapture`
+    /// The file is upgraded in place, so never point it at the live catalog.
+    #[test]
+    #[ignore]
+    fn benchmark_real_catalog() {
+        use std::time::Instant;
+        let Some(path) = std::env::var_os("RETRODRIVE_BENCH_DB") else { return };
+        let mut c = Connection::open(&path).unwrap();
+        let t = Instant::now();
+        let report = db::migrate(&mut c, None).unwrap();
+        eprintln!("upgrade v{} -> v{}: {:?}", report.from_version, report.to_version, t.elapsed());
+        let cases: Vec<(&str, GameQuery)> = vec![
+            ("first page, title sort", GameQuery::default()),
+            ("page 500, title sort", GameQuery { offset: 50_000, ..GameQuery::default() }),
+            ("platform sort", GameQuery { sort: Some("platform".into()), ..GameQuery::default() }),
+            ("letter M", GameQuery { letter: Some("M".into()), ..GameQuery::default() }),
+            ("letter #", GameQuery { letter: Some("#".into()), ..GameQuery::default() }),
+            ("SNES, title sort", GameQuery { platform: Some("SNES".into()), ..GameQuery::default() }),
+            ("text 'street fighter'", text("street fighter")),
+            ("text 'sf' (LIKE)", text("sf")),
+        ];
+        for (name, query) in cases {
+            let t = Instant::now();
+            let page = query_games(&c, &query, &connected).unwrap();
+            eprintln!("{name:<24} total={:>7}{} {:?}", page.total, if page.total_capped { "+" } else { " " }, t.elapsed());
+        }
     }
 
     #[test]

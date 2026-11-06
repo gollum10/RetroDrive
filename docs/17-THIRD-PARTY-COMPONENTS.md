@@ -69,4 +69,4 @@ RetroDrive uses names like "RetroBat", "NES", "SNES", "PlayStation" and "Genesis
 |---|---|
 | Game ROMs or disc images | **None shipped or downloaded.** Test fixtures are generated at test time (empty or zero-filled files with game-like names) and deleted afterwards. |
 | BIOS or firmware | None shipped or downloaded. |
-| Game artwork, screenshots, manuals or metadata | None shipped or fetched; providers are blocked on LEGAL-007. Images already on the user's drives are linked and displayed locally, never copied (ADR-025). |
+| Game artwork, screenshots, manuals or metadata | None shipped or fetched; online providers are not planned (ADR-033). Images already on the user's drives are linked and displayed locally, never copied (ADR-025). |
