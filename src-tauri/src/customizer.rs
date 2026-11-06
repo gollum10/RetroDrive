@@ -647,15 +647,20 @@ pub fn apply(connection: &Connection, installation_id: &str, changes: &[Change],
 /// The shared safe write: journal, new file read back, current file moved to the
 /// backup folder, new file renamed in. `wanted` must already be validated.
 fn write_settings(connection: &Connection, install: &Install, settings: &Path, text: &str, wanted: &BTreeMap<String, Option<String>>, current: &BTreeMap<String, String>) -> Result<String, String> {
-    let old_sha = hex_sha(text.as_bytes());
     let new_text = edit(text, wanted)?;
+    write_file(connection, install, SETTINGS, settings, text, &new_text, rows(wanted, current))
+}
+
+/// Journaled, backed-up replacement of one RetroBat file (`relative` to the
+/// installation) with `new_text`. Undo and crash repair work from the journal.
+fn write_file(connection: &Connection, install: &Install, relative: &str, settings: &Path, text: &str, new_text: &str, changed: Vec<ChangeRow>) -> Result<String, String> {
+    let old_sha = hex_sha(text.as_bytes());
     let new_sha = hex_sha(new_text.as_bytes());
-    let changed = rows(wanted, current);
 
     let token = db::new_id()[..8].to_string();
     let marker = format!("{TEMP_MARKER}{token}");
     let temp = PathBuf::from(format!("{}{marker}", settings.display()));
-    let backup_relative = format!("{BACKUP_DIR}/settings-{token}/{SETTINGS}");
+    let backup_relative = format!("{BACKUP_DIR}/settings-{token}/{relative}");
     copier::ensure_folders(&install.root, &backup_relative).map_err(|e| format!("Couldn't prepare the backup folder: {e} Nothing was changed."))?;
     let backup = paths::join(&install.root_text, &backup_relative);
     if fs::symlink_metadata(&backup).is_ok() || fs::symlink_metadata(&temp).is_ok() {
@@ -765,6 +770,280 @@ pub fn current_theme(root: &Path) -> Option<String> {
     values(&entries(&text).ok()?).ok()?.get("ThemeSet").cloned()
 }
 
+// ---------- retrobat.ini: boot video and frontend options ----------
+
+const INI: &str = "retrobat.ini";
+const VIDEOS: &str = "emulationstation/.emulationstation/video";
+const MUSIC: &str = "emulationstation/.emulationstation/music";
+const MAX_VIDEO: u64 = 2 << 30;
+
+/// One `retrobat.ini` option RetroDrive offers (checked against the comments in
+/// RetroBat 8.3.1.1's own retrobat.ini, which document each key).
+#[derive(Debug, Serialize, Clone)]
+pub struct IniOption {
+    pub section: &'static str,
+    pub key: &'static str,
+    pub label: &'static str,
+    pub help: &'static str,
+    /// `bool` (0/1), `choice` or `number`.
+    pub kind: &'static str,
+    pub choices: Vec<Choice>,
+}
+
+fn opt(section: &'static str, key: &'static str, label: &'static str, help: &'static str, kind: &'static str, choices: &[(&str, &str)]) -> IniOption {
+    IniOption { section, key, label, help, kind, choices: choices.iter().map(|(v, l)| Choice { label: l.to_string(), value: v.to_string() }).collect() }
+}
+
+/// The options offered. Left out on purpose: Autostart (changes Windows startup),
+/// ResetConfigMode (resets RetroBat's settings), AppLauncher, window sizes.
+fn ini_options() -> Vec<IniOption> {
+    vec![
+        opt("SplashScreen", "EnableIntro", "Play a boot video", "Play a video before RetroBat's menus appear.", "bool", &[]),
+        opt("SplashScreen", "RandomVideo", "Random video", "Pick a random video each time (otherwise the chosen video plays).", "bool", &[]),
+        opt("SplashScreen", "FileName", "Boot video", "The video that plays when Random video is off.", "choice", &[]),
+        opt("SplashScreen", "WaitForVideoEnd", "Wait for the video to end", "Start the menus only after the video finishes.", "bool", &[]),
+        opt("SplashScreen", "GamepadVideoKill", "Skip with a gamepad", "A gamepad button press skips the video (XInput controllers).", "bool", &[]),
+        opt("SplashScreen", "KillVideoWhenESReady", "Stop the video when the menus are ready", "", "bool", &[]),
+        opt("SplashScreen", "VideoDelay", "Video delay (ms)", "Delay between the video and the menus starting; longer can help if the video isn't in front.", "number", &[]),
+        opt("EmulationStation", "InterfaceMode", "Interface mode", "Kiosk and kid modes hide settings and limit what players can change.", "choice", &[("0", "Normal"), ("1", "Kiosk"), ("2", "Kid")]),
+        opt("EmulationStation", "Fullscreen", "Fullscreen", "Start the menus in fullscreen (otherwise in a window).", "bool", &[]),
+        opt("EmulationStation", "FullscreenBorderless", "Borderless fullscreen", "", "bool", &[]),
+        opt("EmulationStation", "RandomTheme", "Random theme", "Pick a random installed theme at every start.", "bool", &[]),
+        opt("EmulationStation", "NoExitMenu", "Hide the Quit option", "Hide the option to quit RetroBat from the menu.", "bool", &[]),
+        opt("EmulationStation", "VSync", "VSync in menus", "", "bool", &[]),
+        opt("EmulationStation", "DrawFramerate", "Show frame rate in menus", "", "bool", &[]),
+        opt("RetroBat", "LanguageDetection", "Use Windows' language", "Set RetroBat's language from Windows at startup.", "bool", &[]),
+        opt("RetroBat", "DisableWindowsInterface", "Hide Windows while playing", "Hide notifications (and optionally the taskbar) while RetroBat runs; restored when it exits.", "choice", &[("0", "No"), ("1", "Notifications"), ("2", "Notifications and desktop")]),
+    ]
+}
+
+/// `[Section]` + `Key=value` lines: value with quotes removed, and the byte range of the raw value.
+fn ini_entries(text: &str) -> BTreeMap<String, (String, usize, usize)> {
+    let mut found = BTreeMap::new();
+    let mut section = String::new();
+    let mut offset = 0;
+    for line in text.split_inclusive('\n') {
+        let body = line.trim_end_matches(['\r', '\n']);
+        let trimmed = body.trim();
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            section = trimmed[1..trimmed.len() - 1].to_string();
+        } else if !trimmed.starts_with(';') && !trimmed.starts_with('#') {
+            if let Some(eq) = body.find('=') {
+                let key = body[..eq].trim();
+                if !key.is_empty() {
+                    let raw_start = offset + eq + 1;
+                    let raw_end = offset + body.len();
+                    let value = body[eq + 1..].trim().trim_matches('"').to_string();
+                    found.insert(format!("{section}.{key}"), (value, raw_start, raw_end));
+                }
+            }
+        }
+        offset += line.len();
+    }
+    found
+}
+
+/// Replace values of existing keys only (RetroBat writes every key it uses), checking the result.
+fn ini_edit(text: &str, wanted: &BTreeMap<String, String>) -> Result<String, String> {
+    let before = ini_entries(text);
+    let mut spans: Vec<(usize, usize, String)> = Vec::new();
+    for (key, value) in wanted {
+        let (old, start, end) = before.get(key).ok_or(format!("retrobat.ini has no {key}, so RetroDrive won't add it."))?;
+        let raw = &text[*start..*end];
+        let quoted = raw.trim().starts_with('"') || key.ends_with(".FileName") || key.ends_with(".FilePath");
+        let _ = old;
+        spans.push((*start, *end, if quoted { format!("\"{value}\"") } else { value.clone() }));
+    }
+    spans.sort_by_key(|s| std::cmp::Reverse(s.0));
+    let mut out = text.to_string();
+    for (start, end, value) in spans {
+        out.replace_range(start..end, &value);
+    }
+    let after = ini_entries(&out);
+    for (key, (value, _, _)) in &before {
+        let expected = wanted.get(key).unwrap_or(value);
+        if after.get(key).map(|a| &a.0) != Some(expected) {
+            return Err(format!("Editing retrobat.ini would have changed {key} unexpectedly; nothing was changed."));
+        }
+    }
+    if after.len() != before.len() {
+        return Err("Editing retrobat.ini would have added or lost settings; nothing was changed.".into());
+    }
+    Ok(out)
+}
+
+#[derive(Debug, Serialize)]
+pub struct LookOptions {
+    pub options: Vec<IniOption>,
+    /// `Section.Key` -> current value.
+    pub values: BTreeMap<String, String>,
+    /// Videos in RetroBat's video folder (for the boot video).
+    pub videos: Vec<String>,
+    pub videos_path: String,
+    /// False when `FilePath` points somewhere else than the default video folder.
+    pub default_video_folder: bool,
+    /// Music files in RetroBat's music folder (played in the menus).
+    pub music: Vec<String>,
+    pub music_path: String,
+    pub file_sha: String,
+    pub blocked: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct IniChange {
+    pub section: String,
+    pub key: String,
+    pub value: String,
+}
+
+fn videos(root: &Path) -> Vec<String> {
+    let mut names: Vec<String> = fs::read_dir(root.join(VIDEOS))
+        .map(|read| read.filter_map(Result::ok).filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false)).map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.to_lowercase().ends_with(".mp4")).collect())
+        .unwrap_or_default();
+    names.sort();
+    names
+}
+
+/// Boot video and frontend options from retrobat.ini (reads only).
+pub fn look_options(connection: &Connection, installation_id: &str, presence: PresenceFn, running: RunningFn) -> Result<LookOptions, String> {
+    let install = install(connection, installation_id, presence)?;
+    let text = read_text(&install.root.join(INI))?;
+    let entries = ini_entries(&text);
+    let options: Vec<IniOption> = ini_options().into_iter().filter(|o| entries.contains_key(&format!("{}.{}", o.section, o.key))).collect();
+    let values = options.iter().filter_map(|o| entries.get(&format!("{}.{}", o.section, o.key)).map(|v| (format!("{}.{}", o.section, o.key), v.0.clone()))).collect();
+    let default_video_folder = entries.get("SplashScreen.FilePath").map(|v| v.0.eq_ignore_ascii_case("default")).unwrap_or(true);
+    Ok(LookOptions {
+        options,
+        values,
+        videos: videos(&install.root),
+        videos_path: install.root.join(VIDEOS.replace('/', "\\")).display().to_string(),
+        default_video_folder,
+        music: music_files(&install.root),
+        music_path: install.root.join(MUSIC.replace('/', "\\")).display().to_string(),
+        file_sha: hex_sha(text.as_bytes()),
+        blocked: running_message(running),
+    })
+}
+
+fn ini_wanted(install: &Install, text: &str, changes: &[IniChange]) -> Result<(BTreeMap<String, String>, Vec<ChangeRow>), String> {
+    let entries = ini_entries(text);
+    let options = ini_options();
+    let videos = videos(&install.root);
+    let mut wanted = BTreeMap::new();
+    let mut rows = Vec::new();
+    for c in changes {
+        let o = options.iter().find(|o| o.section == c.section && o.key == c.key).ok_or(format!("RetroDrive doesn't change {}.{}.", c.section, c.key))?;
+        let ok = match o.kind {
+            "bool" => c.value == "0" || c.value == "1",
+            "number" => c.value.len() <= 6 && c.value.parse::<u32>().is_ok_and(|n| n <= 60_000),
+            _ if o.key == "FileName" => videos.contains(&c.value),
+            _ => o.choices.iter().any(|ch| ch.value == c.value),
+        };
+        if !ok {
+            return Err(format!("{} isn't a valid choice for {}.", c.value, o.label));
+        }
+        let key = format!("{}.{}", c.section, c.key);
+        let before = entries.get(&key).map(|e| e.0.clone());
+        if before.as_deref() != Some(c.value.as_str()) {
+            rows.push(ChangeRow { system: c.section.clone(), key: c.key.clone(), before, after: Some(c.value.clone()) });
+            wanted.insert(key, c.value.clone());
+        }
+    }
+    if wanted.is_empty() {
+        return Err("Those are already the current settings.".into());
+    }
+    Ok((wanted, rows))
+}
+
+/// What a retrobat.ini change would do (reads only).
+pub fn preview_look(connection: &Connection, installation_id: &str, changes: &[IniChange], presence: PresenceFn) -> Result<Preview, String> {
+    let install = install(connection, installation_id, presence)?;
+    let text = read_text(&install.root.join(INI))?;
+    let (wanted, rows) = ini_wanted(&install, &text, changes)?;
+    ini_edit(&text, &wanted)?;
+    Ok(Preview { changes: rows, file_sha: hex_sha(text.as_bytes()) })
+}
+
+/// Write a reviewed retrobat.ini change (same safety as es_settings.cfg; undoable).
+pub fn apply_look(connection: &Connection, installation_id: &str, changes: &[IniChange], expected_sha: &str, presence: PresenceFn, running: RunningFn) -> Result<String, String> {
+    let install = install(connection, installation_id, presence)?;
+    if let Some(reason) = running_message(running) {
+        return Err(format!("{reason} Nothing was changed."));
+    }
+    let path = install.root.join(INI);
+    let text = read_text(&path)?;
+    if hex_sha(text.as_bytes()) != expected_sha {
+        return Err("retrobat.ini changed since you reviewed it, so nothing was changed. Review the change again.".into());
+    }
+    let (wanted, rows) = ini_wanted(&install, &text, changes)?;
+    let new_text = ini_edit(&text, &wanted)?;
+    write_file(connection, &install, INI, &path, &text, &new_text, rows)
+}
+
+/// Copy the user's own video into RetroBat's video folder as a new file (never over one).
+pub fn add_boot_video(connection: &Connection, installation_id: &str, source: &str, presence: PresenceFn) -> Result<String, String> {
+    add_file(connection, installation_id, source, presence, VIDEOS, &["mp4"], "Boot videos must be .mp4 files.")
+}
+
+/// Copy the user's own music (.ogg or .mp3, as RetroBat's menus play) into its music folder as a new file.
+pub fn add_music(connection: &Connection, installation_id: &str, source: &str, presence: PresenceFn) -> Result<String, String> {
+    add_file(connection, installation_id, source, presence, MUSIC, &["ogg", "mp3"], "Music must be .ogg or .mp3 files.")
+}
+
+/// Music files in RetroBat's music folder.
+pub fn music_files(root: &Path) -> Vec<String> {
+    let mut names: Vec<String> = fs::read_dir(root.join(MUSIC))
+        .map(|read| read.filter_map(Result::ok).filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false)).map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| { let l = n.to_lowercase(); l.ends_with(".ogg") || l.ends_with(".mp3") }).collect())
+        .unwrap_or_default();
+    names.sort();
+    names
+}
+
+/// Copy a user file into an installation folder as a new file: temporary name,
+/// checksum compared with the source, no-replace rename. Never replaces a file.
+fn add_file(connection: &Connection, installation_id: &str, source: &str, presence: PresenceFn, folder: &str, exts: &[&str], wrong_type: &str) -> Result<String, String> {
+    let install = install(connection, installation_id, presence)?;
+    let source = PathBuf::from(source);
+    if !source.extension().and_then(|e| e.to_str()).is_some_and(|e| exts.iter().any(|x| e.eq_ignore_ascii_case(x))) {
+        return Err(wrong_type.into());
+    }
+    let size = fs::metadata(&source).map_err(|e| format!("Couldn't open {}: {e}", source.display()))?.len();
+    if size > MAX_VIDEO {
+        return Err("That file is larger than 2 GB.".into());
+    }
+    let name: String = source.file_name().and_then(|n| n.to_str()).unwrap_or("video.mp4").chars().map(|c| if c.is_control() || r#"<>:"/\|?*"#.contains(c) { '_' } else { c }).collect();
+    let relative = format!("{folder}/{name}");
+    copier::ensure_folders(&install.root, &relative)?;
+    let target = paths::join(&install.root.display().to_string(), &relative);
+    if fs::symlink_metadata(&target).is_ok() {
+        return Err(format!("There's already a file called {name} there; rename yours first."));
+    }
+    let token = db::new_id()[..8].to_string();
+    let marker = format!("{TEMP_MARKER}{token}");
+    let temp = PathBuf::from(format!("{}{marker}", target.display()));
+    let copied = (|| -> std::io::Result<()> {
+        let mut input = fs::File::open(&source)?;
+        let mut out = OpenOptions::new().write(true).create_new(true).open(&temp)?;
+        std::io::copy(&mut input, &mut out)?;
+        out.sync_all()
+    })();
+    let fail = |message: String| -> Result<String, String> {
+        copier::remove_own_temp(&temp, &marker);
+        Err(message)
+    };
+    if let Err(e) = copied {
+        return fail(format!("Couldn't copy the file: {e}"));
+    }
+    match (copier::sha256_of(&temp), copier::sha256_of(&source)) {
+        (Ok(a), Ok(b)) if a == b => {}
+        _ => return fail("The copy didn't match the original, so it wasn't used.".into()),
+    }
+    if let Err(e) = copier::rename_no_replace(&temp, &target) {
+        return fail(format!("Couldn't give the file its name: {e}"));
+    }
+    Ok(name)
+}
+
 struct Journal {
     id: i64,
     file: String,
@@ -872,7 +1151,8 @@ pub fn undo(connection: &Connection, change_id: i64, presence: PresenceFn, runni
     }
     let backup = PathBuf::from(j.backup.as_deref().unwrap_or_default());
     let settings = PathBuf::from(&j.file);
-    let undo_relative = format!("{BACKUP_DIR}/settings-undo-{}/{SETTINGS}", j.id);
+    let file_relative = j.file.get(j.root.len()..).filter(|_| copier::is_inside(&j.file, &j.root)).unwrap_or(SETTINGS).trim_start_matches(['\\', '/']).replace('\\', "/");
+    let undo_relative = format!("{BACKUP_DIR}/settings-undo-{}/{file_relative}", j.id);
     copier::ensure_folders(Path::new(&j.root), &undo_relative).map_err(|e| format!("Couldn't prepare the backup folder: {e} Nothing was changed."))?;
     let undo_path = paths::join(&j.root, &undo_relative);
     if fs::symlink_metadata(&undo_path).is_ok() {
@@ -1078,6 +1358,15 @@ mod tests {
         let close = text.rfind("</config>").unwrap();
         assert_eq!(&out[..close], &text[..close], "existing lines untouched");
         assert!(!ratios.is_empty() && systems.len() > 100);
+        // retrobat.ini: every offered option is found, and an in-memory edit changes only its value.
+        let ini = read_text(&root.join(INI)).unwrap();
+        let found = ini_entries(&ini);
+        let offered: Vec<String> = ini_options().iter().map(|o| format!("{}.{}", o.section, o.key)).filter(|k| found.contains_key(k)).collect();
+        eprintln!("retrobat.ini: {} keys, offered {}/{}: {:?}", found.len(), offered.len(), ini_options().len(), offered);
+        let wanted: BTreeMap<String, String> = [("SplashScreen.RandomVideo".to_string(), "0".to_string())].into_iter().collect();
+        let edited = ini_edit(&ini, &wanted).unwrap();
+        assert_eq!(edited.len(), ini.len());
+        eprintln!("videos: {:?}, music: {}", videos(&root), music_files(&root).len());
     }
 
     #[test]
@@ -1180,6 +1469,62 @@ mod tests {
         let id = history(&s.catalog, &s.install, &connected).unwrap()[0].id;
         undo(&s.catalog, id, &connected, &closed).unwrap();
         assert_eq!(settings(&s), before);
+    }
+
+    const INI_FILE: &str = "; RETROBAT GLOBAL CONFIG FILE\r\n\r\n[RetroBat]\r\n\r\n; comment\r\nLanguageDetection=1\r\nAutostart=0\r\n\r\n[SplashScreen]\r\n\r\nEnableIntro=1\r\nFileName=\"retrobat-neon.mp4\"\r\nFilePath=\"default\"\r\nRandomVideo=1\r\nVideoDelay=1000\r\n\r\n[EmulationStation]\r\nInterfaceMode=0\r\n";
+
+    #[test]
+    fn boot_video_and_frontend_options_edit_retrobat_ini_safely() {
+        let s = setup();
+        fs::write(s.root.join(INI), INI_FILE).unwrap();
+        let videos = s.root.join(VIDEOS);
+        fs::create_dir_all(&videos).unwrap();
+        fs::write(videos.join("retrobat-neon.mp4"), b"neon").unwrap();
+        fs::write(videos.join("retrobat-space.mp4"), b"space").unwrap();
+        let o = look_options(&s.catalog, &s.install, &connected, &closed).unwrap();
+        assert_eq!(o.videos, ["retrobat-neon.mp4", "retrobat-space.mp4"]);
+        assert_eq!(o.values.get("SplashScreen.RandomVideo").map(String::as_str), Some("1"));
+        assert!(o.options.iter().all(|x| x.key != "Autostart"), "risky options aren't offered");
+        assert!(o.options.iter().all(|x| x.key != "WaitForVideoEnd"), "only keys the file has");
+        let ch = |section: &str, key: &str, value: &str| IniChange { section: section.into(), key: key.into(), value: value.into() };
+
+        assert!(preview_look(&s.catalog, &s.install, &[ch("RetroBat", "Autostart", "1")], &connected).is_err());
+        assert!(preview_look(&s.catalog, &s.install, &[ch("SplashScreen", "FileName", "..\\..\\evil.mp4")], &connected).is_err());
+        assert!(preview_look(&s.catalog, &s.install, &[ch("EmulationStation", "InterfaceMode", "7")], &connected).is_err());
+        let changes = [ch("SplashScreen", "FileName", "retrobat-space.mp4"), ch("SplashScreen", "RandomVideo", "0"), ch("EmulationStation", "InterfaceMode", "1")];
+        let p = preview_look(&s.catalog, &s.install, &changes, &connected).unwrap();
+        assert_eq!(p.changes.len(), 3);
+        assert!(apply_look(&s.catalog, &s.install, &changes, &p.file_sha, &connected, &open).is_err());
+        apply_look(&s.catalog, &s.install, &changes, &p.file_sha, &connected, &closed).unwrap();
+        let now = fs::read_to_string(s.root.join(INI)).unwrap();
+        assert_eq!(now, INI_FILE.replace("FileName=\"retrobat-neon.mp4\"", "FileName=\"retrobat-space.mp4\"").replace("RandomVideo=1", "RandomVideo=0").replace("InterfaceMode=0", "InterfaceMode=1"), "only those three values changed; comments and layout kept");
+        let id = history(&s.catalog, &s.install, &connected).unwrap()[0].id;
+        undo(&s.catalog, id, &connected, &closed).unwrap();
+        assert_eq!(fs::read_to_string(s.root.join(INI)).unwrap(), INI_FILE);
+        assert!(walkdir::WalkDir::new(s.root.join(".retrodrive/backup")).into_iter().filter_map(Result::ok).any(|e| e.file_name() == "retrobat.ini"), "backups keep the file name");
+    }
+
+    #[test]
+    fn adding_a_boot_video_never_replaces_one() {
+        let s = setup();
+        let videos = s.root.join(VIDEOS);
+        fs::create_dir_all(&videos).unwrap();
+        fs::write(videos.join("intro.mp4"), b"theirs").unwrap();
+        let mine = s.root.join("mine");
+        fs::create_dir_all(&mine).unwrap();
+        fs::write(mine.join("intro.mp4"), b"mine").unwrap();
+        fs::write(mine.join("Gollum Boot.mp4"), b"mine2").unwrap();
+        fs::write(mine.join("x.exe"), b"no").unwrap();
+        assert!(add_boot_video(&s.catalog, &s.install, &mine.join("intro.mp4").display().to_string(), &connected).unwrap_err().contains("already"));
+        assert_eq!(fs::read(videos.join("intro.mp4")).unwrap(), b"theirs");
+        assert!(add_boot_video(&s.catalog, &s.install, &mine.join("x.exe").display().to_string(), &connected).is_err());
+        assert_eq!(add_boot_video(&s.catalog, &s.install, &mine.join("Gollum Boot.mp4").display().to_string(), &connected).unwrap(), "Gollum Boot.mp4");
+        assert_eq!(fs::read(videos.join("Gollum Boot.mp4")).unwrap(), b"mine2");
+        assert!(fs::read_dir(&videos).unwrap().all(|e| !e.unwrap().file_name().to_string_lossy().contains(TEMP_MARKER)));
+        fs::write(mine.join("Theme Song.mp3"), b"song").unwrap();
+        assert_eq!(add_music(&s.catalog, &s.install, &mine.join("Theme Song.mp3").display().to_string(), &connected).unwrap(), "Theme Song.mp3");
+        assert_eq!(music_files(&s.root), ["Theme Song.mp3"]);
+        assert!(add_music(&s.catalog, &s.install, &mine.join("Gollum Boot.mp4").display().to_string(), &connected).is_err(), "only music files");
     }
 
     #[test]

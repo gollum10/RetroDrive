@@ -82,12 +82,20 @@ function ThemeMockup({ vars, background, font }: { vars: Record<string,string>; 
     <small className="plan-notes">Approximate preview: RetroBat lays the theme out its own way.</small>
   </div>;
 }
+type IniOption = { section: string; key: string; label: string; help: string; kind: 'bool'|'choice'|'number'; choices: { label: string; value: string }[] };
+type LookOptions = { options: IniOption[]; values: Record<string,string>; videos: string[]; videos_path: string; default_video_folder: boolean; music: string[]; music_path: string; file_sha: string; blocked: string|null };
 type EmuChoice = { label: string; value: string };
 type SystemSettings = { system: string; name: string; has_games: boolean; emulators: { emulator: string; cores: string[] }[]; current: Record<string,string> };
 type SettingsOptions = { installation_path: string; systems: SystemSettings[]; shaders: EmuChoice[]; bezels: EmuChoice[]; ratios: EmuChoice[]; integer_scaling: EmuChoice[]; file_sha: string; blocked: string|null };
 type SettingChange = { system: string; key: string; before: string|null; after: string|null };
 type SettingsHistory = { id: number; when: string; state: string; changes: SettingChange[]; message: string|null; blocked: string|null };
-const settingLabel: Record<string,string> = { emulator:'Emulator', core:'Core', shaderset:'Shader', bezel:'Bezel', ratio:'Aspect ratio', integerscale:'Integer scaling', ThemeSet:'Theme' };
+const settingLabel: Record<string,string> = { emulator:'Emulator', core:'Core', shaderset:'Shader', bezel:'Bezel', ratio:'Aspect ratio', integerscale:'Integer scaling', ThemeSet:'Theme',
+  EnableIntro:'Boot video on', RandomVideo:'Random video', FileName:'Boot video', WaitForVideoEnd:'Wait for the video to end', GamepadVideoKill:'Skip with a gamepad', KillVideoWhenESReady:'Stop the video when ready', VideoDelay:'Video delay (ms)',
+  InterfaceMode:'Interface mode', Fullscreen:'Fullscreen', FullscreenBorderless:'Borderless fullscreen', RandomTheme:'Random theme', NoExitMenu:'Hide the Quit option', VSync:'VSync in menus', DrawFramerate:'Show frame rate', LanguageDetection:"Use Windows' language", DisableWindowsInterface:'Hide Windows while playing' };
+/** retrobat.ini sections aren't shown to users; their keys have friendly labels above. */
+const INI_SECTIONS=['SplashScreen','EmulationStation','RetroBat'];
+const ON_OFF_KEYS=['EnableIntro','RandomVideo','WaitForVideoEnd','GamepadVideoKill','KillVideoWhenESReady','Fullscreen','FullscreenBorderless','RandomTheme','NoExitMenu','VSync','DrawFramerate','LanguageDetection','integerscale'];
+const showSetting=(key:string, v:string|null)=> v===null ? 'AUTO' : ON_OFF_KEYS.includes(key) ? (v==='1'?'On':v==='0'?'Off':v) : key==='InterfaceMode' ? ({'0':'Normal','1':'Kiosk','2':'Kid'}[v]??v) : key==='DisableWindowsInterface' ? ({'0':'No','1':'Notifications','2':'Notifications and desktop'}[v]??v) : v;
 type BackupRow = { item_id: number; game_title: string; path: string; state: 'replaced'|'undone'; backup: string|null; backup_bytes: number|null; when: string; blocked: string|null };
 type BackupList = { installation_path: string; connected: boolean; rows: BackupRow[]; folder_bytes: number };
 type Installation = { id: string; adapter_id: string; adapter_name: string; path: string; version: string|null; presence: 'connected'|'not_connected'|'other_volume'; checks: LayoutCheck[]; added_at: string; arcade_system: 'mame'|'fbneo'|null };
@@ -136,10 +144,10 @@ function describeScan(r: ScanSummary): string {
 }
 const availabilityLabel: Record<Availability,string> = { online:'Online', offline:'Offline (drive not connected)', missing:'Missing at last scan' };
 type Drive = { name: string; mount_point: string; total_bytes: number; available_bytes: number; removable: boolean };
-type Page = 'Dashboard'|'Game Library'|'Drive Manager'|'Emulation Systems'|'Settings';
+type Page = 'Dashboard'|'Game Library'|'Drive Manager'|'Emulation Systems'|'Customize'|'Settings';
 const menus = [
   {title:'Dashboard',icon:LayoutDashboard}, {title:'Game Library',icon:LibraryBig},
-  {title:'Drive Manager',icon:HardDrive}, {title:'Emulation Systems',icon:Gamepad2}, {title:'Settings',icon:Settings2},
+  {title:'Drive Manager',icon:HardDrive}, {title:'Emulation Systems',icon:Gamepad2}, {title:'Customize',icon:Palette}, {title:'Settings',icon:Settings2},
 ] as const;
 const bytes = (n:number) => `${(n/1024/1024/1024).toFixed(1)} GB`;
 export default function App() {
@@ -278,9 +286,8 @@ export default function App() {
   };
   const [emu,setEmu]=useState<{id:string; options:SettingsOptions; history:SettingsHistory[]}|null>(null);
   const [pending,setPending]=useState<Record<string,string|null>>({}); const [emuPreview,setEmuPreview]=useState<{changes:SettingChange[]; file_sha:string}|null>(null);
-  const [emuAll,setEmuAll]=useState(false); const [emuConfirm,setEmuConfirm]=useState(false); const [emuBusy,setEmuBusy]=useState(false); const [emuUndo,setEmuUndo]=useState<number|null>(null);
+  const [emuAll,setEmuAll]=useState(false); const [emuConfirm,setEmuConfirm]=useState(false); const [emuBusy,setEmuBusy]=useState(false); 
   const loadEmu=async(id:string)=>{ const [options,history]=await Promise.all([invoke<SettingsOptions>('emulator_settings',{installationId:id}), invoke<SettingsHistory[]>('emulator_settings_history',{installationId:id})]); setEmu({id,options,history}); };
-  const showEmu=async(id:string)=>{ if(emu?.id===id){ setEmu(null); return; } setPending({}); setEmuPreview(null); setEmuConfirm(false); try { await loadEmu(id); } catch(e){ setError(true); setMessage(`Could not read RetroBat's settings: ${String(e)}`); } };
   const emuValue=(sys:SystemSettings,key:string)=>{ const k=`${sys.system}.${key}`; return k in pending ? (pending[k]??'') : (sys.current[key]??''); };
   const setEmuValue=(sys:SystemSettings, values:Record<string,string|null>)=>{ setEmuPreview(null); setEmuConfirm(false); setPending(p=>{ const n={...p}; for(const [key,v] of Object.entries(values)){ const k=`${sys.system}.${key}`; if((sys.current[key]??null)===v) delete n[k]; else n[k]=v; } return n; }); };
   const pendingChanges=()=>Object.entries(pending).map(([k,v])=>{ const i=k.lastIndexOf('.'); return { system:k.slice(0,i), key:k.slice(i+1), value:v }; });
@@ -288,16 +295,11 @@ export default function App() {
   const applyEmu=async()=>{ if(!emu||!emuPreview) return; if(!emuConfirm){ setEmuConfirm(true); return; } setEmuBusy(true);
     try { const m=await invoke<string>('apply_emulator_settings',{installationId:emu.id, changes:pendingChanges(), fileSha:emuPreview.file_sha}); setError(false); setMessage(`RetroBat settings: ${m}`); setPending({}); setEmuPreview(null); }
     catch(e){ setError(true); setMessage(`Could not change RetroBat's settings: ${String(e)}`); }
-    finally { setEmuBusy(false); setEmuConfirm(false); try { await loadEmu(emu.id); } catch { /* refresh is best effort */ } } };
-  const undoEmu=async(h:SettingsHistory)=>{ if(!emu) return; if(emuUndo!==h.id){ setEmuUndo(h.id); return; } setEmuBusy(true);
-    try { const m=await invoke<string>('undo_emulator_settings',{changeId:h.id}); setError(false); setMessage(`RetroBat settings: ${m}`); }
-    catch(e){ setError(true); setMessage(`Could not undo: ${String(e)}`); }
-    finally { setEmuBusy(false); setEmuUndo(null); try { await loadEmu(emu.id); } catch { /* refresh is best effort */ } } };
+    finally { setEmuBusy(false); setEmuConfirm(false); await loadCustomize(emu.id,'emulators'); } };
   const [themes,setThemes]=useState<{id:string; list:ThemeList}|null>(null); const [remix,setRemix]=useState<{base:ThemeInfo; name:string; colors:Record<string,string>; images:Record<string,string>; fonts:Record<string,string>}|null>(null);
   const [assets,setAssets]=useState<Record<string,string>>({}); const [themeBusy,setThemeBusy]=useState(false); const [switchTo,setSwitchTo]=useState<{theme:string; changes:SettingChange[]; file_sha:string}|null>(null); const [switchConfirm,setSwitchConfirm]=useState(false);
   const asset=async(path:string|null|undefined)=>{ if(!path) return null; if(assets[path]) return assets[path]; try { const url=await invoke<string>('theme_preview_asset',{path}); setAssets(a=>({...a,[path]:url})); return url; } catch { return null; } };
   const loadThemes=async(id:string)=>setThemes({id, list: await invoke<ThemeList>('list_themes',{installationId:id})});
-  const showThemes=async(id:string)=>{ if(themes?.id===id){ setThemes(null); setRemix(null); return; } setRemix(null); setSwitchTo(null); try { await loadThemes(id); } catch(e){ setError(true); setMessage(`Could not read the themes: ${String(e)}`); } };
   const startRemix=(t:ThemeInfo)=>{ setRemix({base:t, name:`${t.folder} remix`, colors:{}, images:{}, fonts:{}}); const bg=t.variables.find(v=>v.kind==='image'); void asset(bg?.path); const f=t.fonts.find(x=>/regular/i.test(x))??t.fonts[0]; if(f) void asset(`${t.path}\\${f.replace(/\//g,'\\')}`); };
   const pickRemixFile=async(kind:'images'|'fonts', key:string)=>{ const path=await open({multiple:false,directory:false,title:kind==='images'?'Choose your picture':'Choose your font',filters:[kind==='images'?{name:'Pictures',extensions:['png','jpg','jpeg']}:{name:'Fonts',extensions:['ttf','otf']}]}); if(!path||typeof path!=='string') return; await asset(path); setRemix(r=>r&&({...r,[kind]:{...r[kind],[key]:path}})); };
   const saveRemix=async()=>{ if(!themes||!remix) return; setThemeBusy(true); setMessage(`Saving "${remix.name}": copying ${fmtSize(remix.base.bytes)} of ${remix.base.folder}. This can take a few minutes on a USB drive…`); setError(false);
@@ -305,8 +307,37 @@ export default function App() {
     catch(e){ setError(true); setMessage(`Could not save the theme: ${String(e)}`); } finally { setThemeBusy(false); } };
   const reviewSwitch=async(theme:string)=>{ if(!themes) return; try { const p=await invoke<{changes:SettingChange[]; file_sha:string}>('preview_theme_switch',{installationId:themes.id, theme}); setSwitchTo({theme, ...p}); setSwitchConfirm(false); } catch(e){ setError(true); setMessage(String(e)); } };
   const applySwitch=async()=>{ if(!themes||!switchTo) return; if(!switchConfirm){ setSwitchConfirm(true); return; } setThemeBusy(true);
-    try { const m=await invoke<string>('apply_theme_switch',{installationId:themes.id, theme:switchTo.theme, fileSha:switchTo.file_sha}); setError(false); setMessage(`RetroBat theme: ${m} Undo it under Emulator settings → Changes made.`); setSwitchTo(null); await loadThemes(themes.id); }
+    try { const m=await invoke<string>('apply_theme_switch',{installationId:themes.id, theme:switchTo.theme, fileSha:switchTo.file_sha}); setError(false); setMessage(`RetroBat theme: ${m} Undo it under Emulator settings → Changes made.`); setSwitchTo(null); await loadThemes(themes.id); setCustHistory(await invoke<SettingsHistory[]>('emulator_settings_history',{installationId:themes.id})); }
     catch(e){ setError(true); setMessage(`Could not switch the theme: ${String(e)}`); } finally { setThemeBusy(false); setSwitchConfirm(false); } };
+  const [custId,setCustId]=useState(''); const [custTab,setCustTab]=useState<'look'|'behavior'|'emulators'>('look');
+  const [look,setLook]=useState<LookOptions|null>(null); const [lookPending,setLookPending]=useState<Record<string,string>>({}); const [lookPreview,setLookPreview]=useState<{changes:SettingChange[]; file_sha:string}|null>(null); const [lookConfirm,setLookConfirm]=useState(false);
+  const [custHistory,setCustHistory]=useState<SettingsHistory[]>([]); const [histUndo,setHistUndo]=useState<number|null>(null); const [custBusy,setCustBusy]=useState(false);
+  const custInstalls=installs.filter(i=>i.adapter_id==='retrobat'); const custTarget=custInstalls.find(i=>i.id===custId)??custInstalls[0];
+  const loadCustomize=async(id:string, tab:string)=>{ try { setCustHistory(await invoke<SettingsHistory[]>('emulator_settings_history',{installationId:id}));
+      if(tab==='emulators'){ setPending({}); setEmuPreview(null); await loadEmu(id); } else { setLook(await invoke<LookOptions>('look_options',{installationId:id})); setLookPending({}); setLookPreview(null); setLookConfirm(false); if(tab==='look') await loadThemes(id); } }
+    catch(e){ setError(true); setMessage(`Could not read RetroBat's settings: ${String(e)}`); } };
+  useEffect(()=>{ if(page==='Customize'&&custTarget&&custTarget.presence==='connected') void loadCustomize(custTarget.id, custTab); },[page, custTarget?.id, custTab]);
+  const lookValue=(key:string)=>lookPending[key]??look?.values[key]??'';
+  const setLookValue=(key:string, value:string)=>{ setLookPreview(null); setLookConfirm(false); setLookPending(p=>{ const n={...p}; if((look?.values[key]??'')===value) delete n[key]; else n[key]=value; return n; }); };
+  const lookChanges=()=>Object.entries(lookPending).map(([k,value])=>{ const i=k.indexOf('.'); return { section:k.slice(0,i), key:k.slice(i+1), value }; });
+  const reviewLook=async()=>{ if(!custTarget) return; try { setLookPreview(await invoke<{changes:SettingChange[]; file_sha:string}>('preview_look',{installationId:custTarget.id, changes:lookChanges()})); setLookConfirm(false); } catch(e){ setError(true); setMessage(`Those settings can't be applied: ${String(e)}`); } };
+  const applyLook=async()=>{ if(!custTarget||!lookPreview) return; if(!lookConfirm){ setLookConfirm(true); return; } setCustBusy(true);
+    try { const m=await invoke<string>('apply_look',{installationId:custTarget.id, changes:lookChanges(), fileSha:lookPreview.file_sha}); setError(false); setMessage(`RetroBat settings: ${m}`); }
+    catch(e){ setError(true); setMessage(`Could not change RetroBat's settings: ${String(e)}`); } finally { setCustBusy(false); await loadCustomize(custTarget.id, custTab); } };
+  const addMedia=async(kind:'video'|'music')=>{ if(!custTarget) return; const path=await open({multiple:false,directory:false,title:kind==='video'?'Choose your boot video (.mp4)':'Choose your music (.ogg or .mp3)',filters:[kind==='video'?{name:'Videos',extensions:['mp4']}:{name:'Music',extensions:['ogg','mp3']}]});
+    if(!path||typeof path!=='string') return; setCustBusy(true); setMessage(kind==='video'?'Copying your video to the drive…':'Copying your music to the drive…'); setError(false);
+    try { const name=await invoke<string>('add_retrobat_media',{installationId:custTarget.id, kind, path}); const fresh=await invoke<LookOptions>('look_options',{installationId:custTarget.id}); setLook(fresh);
+      if(kind==='video'){ const want:Record<string,string>={'SplashScreen.FileName':name,'SplashScreen.RandomVideo':'0','SplashScreen.EnableIntro':'1'}; const next:Record<string,string>={}; for(const [k,v] of Object.entries(want)){ if(k in fresh.values && fresh.values[k]!==v) next[k]=v; } setLookPending(next); setLookPreview(null);
+        setMessage(`Added ${name} to RetroBat's videos. Review the change below to make it the boot video.`); }
+      else setMessage(`Added ${name} to RetroBat's music. RetroBat plays the music folder in its menus.`); }
+    catch(e){ setError(true); setMessage(`Could not add the file: ${String(e)}`); } finally { setCustBusy(false); } };
+  const undoChange=async(h:SettingsHistory)=>{ if(!custTarget) return; if(histUndo!==h.id){ setHistUndo(h.id); return; } setCustBusy(true);
+    try { const m=await invoke<string>('undo_emulator_settings',{changeId:h.id}); setError(false); setMessage(`RetroBat settings: ${m}`); }
+    catch(e){ setError(true); setMessage(`Could not undo: ${String(e)}`); } finally { setCustBusy(false); setHistUndo(null); await loadCustomize(custTarget.id, custTab); } };
+  const iniControl=(o:IniOption)=>{ const key=`${o.section}.${o.key}`; const v=lookValue(key);
+    if(o.kind==='number') return <input className="num" type="number" min={0} max={60000} step={100} value={v} disabled={custBusy} onChange={e=>setLookValue(key,e.target.value)}/>;
+    const choices=o.key==='FileName'?(look?.videos??[]).map(x=>({label:x,value:x})):o.kind==='bool'?[{label:'On',value:'1'},{label:'Off',value:'0'}]:o.choices;
+    return <select className="choice" value={v} disabled={custBusy} onChange={e=>setLookValue(key,e.target.value)}>{!choices.some(c=>c.value===v)&&<option value={v}>{v||'(not set)'}</option>}{choices.map(c=><option key={c.value} value={c.value}>{c.label}</option>)}</select>; };
   const openBackupFolder=async(id:string)=>{ try { await invoke('open_backup_folder',{installationId:id}); } catch(e){ setError(true); setMessage(String(e)); } };
   const forgetInstallation=async(id:string)=>{
     if(forgetting!==id){ setForgetting(id); return; }
@@ -457,51 +488,9 @@ export default function App() {
       <h2>Your installations</h2>
       {installs.length===0 ? <div className="empty">No installations yet. Click <b>&nbsp;Add existing installation&nbsp;</b> and pick your RetroBat folder or Batocera game folder.</div> : installs.map(ins=><article className="installation" key={ins.id}>
         <div className="installation-head"><div><b>{ins.adapter_name}</b><small className="mono">{ins.path}</small><small className={'presence '+ins.presence}>{installPresence[ins.presence]} · {ins.version?`Version ${ins.version}`:'Version unknown'}</small></div>
-          <div className="actions"><button className="primary" disabled={ins.presence!=='connected'||planLoading!==null} onClick={()=>void showPlan(ins.id, null, {}, '')}><Eye size={16}/>{planLoading===ins.id?'Planning...':'Plan deployment'}</button>{ins.adapter_id==='retrobat'&&<button className="ghost" onClick={()=>void showThemes(ins.id)}><Palette size={16}/>{themes?.id===ins.id?'Hide themes':'Themes'}</button>}{ins.adapter_id==='retrobat'&&<button className="ghost" onClick={()=>void showEmu(ins.id)}><SlidersHorizontal size={16}/>{emu?.id===ins.id?'Hide emulator settings':'Emulator settings'}</button>}<button className="ghost" onClick={()=>void showBackups(ins.id)}><History size={16}/>{backups?.id===ins.id?'Hide backups':'Backups'}</button><button className="ghost" onClick={()=>void forgetInstallation(ins.id)} onBlur={()=>setForgetting(null)}>{forgetting===ins.id?'Click again to forget':'Forget'}</button></div></div>
+          <div className="actions"><button className="primary" disabled={ins.presence!=='connected'||planLoading!==null} onClick={()=>void showPlan(ins.id, null, {}, '')}><Eye size={16}/>{planLoading===ins.id?'Planning...':'Plan deployment'}</button><button className="ghost" onClick={()=>void showBackups(ins.id)}><History size={16}/>{backups?.id===ins.id?'Hide backups':'Backups'}</button><button className="ghost" onClick={()=>void forgetInstallation(ins.id)} onBlur={()=>setForgetting(null)}>{forgetting===ins.id?'Click again to forget':'Forget'}</button></div></div>
         <div className="arcade-choice"><label>Arcade games go to <select value={ins.arcade_system??''} disabled={busy} onChange={e=>void setArcade(ins.id, e.target.value)}><option value="">Not chosen (arcade games aren't placed)</option><option value="mame">MAME (roms\mame)</option><option value="fbneo">FinalBurn Neo (roms\fbneo)</option></select></label>
           <small>Pick the emulator your arcade romset was made for: romset versions must match the emulator.{ins.adapter_id==='retrobat'?' RetroBat recommends non-merged sets and doesn\'t support merged ones.':''}{ins.adapter_id==='batocera'?' On Batocera, CPS1/2/3 games go here too.':''} CHD disks aren't placed yet.</small></div>
-        {themes?.id===ins.id&&<div className="backups themes"><h3>Themes</h3>
-          <p className="plan-notes">The look of RetroBat's menus. <b>Remix</b> makes your own version of a theme with your colors, pictures and fonts. It's saved as a new theme; the original is never changed. Theme credits and licenses stay with every remix.</p>
-          {!remix&&<div className="theme-grid">{themes.list.themes.map(t=><article key={t.folder} className={'theme-card'+(t.active?' active':'')}>
-            <div className="swatches">{t.variables.filter(v=>v.kind==='color').slice(0,6).map(v=><span key={v.name} title={`${varLabel(v.name)}: ${v.value}`} style={{background:cssColor(v.value,'#000')}}/>)}</div>
-            <b>{t.folder}</b>{t.active&&<span className="tag identical">In use</span>}<small>{t.remixed_from?`Remix of ${t.remixed_from} · `:''}{fmtSize(t.bytes)} · {t.files.toLocaleString()} files</small>
-            {t.credits.length>0&&<small className="credits" title={t.credits.join('\n')}>{t.credits.slice(0,2).join(' · ')}</small>}
-            <div className="actions"><button className="ghost" disabled={!!t.problem||themeBusy} title={t.problem??''} onClick={()=>startRemix(t)}><Palette size={15}/> Remix</button>{!t.active&&<button className="ghost" disabled={themeBusy} onClick={()=>void reviewSwitch(t.folder)}>Use in RetroBat</button>}</div>
-            {t.problem&&<small className="warn-text">{t.problem}</small>}</article>)}</div>}
-          {switchTo&&!remix&&<div className="confirm"><p><b>Make "{switchTo.theme}" RetroBat's theme?</b></p><ul>{switchTo.changes.map(c=><li key={c.key}>Theme: {c.before??'default'} → <b>{c.after}</b></li>)}<li>Only works while RetroBat is closed. The previous settings file is kept and you can undo.</li></ul>
-            <div className="actions"><button className="primary" disabled={themeBusy} onClick={()=>void applySwitch()}>{switchConfirm?'Click again to switch':'Switch theme'}</button><button className="ghost" onClick={()=>setSwitchTo(null)}>Not now</button></div></div>}
-          {remix&&(()=>{ const vars:Record<string,string>={}; remix.base.variables.forEach(v=>{ vars[v.name]=remix.colors[v.name]??v.value; });
-            const bgVar=remix.base.variables.find(v=>v.kind==='image'); const bgPath=bgVar?(remix.images[bgVar.name]??bgVar.path):null; const regular=remix.base.fonts.find(x=>/regular/i.test(x))??remix.base.fonts[0];
-            const fontPath=regular?(remix.fonts[regular]??`${remix.base.path}\\${regular.replace(/\//g,'\\')}`):null; const fontUrl=fontPath?assets[fontPath]??null:null;
-            return <div className="remix"><div className="remix-form">
-              <label>New theme name <input value={remix.name} maxLength={60} onChange={e=>setRemix({...remix, name:e.target.value})}/></label>
-              <small className="plan-notes">Based on <b>{remix.base.folder}</b>. Saving copies it ({fmtSize(remix.base.bytes)}), then changes only the copy.</small>
-              <h4>Colors</h4>{remix.base.variables.filter(v=>v.kind==='color').map(v=>{ const value=remix.colors[v.name]??v.value; const alpha=value.length===8?value.slice(6):'';
-                return <label key={v.name} className="color-row"><input type="color" value={`#${value.slice(0,6)}`} onChange={e=>setRemix({...remix, colors:{...remix.colors,[v.name]:e.target.value.slice(1)+alpha}})}/>{varLabel(v.name)}<span className="mono">{value}</span>{remix.colors[v.name]&&<button className="link" onClick={()=>{ const c={...remix.colors}; delete c[v.name]; setRemix({...remix, colors:c}); }}>reset</button>}</label>; })}
-              {remix.base.variables.filter(v=>v.kind==='image').map(v=><div key={v.name}><h4>{varLabel(v.name)}</h4><button className="ghost" onClick={()=>void pickRemixFile('images',v.name)}>Choose your picture…</button> <small className="mono">{remix.images[v.name]?shortPath(remix.images[v.name]):v.value}</small></div>)}
-              {remix.base.fonts.length>0&&<><h4>Fonts</h4>{remix.base.fonts.map(f=><div key={f} className="font-row"><span className="mono">{f.split('/').pop()}</span><button className="ghost" onClick={()=>void pickRemixFile('fonts',f)}>Replace with my font…</button>{remix.fonts[f]&&<small className="mono">{shortPath(remix.fonts[f])}</small>}</div>)}</>}
-              <div className="actions"><button className="primary" disabled={themeBusy||!remix.name.trim()||(Object.keys(remix.colors).length+Object.keys(remix.images).length+Object.keys(remix.fonts).length===0)} onClick={()=>void saveRemix()}>{themeBusy?'Saving…':'Save theme'}</button><button className="ghost" disabled={themeBusy} onClick={()=>setRemix(null)}>Cancel</button></div>
-              <small className="plan-notes">Use only pictures and fonts you have the right to use. They stay on your drive; RetroDrive never shares them.</small>
-            </div><ThemeMockup vars={vars} background={bgPath?assets[bgPath]??null:null} font={previewFamily(fontUrl)}/></div>; })()}
-        </div>}
-        {emu?.id===ins.id&&(()=>{ const o=emu.options; const shown=o.systems.filter(x=>emuAll||x.has_games||Object.keys(x.current).length>0); const count=Object.keys(pending).length;
-          const pick=(sys:SystemSettings,key:string,choices:EmuChoice[])=> <select className="choice" aria-label={`${sys.name} ${settingLabel[key]}`} value={emuValue(sys,key)} disabled={emuBusy} onChange={e=>setEmuValue(sys,{[key]:e.target.value||null})}><option value="">AUTO</option>{choices.map(c=><option key={c.value} value={c.value}>{c.label}</option>)}{emuValue(sys,key)&&!choices.some(c=>c.value===emuValue(sys,key))&&<option value={emuValue(sys,key)}>{emuValue(sys,key)} (current)</option>}</select>;
-          return <div className="backups emu"><h3>Emulator settings</h3>
-          <p className="plan-notes">These are RetroBat's own per-system settings (the same as <b>Advanced system options</b> in RetroBat). <b>AUTO</b> leaves the choice to RetroBat. A display setting is only used when the chosen emulator supports it. RetroDrive shows the exact changes first, keeps the previous settings file in <span className="mono">.retrodrive\backup</span>, and can undo.</p>
-          {o.blocked&&<p className="warn-text"><AlertTriangle size={15}/> {o.blocked} <button className="ghost" onClick={()=>void loadEmu(emu.id)}>Check again</button></p>}
-          <label className="check"><input type="checkbox" checked={emuAll} onChange={e=>setEmuAll(e.target.checked)}/> Show all {o.systems.length} systems (otherwise systems with games or settings)</label>
-          <div className="table-wrap"><table><thead><tr><th>System</th><th>Emulator</th><th>Shader</th><th>Bezel</th><th>Aspect ratio</th><th>Integer scaling</th></tr></thead><tbody>{shown.map(sys=>{ const ev=emuValue(sys,'emulator'); const cv=emuValue(sys,'core'); const current=ev?`${ev}|${cv}`:'';
-            return <tr key={sys.system}><td><b>{sys.name}</b><small className="mono">{sys.system}</small></td>
-              <td><select className="choice" aria-label={`${sys.name} emulator`} value={current} disabled={emuBusy} onChange={e=>{ const [em,co]=e.target.value.split('|'); setEmuValue(sys,{emulator:em||null, core:co||null}); }}><option value="">AUTO</option>{sys.emulators.flatMap(em=>em.cores.length?em.cores.map(co=><option key={`${em.emulator}|${co}`} value={`${em.emulator}|${co}`}>{em.emulator}: {co}</option>):[<option key={`${em.emulator}|`} value={`${em.emulator}|`}>{em.emulator}</option>])}{current&&!sys.emulators.some(em=>em.emulator===ev&&(em.cores.length?em.cores.includes(cv):!cv))&&<option value={current}>{ev}{cv?`: ${cv}`:''} (current)</option>}</select></td>
-              <td>{pick(sys,'shaderset',o.shaders)}</td><td>{pick(sys,'bezel',o.bezels)}</td><td>{pick(sys,'ratio',o.ratios)}</td><td>{pick(sys,'integerscale',o.integer_scaling)}</td></tr>; })}</tbody></table></div>
-          <div className="actions"><button className="primary" disabled={count===0||emuBusy} onClick={()=>void reviewEmu()}><Eye size={16}/> Review changes{count?` (${count})`:''}</button>{count>0&&<button className="ghost" disabled={emuBusy} onClick={()=>{ setPending({}); setEmuPreview(null); }}>Discard</button>}</div>
-          {emuPreview&&<div className="confirm"><p><b>These settings will change</b> in <span className="mono">emulationstation\.emulationstation\es_settings.cfg</span>:</p>
-            <ul>{emuPreview.changes.map(c=><li key={`${c.system}.${c.key}`}><span className="mono">{c.system}</span> {settingLabel[c.key]??c.key}: {c.before??'AUTO'} → <b>{c.after??'AUTO'}</b></li>)}</ul>
-            <p className="plan-notes">Every other setting stays exactly as it is. The current file is moved to the backup folder first; nothing is deleted.</p>
-            <div className="actions"><button className="primary" disabled={emuBusy||!!o.blocked} onClick={()=>void applyEmu()}>{emuBusy?'Applying…':emuConfirm?'Click again to apply':'Apply'}</button><button className="ghost" disabled={emuBusy} onClick={()=>setEmuPreview(null)}>Not now</button></div></div>}
-          {emu.history.length>0&&<><h3>Changes made</h3><div className="table-wrap"><table><thead><tr><th>When</th><th>Changes</th><th></th></tr></thead><tbody>{emu.history.map(h=><tr key={h.id}><td>{localTime(h.when)}</td><td>{h.changes.map(c=><small key={`${c.system}.${c.key}`}><span className="mono">{c.system}</span> {settingLabel[c.key]??c.key}: {c.before??'AUTO'} → {c.after??'AUTO'}</small>)}</td>
-            <td>{h.state==='applied'&&!h.blocked?<button className={emuUndo===h.id?'primary':'ghost'} disabled={emuBusy||!!o.blocked} onClick={()=>void undoEmu(h)} onBlur={()=>{ if(!emuBusy) setEmuUndo(null); }}><Undo2 size={15}/>{emuUndo===h.id?'Click again to undo':'Undo'}</button>:<small className={h.state==='applied'?'warn-text':''}>{h.state==='undone'?'Undone':h.state==='failed'?'Not applied':h.blocked}</small>}</td></tr>)}</tbody></table></div></>}
-        </div>; })()}
         {backups?.id===ins.id&&<div className="backups"><h3>Replaced files</h3>
           <p className="plan-notes">When you chose <b>Replace</b>, the drive's original was moved to <span className="mono">.retrodrive\backup</span>. <b>Undo replace</b> puts the original back and moves RetroDrive's copy into the backup folder instead. Nothing is deleted.{backups.list.folder_bytes>0?` The backup folder holds ${fmtSize(backups.list.folder_bytes)}.`:''}</p>
           {backups.list.rows.length===0?<p className="plan-notes">No files have been replaced on this installation.</p>:<div className="table-wrap"><table><thead><tr><th>Game</th><th>File</th><th>When</th><th></th></tr></thead><tbody>{backups.list.rows.map(r=><tr key={r.item_id}><td><b>{r.game_title}</b>{r.backup&&<small className="mono" title={r.backup}>{r.state==='undone'?'RetroDrive’s copy: ':'Original: '}{shortPath(r.backup)}{r.backup_bytes!==null?` · ${fmtSize(r.backup_bytes)}`:''}</small>}</td><td className="mono" title={r.path}>{shortPath(r.path)}</td><td>{localTime(r.when)}</td>
@@ -552,6 +541,84 @@ export default function App() {
       <div className="actions"><button className="ghost" onClick={()=>setCopyResult(null)}>Close</button></div>
     </section>}
     </>}
+    {page==='Customize' && <section className="panel customize">
+      <div className="section-heading"><div><h2>Customize</h2><p>Make RetroBat yours: themes, boot video, music, behavior and emulator settings. RetroDrive shows every change before making it, keeps the previous file, and can undo. RetroBat must be closed while changes are applied.</p></div>
+        {custInstalls.length>1&&<label className="cust-pick">Installation <select value={custTarget?.id??''} onChange={e=>setCustId(e.target.value)}>{custInstalls.map(i=><option key={i.id} value={i.id}>{i.adapter_name} · {i.path}</option>)}</select></label>}</div>
+      {!custTarget ? <div className="empty">Add a RetroBat installation under Emulation Systems first. Batocera, RetroPie and other systems are planned.</div>
+      : custTarget.presence!=='connected' ? <div className="empty">The drive for {custTarget.path} isn't connected.</div>
+      : <>
+        <p className="mono cust-target">{custTarget.adapter_name} · {custTarget.path}</p>
+        <div className="tabs" role="tablist">{([['look','Look'],['behavior','Behavior'],['emulators','Emulators']] as const).map(([k,l])=><button key={k} role="tab" aria-selected={custTab===k} className={custTab===k?'on':''} onClick={()=>setCustTab(k)}>{l}</button>)}</div>
+        {custTab!=='emulators'&&look?.blocked&&<p className="warn-text"><AlertTriangle size={15}/> {look.blocked} <button className="ghost" onClick={()=>void loadCustomize(custTarget.id, custTab)}>Check again</button></p>}
+        {custTab==='look'&&<>
+        {themes&&<div className="backups themes"><h3>Themes</h3>
+          <p className="plan-notes">The look of RetroBat's menus. <b>Remix</b> makes your own version of a theme with your colors, pictures and fonts. It's saved as a new theme; the original is never changed. Theme credits and licenses stay with every remix.</p>
+          {!remix&&<div className="theme-grid">{themes.list.themes.map(t=><article key={t.folder} className={'theme-card'+(t.active?' active':'')}>
+            <div className="swatches">{t.variables.filter(v=>v.kind==='color').slice(0,6).map(v=><span key={v.name} title={`${varLabel(v.name)}: ${v.value}`} style={{background:cssColor(v.value,'#000')}}/>)}</div>
+            <b>{t.folder}</b>{t.active&&<span className="tag identical">In use</span>}<small>{t.remixed_from?`Remix of ${t.remixed_from} · `:''}{fmtSize(t.bytes)} · {t.files.toLocaleString()} files</small>
+            {t.credits.length>0&&<small className="credits" title={t.credits.join('\n')}>{t.credits.slice(0,2).join(' · ')}</small>}
+            <div className="actions"><button className="ghost" disabled={!!t.problem||themeBusy} title={t.problem??''} onClick={()=>startRemix(t)}><Palette size={15}/> Remix</button>{!t.active&&<button className="ghost" disabled={themeBusy} onClick={()=>void reviewSwitch(t.folder)}>Use in RetroBat</button>}</div>
+            {t.problem&&<small className="warn-text">{t.problem}</small>}</article>)}</div>}
+          {switchTo&&!remix&&<div className="confirm"><p><b>Make "{switchTo.theme}" RetroBat's theme?</b></p><ul>{switchTo.changes.map(c=><li key={c.key}>Theme: {c.before??'default'} → <b>{c.after}</b></li>)}<li>Only works while RetroBat is closed. The previous settings file is kept and you can undo.</li></ul>
+            <div className="actions"><button className="primary" disabled={themeBusy} onClick={()=>void applySwitch()}>{switchConfirm?'Click again to switch':'Switch theme'}</button><button className="ghost" onClick={()=>setSwitchTo(null)}>Not now</button></div></div>}
+          {remix&&(()=>{ const vars:Record<string,string>={}; remix.base.variables.forEach(v=>{ vars[v.name]=remix.colors[v.name]??v.value; });
+            const bgVar=remix.base.variables.find(v=>v.kind==='image'); const bgPath=bgVar?(remix.images[bgVar.name]??bgVar.path):null; const regular=remix.base.fonts.find(x=>/regular/i.test(x))??remix.base.fonts[0];
+            const fontPath=regular?(remix.fonts[regular]??`${remix.base.path}\\${regular.replace(/\//g,'\\')}`):null; const fontUrl=fontPath?assets[fontPath]??null:null;
+            return <div className="remix"><div className="remix-form">
+              <label>New theme name <input value={remix.name} maxLength={60} onChange={e=>setRemix({...remix, name:e.target.value})}/></label>
+              <small className="plan-notes">Based on <b>{remix.base.folder}</b>. Saving copies it ({fmtSize(remix.base.bytes)}), then changes only the copy.</small>
+              <h4>Colors</h4>{remix.base.variables.filter(v=>v.kind==='color').map(v=>{ const value=remix.colors[v.name]??v.value; const alpha=value.length===8?value.slice(6):'';
+                return <label key={v.name} className="color-row"><input type="color" value={`#${value.slice(0,6)}`} onChange={e=>setRemix({...remix, colors:{...remix.colors,[v.name]:e.target.value.slice(1)+alpha}})}/>{varLabel(v.name)}<span className="mono">{value}</span>{remix.colors[v.name]&&<button className="link" onClick={()=>{ const c={...remix.colors}; delete c[v.name]; setRemix({...remix, colors:c}); }}>reset</button>}</label>; })}
+              {remix.base.variables.filter(v=>v.kind==='image').map(v=><div key={v.name}><h4>{varLabel(v.name)}</h4><button className="ghost" onClick={()=>void pickRemixFile('images',v.name)}>Choose your picture…</button> <small className="mono">{remix.images[v.name]?shortPath(remix.images[v.name]):v.value}</small></div>)}
+              {remix.base.fonts.length>0&&<><h4>Fonts</h4>{remix.base.fonts.map(f=><div key={f} className="font-row"><span className="mono">{f.split('/').pop()}</span><button className="ghost" onClick={()=>void pickRemixFile('fonts',f)}>Replace with my font…</button>{remix.fonts[f]&&<small className="mono">{shortPath(remix.fonts[f])}</small>}</div>)}</>}
+              <div className="actions"><button className="primary" disabled={themeBusy||!remix.name.trim()||(Object.keys(remix.colors).length+Object.keys(remix.images).length+Object.keys(remix.fonts).length===0)} onClick={()=>void saveRemix()}>{themeBusy?'Saving…':'Save theme'}</button><button className="ghost" disabled={themeBusy} onClick={()=>setRemix(null)}>Cancel</button></div>
+              <small className="plan-notes">Use only pictures and fonts you have the right to use. They stay on your drive; RetroDrive never shares them.</small>
+            </div><ThemeMockup vars={vars} background={bgPath?assets[bgPath]??null:null} font={previewFamily(fontUrl)}/></div>; })()}
+        </div>}
+
+          {look&&<div className="backups"><h3>Boot video</h3>
+            <p className="plan-notes">The video RetroBat plays when it starts. Add your own .mp4: it's copied to <span className="mono">{look.videos_path}</span> as a new file (existing videos are never replaced).</p>
+            {!look.default_video_folder&&<p className="warn-text">This RetroBat plays videos from another folder (FilePath in retrobat.ini), so the list below may not match.</p>}
+            <div className="option-grid">{look.options.filter(o=>o.section==='SplashScreen').map(o=><label key={o.key} title={o.help}><span>{o.label}{o.help&&<small>{o.help}</small>}</span>{iniControl(o)}</label>)}</div>
+            <div className="actions"><button className="ghost" disabled={custBusy} onClick={()=>void addMedia('video')}><Plus size={15}/> Add my own video…</button></div></div>}
+          {look&&<div className="backups"><h3>Menu music</h3>
+            <p className="plan-notes">RetroBat plays the music in <span className="mono">{look.music_path}</span> while you browse its menus. Add your own .ogg or .mp3 files; they're copied as new files and nothing is replaced. Use only music you have the right to use.</p>
+            <ul className="music-list">{look.music.map(m=><li key={m} className="mono">{m}</li>)}</ul>
+            <div className="actions"><button className="ghost" disabled={custBusy} onClick={()=>void addMedia('music')}><Plus size={15}/> Add my own music…</button></div></div>}
+        </>}
+        {custTab==='behavior'&&<>
+          {look&&<div className="backups"><h3>Behavior</h3><p className="plan-notes">How RetroBat starts and what players can do. These are RetroBat's own settings in <span className="mono">retrobat.ini</span>.</p>
+            <div className="option-grid">{look.options.filter(o=>o.section!=='SplashScreen').map(o=><label key={o.key} title={o.help}><span>{o.label}{o.help&&<small>{o.help}</small>}</span>{iniControl(o)}</label>)}</div></div>}
+        </>}
+        {custTab!=='emulators'&&<>
+          {Object.keys(lookPending).length>0&&<div className="actions"><button className="primary" disabled={custBusy} onClick={()=>void reviewLook()}><Eye size={16}/> Review changes ({Object.keys(lookPending).length})</button><button className="ghost" disabled={custBusy} onClick={()=>{ setLookPending({}); setLookPreview(null); }}>Discard</button></div>}
+          {lookPreview&&<div className="confirm"><p><b>These settings will change</b> in <span className="mono">retrobat.ini</span>:</p><ul>{lookPreview.changes.map(c=><li key={`${c.system}.${c.key}`}>{(look?.options.find(o=>o.key===c.key)?.label)??c.key}: {showSetting(c.key,c.before)} → <b>{showSetting(c.key,c.after)}</b></li>)}</ul>
+            <p className="plan-notes">Every other line stays exactly as it is. The current file is moved to the backup folder first; nothing is deleted.</p>
+            <div className="actions"><button className="primary" disabled={custBusy||!!look?.blocked} onClick={()=>void applyLook()}>{custBusy?'Applying…':lookConfirm?'Click again to apply':'Apply'}</button><button className="ghost" disabled={custBusy} onClick={()=>setLookPreview(null)}>Not now</button></div></div>}
+        </>}
+        {custTab==='emulators'&&<>
+        {emu&&(()=>{ const o=emu.options; const shown=o.systems.filter(x=>emuAll||x.has_games||Object.keys(x.current).length>0); const count=Object.keys(pending).length;
+          const pick=(sys:SystemSettings,key:string,choices:EmuChoice[])=> <select className="choice" aria-label={`${sys.name} ${settingLabel[key]}`} value={emuValue(sys,key)} disabled={emuBusy} onChange={e=>setEmuValue(sys,{[key]:e.target.value||null})}><option value="">AUTO</option>{choices.map(c=><option key={c.value} value={c.value}>{c.label}</option>)}{emuValue(sys,key)&&!choices.some(c=>c.value===emuValue(sys,key))&&<option value={emuValue(sys,key)}>{emuValue(sys,key)} (current)</option>}</select>;
+          return <div className="backups emu"><h3>Emulator settings</h3>
+          <p className="plan-notes">These are RetroBat's own per-system settings (the same as <b>Advanced system options</b> in RetroBat). <b>AUTO</b> leaves the choice to RetroBat. A display setting is only used when the chosen emulator supports it. RetroDrive shows the exact changes first, keeps the previous settings file in <span className="mono">.retrodrive\backup</span>, and can undo.</p>
+          {o.blocked&&<p className="warn-text"><AlertTriangle size={15}/> {o.blocked} <button className="ghost" onClick={()=>void loadEmu(emu.id)}>Check again</button></p>}
+          <label className="check"><input type="checkbox" checked={emuAll} onChange={e=>setEmuAll(e.target.checked)}/> Show all {o.systems.length} systems (otherwise systems with games or settings)</label>
+          <div className="table-wrap"><table><thead><tr><th>System</th><th>Emulator</th><th>Shader</th><th>Bezel</th><th>Aspect ratio</th><th>Integer scaling</th></tr></thead><tbody>{shown.map(sys=>{ const ev=emuValue(sys,'emulator'); const cv=emuValue(sys,'core'); const current=ev?`${ev}|${cv}`:'';
+            return <tr key={sys.system}><td><b>{sys.name}</b><small className="mono">{sys.system}</small></td>
+              <td><select className="choice" aria-label={`${sys.name} emulator`} value={current} disabled={emuBusy} onChange={e=>{ const [em,co]=e.target.value.split('|'); setEmuValue(sys,{emulator:em||null, core:co||null}); }}><option value="">AUTO</option>{sys.emulators.flatMap(em=>em.cores.length?em.cores.map(co=><option key={`${em.emulator}|${co}`} value={`${em.emulator}|${co}`}>{em.emulator}: {co}</option>):[<option key={`${em.emulator}|`} value={`${em.emulator}|`}>{em.emulator}</option>])}{current&&!sys.emulators.some(em=>em.emulator===ev&&(em.cores.length?em.cores.includes(cv):!cv))&&<option value={current}>{ev}{cv?`: ${cv}`:''} (current)</option>}</select></td>
+              <td>{pick(sys,'shaderset',o.shaders)}</td><td>{pick(sys,'bezel',o.bezels)}</td><td>{pick(sys,'ratio',o.ratios)}</td><td>{pick(sys,'integerscale',o.integer_scaling)}</td></tr>; })}</tbody></table></div>
+          <div className="actions"><button className="primary" disabled={count===0||emuBusy} onClick={()=>void reviewEmu()}><Eye size={16}/> Review changes{count?` (${count})`:''}</button>{count>0&&<button className="ghost" disabled={emuBusy} onClick={()=>{ setPending({}); setEmuPreview(null); }}>Discard</button>}</div>
+          {emuPreview&&<div className="confirm"><p><b>These settings will change</b> in <span className="mono">emulationstation\.emulationstation\es_settings.cfg</span>:</p>
+            <ul>{emuPreview.changes.map(c=><li key={`${c.system}.${c.key}`}><span className="mono">{c.system}</span> {settingLabel[c.key]??c.key}: {c.before??'AUTO'} → <b>{c.after??'AUTO'}</b></li>)}</ul>
+            <p className="plan-notes">Every other setting stays exactly as it is. The current file is moved to the backup folder first; nothing is deleted.</p>
+            <div className="actions"><button className="primary" disabled={emuBusy||!!o.blocked} onClick={()=>void applyEmu()}>{emuBusy?'Applying…':emuConfirm?'Click again to apply':'Apply'}</button><button className="ghost" disabled={emuBusy} onClick={()=>setEmuPreview(null)}>Not now</button></div></div>}
+        </div>; })()}
+        </>}
+
+          {custHistory.length>0&&<div className="backups"><h3>Changes made</h3><p className="plan-notes">Every change RetroDrive made to this RetroBat's settings and theme. Undo puts the previous file back.</p><div className="table-wrap"><table><thead><tr><th>When</th><th>Changes</th><th></th></tr></thead><tbody>{custHistory.map(h=><tr key={h.id}><td>{localTime(h.when)}</td><td>{h.changes.map(c=><small key={`${c.system}.${c.key}`}>{c.system&&!INI_SECTIONS.includes(c.system)&&<span className="mono">{c.system} </span>}{settingLabel[c.key]??c.key}: {showSetting(c.key,c.before)} → {showSetting(c.key,c.after)}</small>)}</td>
+            <td>{h.state==='applied'&&!h.blocked?<button className={histUndo===h.id?'primary':'ghost'} disabled={custBusy} onClick={()=>void undoChange(h)} onBlur={()=>{ if(!custBusy) setHistUndo(null); }}><Undo2 size={15}/>{histUndo===h.id?'Click again to undo':'Undo'}</button>:<small className={h.state==='applied'?'warn-text':''}>{h.state==='undone'?'Undone':h.state==='failed'?'Not applied':h.blocked}</small>}</td></tr>)}</tbody></table></div></div>}
+      </>}
+    </section>}
     {page==='Settings' && <section className="panel"><h2>Reference catalog</h2>
       <p>Import your own game catalog (.xlsx or .csv) to show proper titles, years, genres and publishers. RetroDrive matches games by their exact No-Intro or MAME name first, then by title on the same system. Only names and details are imported; <b>art columns are never read</b>. Your files are never changed, and removing the catalog leaves your library as it was.</p>
       {refStatus ? <div className="ref-status"><div><b>{refStatus.name}</b><small>{refStatus.file_name} · {refStatus.entries.toLocaleString()} entries{refStatus.genres_added?` · ${refStatus.genres_added.toLocaleString()} genres added`:''} · imported {sqlTime(refStatus.imported_at)}</small></div>

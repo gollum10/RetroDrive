@@ -407,6 +407,48 @@ async fn apply_theme_switch(catalog: State<'_, Catalog>, active: State<'_, Activ
     result?
 }
 
+/// Boot video, music and frontend options from retrobat.ini (reads only).
+#[tauri::command]
+async fn look_options(catalog: State<'_, Catalog>, installation_id: String) -> Result<customizer::LookOptions, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || customizer::look_options(&db::open(&db_path)?, &installation_id, &volumes::presence, &customizer::retrobat_running)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn preview_look(catalog: State<'_, Catalog>, installation_id: String, changes: Vec<customizer::IniChange>) -> Result<customizer::Preview, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || customizer::preview_look(&db::open(&db_path)?, &installation_id, &changes, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Write a reviewed retrobat.ini change (backed up, undoable).
+#[tauri::command]
+async fn apply_look(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, changes: Vec<customizer::IniChange>, file_sha: String) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || customizer::apply_look(&db::open(&db_path)?, &installation_id, &changes, &file_sha, &volumes::presence, &customizer::retrobat_running)).await.map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
+/// Copy the user's own boot video (.mp4) or music (.ogg/.mp3) into RetroBat as a new file.
+#[tauri::command]
+async fn add_retrobat_media(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, kind: String, path: String) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let connection = db::open(&db_path)?;
+        match kind.as_str() {
+            "video" => customizer::add_boot_video(&connection, &installation_id, &path, &volumes::presence),
+            "music" => customizer::add_music(&connection, &installation_id, &path, &volumes::presence),
+            _ => Err("Unknown kind of file.".to_string()),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
 /// Games and size per platform for the library's Systems page.
 #[tauri::command]
 async fn system_summary(catalog: State<'_, Catalog>) -> Result<Vec<catalog::SystemSummary>, String> {
@@ -741,6 +783,10 @@ pub fn run() {
             deployment_plan,
             system_summary,
             list_backups,
+            look_options,
+            preview_look,
+            apply_look,
+            add_retrobat_media,
             list_themes,
             theme_preview_asset,
             create_theme_remix,

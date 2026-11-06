@@ -188,3 +188,17 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risks:** subsets defined outside `theme.xml` aren't given a RetroDrive entry (their variables would still override). The preview is approximate. Each remix copies the whole base theme (1.1 GB for Carbon).
 
+## 14. Addendum: boot video, music and retrobat.ini options (2026-11-06)
+**Scope and authorization:** owner request on 2026-11-06 ("let's build your suggestions"; "add their own video and music"): Customize page with boot video, menu music and curated retrobat.ini options, all with review, backup and undo. Code: `customizer.rs` (`look_options`, `apply_look`, `add_boot_video`, `add_music`, `write_file`).
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| Damaging retrobat.ini (comments, other keys) | Only values of existing keys are replaced; the result must keep every other key's value and the key count; layout and line endings kept | `boot_video_and_frontend_options_edit_retrobat_ini_safely`; real-file check |
+| Risky RetroBat options | Not offered: Autostart (Windows startup), ResetConfigMode (resets settings), AppLauncher (runs programs), window sizes | same test |
+| Bad values | Booleans 0/1, choices from fixed lists, numbers 0-60,000; the boot video must be a file in RetroBat's video folder | same test |
+| Losing changes RetroBat makes / racing it | Same as §12: refused while running, SHA check from the review, journal, backup, undo, crash repair (shared `write_file`) | same test; §12 tests |
+| Replacing the user's media | Own videos/music are copied under a temporary marked name, compared by SHA-256 with the source, then renamed without replacing; an existing name is refused | `adding_a_boot_video_never_replaces_one` |
+| Copying something that isn't media | Only .mp4 (videos) and .ogg/.mp3 (music), 2 GB at most | same test |
+
+**Residual risk:** a custom `FilePath` makes RetroBat play videos from another folder; the page says so instead of guessing.
+
