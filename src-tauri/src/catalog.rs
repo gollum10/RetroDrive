@@ -65,6 +65,8 @@ pub struct GameQuery {
     pub duplicates_only: bool,
     /// Show only files the user left out of the library (normally they are hidden).
     pub left_out: bool,
+    /// Only titles starting with this letter (`A`-`Z`), or `#` for digits and symbols.
+    pub letter: Option<String>,
     /// `title` (default), `platform` or `size`.
     pub sort: Option<String>,
     pub offset: u32,
@@ -231,6 +233,19 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
     }
     if query.duplicates_only {
         conditions.push(HAS_DUPLICATE);
+    }
+    match query.letter.as_deref().map(str::trim).filter(|l| !l.is_empty()) {
+        None => {}
+        Some("#") => conditions.push("NOT (lower(substr(g.canonical_title, 1, 1)) BETWEEN 'a' AND 'z')"),
+        Some(letter) if letter.len() == 1 && letter.chars().all(|c| c.is_ascii_alphabetic()) => {
+            // A range on the title keeps the title index usable.
+            let low = letter.to_ascii_lowercase();
+            let high = ((low.as_bytes()[0]) + 1) as char;
+            conditions.push("g.canonical_title >= ? COLLATE NOCASE AND g.canonical_title < ? COLLATE NOCASE");
+            values.push(Value::Text(low));
+            values.push(Value::Text(high.to_string()));
+        }
+        Some(other) => return Err(format!("Unknown letter filter: {other}")),
     }
     let filtered = conditions.len() > 1 || query.left_out;
     // Left-out files are hidden unless asked for; this alone doesn't make a query "filtered".
@@ -679,5 +694,15 @@ mod tests {
         eprintln!("{:<28} systems={:>4}  {:?}", "system_summary", systems.len(), t.elapsed());
         assert_eq!(stats.files, 100_000);
         assert_eq!(stats.duplicate_files, 2_000);
+    }
+
+    #[test]
+    fn letters_filter_titles_and_hash_means_digits_or_symbols() {
+        let (_dir, c) = library(&[("nes/Metroid (USA).nes", b"m"), ("nes/mario (USA).nes", b"m2"), ("nes/Zelda (USA).nes", b"z"), ("nes/1942 (USA).nes", b"1"), ("nes/'89 Uranai (Japan).nes", b"8")]);
+        let pick = |l: &str| -> Vec<String> { titles(&run(&c, GameQuery { letter: Some(l.into()), ..GameQuery::default() })).into_iter().map(|t| t.to_string()).collect() };
+        assert_eq!(pick("M"), ["mario (USA)", "Metroid (USA)"], "case doesn't matter");
+        assert_eq!(pick("z"), ["Zelda (USA)"]);
+        assert_eq!(pick("#"), ["'89 Uranai (Japan)", "1942 (USA)"]);
+        assert!(query_games(&c, &GameQuery { letter: Some("AB".into()), ..GameQuery::default() }, &connected).is_err());
     }
 }

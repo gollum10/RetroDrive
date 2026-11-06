@@ -710,7 +710,18 @@ impl Grouping<'_> {
         disc_index: Option<i64>,
     ) -> Result<bool, String> {
         let parent_dir = list.path.parent().unwrap_or(self.root);
-        let Ok(target) = paths::normalize(&parent_dir.join(reference)) else {
+        // Some playlists (e.g. X68000 sets) write "/Game/disk.dim" meaning "inside this
+        // playlist's folder". Try that reading first, but only when the file exists
+        // there; the result is still checked against the scanned folder below.
+        let rooted = (reference.starts_with('/') || reference.starts_with('\\'))
+            && !reference.starts_with("//")
+            && !reference.starts_with("\\\\")
+            && !reference.contains(':');
+        let joined = rooted
+            .then(|| parent_dir.join(reference.trim_start_matches(['/', '\\'])))
+            .filter(|candidate| candidate.is_file())
+            .unwrap_or_else(|| parent_dir.join(reference));
+        let Ok(target) = paths::normalize(&joined) else {
             summary.warn(&list.path, format!("References \"{reference}\", which was not found"));
             return Ok(false);
         };
@@ -1481,5 +1492,21 @@ mod tests {
         assert_eq!(platform(&c, "Pyramid Quiz (USA).zip"), "Commodore 64", "a rescan moves the game to its system");
         let found: i64 = c.query_row("SELECT COUNT(*) FROM games_fts WHERE games_fts MATCH 'Commodore'", [], |r| r.get(0)).unwrap();
         assert_eq!(found, 1, "search follows the new system");
+    }
+
+    #[test]
+    fn playlists_with_a_leading_slash_mean_the_playlists_own_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        write(dir.path(), "x68000/Strider Hiryuu.m3u", b"/Strider Hiryuu/Strider Hiryuu (Disk 1).dim
+/Strider Hiryuu/Strider Hiryuu (Disk 2).dim
+/Nowhere/Missing.dim
+");
+        write(dir.path(), "x68000/Strider Hiryuu/Strider Hiryuu (Disk 1).dim", b"d1");
+        write(dir.path(), "x68000/Strider Hiryuu/Strider Hiryuu (Disk 2).dim", b"d2");
+        let mut c = catalog();
+        let summary = scan(&mut c, dir.path(), &local).unwrap();
+        assert_eq!(summary.games, 1, "one game with two disks: {:?}", summary.issues);
+        assert_eq!(summary.grouped_files, 2);
+        assert_eq!(summary.warning_count, 1, "only the disk that doesn't exist is reported: {:?}", summary.issues);
     }
 }
