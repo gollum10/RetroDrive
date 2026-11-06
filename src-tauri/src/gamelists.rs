@@ -27,6 +27,45 @@ use std::collections::{BTreeMap, HashMap};
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+/// Progress: `(phase, done, total)`; phases are `checking` (games) and `copying` (images).
+pub type ProgressFn<'a> = &'a (dyn Fn(&str, usize, usize) + Sync);
+
+/// Files are checked this many at a time: on a network share each check mostly waits on
+/// the network (measured 2026-11-07 on the owner's NAS: 4,000 games took 10 minutes one by one).
+const CHECK_THREADS: usize = 16;
+
+/// Runs `work` on every item, `CHECK_THREADS` at a time, keeping the order.
+fn parallel_map<T: Sync, R: Send>(items: &[T], phase: &str, work: impl Fn(&T) -> R + Sync, progress: ProgressFn) -> Vec<R> {
+    let total = items.len();
+    let next = AtomicUsize::new(0);
+    let done = AtomicUsize::new(0);
+    let (work, next, done) = (&work, &next, &done);
+    let mut results: Vec<(usize, R)> = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..CHECK_THREADS.min(total))
+            .map(|_| {
+                scope.spawn(move || {
+                    let mut mine = Vec::new();
+                    loop {
+                        let i = next.fetch_add(1, Ordering::SeqCst);
+                        if i >= total {
+                            break mine;
+                        }
+                        mine.push((i, work(&items[i])));
+                        let d = done.fetch_add(1, Ordering::SeqCst) + 1;
+                        if d % 50 == 0 || d == total {
+                            progress(phase, d, total);
+                        }
+                    }
+                })
+            })
+            .collect();
+        handles.into_iter().flat_map(|h| h.join().unwrap_or_else(|p| std::panic::resume_unwind(p))).collect()
+    });
+    results.sort_by_key(|r| r.0);
+    results.into_iter().map(|r| r.1).collect()
+}
 
 /// One game RetroDrive put on the drive, with what can be added for it.
 #[derive(Debug, Clone)]
@@ -176,10 +215,11 @@ fn image_name(rel: &str, suffix: &str, source: &Path) -> String {
 
 // ---------- what RetroDrive knows ----------
 
-/// A game's main picture, thumbnail and logo (when readable), and whether it has art that couldn't be read.
-type Media = (Option<PathBuf>, Option<PathBuf>, Option<PathBuf>, bool);
+/// A game's known art on connected drives as (rank, kind, path), and whether it has any art at all.
+type Candidates = (Vec<(i32, String, PathBuf)>, bool);
 
-fn media_for(connection: &Connection, file_id: &str, presence: PresenceFn, online: &mut HashMap<String, bool>) -> Result<Media, String> {
+/// From the catalog only (no file checks): art recorded for a game file on drives that are connected.
+fn media_for(connection: &Connection, file_id: &str, presence: PresenceFn, online: &mut HashMap<String, bool>) -> Result<Candidates, String> {
     let mut statement = connection
         .prepare_cached(
             "SELECT gm.kind, gm.source, s.id, s.root_path, s.stable_id, gm.relative_path
@@ -199,9 +239,6 @@ fn media_for(connection: &Connection, file_id: &str, presence: PresenceFn, onlin
             continue;
         }
         let path = paths::join(&root, &relative);
-        if !path.is_file() {
-            continue;
-        }
         // Lower is better for the main picture: the user's own choice, box art, then images.
         let rank = match (kind.as_str(), source.as_str()) {
             ("boxart", "user") => 0,
@@ -213,11 +250,7 @@ fn media_for(connection: &Connection, file_id: &str, presence: PresenceFn, onlin
         found.push((rank, kind, path));
     }
     found.sort_by_key(|f| f.0);
-    let image = found.iter().find(|f| f.0 <= 3).map(|f| f.2.clone());
-    let thumbnail = found.iter().find(|f| f.1 == "thumbnail").map(|f| f.2.clone()).filter(|t| Some(t) != image.as_ref());
-    let marquee = found.iter().find(|f| f.1 == "marquee").map(|f| f.2.clone());
-    let unavailable = any && image.is_none() && thumbnail.is_none() && marquee.is_none();
-    Ok((image, thumbnail, marquee, unavailable))
+    Ok((found, any))
 }
 
 fn details_for(connection: &Connection, file_id: &str) -> Result<Details, String> {
@@ -234,8 +267,21 @@ fn details_for(connection: &Connection, file_id: &str) -> Result<Details, String
     Ok(Details { title: clean(r.get(0).ok()), year: r.get(1).ok().flatten(), genre: clean(r.get(2).ok()), developer: clean(r.get(3).ok()), publisher: clean(r.get(4).ok()) })
 }
 
+/// A game found in the catalog, before its files are checked.
+struct Pending {
+    system: String,
+    rel: String,
+    destination: PathBuf,
+    media: Vec<(i32, String, PathBuf)>,
+    any_media: bool,
+    details: Details,
+}
+
+/// Image sizes seen while checking (so nothing is looked at twice).
+type Sizes = HashMap<PathBuf, u64>;
+
 /// Games RetroDrive copied (verified, identical or replaced primary files still on the drive).
-fn targets(connection: &Connection, install: &customizer::Install, deployment: Option<&str>, presence: PresenceFn) -> Result<(Vec<Target>, usize), String> {
+fn targets(connection: &Connection, install: &customizer::Install, deployment: Option<&str>, presence: PresenceFn, progress: ProgressFn) -> Result<(Vec<Target>, usize, Sizes), String> {
     let mut statement = connection
         .prepare(
             "SELECT i.destination_path, i.game_file_id FROM deployment_items i
@@ -250,24 +296,50 @@ fn targets(connection: &Connection, install: &customizer::Install, deployment: O
         .collect::<Result<_, _>>()
         .map_err(|e| e.to_string())?;
     let roms = format!("{}\\roms\\", install.root_text.trim_end_matches(['\\', '/']));
-    let mut seen: BTreeMap<String, Target> = BTreeMap::new();
+    // 1. The catalog (fast): one entry per game on the drive; a later copy of the same file wins.
+    let mut seen: BTreeMap<String, Pending> = BTreeMap::new();
     let mut online = HashMap::new();
-    let mut unavailable = 0;
     for (destination, file_id) in rows {
         let d = destination.replace('/', "\\");
-        if d.len() <= roms.len() || !d[..roms.len()].eq_ignore_ascii_case(&roms) || !Path::new(&destination).is_file() {
+        if d.len() <= roms.len() || !d[..roms.len()].eq_ignore_ascii_case(&roms) {
             continue;
         }
         let inside = d[roms.len()..].replace('\\', "/");
         let Some((system, rel)) = inside.split_once('/') else { continue };
-        let (image, thumbnail, marquee, missing) = media_for(connection, &file_id, presence, &mut online)?;
-        if missing {
+        let (media, any_media) = media_for(connection, &file_id, presence, &mut online)?;
+        let details = details_for(connection, &file_id)?;
+        seen.insert(format!("{system}/{}", rel.to_lowercase()), Pending { system: system.to_string(), rel: rel.to_string(), destination: PathBuf::from(&destination), media, any_media, details });
+    }
+    // 2. The files (slow on a network share): checked in parallel.
+    let pending: Vec<Pending> = seen.into_values().collect();
+    let checked = parallel_map(
+        &pending,
+        "checking",
+        |p| {
+            if !p.destination.is_file() {
+                return None;
+            }
+            Some(p.media.iter().filter_map(|(rank, kind, path)| fs::metadata(path).ok().filter(|m| m.is_file()).map(|m| (*rank, kind.clone(), path.clone(), m.len()))).collect::<Vec<_>>())
+        },
+        progress,
+    );
+    let mut out = Vec::new();
+    let mut sizes = Sizes::new();
+    let mut unavailable = 0;
+    for (p, found) in pending.into_iter().zip(checked) {
+        let Some(found) = found else { continue };
+        for (_, _, path, size) in &found {
+            sizes.insert(path.clone(), *size);
+        }
+        let image = found.iter().find(|f| f.0 <= 3).map(|f| f.2.clone());
+        let thumbnail = found.iter().find(|f| f.1 == "thumbnail").map(|f| f.2.clone()).filter(|t| Some(t) != image.as_ref());
+        let marquee = found.iter().find(|f| f.1 == "marquee").map(|f| f.2.clone());
+        if p.any_media && image.is_none() && thumbnail.is_none() && marquee.is_none() {
             unavailable += 1;
         }
-        let details = details_for(connection, &file_id)?;
-        seen.insert(format!("{system}/{}", rel.to_lowercase()), Target { system: system.to_string(), rel: rel.to_string(), image, thumbnail, marquee, details });
+        out.push(Target { system: p.system, rel: p.rel, image, thumbnail, marquee, details: p.details });
     }
-    Ok((seen.into_values().collect(), unavailable))
+    Ok((out, unavailable, sizes))
 }
 
 // ---------- planning edits ----------
@@ -285,7 +357,7 @@ fn xml(v: &str) -> String {
     v.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
-fn plan_system(root: &Path, system: &str, targets: &[&Target]) -> Result<Option<SystemEdit>, String> {
+fn plan_system(root: &Path, system: &str, targets: &[&Target], sizes: &Sizes) -> Result<Option<SystemEdit>, String> {
     let list_path = root.join("roms").join(system).join("gamelist.xml");
     let exists = list_path.is_file();
     let old_text = if exists { customizer::read_text(&list_path)? } else { String::new() };
@@ -311,8 +383,12 @@ fn plan_system(root: &Path, system: &str, targets: &[&Target]) -> Result<Option<
             let name = image_name(&t.rel, suffix, src);
             let target = images_dir.join(&name);
             match fs::symlink_metadata(&target) {
-                Ok(_) if copier::sha256_of(&target).ok() != copier::sha256_of(src).ok() => return false, // someone else's file: leave it
-                Ok(_) => {}
+                // A file is already there: use it only if it's the same image (sizes first, then contents); otherwise it's someone else's: leave it.
+                Ok(m) => {
+                    if sizes.get(src) != Some(&m.len()) || copier::sha256_of(&target).ok() != copier::sha256_of(src).ok() {
+                        return false;
+                    }
+                }
                 Err(_) => copies.push((src.clone(), target)),
             }
             lines.push(format!("<{tag}>./images/{}</{tag}>", xml(&name)));
@@ -415,9 +491,9 @@ fn plan_system(root: &Path, system: &str, targets: &[&Target]) -> Result<Option<
     Ok(Some(SystemEdit { system: system.to_string(), list_path, old_text, new_text, copies, summary }))
 }
 
-fn plan(connection: &Connection, installation_id: &str, deployment: Option<&str>, presence: PresenceFn) -> Result<(customizer::Install, Vec<SystemEdit>, usize), String> {
+fn plan(connection: &Connection, installation_id: &str, deployment: Option<&str>, presence: PresenceFn, progress: ProgressFn) -> Result<(customizer::Install, Vec<SystemEdit>, usize, Sizes), String> {
     let install = customizer::install(connection, installation_id, presence)?;
-    let (all, unavailable) = targets(connection, &install, deployment, presence)?;
+    let (all, unavailable, sizes) = targets(connection, &install, deployment, presence, progress)?;
     let mut by_system: BTreeMap<String, Vec<&Target>> = BTreeMap::new();
     for t in &all {
         by_system.entry(t.system.clone()).or_default().push(t);
@@ -427,11 +503,11 @@ fn plan(connection: &Connection, installation_id: &str, deployment: Option<&str>
         if system.contains(['.', '\\', ':']) {
             continue;
         }
-        if let Some(edit) = plan_system(&install.root, &system, &list)? {
+        if let Some(edit) = plan_system(&install.root, &system, &list, &sizes)? {
             edits.push(edit);
         }
     }
-    Ok((install, edits, unavailable))
+    Ok((install, edits, unavailable, sizes))
 }
 
 fn sha_or_none(edit: &SystemEdit) -> String {
@@ -443,10 +519,10 @@ fn sha_or_none(edit: &SystemEdit) -> String {
 }
 
 /// What adding art and details would do (reads only). `deployment`: only games from that copy.
-pub fn preview(connection: &Connection, installation_id: &str, deployment: Option<&str>, presence: PresenceFn) -> Result<ArtPreview, String> {
-    let (_, edits, unavailable) = plan(connection, installation_id, deployment, presence)?;
+pub fn preview(connection: &Connection, installation_id: &str, deployment: Option<&str>, presence: PresenceFn, progress: ProgressFn) -> Result<ArtPreview, String> {
+    let (_, edits, unavailable, sizes) = plan(connection, installation_id, deployment, presence, progress)?;
     let images = edits.iter().map(|e| e.copies.len()).sum();
-    let image_bytes = edits.iter().flat_map(|e| e.copies.iter()).filter_map(|(s, _)| fs::metadata(s).ok()).map(|m| m.len()).sum();
+    let image_bytes = edits.iter().flat_map(|e| e.copies.iter()).filter_map(|(s, _)| sizes.get(s)).sum();
     Ok(ArtPreview {
         games_updated: edits.iter().map(|e| e.summary.games_updated + e.summary.games_added).sum(),
         list_shas: edits.iter().map(|e| (e.system.clone(), sha_or_none(e))).collect(),
@@ -454,7 +530,7 @@ pub fn preview(connection: &Connection, installation_id: &str, deployment: Optio
         images,
         image_bytes,
         art_unavailable: unavailable,
-        nothing: images == 0 && false,
+        nothing: false,
     })
     .map(|mut p| {
         p.nothing = p.systems.is_empty();
@@ -490,11 +566,11 @@ fn copy_image(source: &Path, target: &Path) -> Result<(), String> {
 }
 
 /// Add art and details. `expected`: the list checksums from the preview (`None`: no review, e.g. right after a copy).
-pub fn apply(connection: &Connection, installation_id: &str, deployment: Option<&str>, expected: Option<&BTreeMap<String, String>>, presence: PresenceFn, running: RunningFn, progress: &dyn Fn(usize, usize)) -> Result<String, String> {
+pub fn apply(connection: &Connection, installation_id: &str, deployment: Option<&str>, expected: Option<&BTreeMap<String, String>>, presence: PresenceFn, running: RunningFn, progress: ProgressFn) -> Result<String, String> {
     if let Some(reason) = customizer::running_message(running) {
         return Err(format!("{reason} Nothing was changed."));
     }
-    let (install, edits, _) = plan(connection, installation_id, deployment, presence)?;
+    let (install, edits, _, _) = plan(connection, installation_id, deployment, presence, progress)?;
     if edits.is_empty() {
         return Err("There's no art or detail to add: the games RetroDrive copied already have them, or their images aren't available.".into());
     }
@@ -504,24 +580,14 @@ pub fn apply(connection: &Connection, installation_id: &str, deployment: Option<
             return Err("RetroBat's game lists changed since you reviewed this, so nothing was changed. Review it again.".into());
         }
     }
-    // 1. Images (new files only).
-    let total: usize = edits.iter().map(|e| e.copies.len()).sum();
-    let mut done = 0;
-    let mut added = Vec::new();
-    for e in &edits {
-        for (src, dst) in &e.copies {
-            if fs::symlink_metadata(dst).is_err() {
-                copy_image(src, dst)?;
-            }
-            done += 1;
-            if done % 25 == 0 || done == total {
-                progress(done, total);
-            }
-        }
-        if !e.copies.is_empty() {
-            added.push(format!("{} image(s) in roms/{}/images", e.copies.len(), e.system));
-        }
+    // 1. Images (new files only), several at a time; any failure stops before the lists are touched.
+    let all_copies: Vec<&(PathBuf, PathBuf)> = edits.iter().flat_map(|e| e.copies.iter()).collect();
+    let total = all_copies.len();
+    let results = parallel_map(&all_copies, "copying", |(src, dst)| if fs::symlink_metadata(dst).is_err() { copy_image(src, dst) } else { Ok(()) }, progress);
+    if let Some(Err(e)) = results.into_iter().find(Result::is_err) {
+        return Err(format!("{e} No game list was changed; images already copied are new files RetroBat doesn't use yet."));
     }
+    let added: Vec<String> = edits.iter().filter(|e| !e.copies.is_empty()).map(|e| format!("{} image(s) in roms/{}/images", e.copies.len(), e.system)).collect();
     // 2. Game lists, journaled; if one fails, the ones already written are undone.
     let mut ids = Vec::new();
     for e in &edits {
@@ -561,7 +627,26 @@ mod tests {
     fn open() -> bool {
         true
     }
-    fn quiet(_: usize, _: usize) {}
+    fn quiet(_: &str, _: usize, _: usize) {}
+
+    #[test]
+    fn checks_run_in_parallel_keep_order_and_report_progress() {
+        let items: Vec<usize> = (0..1000).collect();
+        let last = std::sync::Mutex::new((String::new(), 0, 0));
+        let threads = std::sync::Mutex::new(std::collections::HashSet::new());
+        let out = parallel_map(&items, "checking", |i| {
+            threads.lock().unwrap().insert(std::thread::current().id());
+            std::thread::sleep(std::time::Duration::from_micros(200));
+            i * 2
+        }, &|phase, done, total| {
+            let mut l = last.lock().unwrap();
+            if done >= l.1 { *l = (phase.to_string(), done, total); }
+        });
+        assert_eq!(out, items.iter().map(|i| i * 2).collect::<Vec<_>>(), "results keep the input order");
+        assert_eq!(*last.lock().unwrap(), ("checking".to_string(), 1000, 1000));
+        assert!(threads.lock().unwrap().len() > 1, "work is spread over several threads");
+        assert!(parallel_map(&Vec::<usize>::new(), "checking", |i| *i, &quiet).is_empty());
+    }
 
     const LIST: &str = "<?xml version=\"1.0\"?>\r\n<gameList>\r\n\t<game>\r\n\t\t<path>./Kid.zip</path>\r\n\t\t<name>Kid</name>\r\n\t\t<region>us</region>\r\n\t</game>\r\n\t<game>\r\n\t\t<path>./Scraped.zip</path>\r\n\t\t<name>Scraped Game</name>\r\n\t\t<image>./images/theirs.png</image>\r\n\t</game>\r\n\t<game>\r\n\t\t<path>./Other.zip</path>\r\n\t\t<name>Other</name>\r\n\t</game>\r\n</gameList>\r\n";
 
@@ -626,7 +711,7 @@ mod tests {
     #[test]
     fn art_and_details_fill_gaps_and_keep_retrobats_own() {
         let s = setup();
-        let p = preview(&s.catalog, &s.install, None, &connected).unwrap();
+        let p = preview(&s.catalog, &s.install, None, &connected, &quiet).unwrap();
         assert_eq!(p.systems.len(), 1);
         let nes = &p.systems[0];
         assert_eq!((nes.games_updated, nes.games_added, nes.kept), (1, 1, 1), "Kid updated, New Game added, Scraped kept");
@@ -648,7 +733,7 @@ mod tests {
         assert_eq!(fs::read(s.root.join("roms/nes/images/Kid-marquee.png")).unwrap(), b"kid logo");
 
         // Nothing left to add; undo restores the list exactly (images stay).
-        assert!(preview(&s.catalog, &s.install, None, &connected).unwrap().nothing);
+        assert!(preview(&s.catalog, &s.install, None, &connected, &quiet).unwrap().nothing);
         let app = crate::designs::applications(&s.catalog, &s.install).unwrap()[0].id;
         crate::designs::undo(&s.catalog, app, &connected, &closed).unwrap();
         assert_eq!(list(&s), LIST);
@@ -659,7 +744,7 @@ mod tests {
     fn a_missing_list_is_created_and_a_stale_review_is_refused() {
         let s = setup();
         fs::remove_file(s.root.join("roms/nes/gamelist.xml")).unwrap();
-        let p = preview(&s.catalog, &s.install, None, &connected).unwrap();
+        let p = preview(&s.catalog, &s.install, None, &connected, &quiet).unwrap();
         assert_eq!(p.list_shas.get("nes").map(String::as_str), Some("none"));
         assert_eq!(p.systems[0].games_added, 3);
         let mut stale = p.list_shas.clone();
