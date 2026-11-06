@@ -12,7 +12,7 @@ use crate::installations::{self, PresenceFn};
 use crate::paths;
 use crate::volumes::{self, Presence, VolumeSpace};
 use rusqlite::Connection;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
@@ -37,11 +37,49 @@ pub enum Action {
     AlreadyThere,
     /// Another copy of the same file in the library is already planned; copied once.
     Duplicate,
+    /// Not copied because the user chose another version or chose to skip it.
+    Skipped,
     Copy,
+    /// The existing file is moved to RetroDrive's backup folder, then replaced (step 5b).
+    Replace,
     /// A different file with this name is already there; the existing file is kept.
     Conflict,
     /// The file can't be placed (filesystem limit, unsafe path, name clash...).
     Blocked,
+}
+
+/// What the user chose for a conflict or a clash (step 5b, ADR-028). Keyed in
+/// `Choices` by the destination's path inside the installation, lower-case.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Choice {
+    /// Default: keep the existing file / copy neither clashing version.
+    Keep,
+    /// For a clash: copy this library file; skip the other versions.
+    Use { file_id: String },
+    /// Copy under the next free name, e.g. `Game (2).zip`.
+    KeepBoth,
+    /// For a conflict: move the existing file to the backup folder, then copy.
+    Replace,
+}
+
+pub type Choices = HashMap<String, Choice>;
+
+/// Systems whose file names are romset names and must never be renamed.
+const EXACT_NAME_PLATFORMS: &[&str] = &["Arcade", "Neo Geo", "CPS1", "CPS2", "CPS3", "Naomi", "Atomiswave"];
+
+/// The choice offered for an item in the plan, and which options apply.
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+pub struct ChoiceInfo {
+    pub key: String,
+    /// `conflict` (a different file is on the drive) or `clash` (library versions collide).
+    pub situation: &'static str,
+    /// Any of `keep`, `use`, `keep_both`, `replace`.
+    pub options: Vec<&'static str>,
+    /// The choice currently applied.
+    pub current: &'static str,
+    /// For clashes: the library file this row is (for "use this version").
+    pub file_id: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -58,6 +96,8 @@ pub struct PlanGame {
     pub files: usize,
     pub bytes: i64,
     pub bytes_to_copy: i64,
+    /// Present when the user can choose what happens (conflicts and clashes).
+    pub choice: Option<ChoiceInfo>,
 }
 
 #[derive(Debug, Serialize)]
@@ -79,6 +119,7 @@ pub struct UnsupportedGroup {
 #[derive(Debug, Serialize, Default, PartialEq, Eq)]
 pub struct ActionCounts {
     pub copy: i64,
+    pub replace: i64,
     pub already_there: i64,
     pub in_place: i64,
     pub duplicate: i64,
@@ -90,9 +131,10 @@ impl ActionCounts {
     fn add(&mut self, action: Action) {
         match action {
             Action::Copy => self.copy += 1,
+            Action::Replace => self.replace += 1,
             Action::AlreadyThere => self.already_there += 1,
             Action::InPlace => self.in_place += 1,
-            Action::Duplicate => self.duplicate += 1,
+            Action::Duplicate | Action::Skipped => self.duplicate += 1,
             Action::Conflict => self.conflict += 1,
             Action::Blocked => self.blocked += 1,
         }
@@ -154,6 +196,7 @@ pub(crate) struct ItemFile {
     pub size: i64,
     pub action: Action,
     pub reason: Option<String>,
+    pub choice: Option<ChoiceInfo>,
 }
 
 pub(crate) struct Item {
@@ -172,12 +215,18 @@ impl Item {
 
 /// Build the plan for an installation. `systems` limits it to those system folders
 /// (`None` = all). Reads the catalog and the destination; writes nothing.
+#[cfg(test)]
 pub fn plan(connection: &Connection, installation_id: &str, systems: Option<&[String]>, presence: PresenceFn, space: SpaceFn) -> Result<DeploymentPlan, String> {
-    build(connection, installation_id, systems, presence, space).map(|(plan, _)| plan)
+    plan_with(connection, installation_id, systems, &Choices::new(), presence, space)
+}
+
+/// The plan with the user's conflict and clash choices applied.
+pub fn plan_with(connection: &Connection, installation_id: &str, systems: Option<&[String]>, choices: &Choices, presence: PresenceFn, space: SpaceFn) -> Result<DeploymentPlan, String> {
+    build(connection, installation_id, systems, choices, presence, space).map(|(plan, _)| plan)
 }
 
 /// The plan plus every selected item, for the copier.
-pub(crate) fn build(connection: &Connection, installation_id: &str, systems: Option<&[String]>, presence: PresenceFn, space: SpaceFn) -> Result<(DeploymentPlan, Vec<Item>), String> {
+pub(crate) fn build(connection: &Connection, installation_id: &str, systems: Option<&[String]>, user_choices: &Choices, presence: PresenceFn, space: SpaceFn) -> Result<(DeploymentPlan, Vec<Item>), String> {
     let install = installations::located(connection, presence, Some(installation_id))?.into_iter().next().ok_or("Installation not found")?;
     if install.presence != Presence::Connected {
         return Err("The installation's drive isn't connected, so a plan can't be made.".into());
@@ -206,7 +255,7 @@ pub(crate) fn build(connection: &Connection, installation_id: &str, systems: Opt
 
     let measured = space(&install.root);
     let max_file = measured.as_ref().and_then(|s| volumes::max_file_bytes(s.filesystem.as_deref()));
-    check_files(&mut items, &install.root, max_file);
+    check_files(&mut items, &install.root, max_file, user_choices);
 
     // Totals.
     let cluster = measured.as_ref().map(|s| s.cluster_bytes.max(1)).unwrap_or(4096);
@@ -227,11 +276,11 @@ pub(crate) fn build(connection: &Connection, installation_id: &str, systems: Opt
             fingerprint.write(&file.source.display().to_string());
             fingerprint.write(&file.destination.display().to_string());
             fingerprint.write(&file.size.to_string());
-            fingerprint.write(&format!("{:?}", if action == Action::Copy { file.action } else { action }));
+            fingerprint.write(&format!("{:?}", if matches!(action, Action::Copy | Action::Replace) { file.action } else { action }));
             if file.destination.as_os_str().len() > LONG_PATH {
                 long_paths += 1;
             }
-            if action == Action::Copy && file.action == Action::Copy {
+            if matches!(action, Action::Copy | Action::Replace) && matches!(file.action, Action::Copy | Action::Replace) {
                 let size = u64::try_from(file.size).unwrap_or(0);
                 files_to_copy += 1;
                 game_copy_bytes += file.size;
@@ -261,8 +310,10 @@ pub(crate) fn build(connection: &Connection, installation_id: &str, systems: Opt
             files: item.files.len(),
             bytes: item.files.iter().map(|f| f.size).sum(),
             bytes_to_copy: game_copy_bytes,
+            choice: item.files.iter().find_map(|f| f.choice.clone()),
         };
-        if matches!(action, Action::Conflict | Action::Blocked) {
+        // Items with a choice stay listed, so the choice can be seen and changed.
+        if matches!(action, Action::Conflict | Action::Blocked) || game.choice.as_ref().is_some_and(|c| c.current != "keep") {
             if attention.len() < ATTENTION_LIMIT {
                 attention.push(game);
             }
@@ -349,47 +400,156 @@ enum Ancestor {
 }
 
 /// Classify each planned file against the destination. Only reads metadata.
-fn check_files(items: &mut [Item], install_root: &Path, max_file: Option<u64>) {
+/// `Game.zip` -> `Game (2).zip` (the number goes before the extension).
+fn numbered(relative: &str, n: u32) -> String {
+    let (folder, name) = relative.rsplit_once('/').map(|(d, f)| (format!("{d}/"), f)).unwrap_or((String::new(), relative));
+    match name.rsplit_once('.') {
+        Some((stem, ext)) if !stem.is_empty() => format!("{folder}{stem} ({n}).{ext}"),
+        _ => format!("{folder}{name} ({n})"),
+    }
+}
+
+fn rename_to(file: &mut ItemFile, install_root: &Path, relative: String) {
+    file.destination = paths::join(&install_root.display().to_string(), &relative);
+    file.relative = relative;
+}
+
+fn check_files(items: &mut [Item], install_root: &Path, max_file: Option<u64>, choices: &Choices) {
     // Several library files aiming at one destination name: identical sizes are
-    // duplicates (copy one); different sizes are a clash nobody can resolve
-    // automatically. A source that already *is* the destination wins.
+    // duplicates (copy one); different sizes are a clash the user resolves (default:
+    // copy neither). A source that already *is* the destination wins.
     let mut targets: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
     for (i, item) in items.iter().enumerate() {
         for (j, file) in item.files.iter().enumerate() {
             targets.entry(path_key(&file.destination)).or_default().push((i, j));
         }
     }
+    let mut renamed: Vec<(usize, usize)> = Vec::new();
+    let mut targets: Vec<(String, Vec<(usize, usize)>)> = targets.into_iter().collect();
+    targets.sort();
     for (key, mut users) in targets {
         let distinct: BTreeSet<String> = users.iter().map(|&(i, j)| path_key(&items[i].files[j].source)).collect();
         if distinct.len() < 2 {
             continue;
         }
         let sizes: BTreeSet<i64> = users.iter().map(|&(i, j)| items[i].files[j].size).collect();
-        if sizes.len() > 1 {
-            for (i, j) in users {
+        users.sort_by_key(|&(i, j)| (path_key(&items[i].files[j].source) != key, path_key(&items[i].files[j].source)));
+        if sizes.len() == 1 {
+            for &(i, j) in &users[1..] {
                 let file = &mut items[i].files[j];
-                file.action = Action::Blocked;
-                file.reason = Some("Two different files in your library would be copied to the same name.".into());
+                file.action = Action::Duplicate;
+                file.reason = Some("Another copy of this file in your library is already in the plan.".into());
             }
             continue;
         }
-        users.sort_by_key(|&(i, j)| (path_key(&items[i].files[j].source) != key, path_key(&items[i].files[j].source)));
-        for &(i, j) in &users[1..] {
-            let file = &mut items[i].files[j];
-            file.action = Action::Duplicate;
-            file.reason = Some("Another copy of this file in your library is already in the plan.".into());
+        let choice_key = items[users[0].0].files[users[0].1].relative.to_lowercase();
+        let renamable = users.iter().all(|&(i, _)| items[i].files.len() == 1 && !EXACT_NAME_PLATFORMS.contains(&items[i].platform.as_str()));
+        let mut options = vec!["keep", "use"];
+        if renamable {
+            options.push("keep_both");
         }
+        let chosen = choices.get(&choice_key).cloned().unwrap_or(Choice::Keep);
+        let chosen = match chosen {
+            Choice::KeepBoth if !renamable => Choice::Keep,
+            Choice::Replace => Choice::Keep,
+            Choice::Use { ref file_id } if !users.iter().any(|&(i, j)| &items[i].files[j].game_file_id == file_id) => Choice::Keep,
+            other => other,
+        };
+        let current = match chosen {
+            Choice::Keep | Choice::Replace => "keep",
+            Choice::Use { .. } => "use",
+            Choice::KeepBoth => "keep_both",
+        };
+        for (n, &(i, j)) in users.iter().enumerate() {
+            let file = &mut items[i].files[j];
+            file.choice = Some(ChoiceInfo { key: choice_key.clone(), situation: "clash", options: options.clone(), current, file_id: file.game_file_id.clone() });
+            match &chosen {
+                Choice::Keep | Choice::Replace => {
+                    file.action = Action::Blocked;
+                    file.reason = Some("Two different files in your library would be copied to the same name. Choose which to copy, or keep both.".into());
+                }
+                Choice::Use { file_id } if &file.game_file_id == file_id => {
+                    file.reason = Some("You chose this version.".into());
+                }
+                Choice::Use { .. } => {
+                    file.action = Action::Skipped;
+                    file.reason = Some("You chose another version of this game.".into());
+                }
+                Choice::KeepBoth if n == 0 => file.reason = Some("Kept under its own name (you chose to keep both).".into()),
+                Choice::KeepBoth => renamed.push((i, j)),
+            }
+        }
+    }
+
+    // Destinations planned so far (renamed copies must not collide with any of them).
+    let mut planned: BTreeSet<String> = items.iter().flat_map(|it| it.files.iter().map(|f| path_key(&f.destination))).collect();
+    let free_name = |relative: &str, planned: &BTreeSet<String>| -> String {
+        (2..1000)
+            .map(|n| numbered(relative, n))
+            .find(|candidate| {
+                let path = paths::join(&install_root.display().to_string(), candidate);
+                !planned.contains(&path_key(&path)) && std::fs::symlink_metadata(&path).is_err()
+            })
+            .unwrap_or_else(|| numbered(relative, 1000))
+    };
+    for (i, j) in renamed {
+        let relative = items[i].files[j].relative.clone();
+        let new_relative = free_name(&relative, &planned);
+        let file = &mut items[i].files[j];
+        rename_to(file, install_root, new_relative);
+        planned.insert(path_key(&file.destination));
+        file.reason = Some(format!("Copied as \"{}\" (you chose to keep both).", file.destination.file_name().and_then(|n| n.to_str()).unwrap_or_default()));
     }
 
     let mut folders: HashMap<PathBuf, Ancestor> = HashMap::new();
     for item in items.iter_mut() {
+        let single = item.files.len() == 1;
+        let exact_names = EXACT_NAME_PLATFORMS.contains(&item.platform.as_str());
         for file in item.files.iter_mut() {
             if file.action != Action::Copy {
                 continue;
             }
             let (action, reason) = check_file(file, install_root, max_file, &mut folders);
-            file.action = action;
-            file.reason = reason;
+            if action != Action::Conflict {
+                file.action = action;
+                if reason.is_some() || file.reason.is_none() {
+                    file.reason = reason;
+                }
+                continue;
+            }
+            // A different file is already there: keep it (default), keep both, or replace.
+            let key = file.relative.to_lowercase();
+            let mut options = vec!["keep"];
+            if single && !exact_names {
+                options.push("keep_both");
+            }
+            if single {
+                options.push("replace");
+            }
+            let chosen = match choices.get(&key) {
+                Some(Choice::KeepBoth) if options.contains(&"keep_both") => "keep_both",
+                Some(Choice::Replace) if options.contains(&"replace") => "replace",
+                _ => "keep",
+            };
+            file.choice = Some(ChoiceInfo { key, situation: "conflict", options, current: chosen, file_id: file.game_file_id.clone() });
+            match chosen {
+                "keep_both" => {
+                    let new_relative = free_name(&file.relative, &planned);
+                    rename_to(file, install_root, new_relative);
+                    planned.insert(path_key(&file.destination));
+                    let (action, reason) = check_file(file, install_root, max_file, &mut folders);
+                    file.action = action;
+                    file.reason = reason.or_else(|| Some(format!("Copied as \"{}\"; the existing file is kept (you chose to keep both).", file.destination.file_name().and_then(|n| n.to_str()).unwrap_or_default())));
+                }
+                "replace" => {
+                    file.action = Action::Replace;
+                    file.reason = Some("The existing file will be moved to RetroDrive's backup folder on this drive, then replaced (you chose replace).".into());
+                }
+                _ => {
+                    file.action = Action::Conflict;
+                    file.reason = reason;
+                }
+            }
         }
     }
 }
@@ -531,6 +691,7 @@ fn gather(connection: &Connection, adapter: &dyn adapters::PlatformAdapter, inst
                         size: planned.size,
                         action: Action::Copy,
                         reason: None,
+                        choice: None,
                     })
                     .collect();
                 gathered.items.push(Item { title, platform, system_folder, files });
@@ -806,5 +967,65 @@ mod tests {
         assert_eq!(plan.games.copy, 1);
         let offline = super::plan(&c, &f.id, None, &|_, _| Presence::NotConnected, &roomy);
         assert!(offline.unwrap_err().contains("isn't connected"));
+    }
+
+    fn plan_choosing(f: &Fixture, choices: &Choices) -> DeploymentPlan {
+        plan_with(&f.catalog, &f.id, None, choices, &connected, &roomy).unwrap()
+    }
+
+    #[test]
+    fn clash_choices_pick_a_version_or_keep_both() {
+        let f = fixture(&[("a/nes/Clash.nes", b"one"), ("b/nes/Clash.nes", b"other one"), ("arcade/sf2.zip", b"x"), ("arcade2/arcade/sf2.zip", b"yy")]);
+        installations::set_arcade_system(&f.catalog, &f.id, Some("mame")).unwrap();
+        let base = plan_choosing(&f, &Choices::new());
+        assert_eq!(base.games.blocked, 4);
+        let clash = base.attention.iter().find(|g| g.title == "Clash").unwrap().choice.clone().unwrap();
+        assert_eq!((clash.situation, clash.options.clone()), ("clash", vec!["keep", "use", "keep_both"]));
+        let arcade = base.attention.iter().find(|g| g.title == "sf2").unwrap().choice.clone().unwrap();
+        assert_eq!(arcade.options, vec!["keep", "use"], "arcade sets are never renamed");
+
+        let mut use_first = Choices::new();
+        use_first.insert(clash.key.clone(), Choice::Use { file_id: clash.file_id.clone() });
+        let chosen = plan_choosing(&f, &use_first);
+        assert_eq!((chosen.games.copy, chosen.games.duplicate), (1, 1), "the chosen version copies, the other is skipped");
+        assert_ne!(chosen.fingerprint, base.fingerprint, "choices are part of the fingerprint");
+
+        let mut both = Choices::new();
+        both.insert(clash.key.clone(), Choice::KeepBoth);
+        let kept = plan_choosing(&f, &both);
+        assert_eq!(kept.games.copy, 2);
+        let names: BTreeSet<String> = kept.attention.iter().filter(|g| g.title == "Clash").map(|g| g.destination.replace('\\', "/").rsplit('/').next().unwrap().to_string()).collect();
+        assert_eq!(names, BTreeSet::from(["Clash.nes".to_string(), "Clash (2).nes".to_string()]));
+
+        let mut bad = Choices::new();
+        bad.insert(arcade.key.clone(), Choice::KeepBoth);
+        assert_eq!(plan_choosing(&f, &bad).games.blocked, 4, "an option that isn't offered is ignored");
+    }
+
+    #[test]
+    fn conflict_choices_and_multi_file_games() {
+        let f = fixture(&[
+            ("nes/Diff.nes", b"mine"),
+            ("psx/Saga/Saga.m3u", b"Saga (Disc 1).cue
+"),
+            ("psx/Saga/Saga (Disc 1).cue", b"FILE \"d1.bin\" BINARY
+"),
+            ("psx/Saga/d1.bin", b"disc"),
+        ]);
+        write(&f.root, "roms/nes/Diff.nes", b"theirs, longer");
+        write(&f.root, "roms/psx/Saga/Saga.m3u", b"someone else's playlist");
+        let base = plan_choosing(&f, &Choices::new());
+        let diff = base.attention.iter().find(|g| g.title == "Diff").unwrap().choice.clone().unwrap();
+        assert_eq!((diff.situation, diff.options.clone()), ("conflict", vec!["keep", "keep_both", "replace"]));
+        let saga = base.attention.iter().find(|g| g.title == "Saga").unwrap().choice.clone().unwrap();
+        assert_eq!(saga.options, vec!["keep"], "multi-file games aren't renamed or replaced");
+
+        let mut replace = Choices::new();
+        replace.insert(diff.key.clone(), Choice::Replace);
+        let p = plan_choosing(&f, &replace);
+        assert_eq!(p.games.replace, 1);
+        let row = p.attention.iter().find(|g| g.title == "Diff").unwrap();
+        assert_eq!(row.action, Action::Replace);
+        assert_eq!(row.choice.as_ref().unwrap().current, "replace", "the row stays listed so the choice can be changed");
     }
 }

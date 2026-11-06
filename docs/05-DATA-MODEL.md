@@ -90,6 +90,9 @@ Choices made while implementing (see ADR-010 and ADR-011 in docs/13):
 - **Older locations** from v0/v1 data have no fingerprint. A scan claims one only when sampled files from it exist on the scanned volume.
 - **Tests:** `db::tests::v2_catalog_upgrades_to_v3_keeping_references`, `same_volume_under_a_new_letter_is_recognized`, `different_volume_at_a_known_letter_gets_its_own_location`, `unidentified_location_is_claimed_only_when_its_files_are_there`.
 
+## Implemented schema v12 (2026-11-05)
+- **`deployment_items.backup_path`:** where Replace moved the original (journaled before the move; used to restore after a failure or crash). States add `replacing`, `replaced`, `restored`, `skipped`.
+
 ## Implemented schema v11 (2026-11-05)
 - **`game_files.excluded_at`, `excluded_reason`** (`duplicate` or `user`): files left out of the library. Catalog only; files stay on disk.
 
