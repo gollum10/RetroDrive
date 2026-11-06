@@ -6,6 +6,7 @@ mod catalog;
 mod classify;
 mod collections;
 mod customizer;
+mod designs;
 mod copier;
 mod db;
 mod deployment;
@@ -449,6 +450,88 @@ async fn add_retrobat_media(catalog: State<'_, Catalog>, active: State<'_, Activ
     result?
 }
 
+#[tauri::command]
+fn list_designs(catalog: State<'_, Catalog>) -> Result<Vec<designs::Design>, String> {
+    designs::list(&db::open(&catalog.path()?)?)
+}
+
+/// Start a design (a draft), empty or from an installation's current setup.
+#[tauri::command]
+async fn create_design(catalog: State<'_, Catalog>, name: String, from_installation: Option<String>) -> Result<String, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let connection = db::open(&db_path)?;
+        let seed = match from_installation {
+            Some(id) => designs::seed_from(&connection, &id, &volumes::presence)?,
+            None => designs::DesignSpec::default(),
+        };
+        designs::create(&connection, &name, seed)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn save_design_draft(catalog: State<'_, Catalog>, id: String, name: String, spec: designs::DesignSpec) -> Result<(), String> {
+    designs::save_draft(&db::open(&catalog.path()?)?, &id, &name, &spec)
+}
+
+#[tauri::command]
+fn finish_design(catalog: State<'_, Catalog>, id: String) -> Result<(), String> {
+    designs::finish(&db::open(&catalog.path()?)?, &id)
+}
+
+#[tauri::command]
+fn abandon_design(catalog: State<'_, Catalog>, id: String) -> Result<bool, String> {
+    designs::abandon(&db::open(&catalog.path()?)?, &id)
+}
+
+#[tauri::command]
+fn delete_design(catalog: State<'_, Catalog>, id: String) -> Result<bool, String> {
+    designs::delete(&db::open(&catalog.path()?)?, &id)
+}
+
+#[tauri::command]
+async fn music_settings(catalog: State<'_, Catalog>, installation_id: String) -> Result<Vec<designs::MusicSetting>, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || designs::music_settings(&db::open(&db_path)?, &installation_id, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Everything applying a design would do (reads only).
+#[tauri::command]
+async fn preview_design(catalog: State<'_, Catalog>, id: String, installation_id: String) -> Result<designs::DesignPreview, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || designs::preview(&db::open(&db_path)?, &id, &installation_id, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Apply a finished design to an installation as one undoable step (docs/18 §15).
+#[tauri::command]
+async fn apply_design(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, id: String, installation_id: String, es_sha: String, ini_sha: String) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        designs::apply(&db::open(&db_path)?, &id, &installation_id, &es_sha, &ini_sha, &volumes::presence, &customizer::retrobat_running, &|p: &Path| volumes::space(p).map(|s| s.free_bytes))
+    })
+    .await
+    .map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
+#[tauri::command]
+fn design_applications(catalog: State<'_, Catalog>, installation_id: String) -> Result<Vec<designs::Application>, String> {
+    designs::applications(&db::open(&catalog.path()?)?, &installation_id)
+}
+
+#[tauri::command]
+async fn undo_design_application(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, id: i64) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || designs::undo(&db::open(&db_path)?, id, &volumes::presence, &customizer::retrobat_running)).await.map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
 /// Games and size per platform for the library's Systems page.
 #[tauri::command]
 async fn system_summary(catalog: State<'_, Catalog>) -> Result<Vec<catalog::SystemSummary>, String> {
@@ -783,6 +866,17 @@ pub fn run() {
             deployment_plan,
             system_summary,
             list_backups,
+            list_designs,
+            create_design,
+            save_design_draft,
+            finish_design,
+            abandon_design,
+            delete_design,
+            music_settings,
+            preview_design,
+            apply_design,
+            design_applications,
+            undo_design_application,
             look_options,
             preview_look,
             apply_look,

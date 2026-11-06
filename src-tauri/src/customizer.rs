@@ -38,7 +38,7 @@ pub type PresenceFn<'a> = &'a dyn Fn(&str, Option<&str>) -> Presence;
 /// Whether RetroBat (its interface or launcher) is running.
 pub type RunningFn<'a> = &'a dyn Fn() -> bool;
 
-const SETTINGS: &str = "emulationstation/.emulationstation/es_settings.cfg";
+pub(crate) const SETTINGS: &str = "emulationstation/.emulationstation/es_settings.cfg";
 const SYSTEMS: &str = "emulationstation/.emulationstation/es_systems.cfg";
 const FEATURES: &str = "emulationstation/.emulationstation/es_features.cfg";
 /// Per-system settings version 1 can change (`<system>.<key>`).
@@ -121,7 +121,7 @@ pub struct HistoryRow {
 // ---------- es_settings.cfg: read entries with their exact positions ----------
 
 #[derive(Debug, Clone)]
-struct Entry {
+pub(crate) struct Entry {
     name: String,
     value: String,
     /// Byte range of the element (`<string … />`).
@@ -202,7 +202,7 @@ fn attributes(tag: &str) -> HashMap<String, String> {
 }
 
 /// Every `<string|bool|int|float name=… value=… />` in the file, with its position.
-fn entries(text: &str) -> Result<Vec<Entry>, String> {
+pub(crate) fn entries(text: &str) -> Result<Vec<Entry>, String> {
     let mut found = Vec::new();
     let mut i = 0;
     while let Some(offset) = text[i..].find('<') {
@@ -256,7 +256,7 @@ fn well_formed(text: &str) -> Result<(), String> {
     }
 }
 
-fn values(list: &[Entry]) -> Result<BTreeMap<String, String>, String> {
+pub(crate) fn values(list: &[Entry]) -> Result<BTreeMap<String, String>, String> {
     let mut map = BTreeMap::new();
     for e in list {
         if map.insert(e.name.clone(), e.value.clone()).is_some() {
@@ -268,6 +268,13 @@ fn values(list: &[Entry]) -> Result<BTreeMap<String, String>, String> {
 
 /// Apply changes to the file text, touching only the changed entries. Returns the new text.
 fn edit(text: &str, wanted: &BTreeMap<String, Option<String>>) -> Result<String, String> {
+    edit_typed(text, wanted, &BTreeMap::new())
+}
+
+/// Like `edit`, with the element type per key (`string` when not listed): RetroBat
+/// reads `<bool>` and `<int>` settings only from elements of that type.
+pub(crate) fn edit_typed(text: &str, wanted: &BTreeMap<String, Option<String>>, tags: &BTreeMap<String, &str>) -> Result<String, String> {
+    let tag = |name: &str| -> &str { tags.get(name).copied().unwrap_or("string") };
     let list = entries(text)?;
     let before = values(&list)?;
     let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
@@ -277,7 +284,7 @@ fn edit(text: &str, wanted: &BTreeMap<String, Option<String>>) -> Result<String,
     existing.sort_by_key(|e| std::cmp::Reverse(e.start));
     for e in existing {
         match &wanted[&e.name] {
-            Some(value) => out.replace_range(e.start..e.end, &format!("<string name=\"{}\" value=\"{}\" />", escape(&e.name), escape(value))),
+            Some(value) => out.replace_range(e.start..e.end, &format!("<{} name=\"{}\" value=\"{}\" />", tag(&e.name), escape(&e.name), escape(value))),
             None => {
                 // Remove the whole line when the element is alone on it.
                 let line_start = out[..e.start].rfind('\n').map(|p| p + 1).unwrap_or(0);
@@ -305,7 +312,7 @@ fn edit(text: &str, wanted: &BTreeMap<String, Option<String>>) -> Result<String,
         let indent = indent.filter(|i| i.trim().is_empty()).unwrap_or_else(|| "\t".to_string());
         let mut block = String::new();
         for (name, value) in additions {
-            block.push_str(&format!("{indent}<string name=\"{}\" value=\"{}\" />{newline}", escape(name), escape(value)));
+            block.push_str(&format!("{indent}<{} name=\"{}\" value=\"{}\" />{newline}", tag(name), escape(name), escape(value)));
         }
         if out[line_start..close].trim().is_empty() {
             out.insert_str(line_start, &block);
@@ -334,7 +341,7 @@ fn edit(text: &str, wanted: &BTreeMap<String, Option<String>>) -> Result<String,
 
 // ---------- What the install offers ----------
 
-fn read_text(path: &Path) -> Result<String, String> {
+pub(crate) fn read_text(path: &Path) -> Result<String, String> {
     let size = fs::metadata(path).map_err(|_| format!("{} wasn't found. Start RetroBat once so it creates it.", path.display()))?.len();
     if size > MAX_FILE {
         return Err(format!("{} is unexpectedly large, so RetroDrive won't read it.", path.display()));
@@ -463,14 +470,14 @@ fn has_games(root: &Path, system: &str) -> bool {
     fs::read_dir(root.join("roms").join(system)).map(|read| read.filter_map(Result::ok).any(|e| !e.file_name().to_string_lossy().eq_ignore_ascii_case("_info.txt"))).unwrap_or(false)
 }
 
-struct Install {
-    id: String,
-    root: PathBuf,
-    root_text: String,
-    stable: Option<String>,
+pub(crate) struct Install {
+    pub id: String,
+    pub root: PathBuf,
+    pub root_text: String,
+    pub stable: Option<String>,
 }
 
-fn install(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<Install, String> {
+pub(crate) fn install(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<Install, String> {
     let located = installations::located(connection, presence, Some(installation_id))?.into_iter().next().ok_or("Installation not found")?;
     if located.adapter_id != "retrobat" {
         return Err("Emulator settings are only available for RetroBat so far.".into());
@@ -485,19 +492,19 @@ fn install(connection: &Connection, installation_id: &str, presence: PresenceFn)
     Ok(Install { id: located.id, root: located.root, root_text, stable })
 }
 
-fn running_message(running: RunningFn) -> Option<String> {
+pub(crate) fn running_message(running: RunningFn) -> Option<String> {
     running().then(|| "RetroBat is running. Close it first: it saves its own settings when it closes, which would undo these changes.".to_string())
 }
 
-struct Offer {
-    systems: Vec<(String, String, Vec<EmulatorOption>)>,
-    shaders: Vec<Choice>,
-    bezels: Vec<Choice>,
-    ratios: Vec<Choice>,
-    integer: Vec<Choice>,
+pub(crate) struct Offer {
+    pub systems: Vec<(String, String, Vec<EmulatorOption>)>,
+    pub shaders: Vec<Choice>,
+    pub bezels: Vec<Choice>,
+    pub ratios: Vec<Choice>,
+    pub integer: Vec<Choice>,
 }
 
-fn offer(root: &Path) -> Result<Offer, String> {
+pub(crate) fn offer(root: &Path) -> Result<Offer, String> {
     let systems = read_systems(&root.join(SYSTEMS))?;
     let mut shaders = vec![Choice { label: "None".into(), value: "none".into() }];
     shaders.extend(folders(&[root.join("system/shaders/configs")]).into_iter().map(|f| Choice { label: f.clone(), value: f }));
@@ -533,7 +540,7 @@ pub fn options(connection: &Connection, installation_id: &str, presence: Presenc
     })
 }
 
-fn hex_sha(bytes: &[u8]) -> String {
+pub(crate) fn hex_sha(bytes: &[u8]) -> String {
     use sha2::{Digest, Sha256};
     Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
 }
@@ -543,6 +550,15 @@ fn validate(changes: &[Change], offer: &Offer, current: &BTreeMap<String, String
     if changes.is_empty() {
         return Err("There are no changes to apply.".into());
     }
+    let wanted = validate_systems(changes, offer, current)?;
+    if wanted.is_empty() {
+        return Err("Those are already the current settings.".into());
+    }
+    Ok(wanted)
+}
+
+/// Per-system changes checked against the install's choices; only real changes are returned (may be empty).
+pub(crate) fn validate_systems(changes: &[Change], offer: &Offer, current: &BTreeMap<String, String>) -> Result<BTreeMap<String, Option<String>>, String> {
     let mut wanted: BTreeMap<String, Option<String>> = BTreeMap::new();
     for c in changes {
         if !KEYS.contains(&c.key.as_str()) {
@@ -594,13 +610,10 @@ fn validate(changes: &[Change], offer: &Offer, current: &BTreeMap<String, String
     }
     // Drop entries that wouldn't change anything.
     wanted.retain(|k, v| current.get(k) != v.as_ref());
-    if wanted.is_empty() {
-        return Err("Those are already the current settings.".into());
-    }
     Ok(wanted)
 }
 
-fn rows(wanted: &BTreeMap<String, Option<String>>, current: &BTreeMap<String, String>) -> Vec<ChangeRow> {
+pub(crate) fn rows(wanted: &BTreeMap<String, Option<String>>, current: &BTreeMap<String, String>) -> Vec<ChangeRow> {
     wanted
         .iter()
         .map(|(k, v)| {
@@ -648,12 +661,12 @@ pub fn apply(connection: &Connection, installation_id: &str, changes: &[Change],
 /// backup folder, new file renamed in. `wanted` must already be validated.
 fn write_settings(connection: &Connection, install: &Install, settings: &Path, text: &str, wanted: &BTreeMap<String, Option<String>>, current: &BTreeMap<String, String>) -> Result<String, String> {
     let new_text = edit(text, wanted)?;
-    write_file(connection, install, SETTINGS, settings, text, &new_text, rows(wanted, current))
+    write_file(connection, install, SETTINGS, settings, text, &new_text, rows(wanted, current)).map(|(m, _)| m)
 }
 
 /// Journaled, backed-up replacement of one RetroBat file (`relative` to the
 /// installation) with `new_text`. Undo and crash repair work from the journal.
-fn write_file(connection: &Connection, install: &Install, relative: &str, settings: &Path, text: &str, new_text: &str, changed: Vec<ChangeRow>) -> Result<String, String> {
+pub(crate) fn write_file(connection: &Connection, install: &Install, relative: &str, settings: &Path, text: &str, new_text: &str, changed: Vec<ChangeRow>) -> Result<(String, i64), String> {
     let old_sha = hex_sha(text.as_bytes());
     let new_sha = hex_sha(new_text.as_bytes());
 
@@ -692,7 +705,7 @@ fn write_file(connection: &Connection, install: &Install, relative: &str, settin
         out.write_all(new_text.as_bytes())?;
         out.sync_all()
     })();
-    let fail = |message: String| -> Result<String, String> {
+    let fail = |message: String| -> Result<(String, i64), String> {
         copier::remove_own_temp(&temp, &marker);
         set_state(connection, id, "failed", Some(&message))?;
         Err(message)
@@ -718,7 +731,7 @@ fn write_file(connection: &Connection, install: &Install, relative: &str, settin
     connection.execute("UPDATE settings_changes SET temp_path = NULL WHERE id = ?1", [id]).map_err(|e| e.to_string())?;
     let message = format!("{} setting(s) changed. The previous settings file is in {backup_relative}.", changed.len());
     set_state(connection, id, "applied", Some(&message))?;
-    Ok(message)
+    Ok((message, id))
 }
 
 /// Theme folders RetroBat can use (`emulationstation\.emulationstation\themes` and `emulationstation\themes`).
@@ -772,9 +785,9 @@ pub fn current_theme(root: &Path) -> Option<String> {
 
 // ---------- retrobat.ini: boot video and frontend options ----------
 
-const INI: &str = "retrobat.ini";
-const VIDEOS: &str = "emulationstation/.emulationstation/video";
-const MUSIC: &str = "emulationstation/.emulationstation/music";
+pub(crate) const INI: &str = "retrobat.ini";
+pub(crate) const VIDEOS: &str = "emulationstation/.emulationstation/video";
+pub(crate) const MUSIC: &str = "emulationstation/.emulationstation/music";
 const MAX_VIDEO: u64 = 2 << 30;
 
 /// One `retrobat.ini` option RetroDrive offers (checked against the comments in
@@ -796,7 +809,7 @@ fn opt(section: &'static str, key: &'static str, label: &'static str, help: &'st
 
 /// The options offered. Left out on purpose: Autostart (changes Windows startup),
 /// ResetConfigMode (resets RetroBat's settings), AppLauncher, window sizes.
-fn ini_options() -> Vec<IniOption> {
+pub(crate) fn ini_options() -> Vec<IniOption> {
     vec![
         opt("SplashScreen", "EnableIntro", "Play a boot video", "Play a video before RetroBat's menus appear.", "bool", &[]),
         opt("SplashScreen", "RandomVideo", "Random video", "Pick a random video each time (otherwise the chosen video plays).", "bool", &[]),
@@ -818,7 +831,7 @@ fn ini_options() -> Vec<IniOption> {
 }
 
 /// `[Section]` + `Key=value` lines: value with quotes removed, and the byte range of the raw value.
-fn ini_entries(text: &str) -> BTreeMap<String, (String, usize, usize)> {
+pub(crate) fn ini_entries(text: &str) -> BTreeMap<String, (String, usize, usize)> {
     let mut found = BTreeMap::new();
     let mut section = String::new();
     let mut offset = 0;
@@ -844,7 +857,7 @@ fn ini_entries(text: &str) -> BTreeMap<String, (String, usize, usize)> {
 }
 
 /// Replace values of existing keys only (RetroBat writes every key it uses), checking the result.
-fn ini_edit(text: &str, wanted: &BTreeMap<String, String>) -> Result<String, String> {
+pub(crate) fn ini_edit(text: &str, wanted: &BTreeMap<String, String>) -> Result<String, String> {
     let before = ini_entries(text);
     let mut spans: Vec<(usize, usize, String)> = Vec::new();
     for (key, value) in wanted {
@@ -896,7 +909,7 @@ pub struct IniChange {
     pub value: String,
 }
 
-fn videos(root: &Path) -> Vec<String> {
+pub(crate) fn videos(root: &Path) -> Vec<String> {
     let mut names: Vec<String> = fs::read_dir(root.join(VIDEOS))
         .map(|read| read.filter_map(Result::ok).filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false)).map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.to_lowercase().ends_with(".mp4")).collect())
         .unwrap_or_default();
@@ -926,9 +939,20 @@ pub fn look_options(connection: &Connection, installation_id: &str, presence: Pr
 }
 
 fn ini_wanted(install: &Install, text: &str, changes: &[IniChange]) -> Result<(BTreeMap<String, String>, Vec<ChangeRow>), String> {
+    let (wanted, rows) = ini_validate(install, text, changes, &[])?;
+    if wanted.is_empty() {
+        return Err("Those are already the current settings.".into());
+    }
+    Ok((wanted, rows))
+}
+
+/// retrobat.ini changes checked against the offered options; `extra_videos` are
+/// videos that will be added before writing. Only real changes are returned.
+pub(crate) fn ini_validate(install: &Install, text: &str, changes: &[IniChange], extra_videos: &[String]) -> Result<(BTreeMap<String, String>, Vec<ChangeRow>), String> {
     let entries = ini_entries(text);
     let options = ini_options();
-    let videos = videos(&install.root);
+    let mut videos = videos(&install.root);
+    videos.extend(extra_videos.iter().cloned());
     let mut wanted = BTreeMap::new();
     let mut rows = Vec::new();
     for c in changes {
@@ -948,9 +972,6 @@ fn ini_wanted(install: &Install, text: &str, changes: &[IniChange]) -> Result<(B
             rows.push(ChangeRow { system: c.section.clone(), key: c.key.clone(), before, after: Some(c.value.clone()) });
             wanted.insert(key, c.value.clone());
         }
-    }
-    if wanted.is_empty() {
-        return Err("Those are already the current settings.".into());
     }
     Ok((wanted, rows))
 }
@@ -977,7 +998,7 @@ pub fn apply_look(connection: &Connection, installation_id: &str, changes: &[Ini
     }
     let (wanted, rows) = ini_wanted(&install, &text, changes)?;
     let new_text = ini_edit(&text, &wanted)?;
-    write_file(connection, &install, INI, &path, &text, &new_text, rows)
+    write_file(connection, &install, INI, &path, &text, &new_text, rows).map(|(m, _)| m)
 }
 
 /// Copy the user's own video into RetroBat's video folder as a new file (never over one).
@@ -1001,7 +1022,7 @@ pub fn music_files(root: &Path) -> Vec<String> {
 
 /// Copy a user file into an installation folder as a new file: temporary name,
 /// checksum compared with the source, no-replace rename. Never replaces a file.
-fn add_file(connection: &Connection, installation_id: &str, source: &str, presence: PresenceFn, folder: &str, exts: &[&str], wrong_type: &str) -> Result<String, String> {
+pub(crate) fn add_file(connection: &Connection, installation_id: &str, source: &str, presence: PresenceFn, folder: &str, exts: &[&str], wrong_type: &str) -> Result<String, String> {
     let install = install(connection, installation_id, presence)?;
     let source = PathBuf::from(source);
     if !source.extension().and_then(|e| e.to_str()).is_some_and(|e| exts.iter().any(|x| e.eq_ignore_ascii_case(x))) {

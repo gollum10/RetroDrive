@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 16;
+pub const SCHEMA_VERSION: i32 = 17;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -178,6 +178,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 16 {
         tx.execute_batch(SCHEMA_V16).map_err(|e| e.to_string())?;
+    }
+    if from_version < 17 {
+        tx.execute_batch(SCHEMA_V17).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -893,6 +896,33 @@ CREATE TABLE settings_changes (
     updated_at       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_settings_changes_installation ON settings_changes(installation_id);
+";
+
+/// v17: designs (`designs.rs`): named RetroBat customizations kept in the catalog
+/// (finished spec and unfinished draft), and their applications to installations.
+const SCHEMA_V17: &str = "
+CREATE TABLE designs (
+    id           TEXT PRIMARY KEY,
+    name         TEXT NOT NULL,
+    platform     TEXT NOT NULL DEFAULT 'retrobat',
+    spec_json    TEXT,
+    draft_json   TEXT,
+    created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_at  TEXT
+);
+CREATE UNIQUE INDEX idx_designs_name ON designs(name COLLATE NOCASE);
+CREATE TABLE design_applications (
+    id                   INTEGER PRIMARY KEY,
+    design_id            TEXT REFERENCES designs(id) ON DELETE SET NULL,
+    design_name          TEXT NOT NULL,
+    installation_id      TEXT REFERENCES installations(id) ON DELETE SET NULL,
+    settings_change_ids  TEXT NOT NULL,
+    added_json           TEXT NOT NULL,
+    state                TEXT NOT NULL CHECK (state IN ('applied', 'partial', 'undone')),
+    created_at           TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_design_applications_installation ON design_applications(installation_id);
 ";
 
 #[cfg(test)]

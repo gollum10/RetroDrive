@@ -202,3 +202,17 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** a custom `FilePath` makes RetroBat play videos from another folder; the page says so instead of guessing.
 
+## 15. Addendum: designs (2026-11-06)
+**Scope and authorization:** owner choice on 2026-11-06 ("Designs as described"): designs edited in a studio without touching RetroBat, finished or abandoned, applied to an installation as one previewed step and undone as one step. Code: `src-tauri/src/designs.rs`, `src/Customize.tsx`; schema v17.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| A design half-applied (e.g. settings changed, files missing) | Everything is checked before any write (both edits computed, every value validated against the install, every file to add checked); files are added first; es_settings.cfg is written, then retrobat.ini, and the first is undone if the second fails | `a_design_that_cant_fully_apply_changes_nothing`; code review |
+| Replacing the user's files | Media are added as new files (an identical file is reused; a different file with that name stops the apply before anything is written); the remixed theme is a new folder; a theme with the design's name made by something else stops the apply | same test; `applying_a_design…` (re-apply recognises its own theme and files) |
+| Misread music settings | Bool and int settings are written as `<bool>`/`<int>` (RetroBat ignores the wrong element type); values range-checked | `applying_a_design…` |
+| Racing RetroBat or a stale review | Refused while RetroBat runs; both files' SHA-256 from the preview must still match | same test |
+| Undo losing later changes | Undo goes through each file's own undo, which refuses if that file changed since | §12 tests |
+| Designing changing RetroBat by accident | The studio only writes the design's draft in the catalog | `drafts_finish_or_are_abandoned_without_touching_retrobat` |
+
+**Residual risks:** added theme folders and media stay after undo (by design; never deleted). If both the second write and its rollback fail, the user is told to undo the first file from the change history.
+
