@@ -61,6 +61,7 @@ Some playlists (the owner's X68000 sets) list disks as `/Game/disk.dim`, meaning
 - **Next step:** hash-verified grouping needs background hashing (planned).
 
 ### Implemented browsing (2026-11-05)
+- **Shown title (2026-11-06, schema v14):** each game has a `display_title`: the reference catalog's title when matched (e.g. *'88 Games* for `konami88.zip`), otherwise the file-based title. The title sort, the platform sort's second key and the A–Z bar use it, so the list reads in the order it's shown; search matches file titles, catalog titles and platforms.
 - `catalog::system_summary`: games (multi-disc games count once) and total size per platform for the Systems page. It runs only when that page is shown, because summing sizes walks every game; `library_stats` (run on every refresh) stays a plain count.
 - Grid and list views use the same paged query (`query_games`, 100 per page).
 
@@ -98,7 +99,7 @@ The user can import their own game catalog (`.xlsx`/`.csv`) in **Settings → Re
 - **Not yet:** searching by catalog titles (search still uses file titles), sorting by catalog title, and editing matches by hand.
 
 ## Metadata and scraping
-Provide approved providers (e.g. ScreenScraper with compatible account and terms) and import existing EmulationStation gamelist metadata. Store attribution/source ID/confidence; cache respectfully; respect API limits, licensing, permitted commercial usage, and removal requests. Manual editor allows corrections and local image selection.
+**Owner decision (2026-11-06):** RetroDrive is **free**, and it has **no scraper or online metadata/artwork service** (no ScreenScraper, TheGamesDB, IGDB, MobyGames). The owner doesn't want RetroDrive handling copyrighted material. Box art comes only from the user's own images; game details only from a catalog file the user imports. What remains possible: reading the user's own EmulationStation `gamelist.xml` (already used for box art), the user's reference catalog, and a manual editor for corrections.
 
 ## BIOS checker
 Use externally sourced compatibility requirement data and user-supplied BIOS files only. Match expected hashes where authorized and published; never bundle protected firmware. Distinguish missing requirement from emulator-specific optional BIOS. No false promise that presence alone guarantees working games.

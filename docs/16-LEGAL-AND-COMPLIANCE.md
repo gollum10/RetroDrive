@@ -235,7 +235,7 @@ Separating components technically can reduce risk but does not by itself guarant
 - [ ] **LEGAL-004:** Review Batocera licenses and redistribution/commercialization guidance.
 - [ ] **LEGAL-005:** Audit every supported emulator/core and third-party installer separately.
 - [ ] **LEGAL-006:** Establish prohibited ROM/BIOS distribution rules and UI requirements.
-- [ ] **LEGAL-007:** Evaluate metadata providers, caching requirements, artwork licensing, and attribution.
+- [x] **LEGAL-007:** Evaluate metadata providers, caching requirements, artwork licensing, and attribution. **Closed 2026-11-06 by not integrating any provider** (owner decision: free app, no scrapers). Notes from the review: ScreenScraper's API terms reportedly allow it only in completely free apps unless its team agrees otherwise, and each app needs its own developer credentials from ScreenScraper. Reopen this item before adding any online source.
 - [ ] **LEGAL-008:** Conduct trademark clearance for RetroDrive and review brand usage.
 - [ ] **LEGAL-009:** Draft and review EULA, third-party notices, privacy policy, and warranty language.
 - [ ] **LEGAL-010:** Implement and test destructive disk-operation protection and recovery.
@@ -322,7 +322,7 @@ This is an engineering status record, not a legal conclusion.
 | Game art | ✅ Never shipped, downloaded or copied. RetroDrive only links to images on the user's own drives (gamelists, folder conventions, user picks) and displays them locally (ADR-025). | docs/07 |
 | OneSauce / RetroFE target | ⛔ **Not started; blocked on LEGAL-015.** | §6, docs/11 |
 | Batocera images and installs (RDS-013/014) | ⛔ **Blocked on LEGAL-004** (plus the existing safety review). | docs/11 |
-| Metadata and artwork providers | ⛔ **Blocked on LEGAL-007.** | docs/11 |
+| Metadata and artwork providers | ❌ **Not planned** (owner decision 2026-11-06; LEGAL-007 closed by not integrating). | docs/11, docs/07 |
 | Independence statement | 🟡 The proposed disclaimer is shown in the app (Settings) and in the README, marked as pending counsel review. | `src/App.tsx`, README |
 | LEGAL-001 dependency inventory | 🟡 Software dependencies are inventoried (`docs/17-THIRD-PARTY-COMPONENTS.md`). Emulators and cores aren't shipped, so none are listed. | docs/17 |
 | LEGAL-014 license gate in CI | 🟡 CI fails on licenses outside the allowlist (`scripts/check-licenses.py`). Human sign-off for releases is still to be defined. | `.github/workflows/ci.yml` |

@@ -59,6 +59,7 @@ Run with `cd src-tauri && cargo test`.
 | Leave out / duplicate cleanup (ADR-027) | `duplicates::tests::duplicates_are_left_out_without_touching_files_and_can_come_back` (preview, keep-shorter-path, counts/listing/systems exclude left-out, files untouched, rescans keep marks, bring back, clash resolution), `a_missing_copy_is_never_the_one_kept`; manual 2026-11-05 in a test catalog: banner, preview (3 groups), cleanup, 8 files still on disk | Automated + manual |
 | A–Z and leading-slash playlists | `catalog::tests::letters_filter_titles_and_hash_means_digits_or_symbols` (found a case bug in the # filter), `scanner::tests::playlists_with_a_leading_slash_mean_the_playlists_own_folder`; `references_outside_the_scanned_folder_are_refused` still passes; manual 2026-11-05: Systems A–Z with letter jumps, games letter filter | Automated + manual |
 | Copy choices (step 5b, docs/18 §7) | `copier::tests::replace_moves_the_original_to_the_backup_folder_then_copies`, `a_failed_replace_puts_the_original_back`, `cancelling_during_a_replace_puts_the_original_back`, `keep_both_copies_under_the_next_free_number`, `an_interrupted_replace_is_put_right_on_the_next_start`; `deployment::tests::clash_choices_pick_a_version_or_keep_both`, `conflict_choices_and_multi_file_games`; manual 2026-11-05: Replace + Keep both in the app, verified on disk | Automated + manual |
+| Shown titles (schema v14) | `reference::tests::the_library_searches_and_sorts_by_the_title_it_shows` (catalog title shown and sorted, searchable with 2+ letters, A–Z follows it, kept after a file-title change, reverted when the catalog is removed); `catalog::tests::benchmark_real_catalog` (ignored; timings above) | Automated |
 | Batocera, preview only (RDS-008) | `adapters::batocera::tests` (game folder detected case-insensitively; boot partition, drive root and unfinished folders give hints and aren't saved; RetroBat folders aren't claimed; layout checks; Batocera folders and CPS via the arcade choice); `copier::tests::preview_only_platforms_are_never_copied_to` (plan shown, copier refuses, folder unchanged, nothing journaled); `adapters::tests::shipped_adapters_are_read_only_and_unique`; in the app 2026-11-06 with a mock share: boot partition hint, recognized game folder, plan with `roms\nes`/`roms\snes`, CPS2 held back, preview note instead of Copy, share unchanged | Automated + manual (no real Batocera yet) |
 | Collections (step 7) | `collections::tests::collections_hold_games_without_touching_them` (case-insensitive unique names, adding twice keeps one entry, filter by collection, rename, delete leaves games and files); `deployment::tests::a_plan_can_be_limited_to_a_collection` (plan holds only the collection's games and its fingerprint differs); in the app 2026-11-05: "Add all shown" with the SNES filter made a 2-game collection and the plan dropped from 5 games to those 2 | Automated + manual |
 | Faster small-file copies (step 6) | `copier::tests::leftovers_are_found_by_name_even_without_journal_entries` (temp files and replace backups found by their marked names when the journal lost its last entries); `copy_benchmark_small_files` (ignored benchmark) | Automated |
@@ -111,6 +112,22 @@ Command: `cd src-tauri && cargo test --release copy_benchmark_small_files -- --i
 | Measurement only: no `sync_all` on the game file | 59 |
 | Measurement only: no read-back check | 98 |
 | **Shipped: journal `NORMAL` during copies** | **101** |
+
+### Library pages on the owner's catalog (2026-11-06)
+Command: copy the catalog, then `RETRODRIVE_BENCH_DB=<copy> cargo test --release benchmark_real_catalog -- --ignored --nocapture` (145,181 games, schema v14, warm runs). The before column is main at schema v13 on the same data.
+
+| Page | Before | After |
+|---|---|---|
+| First page, title sort | 390 ms | 15 ms |
+| Platform sort | 383 ms | 11 ms |
+| Letter M | 2.9 s | 224 ms |
+| Letter # | 3.2 s | 70 ms |
+| SNES | 240 ms | 189 ms |
+| Search 'street fighter' | 34 ms (267 found) | 36 ms (497 found: catalog titles too) |
+| Search 'sf' (2 letters) | 3.3 s | 165 ms |
+| Page 500 (offset 50,000) | 1.6 s | 1.2 s |
+
+Causes: the total count scanned every file to skip left-out ones (fixed by a partial index), and without table statistics SQLite counted letter and short-text filters by walking every file (fixed by `ANALYZE` and counting from the games table when only game filters are used). Deep offsets still walk the skipped rows.
 
 The remaining cost is mostly opening each new file again for the read-back check (Windows Defender scans new files when they're opened); it stays, because the read-back is a core safety check. Copying several files at once would hide it (follow-up).
 

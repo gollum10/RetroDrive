@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 13;
+pub const SCHEMA_VERSION: i32 = 14;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -169,6 +169,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 13 {
         tx.execute_batch(SCHEMA_V13).map_err(|e| e.to_string())?;
+    }
+    if from_version < 14 {
+        tx.execute_batch(SCHEMA_V14).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -801,6 +804,59 @@ CREATE TABLE collection_games (
     PRIMARY KEY (collection_id, game_file_id)
 );
 CREATE INDEX idx_collection_games_file ON collection_games(game_file_id);
+";
+
+/// v14: `games.display_title`, the title the library shows: the reference catalog's
+/// title when the game is matched, otherwise the file-based title. Kept in sync by
+/// triggers, indexed for the title sort and the A-Z bar, and added to the search
+/// index so catalog titles can be searched.
+const SCHEMA_V14: &str = "
+ALTER TABLE games ADD COLUMN display_title TEXT;
+UPDATE games SET display_title = COALESCE(
+    (SELECT re.title FROM game_reference gr JOIN reference_entries re ON re.id = gr.entry_id WHERE gr.game_id = games.id),
+    canonical_title);
+CREATE INDEX idx_games_display_title ON games(display_title COLLATE NOCASE);
+CREATE INDEX idx_games_platform_display_title ON games(platform, display_title COLLATE NOCASE);
+
+CREATE TRIGGER games_display_title_insert AFTER INSERT ON games WHEN new.display_title IS NULL BEGIN
+    UPDATE games SET display_title = new.canonical_title WHERE id = new.id;
+END;
+CREATE TRIGGER games_display_title_rename AFTER UPDATE OF canonical_title ON games BEGIN
+    UPDATE games SET display_title = COALESCE(
+        (SELECT re.title FROM game_reference gr JOIN reference_entries re ON re.id = gr.entry_id WHERE gr.game_id = new.id),
+        new.canonical_title) WHERE id = new.id;
+END;
+CREATE TRIGGER game_reference_display_insert AFTER INSERT ON game_reference BEGIN
+    UPDATE games SET display_title = COALESCE((SELECT title FROM reference_entries WHERE id = new.entry_id), canonical_title) WHERE id = new.game_id;
+END;
+CREATE TRIGGER game_reference_display_update AFTER UPDATE ON game_reference BEGIN
+    UPDATE games SET display_title = canonical_title WHERE id = old.game_id;
+    UPDATE games SET display_title = COALESCE((SELECT title FROM reference_entries WHERE id = new.entry_id), canonical_title) WHERE id = new.game_id;
+END;
+CREATE TRIGGER game_reference_display_delete AFTER DELETE ON game_reference BEGIN
+    UPDATE games SET display_title = canonical_title WHERE id = old.game_id;
+END;
+
+DROP TRIGGER games_fts_insert;
+DROP TRIGGER games_fts_update;
+DROP TRIGGER games_fts_delete;
+DROP TABLE games_fts;
+CREATE VIRTUAL TABLE games_fts USING fts5(game_id UNINDEXED, canonical_title, platform, display_title, tokenize = 'trigram');
+INSERT INTO games_fts (game_id, canonical_title, platform, display_title) SELECT id, canonical_title, platform, display_title FROM games;
+CREATE TRIGGER games_fts_insert AFTER INSERT ON games BEGIN
+    INSERT INTO games_fts (game_id, canonical_title, platform, display_title) VALUES (new.id, new.canonical_title, new.platform, new.display_title);
+END;
+CREATE TRIGGER games_fts_update AFTER UPDATE OF canonical_title, platform, display_title ON games BEGIN
+    UPDATE games_fts SET canonical_title = new.canonical_title, platform = new.platform, display_title = new.display_title WHERE game_id = old.id;
+END;
+CREATE TRIGGER games_fts_delete AFTER DELETE ON games BEGIN
+    DELETE FROM games_fts WHERE game_id = old.id;
+END;
+
+-- Counting the library's games walks this small index instead of every file (measured: docs/15).
+CREATE INDEX idx_game_files_included_role ON game_files(file_role) WHERE excluded_at IS NULL;
+-- Table statistics let SQLite pick the title index for the A-Z bar instead of scanning every file.
+ANALYZE;
 ";
 
 #[cfg(test)]
