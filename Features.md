@@ -84,7 +84,8 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 | Readable paths | ✅ | Long paths keep the drive and last folders (`C:\…\roms\snes\Game.sfc`); the full path shows on hover. |
 | Duplicate candidates | ✅ | RDS-004. Same platform, same file name (ignoring case) and same non-zero size. Shown with a ×N badge and a "Possible duplicates only" filter. Informational only: nothing is ever deleted. |
 | Hash-verified duplicates | 📋 | Needs background hashing; `sha256` / `crc32` columns are reserved. |
-| Collections and favorites | 📋 | M2. |
+| Collections | ✅ | Step 7. Your own named game lists: Collections tab, Add to collection on each game, Add all shown (current filters, up to 10,000), rename, remove, delete (asks twice). Lists only: games and files are never touched. |
+| Favorites | 📋 | Later (a built-in collection). |
 | Scan progress and cancellation | ✅ | RDS-002. Cancelling keeps files found so far and skips missing-file detection, so it can't mark files missing (QA-002). |
 | One scan at a time | ✅ | Starting a second scan is refused with a clear message. |
 | Scans survive crashes safely | ✅ | Work is saved in batches (500 files or 1 s). A scan cut off by a crash or forced close is marked **Interrupted** on the next launch; files already saved are kept. |
@@ -116,7 +117,7 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 | Saved installations survive drive-letter changes | ✅ | Stored against the drive's volume ID, like scanned folders. |
 | Deployment plan (replaces the placement preview) | ✅ | RDS-009. For each saved installation: which `roms\<system>` folder each game would go to, and what would happen to it: copy, already there (same name and size), already in place (you scanned the RetroBat folder), duplicate (copied once), conflict (a different file is there and is kept) or blocked, with the reason. Copies and creates nothing (verified: the installation folder is unchanged). |
 | Drive space check | ✅ | Live free space on the installation's drive, a safety reserve (1 GB or 2% of the drive, whichever is bigger) and room for the largest file, rounded to the drive's cluster size. Says plainly whether it fits. |
-| Choose which platforms to deploy | ✅ | Tick or untick each RetroBat system folder; the plan updates. Collections come later. |
+| Choose which platforms to deploy | ✅ | Tick or untick each RetroBat system folder; the plan updates. Or choose **What to copy: Collection** to copy just one collection's games. |
 | Destination safety checks | ✅ | Blocks files too big for FAT32, names that clash only by upper/lower case, links or junctions on the way, folders in the way, and paths outside the installation. Warns about paths over 260 characters. |
 | RetroBat folder mapping (verified against the RetroBat wiki) | ✅ | nes, fds (Famicom Disk `.fds`), snes, megadrive, mastersystem, gamegear, psx, ps2, gb, gbc, gba, n64. Multi-disc games get their own subfolder so playlists keep working. |
 | Arcade placement (MAME or FinalBurn Neo) | ✅ | Per installation: *Arcade games go to* MAME (`roms\mame`) or FinalBurn Neo (`roms\fbneo`); not chosen by default, so nothing is guessed. Arcade zips keep their exact names. CHD disks aren't placed yet. |

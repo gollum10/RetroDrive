@@ -64,6 +64,14 @@ Some playlists (the owner's X68000 sets) list disks as `/Game/disk.dim`, meaning
 - `catalog::system_summary`: games (multi-disc games count once) and total size per platform for the Systems page. It runs only when that page is shown, because summing sizes walks every game; `library_stats` (run on every refresh) stays a plain count.
 - Grid and list views use the same paged query (`query_games`, 100 per page).
 
+## Collections (step 7, implemented 2026-11-05, `src-tauri/src/collections.rs`)
+- A collection is the user's own named list of games (e.g. "Couch co-op"). It is a **catalog list only**: creating, renaming, emptying or deleting one never touches games or files.
+- **Add** one game from its card, or **Add all shown to a collection…** (every game matching the current search and filters, up to 10,000 at a time). A new collection can be created from the same window. Adding a game twice keeps one entry.
+- **Collections tab** in the Game Library: a card per collection with its game count and size (left-out games aren't counted); Open shows its games with the usual search, filters and views, where each card offers **Remove from collection**.
+- **Copying a collection:** the deployment plan's **What to copy** choice limits the plan to one collection's games (the platform ticks then apply within it). The collection is part of the plan fingerprint, so changing it requires a fresh plan before copying.
+- Library queries take `collection_id`; the shared filter builder (`catalog::filter_sql`) is used both for paging and for `matching_file_ids` ("add all shown").
+- Not yet: favourites as a built-in collection, ordering within a collection, smart (rule-based) collections.
+
 ## Duplicate categories
 1. Exact file: identical cryptographic hash.
 2. Same release/edition: different dump or compression; manual validation before merge.

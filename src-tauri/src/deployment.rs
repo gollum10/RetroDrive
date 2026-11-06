@@ -217,23 +217,37 @@ impl Item {
 /// (`None` = all). Reads the catalog and the destination; writes nothing.
 #[cfg(test)]
 pub fn plan(connection: &Connection, installation_id: &str, systems: Option<&[String]>, presence: PresenceFn, space: SpaceFn) -> Result<DeploymentPlan, String> {
-    plan_with(connection, installation_id, systems, &Choices::new(), presence, space)
+    plan_with(connection, installation_id, systems, None, &Choices::new(), presence, space)
 }
 
 /// The plan with the user's conflict and clash choices applied.
-pub fn plan_with(connection: &Connection, installation_id: &str, systems: Option<&[String]>, choices: &Choices, presence: PresenceFn, space: SpaceFn) -> Result<DeploymentPlan, String> {
-    build(connection, installation_id, systems, choices, presence, space).map(|(plan, _)| plan)
+pub fn plan_with(connection: &Connection, installation_id: &str, systems: Option<&[String]>, collection: Option<&str>, choices: &Choices, presence: PresenceFn, space: SpaceFn) -> Result<DeploymentPlan, String> {
+    build(connection, installation_id, systems, collection, choices, presence, space).map(|(plan, _)| plan)
 }
 
 /// The plan plus every selected item, for the copier.
-pub(crate) fn build(connection: &Connection, installation_id: &str, systems: Option<&[String]>, user_choices: &Choices, presence: PresenceFn, space: SpaceFn) -> Result<(DeploymentPlan, Vec<Item>), String> {
+/// `collection` limits the plan to the games in that collection (step 7).
+pub(crate) fn build(
+    connection: &Connection,
+    installation_id: &str,
+    systems: Option<&[String]>,
+    collection: Option<&str>,
+    user_choices: &Choices,
+    presence: PresenceFn,
+    space: SpaceFn,
+) -> Result<(DeploymentPlan, Vec<Item>), String> {
     let install = installations::located(connection, presence, Some(installation_id))?.into_iter().next().ok_or("Installation not found")?;
     if install.presence != Presence::Connected {
         return Err("The installation's drive isn't connected, so a plan can't be made.".into());
     }
     let adapter = adapters::find(&install.adapter_id).ok_or_else(|| format!("Unknown platform adapter: {}", install.adapter_id))?;
     let install_root = install.root.display().to_string();
-    let gathered = gather(connection, adapter.as_ref(), &install_root, install.options, presence)?;
+    let mut gathered = gather(connection, adapter.as_ref(), &install_root, install.options, presence)?;
+    if let Some(collection) = collection.filter(|c| !c.is_empty()) {
+        let mut statement = connection.prepare("SELECT game_file_id FROM collection_games WHERE collection_id = ?1").map_err(|e| e.to_string())?;
+        let members: std::collections::HashSet<String> = statement.query_map([collection], |r| r.get(0)).map_err(|e| e.to_string())?.collect::<Result<_, _>>().map_err(|e| e.to_string())?;
+        gathered.items.retain(|item| item.files.first().is_some_and(|f| members.contains(&f.game_file_id)));
+    }
 
     // System folders on offer, and the selection.
     let mut choices: BTreeMap<String, SystemChoice> = BTreeMap::new();
@@ -268,6 +282,7 @@ pub(crate) fn build(connection: &Connection, installation_id: &str, systems: Opt
     fingerprint.write(&install.adapter_id);
     fingerprint.write(&adapters::CONTRACT_VERSION.to_string());
     fingerprint.write(&install_root);
+    fingerprint.write(collection.unwrap_or(""));
     for item in &items {
         let action = item.action();
         games.add(action);
@@ -970,7 +985,7 @@ mod tests {
     }
 
     fn plan_choosing(f: &Fixture, choices: &Choices) -> DeploymentPlan {
-        plan_with(&f.catalog, &f.id, None, choices, &connected, &roomy).unwrap()
+        plan_with(&f.catalog, &f.id, None, None, choices, &connected, &roomy).unwrap()
     }
 
     #[test]
@@ -1027,5 +1042,18 @@ mod tests {
         let row = p.attention.iter().find(|g| g.title == "Diff").unwrap();
         assert_eq!(row.action, Action::Replace);
         assert_eq!(row.choice.as_ref().unwrap().current, "replace", "the row stays listed so the choice can be changed");
+    }
+
+    #[test]
+    fn a_plan_can_be_limited_to_a_collection() {
+        let f = fixture(&[("nes/Kid.nes", b"k"), ("nes/Metroid.nes", b"m"), ("snes/Mario.sfc", b"s")]);
+        let party = crate::collections::create(&f.catalog, "Party").unwrap();
+        let mario: String = f.catalog.query_row("SELECT id FROM game_files WHERE filename = 'Mario.sfc'", [], |r| r.get(0)).unwrap();
+        crate::collections::add(&f.catalog, &party, &[mario]).unwrap();
+        let all = plan_with(&f.catalog, &f.id, None, None, &Choices::new(), &connected, &roomy).unwrap();
+        let only = plan_with(&f.catalog, &f.id, None, Some(&party), &Choices::new(), &connected, &roomy).unwrap();
+        assert_eq!((all.selected_games, only.selected_games), (3, 1));
+        assert_eq!(only.systems.iter().map(|s| s.system_folder.as_str()).collect::<Vec<_>>(), ["snes"], "only the collection's systems are offered");
+        assert_ne!(all.fingerprint, only.fingerprint);
     }
 }

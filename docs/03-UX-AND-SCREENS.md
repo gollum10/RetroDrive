@@ -11,6 +11,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-05 (Plex-style browsing):** the Game Library opens on **Systems**, one card per platform with game count and total size (Unclassified last); clicking a card opens **Games** filtered to that system. Games show as a **grid** (cover tiles; a coloured placeholder with the title's initials until box art exists) or a **list** (the table). System cards are in **alphabetical order** (Unclassified and BIOS last) with an **A–Z bar** that jumps to the first system for a letter (letters without systems are dimmed); the Games view has an **A–Z bar** (All, #, A–Z) that shows only titles starting with that letter (# = digits and symbols), using the title index (owner request, 2026-11-05). The chosen tab and view are remembered per computer (browser storage; falls back to defaults if unavailable).
 
+**Implemented 2026-11-05 (collections, step 7):** a **Collections** tab next to Systems and Games, with a card per collection (Open, Rename, Delete; delete asks twice and says the games stay in the library) and a "New collection" box. Game cards have **Add to collection**; inside a collection they also have **Remove from collection**. **Add all shown to a collection…** adds every game matching the current filters. The add window lists collections and can create one on the spot.
+
 ## Drives
 Inventory: manufacturer/model, bus type when known, capacity, filesystem, free space, label, stable identity, mount point, safety classification (system/unknown/removable). Selected drive details: partitions, managed installations, activity, backup state. No prominent 'Erase' control in default view. Clearly distinguish physical disks from mounted volumes.
 
@@ -18,7 +20,7 @@ Inventory: manufacturer/model, bus type when known, capacity, filesystem, free s
 Catalog of Batocera, RetroBat, and later platforms. Cards: bootable OS vs frontend vs Windows portable application; supported hardware; version/source; setup vs existing-install recognition. Show prerequisites, external links, disk implications, licensing and hardware constraints. Use official download sites, never assume all systems flash like ISOs.
 
 ## Deployment Wizard
-1. Source: games, one collection, or entire filtered selection.
+1. Source: games, one collection, or entire filtered selection. *(Implemented: "What to copy" in the plan chooses platforms or one collection, 2026-11-05.)*
 2. Destination: existing supported installation or authorized local folder.
 3. Analyze: capacity, formats, BIOS requirements (informational), paths, duplicates.
 4. Preview: precise adds/replaces/skips, bytes, file conflicts and backup actions.
