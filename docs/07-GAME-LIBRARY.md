@@ -34,6 +34,9 @@ Use platform folder semantics, file extension and optional metadata; record infe
   - **Deleted playlists:** after a complete scan, discs whose playlist no longer references them become separate games again, and their tracks move with them.
   - **Known limitations:** a track dropped from an edited cue sheet is marked missing rather than reclassified, and a manual title edit on a disc is lost when it is grouped.
 
+### Playlists with a leading slash (2026-11-05)
+Some playlists (the owner's X68000 sets) list disks as `/Game/disk.dim`, meaning "inside this playlist's folder". A reference starting with a single `/` or `\` (not a network path or drive letter) is first tried relative to the playlist's folder and used **only if that file exists there**; it is still checked against the scanned folder. Before this, those references were refused as outside the folder (122 warnings on the owner's `roms` rescan) and the disks weren't grouped.
+
 ### Implemented rescan rules
 `src-tauri/src/scanner.rs`:
 - **Links:** symbolic links and junctions are never followed, and are reported as skipped.

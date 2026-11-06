@@ -45,6 +45,7 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 | Feature | Status | Notes |
 |---|---|---|
 | Browse by system (Plex-style) | ✅ | Systems page: a card per platform with game count and size; click to see that system's games. |
+| A–Z order and quick-access bars | ✅ | Systems are sorted A–Z with a letter bar to jump; games have an A–Z bar (# for numbers and symbols). |
 | Grid or list view | ✅ | Grid shows cover tiles (coloured placeholders until box art); list is the detailed table. Your choice is remembered. |
 | Reference catalog import (names, details, genres) | ✅ | Settings → Reference catalog: import your `.xlsx`/`.csv` and an optional genre file. Games are matched by exact No-Intro/MAME name, MAME clone set, then title per system; cards and the list show catalog titles, year and genre. Art columns are never read. On your library: 47,840 of 116,405 games matched (Arcade 93%). |
 | Catalog import waits for scans and copies | ✅ | Its buttons are greyed out during a scan or copy, and scans wait for an import (instead of a "database is locked" error). |
