@@ -39,6 +39,11 @@ pub enum Action {
     Duplicate,
     /// Not copied because the user chose another version or chose to skip it.
     Skipped,
+    /// The user removed this game from the drive and chose to keep it off (Sync, ADR-043).
+    KeptOff,
+    /// RetroDrive copied this game before but it's gone from the drive: not copied until
+    /// the user chooses "copy it again" or "keep it off" (ADR-043).
+    Removed,
     /// The same game is already on the drive, or another version is being copied, under
     /// another name (e.g. `Game(J).zip` next to `Game (Japan).zip`); not copied unless
     /// the user chooses "copy anyway" (ADR-042).
@@ -77,7 +82,8 @@ const EXACT_NAME_PLATFORMS: &[&str] = &["Arcade", "Neo Geo", "CPS1", "CPS2", "CP
 pub struct ChoiceInfo {
     pub key: String,
     /// `conflict` (a different file is on the drive), `clash` (library versions collide) or
-    /// `same_game` (the game is on the drive or in the plan under another name).
+    /// `same_game` (the game is on the drive or in the plan under another name),
+    /// `removed` (copied before, gone from the drive) or `kept_off` (the user keeps it off).
     pub situation: &'static str,
     /// Any of `keep`, `use`, `keep_both`, `replace`.
     pub options: Vec<&'static str>,
@@ -130,6 +136,10 @@ pub struct ActionCounts {
     pub duplicate: i64,
     /// Already on the drive (or in the plan) under another name; not copied.
     pub same_game: i64,
+    /// Copied before, now gone from the drive; waiting for the user's choice.
+    pub removed: i64,
+    /// Removed from the drive and kept off it (the user's choice).
+    pub kept_off: i64,
     pub conflict: i64,
     pub blocked: i64,
 }
@@ -143,6 +153,8 @@ impl ActionCounts {
             Action::InPlace => self.in_place += 1,
             Action::Duplicate | Action::Skipped => self.duplicate += 1,
             Action::SameGame => self.same_game += 1,
+            Action::Removed => self.removed += 1,
+            Action::KeptOff => self.kept_off += 1,
             Action::Conflict => self.conflict += 1,
             Action::Blocked => self.blocked += 1,
         }
@@ -192,6 +204,8 @@ pub struct DeploymentPlan {
     /// The first games that would be copied.
     /// Games not copied because they're on the drive (or in the plan) under another name; each can be copied anyway.
     pub same_game: Vec<PlanGame>,
+    /// Games RetroDrive copied before that are no longer on the drive (asked about), and games kept off it.
+    pub removed: Vec<PlanGame>,
     pub sample: Vec<PlanGame>,
     /// Stable hash of every source, destination, size and action. RDS-010 rebuilds
     /// the plan before copying and refuses to start if this changed.
@@ -234,15 +248,25 @@ pub fn plan(connection: &Connection, installation_id: &str, systems: Option<&[St
 
 /// The plan with the user's conflict and clash choices applied.
 pub fn plan_with(connection: &Connection, installation_id: &str, systems: Option<&[String]>, collection: Option<&str>, choices: &Choices, presence: PresenceFn, space: SpaceFn) -> Result<DeploymentPlan, String> {
-    build(connection, installation_id, systems, collection, choices, presence, space).map(|(plan, _)| plan)
+    build(connection, installation_id, systems, &[], collection, choices, presence, space).map(|(plan, _)| plan)
+}
+
+/// The Sync plan (ADR-043): every platform except the ones the user left out of Sync,
+/// with the user's choices for games removed from the drive. Reads only.
+pub fn plan_sync(connection: &Connection, installation_id: &str, choices: &Choices, presence: PresenceFn, space: SpaceFn) -> Result<DeploymentPlan, String> {
+    let skip = installations::sync_skip(connection, installation_id)?;
+    build(connection, installation_id, None, &skip, None, choices, presence, space).map(|(plan, _)| plan)
 }
 
 /// The plan plus every selected item, for the copier.
-/// `collection` limits the plan to the games in that collection (step 7).
+/// `collection` limits the plan to the games in that collection (step 7); `skip` leaves
+/// system folders out (Sync's saved selection).
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build(
     connection: &Connection,
     installation_id: &str,
     systems: Option<&[String]>,
+    skip: &[String],
     collection: Option<&str>,
     user_choices: &Choices,
     presence: PresenceFn,
@@ -269,7 +293,7 @@ pub(crate) fn build(
             platforms: Vec::new(),
             games: 0,
             bytes: 0,
-            selected: systems.is_none_or(|s| s.iter().any(|x| x == &item.system_folder)),
+            selected: systems.is_none_or(|s| s.iter().any(|x| x == &item.system_folder)) && !skip.contains(&item.system_folder),
         });
         if !choice.platforms.contains(&item.platform) {
             choice.platforms.push(item.platform.clone());
@@ -282,6 +306,8 @@ pub(crate) fn build(
     let measured = space(&install.root);
     let max_file = measured.as_ref().and_then(|s| volumes::max_file_bytes(s.filesystem.as_deref()));
     check_files(&mut items, &install.root, max_file, user_choices);
+    mark_removed(connection, &install.id, &mut items, user_choices)?;
+    same_games(&mut items, user_choices);
 
     // Totals.
     let cluster = measured.as_ref().map(|s| s.cluster_bytes.max(1)).unwrap_or(4096);
@@ -290,6 +316,7 @@ pub(crate) fn build(
     let mut new_folders: BTreeSet<String> = BTreeSet::new();
     let mut attention = Vec::new();
     let mut same_game = Vec::new();
+    let mut removed = Vec::new();
     let mut sample = Vec::new();
     let mut fingerprint = Fnv::new();
     fingerprint.write(&install.adapter_id);
@@ -341,7 +368,11 @@ pub(crate) fn build(
             choice: item.files.iter().find_map(|f| f.choice.clone()),
         };
         // Items with a choice stay listed, so the choice can be seen and changed.
-        if action == Action::SameGame {
+        if matches!(action, Action::Removed | Action::KeptOff) {
+            if removed.len() < ATTENTION_LIMIT {
+                removed.push(game);
+            }
+        } else if action == Action::SameGame {
             if same_game.len() < ATTENTION_LIMIT {
                 same_game.push(game);
             }
@@ -403,6 +434,7 @@ pub(crate) fn build(
         capacity,
         attention,
         same_game,
+        removed,
         sample,
         fingerprint: format!("{:016x}", fingerprint.finish()),
     };
@@ -586,7 +618,58 @@ fn check_files(items: &mut [Item], install_root: &Path, max_file: Option<u64>, c
             }
         }
     }
-    same_games(items, choices);
+}
+
+/// Games RetroDrive copied to this installation before (verified, identical or replaced)
+/// that are no longer on the drive: the user is asked instead of copying them back
+/// silently, and can keep them off for good (ADR-043). Reads the catalog only.
+fn mark_removed(connection: &Connection, installation_id: &str, items: &mut [Item], choices: &Choices) -> Result<(), String> {
+    let mut statement = connection
+        .prepare(
+            "SELECT DISTINCT i.destination_path FROM deployment_items i JOIN deployments d ON d.id = i.deployment_id
+             WHERE d.installation_id = ?1 AND i.state IN ('verified', 'identical', 'replaced')",
+        )
+        .map_err(|e| e.to_string())?;
+    let copied: BTreeSet<String> = statement
+        .query_map([installation_id], |r| r.get::<_, String>(0))
+        .map_err(|e| e.to_string())?
+        .map(|r| r.map(|p| path_key(Path::new(&p))))
+        .collect::<Result<_, _>>()
+        .map_err(|e| e.to_string())?;
+    if copied.is_empty() {
+        return Ok(());
+    }
+    let kept_off = installations::kept_off(connection, installation_id)?;
+    for item in items.iter_mut() {
+        let primary = &item.files[0];
+        if primary.action != Action::Copy || primary.choice.is_some() {
+            continue;
+        }
+        let key = path_key(&primary.destination);
+        if !copied.contains(&key) {
+            continue;
+        }
+        let choice_key = primary.relative.to_lowercase();
+        let file_id = primary.game_file_id.clone();
+        let (action, situation, reason, current) = if kept_off.contains(&key) {
+            (Action::KeptOff, "kept_off", "You removed this game from the drive and chose to keep it off.", "keep")
+        } else if matches!(choices.get(&choice_key), Some(Choice::KeepBoth)) {
+            (Action::Copy, "removed", "You removed this game from the drive; it's copied again (you chose).", "keep_both")
+        } else {
+            (Action::Removed, "removed", "RetroDrive copied this game before, but it's no longer on the drive. Choose whether to copy it again or keep it off.", "keep")
+        };
+        let options = if situation == "removed" { vec!["keep", "keep_both", "keep_off"] } else { vec!["keep", "keep_both"] };
+        for (n, file) in item.files.iter_mut().enumerate() {
+            if action != Action::Copy {
+                file.action = action;
+            }
+            if n == 0 {
+                file.reason = Some(reason.to_string());
+                file.choice = Some(ChoiceInfo { key: choice_key.clone(), situation, options: options.clone(), current, file_id: file_id.clone() });
+            }
+        }
+    }
+    Ok(())
 }
 
 /// A game's identity from its file name, ignoring tags and punctuation, so
@@ -1106,6 +1189,40 @@ mod tests {
         let chosen = plan_choosing(&f, &Choices::from([(key, Choice::KeepBoth)]));
         assert_eq!((chosen.games.same_game, chosen.games.copy), (3, 5));
         assert!(chosen.attention.iter().any(|g| g.title.starts_with("10-Yard") && g.reason.as_deref().unwrap().contains("Copied anyway")));
+    }
+
+    #[test]
+    fn sync_keeps_the_saved_selection_and_asks_about_removed_games() {
+        let f = fixture(&[("nes/Kid.nes", b"nes"), ("nes/Gone.nes", b"gone"), ("snes/Quest.sfc", b"snes!")]);
+        // Sync leaves out what the user unticked, until it's changed again.
+        installations::set_sync_skip(&f.catalog, &f.id, &["snes".to_string()]).unwrap();
+        let p = plan_sync(&f.catalog, &f.id, &Choices::new(), &connected, &roomy).unwrap();
+        assert_eq!(p.systems.iter().map(|s| (s.system_folder.as_str(), s.selected)).collect::<Vec<_>>(), [("nes", true), ("snes", false)]);
+        assert_eq!(p.games.copy, 2);
+        // Pretend both NES games were copied before, then Gone was deleted from the drive.
+        write(&f.root, "roms/nes/Kid.nes", b"nes");
+        f.catalog.execute("INSERT INTO deployments (id, installation_id, adapter_id, adapter_contract, destination_root, plan_fingerprint, status) VALUES ('d1', ?1, 'retrobat', 1, 'x', 'f', 'completed')", [&f.id]).unwrap();
+        for name in ["Kid.nes", "Gone.nes"] {
+            let dest = f.root.join("roms").join("nes").join(name).display().to_string();
+            f.catalog.execute("INSERT INTO deployment_items (deployment_id, game_index, game_title, source_path, destination_path, size_bytes, planned_action, state) VALUES ('d1', 0, ?1, 'src', ?2, 3, 'copy', 'verified')", [name, &dest]).unwrap();
+        }
+        let before = snapshot(&f.root);
+        let p = plan_sync(&f.catalog, &f.id, &Choices::new(), &connected, &roomy).unwrap();
+        assert_eq!((p.games.removed, p.games.copy, p.games.already_there), (1, 0, 1), "Gone isn't copied back silently");
+        let gone = &p.removed[0];
+        assert_eq!((gone.title.as_str(), gone.action), ("Gone", Action::Removed));
+        assert_eq!(gone.choice.as_ref().unwrap().options, ["keep", "keep_both", "keep_off"]);
+        // Copy it again...
+        let key = gone.choice.as_ref().unwrap().key.clone();
+        let again = plan_sync(&f.catalog, &f.id, &Choices::from([(key, Choice::KeepBoth)]), &connected, &roomy).unwrap();
+        assert_eq!((again.games.removed, again.games.copy), (0, 1));
+        // ...or keep it off, remembered.
+        installations::set_kept_off(&f.catalog, &f.id, &gone.destination, Some("Gone"), true).unwrap();
+        let off = plan_sync(&f.catalog, &f.id, &Choices::new(), &connected, &roomy).unwrap();
+        assert_eq!((off.games.kept_off, off.games.removed, off.games.copy), (1, 0, 0));
+        installations::set_kept_off(&f.catalog, &f.id, &gone.destination, None, false).unwrap();
+        assert_eq!(plan_sync(&f.catalog, &f.id, &Choices::new(), &connected, &roomy).unwrap().games.removed, 1);
+        assert_eq!(snapshot(&f.root), before, "planning reads only");
     }
 
     #[test]

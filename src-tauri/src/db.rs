@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 17;
+pub const SCHEMA_VERSION: i32 = 18;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -181,6 +181,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 17 {
         tx.execute_batch(SCHEMA_V17).map_err(|e| e.to_string())?;
+    }
+    if from_version < 18 {
+        tx.execute_batch(SCHEMA_V18).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -923,6 +926,19 @@ CREATE TABLE design_applications (
     created_at           TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_design_applications_installation ON design_applications(installation_id);
+";
+
+/// v18 (Sync, 2026-11-07, ADR-043): the platforms left out of Sync for an installation
+/// (`NULL`: none), and games the user removed from the drive and chose to keep off it.
+const SCHEMA_V18: &str = "
+ALTER TABLE installations ADD COLUMN sync_skip_json TEXT;
+CREATE TABLE sync_kept_off (
+    installation_id  TEXT NOT NULL REFERENCES installations(id) ON DELETE CASCADE,
+    destination_key  TEXT NOT NULL,
+    title            TEXT,
+    decided_at       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (installation_id, destination_key)
+);
 ";
 
 #[cfg(test)]
