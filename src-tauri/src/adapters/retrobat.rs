@@ -26,7 +26,7 @@
 //!   folder named exactly like its game zip (`roms\mame\kinst\kinst.chd`); non-merged sets
 //!   are recommended, split sets need their parent zips, merged sets aren't supported.
 
-use super::{AdapterKind, ArcadeSystem, Capabilities, CheckStatus, Confidence, Detection, LayoutCheck, Placement, PlacementOptions, PlacementRequest, PlatformAdapter};
+use super::{has_entry, plan_in_roms, AdapterKind, ArcadeSystem, Capabilities, CheckStatus, Confidence, Detection, LayoutCheck, Placement, PlacementOptions, PlacementRequest, PlatformAdapter};
 use std::path::Path;
 
 pub struct RetroBat;
@@ -34,16 +34,10 @@ pub struct RetroBat;
 const ID: &str = "retrobat";
 const NAME: &str = "RetroBat";
 
-/// Case-insensitive check for an entry directly inside `root`.
-fn has_entry(root: &Path, name: &str, want_dir: bool) -> bool {
-    let Ok(entries) = std::fs::read_dir(root) else { return false };
-    entries.filter_map(Result::ok).any(|e| {
-        e.file_name().to_string_lossy().eq_ignore_ascii_case(name) && e.file_type().map(|t| t.is_dir() == want_dir).unwrap_or(false)
-    })
-}
-
-/// RetroBat `roms\` folder for a catalog platform; `Err` explains why a game can't be placed.
-fn system_folder(platform: &str, extension: &str, options: PlacementOptions) -> Result<&'static str, String> {
+/// `roms\` folder for a catalog platform; `Err` explains why a game can't be placed.
+/// Shared with Batocera, whose folder names are the same (checked 2026-11-06);
+/// `target` names the platform in messages.
+pub(super) fn system_folder(platform: &str, extension: &str, options: PlacementOptions, target: &str) -> Result<&'static str, String> {
     Ok(match platform {
         "NES" if extension == "fds" => "fds",
         "NES" => "nes",
@@ -105,16 +99,16 @@ fn system_folder(platform: &str, extension: &str, options: PlacementOptions) -> 
         "Atomiswave" => "atomiswave",
         "Sega Saturn" => "saturn",
         "3DO" => "3do",
-        "BIOS" => return Err("BIOS files belong in RetroBat's bios folder, not with games; RetroDrive doesn't copy BIOS files.".into()),
+        "BIOS" => return Err(format!("BIOS files belong in {target}'s bios folder, not with games; RetroDrive doesn't copy BIOS files.")),
         "Arcade" => return arcade_folder(extension, options),
         "Unclassified" => return Err("The platform isn't known (e.g. a loose .zip or .iso), so RetroDrive can't tell which system folder it belongs in.".into()),
-        other => return Err(format!("RetroDrive doesn't map {other} to a RetroBat folder yet.")),
+        other => return Err(format!("RetroDrive doesn't map {other} to a {target} folder yet.")),
     })
 }
 
 /// Arcade games go to the folder of the emulator family the user chose. Only the
 /// game archives themselves are placed, unchanged (their names are the romset names).
-fn arcade_folder(extension: &str, options: PlacementOptions) -> Result<&'static str, String> {
+pub(super) fn arcade_folder(extension: &str, options: PlacementOptions) -> Result<&'static str, String> {
     let Some(system) = options.arcade else {
         return Err("Choose MAME or FinalBurn Neo for this installation to place arcade games (they use different ROM sets, so RetroDrive doesn't guess).".into());
     };
@@ -178,7 +172,7 @@ impl PlatformAdapter for RetroBat {
         AdapterKind::PortableApp
     }
     fn capabilities(&self) -> Capabilities {
-        Capabilities { detect: true, validate_layout: true, plan_placement: true, install: false, write_files: false }
+        Capabilities { detect: true, validate_layout: true, plan_placement: true, copy_games: true, install: false, write_files: false }
     }
 
     fn detect(&self, root: &Path) -> Detection {
@@ -201,7 +195,8 @@ impl PlatformAdapter for RetroBat {
             _ => Confidence::NotDetected,
         };
         let version = if confidence == Confidence::NotDetected { None } else { read_version(root) };
-        Detection { adapter_id: ID, display_name: NAME, kind: AdapterKind::PortableApp, confidence, evidence, version }
+        let hint = (confidence == Confidence::Possible).then(|| "Choose the folder that contains RetroBat.exe.".to_string());
+        Detection { adapter_id: ID, display_name: NAME, kind: AdapterKind::PortableApp, confidence, evidence, version, hint }
     }
 
     fn validate_layout(&self, root: &Path) -> Vec<LayoutCheck> {
@@ -246,23 +241,9 @@ impl PlatformAdapter for RetroBat {
     }
 
     fn plan_placement(&self, request: &PlacementRequest) -> Placement {
-        let system = match system_folder(&request.platform, &request.extension, request.options) {
-            Ok(s) => s,
-            Err(reason) => return Placement::Unsupported { reason },
-        };
-        if request.files.iter().any(|f| f.relative_to_primary.split('/').any(|part| part == ".." || part.is_empty())) {
-            return Placement::Unsupported { reason: "Its files are spread across folders, so the set can't be copied as one unit.".into() };
-        }
-        // Single files go straight into the system folder; multi-file games get
-        // their own subfolder so .m3u/.cue references keep working.
-        let base = if request.files.len() > 1 {
-            format!("roms/{system}/{}", super::folder_name(&request.title))
-        } else {
-            format!("roms/{system}")
-        };
-        Placement::Planned {
-            system_folder: system.to_string(),
-            destinations: request.files.iter().map(|f| format!("{base}/{}", f.relative_to_primary)).collect(),
+        match system_folder(&request.platform, &request.extension, request.options, NAME) {
+            Ok(system) => plan_in_roms(system, request),
+            Err(reason) => Placement::Unsupported { reason },
         }
     }
 }

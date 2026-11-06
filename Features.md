@@ -132,7 +132,8 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 | File-type check per target | 📋 | RDS-018: warn when a target won't show a file type (e.g. zipped NES games on OneSauce). |
 | OneSauce / RetroFE (AtGames Legends Ultimate) | ⛔ | RDS-020, blocked on LEGAL-015 (docs/16 §6). |
 | Emulator customizer | 📋 | RDS-021: emulators, display, controls; backup and undo; own safety review. |
-| Batocera adapter | 📋 | RDS-008. |
+| Batocera (preview only) | ✅ | RDS-008. Recognizes Batocera's game folder (`\\BATOCERA\share` over the network, or the `batocera` folder on an external game drive), explains what to pick if you choose the boot partition or the drive root, checks the layout and plans where games would go (CPS games follow the arcade choice). **Doesn't copy yet**: the plan is a preview until copying to Batocera has its own safety review. |
+| Copy to Batocera | 📋 | RDS-022, after a safety review and a test on a real Batocera. |
 | Copy games to RetroBat (verified) | ✅ | RDS-010. After you confirm, copies the plan in the background with progress and Cancel. Re-checks the plan, the drive's identity and free space first. Each file goes to a temporary name, is checked with SHA-256 by reading it back from the drive, and only then gets its real name. **Never overwrites or deletes** your files (a file that appears mid-copy is kept). Safety review: docs/18. |
 | Existing files checked by content | ✅ | "Already there" files are compared byte for byte before being skipped; if they differ, the existing file is kept and reported. |
 | Cancel and crash recovery | ✅ | Cancel discards only the file in progress. After a crash or unplugged drive, RetroDrive removes its own unfinished temporary files the next time that same drive is connected. Partly copied multi-disc games keep their verified discs; copying again finishes them. |

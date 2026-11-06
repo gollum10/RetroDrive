@@ -1,10 +1,12 @@
 //! Platform adapter contract (RDS-006, docs/04 "Platform adapter contract").
 //!
-//! Each supported platform (RetroBat now, Batocera and others later) implements
-//! `PlatformAdapter`. Contract v1 is strictly read-only: adapters recognize an
+//! Each supported platform (RetroBat, Batocera; others later) implements
+//! `PlatformAdapter`. Adapters are strictly read-only: they recognize an
 //! installation, check its layout and *plan* where games would go. Nothing here
-//! writes files; copying comes later behind previews and confirmation (RDS-009/010).
+//! writes files; the copier (RDS-010) does, and only for adapters whose
+//! `Capabilities::copy_games` is set.
 
+pub mod batocera;
 pub mod retrobat;
 
 use serde::Serialize;
@@ -13,11 +15,12 @@ use std::path::Path;
 /// Bump when the trait or its data types change incompatibly. Stored with each
 /// saved installation so later versions can tell which contract recorded it.
 /// v2 (2026-11-05): `PlacementRequest` carries the installation's `PlacementOptions`.
-pub const CONTRACT_VERSION: u32 = 2;
+/// v3 (2026-11-06, RDS-008): `Capabilities::copy_games` and `Detection::hint`.
+pub const CONTRACT_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
-#[allow(dead_code)] // BootableOs and Frontend are for the Batocera (RDS-008) and ES-DE adapters.
+#[allow(dead_code)] // Frontend is for a later ES-DE adapter.
 pub enum AdapterKind {
     /// A bootable OS image (e.g. Batocera).
     BootableOs,
@@ -45,6 +48,9 @@ pub struct Detection {
     pub evidence: Vec<String>,
     /// Upstream version when it can be read reliably; `None` means unknown.
     pub version: Option<String>,
+    /// What to do when this isn't quite the right folder (e.g. "choose the folder
+    /// that contains RetroBat.exe"). Shown when nothing was recognized.
+    pub hint: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -63,12 +69,15 @@ pub struct LayoutCheck {
     pub detail: String,
 }
 
-/// What an adapter can do. Contract v1 adapters never install or write.
+/// What an adapter can do. Adapters themselves never install or write.
 #[derive(Debug, Clone, Serialize)]
 pub struct Capabilities {
     pub detect: bool,
     pub validate_layout: bool,
     pub plan_placement: bool,
+    /// Whether RetroDrive's copier may copy games into this kind of installation.
+    /// Off means plans are previews only and the copier refuses (docs/18).
+    pub copy_games: bool,
     pub install: bool,
     pub write_files: bool,
 }
@@ -168,7 +177,7 @@ pub fn catalog() -> Vec<AdapterInfo> {
 
 /// Every adapter this build ships.
 pub fn registry() -> Vec<Box<dyn PlatformAdapter>> {
-    vec![Box::new(retrobat::RetroBat)]
+    vec![Box::new(retrobat::RetroBat), Box::new(batocera::Batocera)]
 }
 
 pub fn find(id: &str) -> Option<Box<dyn PlatformAdapter>> {
@@ -180,6 +189,25 @@ pub fn detect_all(root: &Path) -> Vec<Detection> {
     let mut found: Vec<Detection> = registry().iter().map(|a| a.detect(root)).collect();
     found.sort_by_key(|d| std::cmp::Reverse(d.confidence));
     found
+}
+
+/// Case-insensitive check for an entry directly inside `root`.
+pub(crate) fn has_entry(root: &Path, name: &str, want_dir: bool) -> bool {
+    let Ok(entries) = std::fs::read_dir(root) else { return false };
+    entries.filter_map(Result::ok).any(|e| {
+        e.file_name().to_string_lossy().eq_ignore_ascii_case(name) && e.file_type().map(|t| t.is_dir() == want_dir).unwrap_or(false)
+    })
+}
+
+/// Placement in an EmulationStation-style `roms/<system>` tree (RetroBat and
+/// Batocera). Single files go straight into the system folder; multi-file games
+/// get their own subfolder so .m3u/.cue references keep working.
+pub(crate) fn plan_in_roms(system: &str, request: &PlacementRequest) -> Placement {
+    if request.files.iter().any(|f| f.relative_to_primary.split('/').any(|part| part == ".." || part.is_empty())) {
+        return Placement::Unsupported { reason: "Its files are spread across folders, so the set can't be copied as one unit.".into() };
+    }
+    let base = if request.files.len() > 1 { format!("roms/{system}/{}", folder_name(&request.title)) } else { format!("roms/{system}") };
+    Placement::Planned { system_folder: system.to_string(), destinations: request.files.iter().map(|f| format!("{base}/{}", f.relative_to_primary)).collect() }
 }
 
 /// Make a game title safe as a Windows folder name.
@@ -214,7 +242,7 @@ mod tests {
             AdapterKind::Frontend
         }
         fn capabilities(&self) -> Capabilities {
-            Capabilities { detect: true, validate_layout: false, plan_placement: true, install: false, write_files: false }
+            Capabilities { detect: true, validate_layout: false, plan_placement: true, copy_games: false, install: false, write_files: false }
         }
         fn detect(&self, root: &Path) -> Detection {
             let found = root.join("mock.marker").exists();
@@ -225,6 +253,7 @@ mod tests {
                 confidence: if found { Confidence::Detected } else { Confidence::NotDetected },
                 evidence: vec![],
                 version: None,
+                hint: None,
             }
         }
         fn validate_layout(&self, _root: &Path) -> Vec<LayoutCheck> {
@@ -263,9 +292,10 @@ mod tests {
         assert_eq!(ids.len(), adapters.len());
         for adapter in &adapters {
             let caps = adapter.capabilities();
-            assert!(!caps.install && !caps.write_files, "{} must be read-only under contract v1", adapter.id());
+            assert!(!caps.install && !caps.write_files, "{} must be read-only", adapter.id());
         }
-        assert!(find("retrobat").is_some());
+        assert!(find("retrobat").unwrap().capabilities().copy_games);
+        assert!(!find("batocera").unwrap().capabilities().copy_games, "Batocera is preview-only until its own safety review");
         let info = catalog();
         assert_eq!(info[0].kind, AdapterKind::PortableApp);
         assert_eq!(info[0].contract_version, CONTRACT_VERSION);

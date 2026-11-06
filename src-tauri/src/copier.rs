@@ -148,6 +148,9 @@ enum Outcome {
 pub fn deploy(connection: &Connection, job_id: Option<&str>, request: &DeployRequest, presence: PresenceFn, space: SpaceFn, observer: &mut dyn DeployObserver) -> Result<DeploySummary, String> {
     // 1. Re-check everything. No writes before this passes.
     let (plan, items) = deployment::build(connection, request.installation_id, request.systems, request.collection, request.choices, presence, space)?;
+    if !plan.copy_supported {
+        return Err(format!("RetroDrive doesn't copy to {} yet, so nothing was copied. The plan is a preview.", plan.adapter_name));
+    }
     if plan.fingerprint != request.fingerprint {
         return Err("The drive or your library changed since you reviewed the plan, so nothing was copied. Review the updated plan and try again.".into());
     }
@@ -1144,6 +1147,34 @@ mod tests {
             ("psx/Saga/Saga (Disc 1).cue", b"FILE \"d1.bin\" BINARY\n"),
             ("psx/Saga/Saga (Disc 2).cue", b"FILE \"d2.bin\" BINARY\n"),
         ]
+    }
+
+    #[test]
+    fn preview_only_platforms_are_never_copied_to() {
+        // Batocera (RDS-008) plans but doesn't copy: the copier refuses before writing anything.
+        let dir = tempfile::tempdir().unwrap();
+        let share = dir.path().join("share");
+        for entry in ["roms/snes", "bios", "system"] {
+            fs::create_dir_all(share.join(entry)).unwrap();
+        }
+        fs::write(share.join("system/batocera.conf"), b"").unwrap();
+        let library = dir.path().join("library");
+        write(&library, "snes/Mario.sfc", b"mario");
+        let mut catalog = Connection::open_in_memory().unwrap();
+        db::migrate(&mut catalog, None).unwrap();
+        scanner::scan(&mut catalog, &library, &unknown).unwrap();
+        let id = installations::add(&catalog, &share, "batocera", &unknown).unwrap();
+        let choices = deployment::Choices::new();
+        let plan = deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap();
+        assert!(!plan.copy_supported);
+        assert_eq!(plan.files_to_copy, 1, "the preview still shows what would go where");
+        let before = snapshot(&share);
+        let request = DeployRequest { installation_id: &id, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None };
+        let error = deploy(&catalog, None, &request, &connected, &roomy, &mut Quiet).unwrap_err();
+        assert!(error.contains("doesn't copy to Batocera"), "{error}");
+        assert_eq!(snapshot(&share), before, "nothing was written");
+        let deployments: i64 = catalog.query_row("SELECT COUNT(*) FROM deployments", [], |r| r.get(0)).unwrap();
+        assert_eq!(deployments, 0, "no deployment was journaled");
     }
 
     #[test]

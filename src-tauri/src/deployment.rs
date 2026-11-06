@@ -164,6 +164,8 @@ pub struct DeploymentPlan {
     pub adapter_name: String,
     pub adapter_contract: u32,
     pub installation_path: String,
+    /// False for preview-only adapters (Batocera): the plan is shown, but the copier refuses.
+    pub copy_supported: bool,
     /// Every system folder with placeable games, and whether it's in this plan.
     pub systems: Vec<SystemChoice>,
     pub unsupported: Vec<UnsupportedGroup>,
@@ -372,6 +374,7 @@ pub(crate) fn build(
         adapter_id: install.adapter_id,
         adapter_name: adapter.display_name().to_string(),
         adapter_contract: adapters::CONTRACT_VERSION,
+        copy_supported: adapter.capabilities().copy_games,
         installation_path: install_root,
         selected_games: items.len() as i64,
         systems: choices.into_values().collect(),
