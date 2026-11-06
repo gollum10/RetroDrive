@@ -142,3 +142,19 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risks:** the deployment manifest on the drive still describes the original copy (the catalog records the undo). An undone file can't be re-applied from this screen; build a new plan and choose Replace again.
 
+## 11. Addendum: copying several games at once (2026-11-06)
+**Scope:** the same per-file steps as §2 (journal, `create_new` temporary file, SHA-256 while writing, sync, unbuffered read-back, no-replace rename; Replace moves the original to the backup folder first), now run for up to 4 games at a time on worker threads. No new kind of disk action. Owner request: "work through them all" (2026-11-06), item "copy several files at once".
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| A worker writes before its journal entry is recorded | Workers send every journal write to the main thread (the only catalog user) and wait for the confirmation before touching the drive | code review (`Remote::ask`); all crash and recovery tests pass unchanged |
+| Two workers write the same destination | Each destination appears once in a plan (clash detection, docs/08); temporary names are per destination; the final rename never replaces | `parallel_and_one_at_a_time_copies_end_the_same`, `a_parallel_copy_never_overwrites_a_file_that_appears` |
+| Cancel leaves half-written files | Cancel is checked per chunk in every worker; each removes its own temporary file; unstarted games stay `not_attempted` | `cancelling_a_parallel_copy_leaves_only_verified_files` |
+| Drive unplugged mid-copy | The main thread checks the drive every second and after any failed file, then stops new games; in-flight games fail safely as before; recovery unchanged | existing recovery tests; same per-file code |
+| Several big writes overload a USB hard drive | Files ≥ 32 MB take a shared lock: one at a time | `big_files_are_copied_one_at_a_time` |
+| Test hooks or a cancelling observer race the workers | Hooks run on the main thread while the worker waits; a hook that cancels is recorded before the worker continues; call-counting test observers use 1 worker | copier tests repeated 15× without failure |
+| An internal error in one worker | The error stops all workers and goes through the existing failure path (deployment `failed`, leftovers cleaned up) | code review |
+| The coordinating thread fails while workers wait for it | The request channel lives inside the thread scope, so a failure drops every pending reply and the workers stop; the copy ends with an error instead of hanging (found on CI by a faulty test, 2026-11-06) | `a_coordinator_failure_stops_the_workers_instead_of_hanging` |
+
+**Residual risk:** the per-file order on the drive differs from the plan order, so a crash leaves up to 4 games partly copied instead of 1; the next run finishes them (ADR-021).
+

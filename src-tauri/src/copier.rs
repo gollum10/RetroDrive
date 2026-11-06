@@ -43,6 +43,8 @@ use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{mpsc, Mutex};
 use std::time::{Duration, Instant};
 
 const CHUNK: usize = 1 << 20;
@@ -67,6 +69,10 @@ pub trait DeployObserver {
     fn before_rename(&mut self, _destination: &Path) {}
     /// Right after an existing file was moved to the backup folder (Replace).
     fn after_backup(&mut self, _destination: &Path) {}
+    /// How many games to copy at once (1 = one at a time).
+    fn workers(&self) -> usize {
+        DEFAULT_WORKERS
+    }
 }
 
 pub struct DeployRequest<'a> {
@@ -242,6 +248,334 @@ pub fn deploy(connection: &Connection, job_id: Option<&str>, request: &DeployReq
     }
 }
 
+/// Files at least this big are copied one at a time, even when games are copied in
+/// parallel, so a USB hard drive isn't asked to write several big files at once.
+const BIG_FILE: i64 = 32 << 20;
+/// Games copied at the same time (docs/15 "Copy speed"; docs/18 §11).
+pub const DEFAULT_WORKERS: usize = 4;
+
+/// What copying one game needs: journaling, progress, cancellation and test hooks.
+/// A sequential copy uses the connection and observer directly. Parallel workers
+/// send every journal write to the main thread and wait until it's recorded, so
+/// "journal before writing" holds exactly as in a sequential copy.
+trait Ctx {
+    fn set_item(&mut self, id: i64, state: &str, sha: Option<&str>, temp: Temp, message: Option<&str>) -> Result<(), String>;
+    fn set_backup(&mut self, id: i64, backup: Option<&str>, state: &str) -> Result<(), String>;
+    fn record_hash(&mut self, game_file_id: &str, hash: &str) -> Result<(), String>;
+    fn cancelled(&mut self) -> bool;
+    fn add_bytes(&mut self, bytes: i64);
+    fn started(&mut self, title: &str);
+    fn before_verify(&mut self, temp: &Path, source: &Path);
+    fn before_rename(&mut self, destination: &Path);
+    fn after_backup(&mut self, destination: &Path);
+}
+
+/// Sequential copies: straight to the catalog and the observer.
+struct Direct<'a> {
+    connection: &'a Connection,
+    observer: &'a mut dyn DeployObserver,
+    progress: &'a mut DeployProgress,
+    last_progress: &'a mut Instant,
+}
+
+impl Ctx for Direct<'_> {
+    fn set_item(&mut self, id: i64, state: &str, sha: Option<&str>, temp: Temp, message: Option<&str>) -> Result<(), String> {
+        set_item(self.connection, id, state, sha, temp, message)
+    }
+    fn set_backup(&mut self, id: i64, backup: Option<&str>, state: &str) -> Result<(), String> {
+        set_backup(self.connection, id, backup, state)
+    }
+    fn record_hash(&mut self, game_file_id: &str, hash: &str) -> Result<(), String> {
+        record_hash(self.connection, game_file_id, hash)
+    }
+    fn cancelled(&mut self) -> bool {
+        self.observer.cancelled()
+    }
+    fn add_bytes(&mut self, bytes: i64) {
+        self.progress.bytes_done += bytes;
+        if self.last_progress.elapsed() >= PROGRESS_EVERY {
+            self.observer.progress(self.progress);
+            *self.last_progress = Instant::now();
+        }
+    }
+    fn started(&mut self, title: &str) {
+        self.progress.current = title.to_string();
+    }
+    fn before_verify(&mut self, temp: &Path, source: &Path) {
+        self.observer.before_verify(temp, source);
+    }
+    fn before_rename(&mut self, destination: &Path) {
+        self.observer.before_rename(destination);
+    }
+    fn after_backup(&mut self, destination: &Path) {
+        self.observer.after_backup(destination);
+    }
+}
+
+enum OwnedTemp {
+    Keep,
+    Set(String),
+    Clear,
+}
+
+enum Hook {
+    BeforeVerify(PathBuf, PathBuf),
+    BeforeRename(PathBuf),
+    AfterBackup(PathBuf),
+}
+
+/// Requests from parallel workers to the main thread.
+enum Msg {
+    Item { id: i64, state: String, sha: Option<String>, temp: OwnedTemp, message: Option<String>, reply: mpsc::Sender<Result<(), String>> },
+    Backup { id: i64, backup: Option<String>, state: String, reply: mpsc::Sender<Result<(), String>> },
+    Hash { game_file_id: String, hash: String, reply: mpsc::Sender<Result<(), String>> },
+    Hook(Hook, mpsc::Sender<()>),
+    Bytes(i64),
+    Started(String),
+    Done(Result<GameReport, String>),
+}
+
+/// A parallel worker's view: every request goes to the main thread.
+struct Remote<'a> {
+    tx: mpsc::Sender<Msg>,
+    cancel: &'a AtomicBool,
+}
+
+impl Remote<'_> {
+    fn ask(&self, build: impl FnOnce(mpsc::Sender<Result<(), String>>) -> Msg) -> Result<(), String> {
+        let (reply, answer) = mpsc::channel();
+        self.tx.send(build(reply)).map_err(|_| "The copy coordinator stopped.".to_string())?;
+        answer.recv().map_err(|_| "The copy coordinator stopped.".to_string())?
+    }
+    fn hook(&self, hook: Hook) {
+        let (reply, answer) = mpsc::channel();
+        if self.tx.send(Msg::Hook(hook, reply)).is_ok() {
+            let _ = answer.recv();
+        }
+    }
+}
+
+impl Ctx for Remote<'_> {
+    fn set_item(&mut self, id: i64, state: &str, sha: Option<&str>, temp: Temp, message: Option<&str>) -> Result<(), String> {
+        let temp = match temp {
+            Temp::Keep => OwnedTemp::Keep,
+            Temp::Set(path) => OwnedTemp::Set(path.to_string()),
+            Temp::Clear => OwnedTemp::Clear,
+        };
+        let (state, sha, message) = (state.to_string(), sha.map(str::to_string), message.map(str::to_string));
+        self.ask(|reply| Msg::Item { id, state, sha, temp, message, reply })
+    }
+    fn set_backup(&mut self, id: i64, backup: Option<&str>, state: &str) -> Result<(), String> {
+        let (backup, state) = (backup.map(str::to_string), state.to_string());
+        self.ask(|reply| Msg::Backup { id, backup, state, reply })
+    }
+    fn record_hash(&mut self, game_file_id: &str, hash: &str) -> Result<(), String> {
+        let (game_file_id, hash) = (game_file_id.to_string(), hash.to_string());
+        self.ask(|reply| Msg::Hash { game_file_id, hash, reply })
+    }
+    fn cancelled(&mut self) -> bool {
+        self.cancel.load(Ordering::SeqCst)
+    }
+    fn add_bytes(&mut self, bytes: i64) {
+        let _ = self.tx.send(Msg::Bytes(bytes));
+    }
+    fn started(&mut self, title: &str) {
+        let _ = self.tx.send(Msg::Started(title.to_string()));
+    }
+    fn before_verify(&mut self, temp: &Path, source: &Path) {
+        self.hook(Hook::BeforeVerify(temp.to_path_buf(), source.to_path_buf()));
+    }
+    fn before_rename(&mut self, destination: &Path) {
+        self.hook(Hook::BeforeRename(destination.to_path_buf()));
+    }
+    fn after_backup(&mut self, destination: &Path) {
+        self.hook(Hook::AfterBackup(destination.to_path_buf()));
+    }
+}
+
+/// How a game ended, for the summary.
+#[derive(Default, PartialEq)]
+enum GameEnd {
+    Copied,
+    AlreadyThere,
+    Incomplete,
+    Conflict,
+    /// Cancelled before anything of it was copied: not counted.
+    #[default]
+    Uncounted,
+}
+
+#[derive(Default)]
+struct GameReport {
+    title: String,
+    identical: i64,
+    copied: i64,
+    replaced: i64,
+    bytes_copied: i64,
+    failed: i64,
+    files_done: i64,
+    issues: Vec<(PathBuf, String)>,
+    end: GameEnd,
+    cancelled: bool,
+    /// A file failed: the coordinator checks the drive is still there.
+    failure: bool,
+    /// The installation folder disappeared mid-game.
+    drive_gone: bool,
+}
+
+impl GameReport {
+    fn issue(&mut self, path: &Path, message: &str) {
+        self.issues.push((path.to_path_buf(), message.to_string()));
+    }
+}
+
+impl DeploySummary {
+    /// Add one game's results. Returns whether the game counts as finished for progress.
+    fn add(&mut self, report: GameReport) -> bool {
+        self.files_identical += report.identical;
+        self.files_copied += report.copied;
+        self.files_replaced += report.replaced;
+        self.bytes_copied += report.bytes_copied;
+        self.files_failed += report.failed;
+        for (path, message) in &report.issues {
+            self.issue(&report.title, path, message);
+        }
+        match report.end {
+            GameEnd::Copied => self.games_copied += 1,
+            GameEnd::AlreadyThere => self.games_already_there += 1,
+            GameEnd::Incomplete => self.games_incomplete += 1,
+            GameEnd::Conflict => self.games_conflict += 1,
+            GameEnd::Uncounted => {}
+        }
+        if report.cancelled {
+            self.cancelled = true;
+        }
+        !report.cancelled && !report.drive_gone
+    }
+}
+
+/// Copy one game: check "already there" files by content, then copy or replace the
+/// rest. Large files take `big` (when given) so only one is written at a time.
+fn copy_game(ctx: &mut dyn Ctx, item: &Item, ids: &[i64], install_root: &Path, deployment_id: &str, marker: &str, big: Option<&Mutex<()>>) -> Result<GameReport, String> {
+    let mut report = GameReport { title: item.title.clone(), ..GameReport::default() };
+    ctx.started(&item.title);
+
+    // Files reported "already there" must match by content before they count.
+    let mut differs: Option<String> = None;
+    let mut unreadable: Option<String> = None;
+    for (file, &id) in item.files.iter().zip(ids).filter(|(f, _)| f.action == Action::AlreadyThere) {
+        let compared = same_contents(&file.source, &file.destination, &mut || ctx.cancelled());
+        match compared {
+            Ok(Some(hash)) => {
+                ctx.set_item(id, "identical", Some(&hash), Temp::Keep, None)?;
+                ctx.record_hash(&file.game_file_id, &hash)?;
+                report.identical += 1;
+            }
+            Ok(None) => {
+                let message = "A file with the same name and size is there, but its contents differ. It was kept.";
+                ctx.set_item(id, "conflict", None, Temp::Keep, Some(message))?;
+                report.issue(&file.destination, message);
+                differs = Some(file.destination.display().to_string());
+            }
+            Err(Halt::Cancelled) => {
+                report.cancelled = true;
+                return Ok(report);
+            }
+            Err(Halt::Io(e)) => {
+                let message = format!("Couldn't compare with the existing file: {e}");
+                ctx.set_item(id, "failed", None, Temp::Keep, Some(&message))?;
+                report.issue(&file.destination, &message);
+                report.failed += 1;
+                unreadable = Some(file.destination.display().to_string());
+            }
+        }
+        report.files_done += 1;
+        ctx.add_bytes(file.size);
+    }
+    if let Some(path) = unreadable.filter(|_| differs.is_none()) {
+        for (file, &id) in item.files.iter().zip(ids).filter(|(f, _)| matches!(f.action, Action::Copy | Action::Replace)) {
+            ctx.set_item(id, "skipped", None, Temp::Keep, Some(&format!("Not copied because the existing file {path} couldn't be read; try again.")))?;
+            report.files_done += 1;
+            ctx.add_bytes(file.size);
+        }
+        report.end = GameEnd::Incomplete;
+        return Ok(report);
+    }
+    if let Some(path) = differs {
+        for (file, &id) in item.files.iter().zip(ids).filter(|(f, _)| matches!(f.action, Action::Copy | Action::Replace)) {
+            ctx.set_item(id, "conflict", None, Temp::Keep, Some(&format!("Not copied because {path} differs; the game was left as it is.")))?;
+            report.files_done += 1;
+            ctx.add_bytes(file.size);
+        }
+        report.end = GameEnd::Conflict;
+        return Ok(report);
+    }
+
+    let mut copied = 0;
+    let mut problems = 0;
+    for (file, &id) in item.files.iter().zip(ids).filter(|(f, _)| matches!(f.action, Action::Copy | Action::Replace)) {
+        let _one_big_file = match big {
+            Some(lock) if file.size >= BIG_FILE => Some(lock.lock().unwrap_or_else(|e| e.into_inner())),
+            _ => None,
+        };
+        let mut reported = 0;
+        let outcome = if file.action == Action::Replace {
+            replace_one(ctx, id, file, install_root, deployment_id, marker, &mut reported)?
+        } else {
+            copy_one(ctx, id, file, install_root, marker, &mut reported)?
+        };
+        ctx.add_bytes(file.size - reported);
+        match outcome {
+            Outcome::Verified(hash) => {
+                ctx.set_item(id, "verified", Some(&hash), Temp::Clear, None)?;
+                ctx.record_hash(&file.game_file_id, &hash)?;
+                report.copied += 1;
+                report.bytes_copied += file.size;
+                copied += 1;
+            }
+            Outcome::Replaced(hash) => {
+                ctx.set_item(id, "replaced", Some(&hash), Temp::Clear, Some("Replaced; the original file is in RetroDrive's backup folder on this drive."))?;
+                ctx.record_hash(&file.game_file_id, &hash)?;
+                report.replaced += 1;
+                report.bytes_copied += file.size;
+                copied += 1;
+            }
+            Outcome::Conflict(message) => {
+                ctx.set_item(id, "conflict", None, Temp::Keep, Some(&message))?;
+                report.issue(&file.destination, &message);
+                problems += 1;
+            }
+            Outcome::Failed(message) => {
+                ctx.set_item(id, "failed", None, Temp::Keep, Some(&message))?;
+                report.issue(&file.destination, &message);
+                report.failed += 1;
+                report.failure = true;
+                problems += 1;
+                if !install_root.is_dir() {
+                    report.drive_gone = true;
+                    report.end = GameEnd::Incomplete;
+                    return Ok(report);
+                }
+            }
+            Outcome::Cancelled => {
+                ctx.set_item(id, "cancelled", None, Temp::Keep, Some("Cancelled; the unfinished temporary file was removed."))?;
+                report.cancelled = true;
+                report.end = if copied > 0 { GameEnd::Incomplete } else { GameEnd::Uncounted };
+                return Ok(report);
+            }
+        }
+        report.files_done += 1;
+    }
+    report.end = if problems > 0 {
+        GameEnd::Incomplete
+    } else if copied > 0 {
+        GameEnd::Copied
+    } else {
+        GameEnd::AlreadyThere
+    };
+    Ok(report)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn run_journaled(
     connection: &Connection,
@@ -267,135 +601,144 @@ fn run_journaled(
     observer.progress(&progress);
     let mut summary = DeploySummary { deployment_id: deployment_id.clone(), destination: destination.to_string(), ..DeploySummary::default() };
     let mut last_progress = Instant::now();
+    let drive_ok = || presence(volume_root, stable_id) == Presence::Connected && install_root.is_dir();
 
-    // 3. Copy, game by game.
-    'games: for (index, item) in work.iter().enumerate() {
-        if observer.cancelled() {
-            summary.cancelled = true;
-            break;
-        }
-        if presence(volume_root, stable_id) != Presence::Connected || !install_root.is_dir() {
-            summary.drive_lost = true;
-            break;
-        }
-        let ids = &item_ids[index];
-        progress.current = item.title.clone();
-
-        // Files reported "already there" must match by content before they count.
-        let mut differs: Option<String> = None;
-        let mut unreadable: Option<String> = None;
-        for (file, &id) in item.files.iter().zip(ids).filter(|(f, _)| f.action == Action::AlreadyThere) {
-            match same_contents(&file.source, &file.destination, observer) {
-                Ok(Some(hash)) => {
-                    set_item(connection, id, "identical", Some(&hash), Temp::Keep, None)?;
-                    record_hash(connection, &file.game_file_id, &hash)?;
-                    summary.files_identical += 1;
-                }
-                Ok(None) => {
-                    let message = "A file with the same name and size is there, but its contents differ. It was kept.";
-                    set_item(connection, id, "conflict", None, Temp::Keep, Some(message))?;
-                    summary.issue(&item.title, &file.destination, message);
-                    differs = Some(file.destination.display().to_string());
-                }
-                Err(Halt::Cancelled) => {
-                    summary.cancelled = true;
-                    break 'games;
-                }
-                Err(Halt::Io(e)) => {
-                    let message = format!("Couldn't compare with the existing file: {e}");
-                    set_item(connection, id, "failed", None, Temp::Keep, Some(&message))?;
-                    summary.issue(&item.title, &file.destination, &message);
-                    summary.files_failed += 1;
-                    unreadable = Some(file.destination.display().to_string());
-                }
+    // 3. Copy: several games at once (each game's files in order), or one at a time.
+    let workers = observer.workers().clamp(1, 8).min(work.len().max(1));
+    if workers <= 1 {
+        for (index, item) in work.iter().enumerate() {
+            if observer.cancelled() {
+                summary.cancelled = true;
+                break;
             }
-            progress.files_done += 1;
-            progress.bytes_done += file.size;
-        }
-        if let Some(path) = unreadable.filter(|_| differs.is_none()) {
-            for (file, &id) in item.files.iter().zip(ids).filter(|(f, _)| matches!(f.action, Action::Copy | Action::Replace)) {
-                set_item(connection, id, "skipped", None, Temp::Keep, Some(&format!("Not copied because the existing file {path} couldn't be read; try again.")))?;
-                progress.files_done += 1;
-                progress.bytes_done += file.size;
+            if !drive_ok() {
+                summary.drive_lost = true;
+                break;
             }
-            summary.games_incomplete += 1;
-            progress.games_done += 1;
-            observer.progress(&progress);
-            continue;
-        }
-        if let Some(path) = differs {
-            for (file, &id) in item.files.iter().zip(ids).filter(|(f, _)| matches!(f.action, Action::Copy | Action::Replace)) {
-                set_item(connection, id, "conflict", None, Temp::Keep, Some(&format!("Not copied because {path} differs; the game was left as it is.")))?;
-                progress.files_done += 1;
-                progress.bytes_done += file.size;
-            }
-            summary.games_conflict += 1;
-            progress.games_done += 1;
-            observer.progress(&progress);
-            continue;
-        }
-
-        let mut copied = 0;
-        let mut problems = 0;
-        for (file, &id) in item.files.iter().zip(ids).filter(|(f, _)| matches!(f.action, Action::Copy | Action::Replace)) {
-            let file_start = progress.bytes_done;
-            let outcome = if file.action == Action::Replace {
-                replace_one(connection, id, file, install_root, &deployment_id, marker, observer, &mut progress, &mut last_progress)?
-            } else {
-                copy_one(connection, id, file, install_root, marker, observer, &mut progress, &mut last_progress)?
+            let report = {
+                let mut ctx = Direct { connection, observer: &mut *observer, progress: &mut progress, last_progress: &mut last_progress };
+                copy_game(&mut ctx, item, &item_ids[index], install_root, &deployment_id, marker, None)?
             };
-            progress.bytes_done = file_start + file.size;
-            match outcome {
-                Outcome::Verified(hash) => {
-                    set_item(connection, id, "verified", Some(&hash), Temp::Clear, None)?;
-                    record_hash(connection, &file.game_file_id, &hash)?;
-                    summary.files_copied += 1;
-                    summary.bytes_copied += file.size;
-                    copied += 1;
-                }
-                Outcome::Replaced(hash) => {
-                    set_item(connection, id, "replaced", Some(&hash), Temp::Clear, Some("Replaced; the original file is in RetroDrive's backup folder on this drive."))?;
-                    record_hash(connection, &file.game_file_id, &hash)?;
-                    summary.files_replaced += 1;
-                    summary.bytes_copied += file.size;
-                    copied += 1;
-                }
-                Outcome::Conflict(message) => {
-                    set_item(connection, id, "conflict", None, Temp::Keep, Some(&message))?;
-                    summary.issue(&item.title, &file.destination, &message);
-                    problems += 1;
-                }
-                Outcome::Failed(message) => {
-                    set_item(connection, id, "failed", None, Temp::Keep, Some(&message))?;
-                    summary.issue(&item.title, &file.destination, &message);
-                    summary.files_failed += 1;
-                    problems += 1;
-                    if !install_root.is_dir() || presence(volume_root, stable_id) != Presence::Connected {
-                        summary.drive_lost = true;
-                        summary.games_incomplete += 1;
-                        break 'games;
+            let (cancelled, failure, gone) = (report.cancelled, report.failure, report.drive_gone);
+            progress.files_done += report.files_done;
+            if summary.add(report) {
+                progress.games_done += 1;
+            }
+            observer.progress(&progress);
+            if cancelled {
+                break;
+            }
+            if failure && (gone || !drive_ok()) {
+                summary.drive_lost = true;
+                break;
+            }
+        }
+    } else {
+        let next = AtomicUsize::new(0);
+        let stop = AtomicBool::new(false);
+        let cancel = AtomicBool::new(false);
+        let big = Mutex::new(());
+        let mut fatal: Option<String> = None;
+        std::thread::scope(|scope| {
+            // The channel lives inside the scope: if this thread ever panicked, dropping
+            // `rx` would drop every pending reply, so waiting workers stop instead of hanging.
+            let (tx, rx) = mpsc::channel::<Msg>();
+            for _ in 0..workers {
+                let tx = tx.clone();
+                let (next, stop, cancel, big, deployment_id) = (&next, &stop, &cancel, &big, deployment_id.as_str());
+                scope.spawn(move || {
+                    let mut ctx = Remote { tx: tx.clone(), cancel };
+                    loop {
+                        if stop.load(Ordering::SeqCst) || cancel.load(Ordering::SeqCst) {
+                            break;
+                        }
+                        let index = next.fetch_add(1, Ordering::SeqCst);
+                        if index >= work.len() {
+                            break;
+                        }
+                        let result = copy_game(&mut ctx, work[index], &item_ids[index], install_root, deployment_id, marker, Some(big));
+                        let broken = result.is_err();
+                        if tx.send(Msg::Done(result)).is_err() || broken {
+                            break;
+                        }
                     }
+                });
+            }
+            drop(tx);
+            let mut last_drive_check = Instant::now();
+            loop {
+                match rx.recv_timeout(Duration::from_millis(100)) {
+                    Ok(Msg::Item { id, state, sha, temp, message, reply }) => {
+                        let temp = match &temp {
+                            OwnedTemp::Keep => Temp::Keep,
+                            OwnedTemp::Set(path) => Temp::Set(path),
+                            OwnedTemp::Clear => Temp::Clear,
+                        };
+                        let _ = reply.send(set_item(connection, id, &state, sha.as_deref(), temp, message.as_deref()));
+                    }
+                    Ok(Msg::Backup { id, backup, state, reply }) => {
+                        let _ = reply.send(set_backup(connection, id, backup.as_deref(), &state));
+                    }
+                    Ok(Msg::Hash { game_file_id, hash, reply }) => {
+                        let _ = reply.send(record_hash(connection, &game_file_id, &hash));
+                    }
+                    Ok(Msg::Hook(hook, reply)) => {
+                        match &hook {
+                            Hook::BeforeVerify(temp, source) => observer.before_verify(temp, source),
+                            Hook::BeforeRename(destination) => observer.before_rename(destination),
+                            Hook::AfterBackup(destination) => observer.after_backup(destination),
+                        }
+                        // A hook may cancel; record it before the worker continues.
+                        if !cancel.load(Ordering::SeqCst) && observer.cancelled() {
+                            cancel.store(true, Ordering::SeqCst);
+                            stop.store(true, Ordering::SeqCst);
+                            summary.cancelled = true;
+                        }
+                        let _ = reply.send(());
+                    }
+                    Ok(Msg::Bytes(bytes)) => progress.bytes_done += bytes,
+                    Ok(Msg::Started(title)) => progress.current = title,
+                    Ok(Msg::Done(Ok(report))) => {
+                        let (failure, gone) = (report.failure, report.drive_gone);
+                        progress.files_done += report.files_done;
+                        if summary.add(report) {
+                            progress.games_done += 1;
+                        }
+                        if failure && (gone || !drive_ok()) {
+                            summary.drive_lost = true;
+                            stop.store(true, Ordering::SeqCst);
+                        }
+                        observer.progress(&progress);
+                        last_progress = Instant::now();
+                    }
+                    Ok(Msg::Done(Err(e))) => {
+                        fatal.get_or_insert(e);
+                        stop.store(true, Ordering::SeqCst);
+                    }
+                    Err(mpsc::RecvTimeoutError::Timeout) => {}
+                    Err(mpsc::RecvTimeoutError::Disconnected) => break,
                 }
-                Outcome::Cancelled => {
-                    set_item(connection, id, "cancelled", None, Temp::Keep, Some("Cancelled; the unfinished temporary file was removed."))?;
+                if !cancel.load(Ordering::SeqCst) && observer.cancelled() {
+                    cancel.store(true, Ordering::SeqCst);
+                    stop.store(true, Ordering::SeqCst);
                     summary.cancelled = true;
-                    if copied > 0 {
-                        summary.games_incomplete += 1;
+                }
+                if !stop.load(Ordering::SeqCst) && last_drive_check.elapsed() >= Duration::from_secs(1) {
+                    last_drive_check = Instant::now();
+                    if !drive_ok() {
+                        summary.drive_lost = true;
+                        stop.store(true, Ordering::SeqCst);
                     }
-                    break 'games;
+                }
+                if last_progress.elapsed() >= PROGRESS_EVERY {
+                    observer.progress(&progress);
+                    last_progress = Instant::now();
                 }
             }
-            progress.files_done += 1;
+        });
+        if let Some(e) = fatal {
+            return Err(e);
         }
-        if problems > 0 {
-            summary.games_incomplete += 1;
-        } else if copied > 0 {
-            summary.games_copied += 1;
-        } else {
-            summary.games_already_there += 1;
-        }
-        progress.games_done += 1;
-        observer.progress(&progress);
     }
 
     // Anything not reached stays recorded as not attempted.
@@ -431,18 +774,11 @@ fn run_journaled(
     Ok(summary)
 }
 
-#[allow(clippy::too_many_arguments)]
-fn copy_one(
-    connection: &Connection,
-    id: i64,
-    file: &ItemFile,
-    install_root: &Path,
-    marker: &str,
-    observer: &mut dyn DeployObserver,
-    progress: &mut DeployProgress,
-    last_progress: &mut Instant,
-) -> Result<Outcome, String> {
-    if observer.cancelled() {
+/// Copy one file: temporary file (journaled first), SHA-256 while writing, sync,
+/// read back from the drive, then a no-replace rename. `reported` counts the bytes
+/// already reported as progress.
+fn copy_one(ctx: &mut dyn Ctx, id: i64, file: &ItemFile, install_root: &Path, marker: &str, reported: &mut i64) -> Result<Outcome, String> {
+    if ctx.cancelled() {
         return Ok(Outcome::Cancelled);
     }
     let started = match fs::metadata(&file.source) {
@@ -464,12 +800,12 @@ fn copy_one(
     let temp = file.destination.with_file_name(format!("{name}{marker}"));
 
     // Journal the temporary path before creating it, so a crash can be cleaned up.
-    set_item(connection, id, "copying", None, Temp::Set(&temp.display().to_string()), None)?;
+    ctx.set_item(id, "copying", None, Temp::Set(&temp.display().to_string()), None)?;
     let mut out = match OpenOptions::new().write(true).create_new(true).open(&temp) {
         Ok(f) => f,
         Err(e) => {
             // Not ours (create_new failed), so never removed.
-            set_item(connection, id, "copying", None, Temp::Clear, None)?;
+            ctx.set_item(id, "copying", None, Temp::Clear, None)?;
             return Ok(Outcome::Failed(format!("Couldn't create the temporary file: {e}")));
         }
     };
@@ -478,10 +814,9 @@ fn copy_one(
         let mut source = File::open(&file.source)?;
         let mut hasher = Sha256::new();
         let mut buffer = vec![0u8; CHUNK];
-        let base = progress.bytes_done;
         let mut written: u64 = 0;
         loop {
-            if observer.cancelled() {
+            if ctx.cancelled() {
                 return Err(Halt::Cancelled);
             }
             let n = source.read(&mut buffer)?;
@@ -491,26 +826,22 @@ fn copy_one(
             hasher.update(&buffer[..n]);
             out.write_all(&buffer[..n])?;
             written += n as u64;
-            if last_progress.elapsed() >= PROGRESS_EVERY {
-                progress.bytes_done = base + written as i64;
-                observer.progress(progress);
-                *last_progress = Instant::now();
-            }
+            ctx.add_bytes(n as i64);
+            *reported += n as i64;
         }
         out.sync_all()?;
-        progress.bytes_done = base + written as i64;
         let expected = hex(&hasher.finalize());
-        observer.before_verify(&temp, &file.source);
+        ctx.before_verify(&temp, &file.source);
 
         let after = fs::metadata(&file.source)?;
         if written != started.len() || after.len() != started.len() || after.modified().ok() != started.modified().ok() {
             return Ok(Outcome::Failed("The source file changed while it was being copied.".into()));
         }
-        let actual = hash_file_from_disk(&temp, observer)?;
+        let actual = hash_file_from_disk(&temp, &mut || ctx.cancelled())?;
         if actual != expected {
             return Ok(Outcome::Failed("The copy didn't match the original when read back, so it wasn't used.".into()));
         }
-        observer.before_rename(&file.destination);
+        ctx.before_rename(&file.destination);
         match rename_no_replace(&temp, &file.destination) {
             Ok(()) => Ok(Outcome::Verified(expected)),
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Ok(Outcome::Conflict("A file appeared at this name during the copy. It was kept.".into())),
@@ -528,7 +859,7 @@ fn copy_one(
         // Our own temporary file (created with create_new above): safe to remove.
         let removed = remove_own_temp(&temp, marker);
         if removed {
-            set_item(connection, id, "copying", None, Temp::Clear, None)?;
+            ctx.set_item(id, "copying", None, Temp::Clear, None)?;
         }
     }
     Ok(outcome)
@@ -538,25 +869,15 @@ fn copy_one(
 /// check it arrived, copy the new file the usual way, and put the original back if
 /// the copy doesn't complete.
 #[allow(clippy::too_many_arguments)]
-fn replace_one(
-    connection: &Connection,
-    id: i64,
-    file: &ItemFile,
-    install_root: &Path,
-    deployment_id: &str,
-    marker: &str,
-    observer: &mut dyn DeployObserver,
-    progress: &mut DeployProgress,
-    last_progress: &mut Instant,
-) -> Result<Outcome, String> {
-    if observer.cancelled() {
+fn replace_one(ctx: &mut dyn Ctx, id: i64, file: &ItemFile, install_root: &Path, deployment_id: &str, marker: &str, reported: &mut i64) -> Result<Outcome, String> {
+    if ctx.cancelled() {
         return Ok(Outcome::Cancelled);
     }
     let existing = match fs::symlink_metadata(&file.destination) {
         Ok(m) if m.is_file() && !m.file_type().is_symlink() => m,
         Ok(_) => return Ok(Outcome::Failed("What's at this name isn't a plain file, so it wasn't replaced.".into())),
         // The file went away since the plan: nothing to replace, so this is a plain copy.
-        Err(_) => return copy_one(connection, id, file, install_root, marker, observer, progress, last_progress),
+        Err(_) => return copy_one(ctx, id, file, install_root, marker, reported),
     };
     let backup_relative = format!("{BACKUP_DIR}/{deployment_id}/{}", file.relative);
     if let Err(message) = ensure_folders(install_root, &backup_relative) {
@@ -564,15 +885,15 @@ fn replace_one(
     }
     let backup = paths::join(&install_root.display().to_string(), &backup_relative);
     // Journal first, then move (never delete) the original.
-    set_backup(connection, id, Some(&backup.display().to_string()), "replacing")?;
+    ctx.set_backup(id, Some(&backup.display().to_string()), "replacing")?;
     if let Err(e) = rename_no_replace(&file.destination, &backup) {
-        set_backup(connection, id, None, "pending")?;
+        ctx.set_backup(id, None, "pending")?;
         return Ok(Outcome::Failed(format!("Couldn't move the existing file to the backup folder, so nothing was changed: {e}")));
     }
-    observer.after_backup(&file.destination);
+    ctx.after_backup(&file.destination);
     let arrived = fs::metadata(&backup).map(|m| m.len() == existing.len()).unwrap_or(false);
     let outcome = if arrived {
-        copy_one(connection, id, file, install_root, marker, observer, progress, last_progress)?
+        copy_one(ctx, id, file, install_root, marker, reported)?
     } else {
         Outcome::Failed("The backup of the existing file couldn't be confirmed.".into())
     };
@@ -582,7 +903,7 @@ fn replace_one(
     // Put the original back, but only into a free name (never over anything).
     let restored = fs::symlink_metadata(&file.destination).is_err() && rename_no_replace(&backup, &file.destination).is_ok();
     if restored {
-        set_backup(connection, id, None, "copying")?;
+        ctx.set_backup(id, None, "copying")?;
     }
     Ok(match (restored, outcome) {
         (true, Outcome::Cancelled) => Outcome::Cancelled,
@@ -669,20 +990,18 @@ fn remove_own_temp(temp: &Path, marker: &str) -> bool {
 
 /// SHA-256 of a file (used by undo to confirm a file is unchanged).
 pub(crate) fn sha256_of(path: &Path) -> io::Result<String> {
-    struct Never;
-    impl DeployObserver for Never {}
-    hash_file(path, &mut Never).map_err(|e| match e {
+    hash_file(path, &mut || false).map_err(|e| match e {
         Halt::Io(e) => e,
         Halt::Cancelled => io::Error::other("cancelled"),
     })
 }
 
-fn hash_file(path: &Path, observer: &mut dyn DeployObserver) -> Result<String, Halt> {
+fn hash_file(path: &Path, cancelled: &mut dyn FnMut() -> bool) -> Result<String, Halt> {
     let mut file = File::open(path)?;
     let mut hasher = Sha256::new();
     let mut buffer = vec![0u8; CHUNK];
     loop {
-        if observer.cancelled() {
+        if cancelled() {
             return Err(Halt::Cancelled);
         }
         let n = file.read(&mut buffer)?;
@@ -699,25 +1018,25 @@ fn hash_file(path: &Path, observer: &mut dyn DeployObserver) -> Result<String, H
 /// bytes come from the device). Falls back to a normal read where the filesystem
 /// doesn't support unbuffered reads.
 #[cfg(windows)]
-fn hash_file_from_disk(path: &Path, observer: &mut dyn DeployObserver) -> Result<String, Halt> {
+fn hash_file_from_disk(path: &Path, cancelled: &mut dyn FnMut() -> bool) -> Result<String, Halt> {
     use std::os::windows::fs::OpenOptionsExt;
     use windows_sys::Win32::Storage::FileSystem::FILE_FLAG_NO_BUFFERING;
     // Unbuffered reads need sector-aligned buffers and sizes; 64 KiB covers every sector size.
     const ALIGN: usize = 64 * 1024;
     let Ok(mut file) = OpenOptions::new().read(true).custom_flags(FILE_FLAG_NO_BUFFERING).open(path) else {
-        return hash_file(path, observer);
+        return hash_file(path, cancelled);
     };
     let mut storage = vec![0u8; CHUNK + ALIGN];
     let offset = storage.as_ptr().align_offset(ALIGN);
     let buffer = &mut storage[offset..offset + CHUNK];
     let mut hasher = Sha256::new();
     loop {
-        if observer.cancelled() {
+        if cancelled() {
             return Err(Halt::Cancelled);
         }
         let n = match file.read(buffer) {
             Ok(n) => n,
-            Err(e) if e.raw_os_error() == Some(87) => return hash_file(path, observer), // ERROR_INVALID_PARAMETER: unsupported
+            Err(e) if e.raw_os_error() == Some(87) => return hash_file(path, cancelled), // ERROR_INVALID_PARAMETER: unsupported
             Err(e) => return Err(Halt::Io(e)),
         };
         if n == 0 {
@@ -729,13 +1048,13 @@ fn hash_file_from_disk(path: &Path, observer: &mut dyn DeployObserver) -> Result
 }
 
 #[cfg(not(windows))]
-fn hash_file_from_disk(path: &Path, observer: &mut dyn DeployObserver) -> Result<String, Halt> {
-    hash_file(path, observer)
+fn hash_file_from_disk(path: &Path, cancelled: &mut dyn FnMut() -> bool) -> Result<String, Halt> {
+    hash_file(path, cancelled)
 }
 
 /// `Some(source hash)` when both files have identical contents. Reads both side by
 /// side and stops at the first difference.
-fn same_contents(source: &Path, existing: &Path, observer: &mut dyn DeployObserver) -> Result<Option<String>, Halt> {
+fn same_contents(source: &Path, existing: &Path, cancelled: &mut dyn FnMut() -> bool) -> Result<Option<String>, Halt> {
     if fs::metadata(source)?.len() != fs::metadata(existing)?.len() {
         return Ok(None);
     }
@@ -743,7 +1062,7 @@ fn same_contents(source: &Path, existing: &Path, observer: &mut dyn DeployObserv
     let (mut left, mut right) = (vec![0u8; CHUNK], vec![0u8; CHUNK]);
     let mut hasher = Sha256::new();
     loop {
-        if observer.cancelled() {
+        if cancelled() {
             return Err(Halt::Cancelled);
         }
         let n = read_full(&mut a, &mut left)?;
@@ -1246,6 +1565,169 @@ mod tests {
         assert_eq!(deployments, 0);
     }
 
+    /// Many small games, with some multi-disc ones, as owned file contents.
+    fn many_games(n: usize) -> Vec<(String, Vec<u8>)> {
+        let mut files = Vec::new();
+        for i in 0..n {
+            files.push((format!("nes/Game {i:03}.nes"), format!("nes game {i} ").repeat(1 + i % 7).into_bytes()));
+            if i % 10 == 0 {
+                files.push((format!("psx/Saga {i}/Saga {i}.m3u"), format!("Saga {i} (Disc 1).cue\nSaga {i} (Disc 2).cue\n").into_bytes()));
+                files.push((format!("psx/Saga {i}/Saga {i} (Disc 1).cue"), format!("FILE \"a{i}.bin\" BINARY\n").into_bytes()));
+                files.push((format!("psx/Saga {i}/Saga {i} (Disc 2).cue"), format!("FILE \"b{i}.bin\" BINARY\n").into_bytes()));
+            }
+        }
+        files
+    }
+
+    struct Workers(usize);
+    impl DeployObserver for Workers {
+        fn workers(&self) -> usize {
+            self.0
+        }
+    }
+
+    fn destination_files(root: &Path) -> Vec<(String, Vec<u8>)> {
+        let roms = root.join("roms");
+        walkdir::WalkDir::new(&roms)
+            .sort_by_file_name()
+            .into_iter()
+            .map(|e| e.unwrap())
+            .filter(|e| e.file_type().is_file())
+            .map(|e| (e.path().strip_prefix(&roms).unwrap().display().to_string(), fs::read(e.path()).unwrap()))
+            .collect()
+    }
+
+    #[test]
+    fn parallel_and_one_at_a_time_copies_end_the_same() {
+        let files = many_games(60);
+        let borrowed: Vec<(&str, &[u8])> = files.iter().map(|(p, c)| (p.as_str(), c.as_slice())).collect();
+        let mut one = Fixture::new(&borrowed);
+        let mut four = Fixture::new(&borrowed);
+        let a = one.deploy_with(&mut Workers(1)).unwrap();
+        let b = four.deploy_with(&mut Workers(4)).unwrap();
+        for s in [&a, &b] {
+            assert_eq!(s.status, "completed");
+            assert_eq!((s.games_copied, s.files_copied, s.files_failed), (66, 78, 0));
+        }
+        assert_eq!(a.bytes_copied, b.bytes_copied);
+        assert_eq!(destination_files(&one.root), destination_files(&four.root), "same files, same contents");
+        assert!(temps_left(&four.root).is_empty());
+        assert!(item_states(&four.catalog).iter().all(|s| s == "verified"));
+        let manifest: serde_json::Value = serde_json::from_slice(&fs::read(b.manifest_path.as_ref().unwrap()).unwrap()).unwrap();
+        assert_eq!(manifest["items"].as_array().unwrap().len(), 78);
+    }
+
+    /// Cancels once `after` files have reached their final rename.
+    struct CancelLater {
+        after: usize,
+        renames: usize,
+    }
+    impl DeployObserver for CancelLater {
+        fn cancelled(&mut self) -> bool {
+            self.renames >= self.after
+        }
+        fn before_rename(&mut self, _destination: &Path) {
+            self.renames += 1;
+        }
+    }
+
+    #[test]
+    fn cancelling_a_parallel_copy_leaves_only_verified_files() {
+        let files = many_games(80);
+        let borrowed: Vec<(&str, &[u8])> = files.iter().map(|(p, c)| (p.as_str(), c.as_slice())).collect();
+        let mut f = Fixture::new(&borrowed);
+        let summary = f.deploy_with(&mut CancelLater { after: 10, renames: 0 }).unwrap();
+        assert!(summary.cancelled);
+        assert_eq!(summary.status, "cancelled");
+        assert!(temps_left(&f.root).is_empty(), "no unfinished temporary files");
+        let states = item_states(&f.catalog);
+        assert!(states.iter().all(|s| ["verified", "cancelled", "not_attempted"].contains(&s.as_str())), "{states:?}");
+        let verified = states.iter().filter(|s| *s == "verified").count();
+        assert!((10..80).contains(&verified), "stopped partway: {verified}");
+        // Every file on the drive is a verified, complete copy.
+        let mut s = f.catalog.prepare("SELECT destination_path, source_path FROM deployment_items WHERE state = 'verified'").unwrap();
+        let pairs: Vec<(String, String)> = s.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap().map(|r| r.unwrap()).collect();
+        assert_eq!(destination_files(&f.root).len(), pairs.len(), "nothing else was left on the drive");
+        for (destination, source) in pairs {
+            assert_eq!(fs::read(&destination).unwrap(), fs::read(&source).unwrap());
+        }
+    }
+
+    /// Writes "theirs" at one destination just before its rename.
+    struct IntruderAt(&'static str);
+    impl DeployObserver for IntruderAt {
+        fn before_rename(&mut self, destination: &Path) {
+            if destination.ends_with(self.0) {
+                fs::write(destination, b"theirs").unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn a_parallel_copy_never_overwrites_a_file_that_appears() {
+        let files = many_games(30);
+        let borrowed: Vec<(&str, &[u8])> = files.iter().map(|(p, c)| (p.as_str(), c.as_slice())).collect();
+        let mut f = Fixture::new(&borrowed);
+        let summary = f.deploy_with(&mut IntruderAt("Game 017.nes")).unwrap();
+        assert_eq!(fs::read(f.root.join("roms/nes/Game 017.nes")).unwrap(), b"theirs");
+        assert_eq!((summary.games_incomplete, summary.games_copied), (1, 32));
+        assert_eq!(summary.status, "completed_with_issues");
+        assert!(temps_left(&f.root).is_empty());
+    }
+
+    /// Before each big file is read back, checks no other big file is being written.
+    struct BigWatcher {
+        root: PathBuf,
+        checks: usize,
+    }
+    impl DeployObserver for BigWatcher {
+        fn before_verify(&mut self, temp: &Path, _source: &Path) {
+            if fs::metadata(temp).map(|m| m.len() as i64 >= BIG_FILE).unwrap_or(false) {
+                self.checks += 1;
+                // Other workers create and remove files meanwhile, so skip entries that vanish.
+                let others = walkdir::WalkDir::new(&self.root)
+                    .into_iter()
+                    .filter_map(Result::ok)
+                    .map(|e| e.file_name().to_string_lossy().into_owned())
+                    // Compare names, not paths: temp folders can show up as 8.3 short paths (CI).
+                    .filter(|name| Some(name.as_str()) != temp.file_name().and_then(|n| n.to_str()) && name.contains(TEMP_MARKER) && name.contains("Big"))
+                    .count();
+                assert_eq!(others, 0, "another big file was being written at the same time");
+            }
+        }
+    }
+
+    #[test]
+    fn big_files_are_copied_one_at_a_time() {
+        let big = vec![7u8; BIG_FILE as usize];
+        let mut files: Vec<(String, Vec<u8>)> = (0..3).map(|i| (format!("psx/Big {i}.iso"), big.clone())).collect();
+        files.extend(many_games(12));
+        let borrowed: Vec<(&str, &[u8])> = files.iter().map(|(p, c)| (p.as_str(), c.as_slice())).collect();
+        let mut f = Fixture::new(&borrowed);
+        let root = f.root.clone();
+        let mut watcher = BigWatcher { root, checks: 0 };
+        let summary = f.deploy_with(&mut watcher).unwrap();
+        assert_eq!(summary.status, "completed");
+        assert_eq!(watcher.checks, 3);
+    }
+
+    struct PanicsAtRename;
+    impl DeployObserver for PanicsAtRename {
+        fn before_rename(&mut self, _destination: &Path) {
+            panic!("observer failure");
+        }
+    }
+
+    /// A failure on the coordinating thread must end the copy, never leave workers waiting.
+    #[test]
+    #[should_panic(expected = "observer failure")]
+    fn a_coordinator_failure_stops_the_workers_instead_of_hanging() {
+        let files = many_games(20);
+        let borrowed: Vec<(&str, &[u8])> = files.iter().map(|(p, c)| (p.as_str(), c.as_slice())).collect();
+        let mut f = Fixture::new(&borrowed);
+        let _ = f.deploy_with(&mut PanicsAtRename);
+    }
+
     struct Intruder;
     impl DeployObserver for Intruder {
         fn before_rename(&mut self, destination: &Path) {
@@ -1314,6 +1796,9 @@ mod tests {
 
     struct CancelAfter(usize);
     impl DeployObserver for CancelAfter {
+        fn workers(&self) -> usize {
+            1
+        }
         fn cancelled(&mut self) -> bool {
             if self.0 == 0 {
                 return true;
@@ -1453,7 +1938,7 @@ mod tests {
         for size in [0usize, 5, CHUNK, CHUNK + 123, 3 * CHUNK + 4097] {
             let path = dir.path().join(format!("f{size}"));
             fs::write(&path, (0..size).map(|i| (i % 251) as u8).collect::<Vec<_>>()).unwrap();
-            assert_eq!(hash_file_from_disk(&path, &mut Quiet).ok(), hash_file(&path, &mut Quiet).ok(), "size {size}");
+            assert_eq!(hash_file_from_disk(&path, &mut || false).ok(), hash_file(&path, &mut || false).ok(), "size {size}");
         }
     }
 
@@ -1464,11 +1949,11 @@ mod tests {
         let (a, b) = (dir.path().join("a"), dir.path().join("b"));
         fs::write(&a, &data).unwrap();
         fs::write(&b, &data).unwrap();
-        assert_eq!(same_contents(&a, &b, &mut Quiet).ok().flatten(), hash_file(&a, &mut Quiet).ok());
+        assert_eq!(same_contents(&a, &b, &mut || false).ok().flatten(), hash_file(&a, &mut || false).ok());
         let mut changed = data.clone();
         *changed.last_mut().unwrap() ^= 1;
         fs::write(&b, &changed).unwrap();
-        assert_eq!(same_contents(&a, &b, &mut Quiet).ok().flatten(), None);
+        assert_eq!(same_contents(&a, &b, &mut || false).ok().flatten(), None);
     }
 
     /// A temporary file that can't be removed (here: held open without delete
@@ -1636,11 +2121,13 @@ mod tests {
         let id = installations::add(&catalog, &root, "retrobat", &unknown).unwrap();
         let choices = deployment::Choices::new();
         let fingerprint = deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap().fingerprint;
+        // RETRODRIVE_BENCH_WORKERS picks how many games are copied at once (default: the app's).
+        let workers = std::env::var("RETRODRIVE_BENCH_WORKERS").ok().and_then(|w| w.parse().ok()).unwrap_or(DEFAULT_WORKERS);
         let started = std::time::Instant::now();
-        let summary = deploy(&catalog, None, &DeployRequest { installation_id: &id, systems: None, fingerprint: &fingerprint, choices: &choices, collection: None }, &connected, &roomy, &mut Quiet).unwrap();
+        let summary = deploy(&catalog, None, &DeployRequest { installation_id: &id, systems: None, fingerprint: &fingerprint, choices: &choices, collection: None }, &connected, &roomy, &mut Workers(workers)).unwrap();
         let elapsed = started.elapsed();
         assert_eq!(summary.files_copied, count);
-        eprintln!("copied {count} x 40 KB files in {:?} ({:.1} files/s)", elapsed, count as f64 / elapsed.as_secs_f64());
+        eprintln!("{workers} worker(s): copied {count} x 40 KB files in {:?} ({:.1} files/s)", elapsed, count as f64 / elapsed.as_secs_f64());
     }
 
     #[test]
