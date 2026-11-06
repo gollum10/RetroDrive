@@ -173,3 +173,18 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risks:** RetroBat could start between the running check and the rename (a window of milliseconds). A setting is ignored when the chosen emulator doesn't support it (RetroBat's own behaviour). The file format is undocumented; it was checked on RetroBat 8.3.1.1 and in RetroBat's launcher source.
 
+## 13. Addendum: theme remix (2026-11-06)
+**Scope and authorization:** owner request ("creating themes and also changing the settings"), with the plan shown on 2026-11-06: a remix is saved as a new copy and the original is never touched; switching uses the reviewed, backed-up, undoable settings change (§12). Code: `src-tauri/src/themes.rs`, `customizer::apply_theme`.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| Changing or losing the installed theme | The base theme is only read; the remix is a new folder; names that exist (any case) are refused | `a_remix_is_a_new_copy_and_the_original_is_untouched` |
+| A half-written theme RetroBat might load | Built under a temporary marked name, renamed only when complete; on failure only that marked folder inside the themes folder is removed | same test (no temp folder left); code review |
+| Writing outside the theme | Base folder name without separators; font and include paths resolved only inside the theme (no `..`, no drive letters); writes into the copy are checked to stay inside it | `bad_requests_change_nothing` |
+| Bad values in theme.xml | Only the theme's own color (RRGGBB/RRGGBBAA) and picture variables can change; values are escaped | same test |
+| Filling the drive | Free space checked for the full copy plus 200 MB; the size is shown before saving | same test (no space) |
+| Switching the theme while RetroBat runs, or losing other settings | Same rules as §12 (refused while running, SHA check, minimal edit, backup, undo) | `switching_the_theme_is_reviewed_backed_up_and_undoable` |
+| Reading arbitrary files for the preview | Only pictures and fonts, 25 MB at most | `previews_only_read_pictures_and_fonts` |
+
+**Residual risks:** subsets defined outside `theme.xml` aren't given a RetroDrive entry (their variables would still override). The preview is approximate. Each remix copies the whole base theme (1.1 GB for Carbon).
+

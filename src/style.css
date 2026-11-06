@@ -111,3 +111,23 @@ th.pick,td.pick{width:34px}tr.unpicked td{opacity:.5}
 .emu select.choice{max-width:190px}
 .emu label.check{display:flex;align-items:center;gap:6px;margin:6px 0 10px;font-size:13px}
 .emu td small{display:block}
+.theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin:10px 0}
+.theme-card{border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.theme-card.active{border-color:#3b82f6}
+.theme-card .swatches{display:flex;gap:4px}.theme-card .swatches span{width:22px;height:22px;border-radius:6px;border:1px solid rgba(255,255,255,.2)}
+.theme-card small.credits{color:#8fa3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.remix{display:grid;grid-template-columns:minmax(260px,360px) 1fr;gap:18px;align-items:start}
+.remix-form label{display:flex;flex-direction:column;gap:4px;margin-bottom:8px}.remix-form label input:not([type=color]){padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:#0d1520;color:inherit}
+.remix-form .color-row{flex-direction:row;align-items:center;gap:8px;font-size:13px}.remix-form .color-row input{width:34px;height:26px;padding:0;border:none;background:none}
+.remix-form h4{margin:12px 0 6px}.font-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+button.link{background:none;border:none;color:#7fb3ff;cursor:pointer;padding:0;font-size:12px}
+.mockups{display:flex;flex-direction:column;gap:10px}
+.mock{position:relative;aspect-ratio:16/9;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,.12)}
+.mock-title{position:absolute;top:6%;left:5%;font-size:15px;letter-spacing:.12em;font-weight:700}
+.mock-carousel{position:absolute;top:34%;left:0;right:0;display:flex;justify-content:center;gap:4%}
+.mock-tile{width:24%;padding:6% 0;text-align:center;border:2px solid transparent;border-radius:10px;background:rgba(0,0,0,.35);font-weight:700;font-size:13px}
+.mock-info{position:absolute;top:70%;width:100%;text-align:center;font-size:12px}
+.mock-list{position:absolute;top:18%;left:5%;width:48%;display:flex;flex-direction:column;gap:2px;font-size:12px}.mock-list div{padding:3px 8px;border-radius:4px}
+.mock-art{position:absolute;top:18%;right:6%;width:30%;height:56%;border:2px solid;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#ffffff99;background:rgba(0,0,0,.3)}
+.mock-bar{position:absolute;bottom:0;left:0;right:0;padding:2% 4%;font-size:11px;color:#fff}
+@media (max-width:900px){.remix{grid-template-columns:1fr}}

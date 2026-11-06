@@ -604,7 +604,7 @@ fn rows(wanted: &BTreeMap<String, Option<String>>, current: &BTreeMap<String, St
     wanted
         .iter()
         .map(|(k, v)| {
-            let (system, key) = k.rsplit_once('.').unwrap_or((k, ""));
+            let (system, key) = k.rsplit_once('.').unwrap_or(("", k));
             ChangeRow { system: system.to_string(), key: key.to_string(), before: current.get(k).cloned(), after: v.clone() }
         })
         .collect()
@@ -641,9 +641,16 @@ pub fn apply(connection: &Connection, installation_id: &str, changes: &[Change],
     }
     let current = values(&entries(&text)?)?;
     let wanted = validate(changes, &offer(&install.root)?, &current)?;
-    let new_text = edit(&text, &wanted)?;
+    write_settings(connection, &install, &settings, &text, &wanted, &current)
+}
+
+/// The shared safe write: journal, new file read back, current file moved to the
+/// backup folder, new file renamed in. `wanted` must already be validated.
+fn write_settings(connection: &Connection, install: &Install, settings: &Path, text: &str, wanted: &BTreeMap<String, Option<String>>, current: &BTreeMap<String, String>) -> Result<String, String> {
+    let old_sha = hex_sha(text.as_bytes());
+    let new_text = edit(text, wanted)?;
     let new_sha = hex_sha(new_text.as_bytes());
-    let changed = rows(&wanted, &current);
+    let changed = rows(wanted, current);
 
     let token = db::new_id()[..8].to_string();
     let marker = format!("{TEMP_MARKER}{token}");
@@ -692,11 +699,11 @@ pub fn apply(connection: &Connection, installation_id: &str, changes: &[Change],
         Ok(sha) if sha == new_sha => {}
         _ => return fail("The new settings didn't read back correctly, so they weren't used. Nothing was changed.".into()),
     }
-    if let Err(e) = copier::rename_no_replace(&settings, &backup) {
+    if let Err(e) = copier::rename_no_replace(settings, &backup) {
         return fail(format!("Couldn't move the current settings to the backup folder: {e}. Nothing was changed."));
     }
-    if let Err(e) = copier::rename_no_replace(&temp, &settings) {
-        let restored = copier::rename_no_replace(&backup, &settings).is_ok();
+    if let Err(e) = copier::rename_no_replace(&temp, settings) {
+        let restored = copier::rename_no_replace(&backup, settings).is_ok();
         return fail(if restored {
             format!("Couldn't put the new settings in place ({e}), so the current ones were put back.")
         } else {
@@ -707,6 +714,55 @@ pub fn apply(connection: &Connection, installation_id: &str, changes: &[Change],
     let message = format!("{} setting(s) changed. The previous settings file is in {backup_relative}.", changed.len());
     set_state(connection, id, "applied", Some(&message))?;
     Ok(message)
+}
+
+/// Theme folders RetroBat can use (`emulationstation\.emulationstation\themes` and `emulationstation\themes`).
+pub fn theme_folders(root: &Path) -> Vec<String> {
+    folders(&[root.join("emulationstation/.emulationstation/themes"), root.join("emulationstation/themes")])
+}
+
+/// Settings path, current text, current values and the wanted entry for a theme switch.
+type ThemeChange = (PathBuf, String, BTreeMap<String, String>, BTreeMap<String, Option<String>>);
+
+fn theme_change(install: &Install, theme: &str) -> Result<ThemeChange, String> {
+    if !theme_folders(&install.root).iter().any(|t| t == theme) {
+        return Err(format!("There's no theme called {theme} in this RetroBat."));
+    }
+    let settings = install.root.join(SETTINGS.replace('/', "\\"));
+    let text = read_text(&settings)?;
+    let current = values(&entries(&text)?)?;
+    if current.get("ThemeSet").map(String::as_str) == Some(theme) {
+        return Err(format!("{theme} is already RetroBat's theme."));
+    }
+    let wanted: BTreeMap<String, Option<String>> = [("ThemeSet".to_string(), Some(theme.to_string()))].into_iter().collect();
+    Ok((settings, text, current, wanted))
+}
+
+/// What switching RetroBat's theme would change (reads only).
+pub fn preview_theme(connection: &Connection, installation_id: &str, theme: &str, presence: PresenceFn) -> Result<Preview, String> {
+    let install = install(connection, installation_id, presence)?;
+    let (_, text, current, wanted) = theme_change(&install, theme)?;
+    edit(&text, &wanted)?;
+    Ok(Preview { changes: rows(&wanted, &current), file_sha: hex_sha(text.as_bytes()) })
+}
+
+/// Make `theme` RetroBat's theme (`ThemeSet`), the same safe way as other settings; undoable.
+pub fn apply_theme(connection: &Connection, installation_id: &str, theme: &str, expected_sha: &str, presence: PresenceFn, running: RunningFn) -> Result<String, String> {
+    let install = install(connection, installation_id, presence)?;
+    if let Some(reason) = running_message(running) {
+        return Err(format!("{reason} Nothing was changed."));
+    }
+    let (settings, text, current, wanted) = theme_change(&install, theme)?;
+    if hex_sha(text.as_bytes()) != expected_sha {
+        return Err("RetroBat's settings changed since you reviewed them, so nothing was changed. Review the change again.".into());
+    }
+    write_settings(connection, &install, &settings, &text, &wanted, &current)
+}
+
+/// RetroBat's current theme (`ThemeSet`), if set.
+pub fn current_theme(root: &Path) -> Option<String> {
+    let text = read_text(&root.join(SETTINGS)).ok()?;
+    values(&entries(&text).ok()?).ok()?.get("ThemeSet").cloned()
 }
 
 struct Journal {
@@ -1104,6 +1160,26 @@ mod tests {
         assert_eq!(settings(&s), SETTINGS_FILE, "the previous settings are back");
         assert_eq!(history(&s.catalog, &s.install, &connected).unwrap()[0].state, "undone");
         assert!(undo(&s.catalog, h[0].id, &connected, &closed).is_err(), "only once");
+    }
+
+    #[test]
+    fn switching_the_theme_is_reviewed_backed_up_and_undoable() {
+        let s = setup();
+        let themes = s.root.join("emulationstation/.emulationstation/themes");
+        fs::create_dir_all(themes.join("es-theme-carbon")).unwrap();
+        fs::create_dir_all(themes.join("My Neon")).unwrap();
+        fs::write(s.root.join(SETTINGS), SETTINGS_FILE.replace("</config>", "\t<string name=\"ThemeSet\" value=\"es-theme-carbon\" />\r\n</config>")).unwrap();
+        let before = settings(&s);
+        assert!(preview_theme(&s.catalog, &s.install, "Missing", &connected).is_err());
+        assert!(preview_theme(&s.catalog, &s.install, "es-theme-carbon", &connected).unwrap_err().contains("already"));
+        let p = preview_theme(&s.catalog, &s.install, "My Neon", &connected).unwrap();
+        assert_eq!(p.changes, [ChangeRow { system: "".into(), key: "ThemeSet".into(), before: Some("es-theme-carbon".into()), after: Some("My Neon".into()) }]);
+        assert!(apply_theme(&s.catalog, &s.install, "My Neon", &p.file_sha, &connected, &open).is_err(), "not while RetroBat runs");
+        apply_theme(&s.catalog, &s.install, "My Neon", &p.file_sha, &connected, &closed).unwrap();
+        assert_eq!(current_theme(&s.root).as_deref(), Some("My Neon"));
+        let id = history(&s.catalog, &s.install, &connected).unwrap()[0].id;
+        undo(&s.catalog, id, &connected, &closed).unwrap();
+        assert_eq!(settings(&s), before);
     }
 
     #[test]

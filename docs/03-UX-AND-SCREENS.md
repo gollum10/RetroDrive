@@ -17,6 +17,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-06 (Emulator settings, RetroBat):** an **Emulator settings** button on RetroBat installations opens a table of systems (those with games or existing settings; "Show all" lists every system) with Emulator (emulator: core), Shader, Bezel, Aspect ratio and Integer scaling, each with AUTO. **Review changes (N)** lists exact before → after values; **Apply** asks twice and is disabled while RetroBat runs (with a *Check again* button). **Changes made** lists past changes with **Undo** (asks twice) or why undo isn't possible.
 
+**Implemented 2026-11-06 (Themes, RetroBat):** a **Themes** button on RetroBat installations shows a card per theme (color swatches, size and files, credits, *In use*), with **Remix** and **Use in RetroBat**. The remix editor has a name, a color picker per color setting (alpha kept; reset per color), *Choose your picture…* per picture setting, *Replace with my font…* per font file, and a live approximate preview (system carousel and game list in the chosen colors, picture and font). Saving says how much is copied. *Use in RetroBat* shows the change (theme before → after), applies on a second click while RetroBat is closed, and is undone from Emulator settings → Changes made.
+
 ## Drives
 Inventory: manufacturer/model, bus type when known, capacity, filesystem, free space, label, stable identity, mount point, safety classification (system/unknown/removable). Selected drive details: partitions, managed installations, activity, backup state. No prominent 'Erase' control in default view. Clearly distinguish physical disks from mounted volumes.
 
