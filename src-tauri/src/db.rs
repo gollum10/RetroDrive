@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 10;
+pub const SCHEMA_VERSION: i32 = 11;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -160,6 +160,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 10 {
         tx.execute_batch(SCHEMA_V10).map_err(|e| e.to_string())?;
+    }
+    if from_version < 11 {
+        tx.execute_batch(SCHEMA_V11).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -762,6 +765,13 @@ CREATE TABLE game_media (
     UNIQUE (game_file_id, source, kind)
 );
 CREATE INDEX idx_game_media_file ON game_media(game_file_id);
+";
+
+/// v11: files the user left out of the library (`duplicates.rs`). Catalog marks
+/// only; the files stay on disk. `excluded_reason` is `duplicate` or `user`.
+const SCHEMA_V11: &str = "
+ALTER TABLE game_files ADD COLUMN excluded_at TEXT;
+ALTER TABLE game_files ADD COLUMN excluded_reason TEXT;
 ";
 
 #[cfg(test)]

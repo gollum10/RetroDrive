@@ -63,6 +63,8 @@ pub struct GameQuery {
     pub availability: Option<String>,
     pub storage_id: Option<String>,
     pub duplicates_only: bool,
+    /// Show only files the user left out of the library (normally they are hidden).
+    pub left_out: bool,
     /// `title` (default), `platform` or `size`.
     pub sort: Option<String>,
     pub offset: u32,
@@ -116,6 +118,8 @@ pub struct LibraryStats {
     pub missing: i64,
     /// Files that belong to a duplicate-candidate group.
     pub duplicate_files: i64,
+    /// Files the user left out of the library (not counted above).
+    pub left_out: i64,
     pub platforms: Vec<PlatformCount>,
 }
 
@@ -164,7 +168,7 @@ const FROM_BY_FILE: &str = "
 const HAS_DUPLICATE: &str = "gf.size_bytes > 0 AND EXISTS (
     SELECT 1 FROM game_files d
     WHERE d.size_bytes = gf.size_bytes AND d.filename = gf.filename COLLATE NOCASE
-      AND d.platform_hint = gf.platform_hint AND d.file_role = 'primary' AND d.id <> gf.id)";
+      AND d.platform_hint = gf.platform_hint AND d.file_role = 'primary' AND d.id <> gf.id AND d.excluded_at IS NULL)";
 
 /// Escape a user search string as a single FTS5 phrase.
 fn fts_phrase(text: &str) -> String {
@@ -228,7 +232,9 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
     if query.duplicates_only {
         conditions.push(HAS_DUPLICATE);
     }
-    let filtered = conditions.len() > 1;
+    let filtered = conditions.len() > 1 || query.left_out;
+    // Left-out files are hidden unless asked for; this alone doesn't make a query "filtered".
+    conditions.push(if query.left_out { "gf.excluded_at IS NOT NULL" } else { "gf.excluded_at IS NULL" });
     let where_clause = format!("WHERE {}", conditions.join(" AND "));
     let (page_from, order) = match query.sort.as_deref() {
         Some("platform") => (FROM_BY_GAME, "g.platform, g.canonical_title COLLATE NOCASE, g.rowid, fl.id"),
@@ -240,7 +246,7 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
     // Every game_files row has exactly one file_locations row (the scanner creates
     // them in pairs), so primary files can be counted straight from the role index.
     let total: i64 = if !filtered {
-        connection.query_row("SELECT COUNT(*) FROM game_files WHERE file_role = 'primary'", [], |r| r.get(0))
+        connection.query_row("SELECT COUNT(*) FROM game_files WHERE file_role = 'primary' AND excluded_at IS NULL", [], |r| r.get(0))
     } else {
         connection.query_row(
             &format!("SELECT COUNT(*) FROM (SELECT 1 {FROM} {where_clause} LIMIT {})", COUNT_CAP + 1),
@@ -279,7 +285,7 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
                     CASE WHEN gf.size_bytes > 0 THEN (
                         SELECT COUNT(*) FROM game_files d
                         WHERE d.size_bytes = gf.size_bytes AND d.filename = gf.filename COLLATE NOCASE
-                          AND d.platform_hint = gf.platform_hint AND d.file_role = 'primary')
+                          AND d.platform_hint = gf.platform_hint AND d.file_role = 'primary' AND d.excluded_at IS NULL)
                     ELSE 1 END,
                     (SELECT COUNT(*) FROM game_files m WHERE m.release_id = gf.release_id AND m.file_role = 'disc'),
                     EXISTS (SELECT 1 FROM game_files m WHERE m.release_id = gf.release_id AND m.missing_parts > 0)
@@ -333,7 +339,7 @@ pub fn system_summary(connection: &Connection) -> Result<Vec<SystemSummary>, Str
         .prepare(
             "SELECT g.platform, COUNT(DISTINCT g.id), COALESCE(SUM(gf.payload_bytes), 0)
              FROM game_files gf CROSS JOIN game_releases r CROSS JOIN games g
-             WHERE gf.file_role = 'primary' AND r.id = gf.release_id AND g.id = r.game_id
+             WHERE gf.file_role = 'primary' AND gf.excluded_at IS NULL AND r.id = gf.release_id AND g.id = r.game_id
              GROUP BY g.platform ORDER BY g.platform",
         )
         .map_err(|e| e.to_string())?;
@@ -353,8 +359,9 @@ pub fn library_stats(connection: &Connection, presence: PresenceFn) -> Result<Li
         }
         .map_err(|e| e.to_string())
     };
-    const PRIMARY: &str = "FROM file_locations fl JOIN game_files gf ON gf.id = fl.game_file_id WHERE +gf.file_role = 'primary'";
-    let files = count("SELECT COUNT(*) FROM game_files WHERE file_role = 'primary'", false)?;
+    const PRIMARY: &str = "FROM file_locations fl JOIN game_files gf ON gf.id = fl.game_file_id WHERE +gf.file_role = 'primary' AND gf.excluded_at IS NULL";
+    let files = count("SELECT COUNT(*) FROM game_files WHERE file_role = 'primary' AND excluded_at IS NULL", false)?;
+    let left_out = count("SELECT COUNT(*) FROM game_files WHERE file_role = 'primary' AND excluded_at IS NOT NULL", false)?;
     let offline = if offline_ids == "[]" {
         0
     } else {
@@ -366,7 +373,7 @@ pub fn library_stats(connection: &Connection, presence: PresenceFn) -> Result<Li
     )?;
     let duplicate_files = count(
         "SELECT COALESCE(SUM(copies), 0) FROM (
-             SELECT COUNT(*) AS copies FROM game_files WHERE size_bytes > 0 AND file_role = 'primary'
+             SELECT COUNT(*) AS copies FROM game_files WHERE size_bytes > 0 AND file_role = 'primary' AND excluded_at IS NULL
              GROUP BY size_bytes, filename COLLATE NOCASE, platform_hint HAVING COUNT(*) > 1)",
         false,
     )?;
@@ -378,7 +385,7 @@ pub fn library_stats(connection: &Connection, presence: PresenceFn) -> Result<Li
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
-    Ok(LibraryStats { files, online: files - offline - missing, offline, missing, duplicate_files, platforms })
+    Ok(LibraryStats { files, online: files - offline - missing, offline, missing, duplicate_files, left_out, platforms })
 }
 
 /// A drive the catalog knows about, connected or not (Drive Manager "Known drives").

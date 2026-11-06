@@ -475,7 +475,7 @@ fn gather(connection: &Connection, adapter: &dyn adapters::PlatformAdapter, inst
              JOIN games g ON g.id = r.game_id
              JOIN file_locations fl ON fl.game_file_id = gf.id
              JOIN storage_locations s ON s.id = fl.storage_location_id
-             WHERE gf.file_role = 'primary'
+             WHERE gf.file_role = 'primary' AND gf.excluded_at IS NULL
              ORDER BY g.canonical_title COLLATE NOCASE, fl.relative_path",
         )
         .map_err(|e| e.to_string())?;

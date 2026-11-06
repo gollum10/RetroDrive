@@ -45,6 +45,12 @@ Use platform folder semantics, file extension and optional metadata; record infe
 - **Manual titles:** existing titles are never overwritten by a rescan, so manual corrections survive.
 - **Batched saving:** files are committed in batches of 500 or every second. A cancelled or crashed scan keeps what it had already saved; the next full scan completes the picture.
 
+### Leaving files out, and duplicate cleanup (step 5a, 2026-11-05, `duplicates.rs`)
+- **Leave out** (any game) marks its primary file `excluded_at` in the catalog. Left-out files are hidden from the library, its counts, the Systems page and duplicate badges, and are **never planned or copied**. They stay on disk untouched and can be brought back (Status: *Left out of library*). Rescans keep the mark.
+- **Clean up duplicates** keeps one copy of each duplicate group (same system hint, name ignoring case, size) and leaves the others out (`excluded_reason = 'duplicate'`). The copy kept is present on a connected drive, then has the shortest path, then sorts first; the preview shows examples before anything changes. Refused while a scan or copy runs.
+- Same-name files with different sizes are not duplicates; the user can resolve such a clash by leaving one version out (or, in step 5b, keeping both).
+- Owner decision (2026-11-05): users decide per duplicate (keep or leave out) so drives don't fill with copies; kept duplicates that clash get `(2)` added when copied (step 5b).
+
 ### Implemented duplicate candidates (RDS-004)
 - **Rule:** files with the same platform, file name (ignoring case) and non-zero size are flagged as *possible duplicates*: a ×N badge, a filter, and a count on the Dashboard.
 - **Categories covered:** this catches category 1 below when two copies are byte-identical, without proving it. It never merges or deletes anything.

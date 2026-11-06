@@ -95,3 +95,4 @@ th.pick,td.pick{width:34px}tr.unpicked td{opacity:.5}
 .art-actions{position:absolute;top:6px;right:6px;display:flex;flex-direction:column;gap:4px;opacity:0;transition:opacity .12s}.game-card:hover .art-actions,.game-card:focus-within .art-actions{opacity:1}
 .art-actions button{border:0;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:600;background:rgba(10,16,26,.85);color:#e9edf5}.art-actions button:hover{background:#378cdd}
 @media (prefers-reduced-motion:reduce){.art-actions{transition:none}}
+.confirm.cleanup{max-width:none;margin:0 0 16px}.row-action{display:block;margin-top:4px;font-size:12px}
