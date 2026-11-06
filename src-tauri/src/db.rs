@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 15;
+pub const SCHEMA_VERSION: i32 = 16;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -175,6 +175,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 15 {
         tx.execute_batch(SCHEMA_V15).map_err(|e| e.to_string())?;
+    }
+    if from_version < 16 {
+        tx.execute_batch(SCHEMA_V16).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -866,6 +869,30 @@ ANALYZE;
 /// moved when the original was put back; item states add `undoing` and `undone`.
 const SCHEMA_V15: &str = "
 ALTER TABLE deployment_items ADD COLUMN undo_path TEXT;
+";
+
+/// v16: RetroBat settings changes (`customizer.rs`, docs/18 §12): one journaled row
+/// per change, with the drive identity, the backup and temporary paths and both
+/// file checksums, so a change can be undone or repaired after a crash.
+const SCHEMA_V16: &str = "
+CREATE TABLE settings_changes (
+    id               INTEGER PRIMARY KEY,
+    installation_id  TEXT REFERENCES installations(id) ON DELETE SET NULL,
+    file_path        TEXT NOT NULL,
+    root_path        TEXT NOT NULL,
+    stable_id        TEXT,
+    backup_path      TEXT,
+    temp_path        TEXT,
+    undo_path        TEXT,
+    old_sha          TEXT NOT NULL,
+    new_sha          TEXT NOT NULL,
+    changes_json     TEXT NOT NULL,
+    state            TEXT NOT NULL CHECK (state IN ('applying', 'applied', 'failed', 'undoing', 'undone')),
+    message          TEXT,
+    created_at       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_settings_changes_installation ON settings_changes(installation_id);
 ";
 
 #[cfg(test)]

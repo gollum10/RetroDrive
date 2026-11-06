@@ -108,3 +108,6 @@ th.pick,td.pick{width:34px}tr.unpicked td{opacity:.5}
 .backups{margin:14px 0;padding:14px 16px;border:1px solid rgba(255,255,255,.08);border-radius:12px}
 .backups h3{margin:0 0 6px}
 .backups td small{display:block}
+.emu select.choice{max-width:190px}
+.emu label.check{display:flex;align-items:center;gap:6px;margin:6px 0 10px;font-size:13px}
+.emu td small{display:block}
