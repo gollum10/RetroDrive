@@ -638,9 +638,11 @@ fn run_journaled(
         let stop = AtomicBool::new(false);
         let cancel = AtomicBool::new(false);
         let big = Mutex::new(());
-        let (tx, rx) = mpsc::channel::<Msg>();
         let mut fatal: Option<String> = None;
         std::thread::scope(|scope| {
+            // The channel lives inside the scope: if this thread ever panicked, dropping
+            // `rx` would drop every pending reply, so waiting workers stop instead of hanging.
+            let (tx, rx) = mpsc::channel::<Msg>();
             for _ in 0..workers {
                 let tx = tx.clone();
                 let (next, stop, cancel, big, deployment_id) = (&next, &stop, &cancel, &big, deployment_id.as_str());
@@ -1682,7 +1684,14 @@ mod tests {
         fn before_verify(&mut self, temp: &Path, _source: &Path) {
             if fs::metadata(temp).map(|m| m.len() as i64 >= BIG_FILE).unwrap_or(false) {
                 self.checks += 1;
-                let others = temps_left(&self.root).into_iter().filter(|p| p != temp && p.display().to_string().contains("Big")).count();
+                // Other workers create and remove files meanwhile, so skip entries that vanish.
+                let others = walkdir::WalkDir::new(&self.root)
+                    .into_iter()
+                    .filter_map(Result::ok)
+                    .map(|e| e.file_name().to_string_lossy().into_owned())
+                    // Compare names, not paths: temp folders can show up as 8.3 short paths (CI).
+                    .filter(|name| Some(name.as_str()) != temp.file_name().and_then(|n| n.to_str()) && name.contains(TEMP_MARKER) && name.contains("Big"))
+                    .count();
                 assert_eq!(others, 0, "another big file was being written at the same time");
             }
         }
@@ -1700,6 +1709,23 @@ mod tests {
         let summary = f.deploy_with(&mut watcher).unwrap();
         assert_eq!(summary.status, "completed");
         assert_eq!(watcher.checks, 3);
+    }
+
+    struct PanicsAtRename;
+    impl DeployObserver for PanicsAtRename {
+        fn before_rename(&mut self, _destination: &Path) {
+            panic!("observer failure");
+        }
+    }
+
+    /// A failure on the coordinating thread must end the copy, never leave workers waiting.
+    #[test]
+    #[should_panic(expected = "observer failure")]
+    fn a_coordinator_failure_stops_the_workers_instead_of_hanging() {
+        let files = many_games(20);
+        let borrowed: Vec<(&str, &[u8])> = files.iter().map(|(p, c)| (p.as_str(), c.as_slice())).collect();
+        let mut f = Fixture::new(&borrowed);
+        let _ = f.deploy_with(&mut PanicsAtRename);
     }
 
     struct Intruder;
