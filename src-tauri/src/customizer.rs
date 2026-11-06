@@ -38,6 +38,8 @@ pub type PresenceFn<'a> = &'a dyn Fn(&str, Option<&str>) -> Presence;
 /// Whether RetroBat (its interface or launcher) is running.
 pub type RunningFn<'a> = &'a dyn Fn() -> bool;
 
+/// `old_sha` of a change that created its file (there was no previous version).
+const NO_FILE: &str = "none";
 pub(crate) const SETTINGS: &str = "emulationstation/.emulationstation/es_settings.cfg";
 const SYSTEMS: &str = "emulationstation/.emulationstation/es_systems.cfg";
 const FEATURES: &str = "emulationstation/.emulationstation/es_features.cfg";
@@ -667,14 +669,19 @@ fn write_settings(connection: &Connection, install: &Install, settings: &Path, t
 /// Journaled, backed-up replacement of one RetroBat file (`relative` to the
 /// installation) with `new_text`. Undo and crash repair work from the journal.
 pub(crate) fn write_file(connection: &Connection, install: &Install, relative: &str, settings: &Path, text: &str, new_text: &str, changed: Vec<ChangeRow>) -> Result<(String, i64), String> {
-    let old_sha = hex_sha(text.as_bytes());
+    // A file that doesn't exist yet (e.g. RetroBat's favorites playlist) is created;
+    // its "previous version" is no file, and undo moves it into the backup folder.
+    let creating = fs::symlink_metadata(settings).is_err();
+    let old_sha = if creating { NO_FILE.to_string() } else { hex_sha(text.as_bytes()) };
     let new_sha = hex_sha(new_text.as_bytes());
 
     let token = db::new_id()[..8].to_string();
     let marker = format!("{TEMP_MARKER}{token}");
     let temp = PathBuf::from(format!("{}{marker}", settings.display()));
     let backup_relative = format!("{BACKUP_DIR}/settings-{token}/{relative}");
-    copier::ensure_folders(&install.root, &backup_relative).map_err(|e| format!("Couldn't prepare the backup folder: {e} Nothing was changed."))?;
+    if !creating {
+        copier::ensure_folders(&install.root, &backup_relative).map_err(|e| format!("Couldn't prepare the backup folder: {e} Nothing was changed."))?;
+    }
     let backup = paths::join(&install.root_text, &backup_relative);
     if fs::symlink_metadata(&backup).is_ok() || fs::symlink_metadata(&temp).is_ok() {
         return Err("RetroDrive's working file names are already taken, so nothing was changed.".into());
@@ -690,7 +697,7 @@ pub(crate) fn write_file(connection: &Connection, install: &Install, relative: &
                 settings.display().to_string(),
                 install.root_text,
                 install.stable,
-                backup.display().to_string(),
+                (!creating).then(|| backup.display().to_string()),
                 temp.display().to_string(),
                 old_sha,
                 new_sha,
@@ -717,11 +724,13 @@ pub(crate) fn write_file(connection: &Connection, install: &Install, relative: &
         Ok(sha) if sha == new_sha => {}
         _ => return fail("The new settings didn't read back correctly, so they weren't used. Nothing was changed.".into()),
     }
-    if let Err(e) = copier::rename_no_replace(settings, &backup) {
-        return fail(format!("Couldn't move the current settings to the backup folder: {e}. Nothing was changed."));
+    if !creating {
+        if let Err(e) = copier::rename_no_replace(settings, &backup) {
+            return fail(format!("Couldn't move the current settings to the backup folder: {e}. Nothing was changed."));
+        }
     }
     if let Err(e) = copier::rename_no_replace(&temp, settings) {
-        let restored = copier::rename_no_replace(&backup, settings).is_ok();
+        let restored = creating || copier::rename_no_replace(&backup, settings).is_ok();
         return fail(if restored {
             format!("Couldn't put the new settings in place ({e}), so the current ones were put back.")
         } else {
@@ -729,7 +738,11 @@ pub(crate) fn write_file(connection: &Connection, install: &Install, relative: &
         });
     }
     connection.execute("UPDATE settings_changes SET temp_path = NULL WHERE id = ?1", [id]).map_err(|e| e.to_string())?;
-    let message = format!("{} setting(s) changed. The previous settings file is in {backup_relative}.", changed.len());
+    let message = if creating {
+        format!("{} created. Undo moves it into RetroDrive's backup folder.", relative.rsplit('/').next().unwrap_or(relative))
+    } else {
+        format!("{} setting(s) changed. The previous settings file is in {backup_relative}.", changed.len())
+    };
     set_state(connection, id, "applied", Some(&message))?;
     Ok((message, id))
 }
@@ -897,6 +910,10 @@ pub struct LookOptions {
     pub default_video_folder: bool,
     /// Music files in RetroBat's music folder (played in the menus).
     pub music: Vec<String>,
+    /// Every track incl. system subfolders (`snes/Song.ogg`).
+    pub tracks: Vec<String>,
+    /// Tracks in the favorites playlist (`None`: no playlist).
+    pub favorites: Option<Vec<String>>,
     pub music_path: String,
     pub file_sha: String,
     pub blocked: Option<String>,
@@ -932,6 +949,8 @@ pub fn look_options(connection: &Connection, installation_id: &str, presence: Pr
         videos_path: install.root.join(VIDEOS.replace('/', "\\")).display().to_string(),
         default_video_folder,
         music: music_files(&install.root),
+        tracks: music_tracks(&install.root),
+        favorites: favorite_tracks(&install.root, &install.root_text),
         music_path: install.root.join(MUSIC.replace('/', "\\")).display().to_string(),
         file_sha: hex_sha(text.as_bytes()),
         blocked: running_message(running),
@@ -1009,6 +1028,68 @@ pub fn add_boot_video(connection: &Connection, installation_id: &str, source: &s
 /// Copy the user's own music (.ogg or .mp3, as RetroBat's menus play) into its music folder as a new file.
 pub fn add_music(connection: &Connection, installation_id: &str, source: &str, presence: PresenceFn) -> Result<String, String> {
     add_file(connection, installation_id, source, presence, MUSIC, &["ogg", "mp3"], "Music must be .ogg or .mp3 files.")
+}
+
+/// RetroBat's favorites playlist (RetroBat 8.3.1.1 writes it here:
+/// `music\favorites.m3u`, one `<full path with />;<name>` per line, CRLF).
+pub(crate) const FAVORITES: &str = "emulationstation/.emulationstation/music/favorites.m3u";
+
+/// Every music track, relative to the music folder (`Song.ogg`, `snes/Song.ogg`): the folder and its system subfolders.
+pub fn music_tracks(root: &Path) -> Vec<String> {
+    let music = root.join(MUSIC);
+    let is_music = |n: &str| { let l = n.to_lowercase(); l.ends_with(".ogg") || l.ends_with(".mp3") };
+    let mut found = Vec::new();
+    if let Ok(read) = fs::read_dir(&music) {
+        for e in read.filter_map(Result::ok) {
+            let name = e.file_name().to_string_lossy().into_owned();
+            match e.file_type() {
+                Ok(t) if t.is_file() && is_music(&name) => found.push(name),
+                Ok(t) if t.is_dir() => {
+                    if let Ok(sub) = fs::read_dir(e.path()) {
+                        for f in sub.filter_map(Result::ok).filter(|f| f.file_type().map(|t| t.is_file()).unwrap_or(false)) {
+                            let n = f.file_name().to_string_lossy().into_owned();
+                            if is_music(&n) {
+                                found.push(format!("{name}/{n}"));
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    found.sort_by_key(|t| t.to_lowercase());
+    found
+}
+
+/// The music folder as RetroBat writes it in favorites.m3u (`G:/RetroBat/.../music`).
+pub(crate) fn music_prefix(root_text: &str) -> String {
+    format!("{}/{MUSIC}", root_text.trim_end_matches(['\\', '/']).replace('\\', "/"))
+}
+
+/// Tracks in RetroBat's favorites playlist, relative to the music folder (`None`: no playlist).
+pub fn favorite_tracks(root: &Path, root_text: &str) -> Option<Vec<String>> {
+    let text = fs::read_to_string(root.join(FAVORITES)).ok()?;
+    let prefix = format!("{}/", music_prefix(root_text)).to_lowercase();
+    Some(
+        text.lines()
+            .filter_map(|l| l.split_once(';').map(|(p, _)| p.replace('\\', "/")))
+            .filter_map(|p| p.to_lowercase().starts_with(&prefix).then(|| p[prefix.len()..].to_string()))
+            .collect(),
+    )
+}
+
+/// favorites.m3u text for the given tracks (relative to the music folder).
+pub(crate) fn favorites_text(root_text: &str, tracks: &[String]) -> String {
+    let prefix = music_prefix(root_text);
+    tracks
+        .iter()
+        .map(|t| {
+            let name = t.rsplit('/').next().unwrap_or(t);
+            let stem = name.rsplit_once('.').map(|(s, _)| s).unwrap_or(name);
+            format!("{prefix}/{t};{stem}\r\n")
+        })
+        .collect()
 }
 
 /// Music files in RetroBat's music folder.
@@ -1135,9 +1216,11 @@ fn undo_block(j: &Journal, presence: PresenceFn) -> Option<String> {
     if !on_drive(j, presence) {
         return Some("The drive isn't connected.".into());
     }
-    let Some(backup) = j.backup.as_deref().filter(|b| ours(j, b)) else { return Some("No backup is recorded.".into()) };
-    if fs::symlink_metadata(backup).map(|m| !m.is_file()).unwrap_or(true) {
-        return Some("The previous settings file isn't in the backup folder any more.".into());
+    if j.old_sha != NO_FILE {
+        let Some(backup) = j.backup.as_deref().filter(|b| ours(j, b)) else { return Some("No backup is recorded.".into()) };
+        if fs::symlink_metadata(backup).map(|m| !m.is_file()).unwrap_or(true) {
+            return Some("The previous settings file isn't in the backup folder any more.".into());
+        }
     }
     match file_sha(Path::new(&j.file)) {
         Some(sha) if sha == j.new_sha => None,
@@ -1186,6 +1269,12 @@ pub fn undo(connection: &Connection, change_id: i64, presence: PresenceFn, runni
         set_state(connection, j.id, "applied", None)?;
         return Err(format!("Couldn't move the current settings aside, so nothing was changed: {e}"));
     }
+    if j.old_sha == NO_FILE {
+        // The change created the file: moving it aside is the whole undo.
+        let message = format!("Undone: the file RetroDrive created is now in {undo_relative}.");
+        set_state(connection, j.id, "undone", Some(&message))?;
+        return Ok(message);
+    }
     if let Err(e) = copier::rename_no_replace(&backup, &settings) {
         if copier::rename_no_replace(&undo_path, &settings).is_ok() {
             set_state(connection, j.id, "applied", None)?;
@@ -1220,6 +1309,13 @@ pub fn recover(connection: &Connection, presence: PresenceFn) -> Result<usize, S
                 }
                 set_state(connection, j.id, "failed", Some("Interrupted before the change; nothing was changed."))?;
                 fixed += 1;
+            } else if j.old_sha == NO_FILE {
+                if let Some(temp) = j.temp.as_deref() {
+                    let marker = format!("{TEMP_MARKER}{}", Path::new(temp).file_name().and_then(|n| n.to_str()).and_then(|n| n.rsplit(TEMP_MARKER).next()).unwrap_or(""));
+                    copier::remove_own_temp(Path::new(temp), &marker);
+                }
+                set_state(connection, j.id, "failed", Some("Interrupted before the file was created; nothing was changed."))?;
+                fixed += 1;
             } else if let Some(backup) = backup.filter(|b| b.is_file()) {
                 if copier::rename_no_replace(&backup, settings).is_ok() {
                     set_state(connection, j.id, "failed", Some("Interrupted during the change; the previous settings were put back."))?;
@@ -1228,6 +1324,16 @@ pub fn recover(connection: &Connection, presence: PresenceFn) -> Result<usize, S
             }
         } else {
             let undo = j.undo.as_deref().filter(|u| ours(&j, u)).map(PathBuf::from);
+            if j.old_sha == NO_FILE {
+                // Undoing a created file is a single move.
+                match (current.as_deref(), undo.as_ref().is_some_and(|u| u.is_file())) {
+                    (None, true) => set_state(connection, j.id, "undone", Some("Undone (finished before an interruption)."))?,
+                    (Some(sha), false) if sha == j.new_sha => set_state(connection, j.id, "applied", None)?,
+                    _ => continue,
+                }
+                fixed += 1;
+                continue;
+            }
             match (current.as_deref(), undo.as_ref().is_some_and(|u| u.is_file())) {
                 (Some(sha), _) if sha == j.old_sha => {
                     set_state(connection, j.id, "undone", Some("Undone (finished before an interruption)."))?;
@@ -1546,6 +1652,24 @@ mod tests {
         assert_eq!(add_music(&s.catalog, &s.install, &mine.join("Theme Song.mp3").display().to_string(), &connected).unwrap(), "Theme Song.mp3");
         assert_eq!(music_files(&s.root), ["Theme Song.mp3"]);
         assert!(add_music(&s.catalog, &s.install, &mine.join("Gollum Boot.mp4").display().to_string(), &connected).is_err(), "only music files");
+    }
+
+    #[test]
+    fn a_new_file_is_created_journaled_and_undone_by_moving_it_aside() {
+        let s = setup();
+        let install = install(&s.catalog, &s.install, &connected).unwrap();
+        let path = s.root.join(FAVORITES);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let text = favorites_text(&install.root_text, &["Boss.ogg".to_string(), "snes/Tune.mp3".to_string()]);
+        assert!(text.ends_with(";Tune\r\n") && text.contains("/emulationstation/.emulationstation/music/snes/Tune.mp3;Tune"));
+        let (_, id) = write_file(&s.catalog, &install, FAVORITES, &path, "", &text, Vec::new()).unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), text);
+        assert_eq!(favorite_tracks(&s.root, &install.root_text).unwrap(), ["Boss.ogg", "snes/Tune.mp3"]);
+        undo(&s.catalog, id, &connected, &closed).unwrap();
+        assert!(!path.exists(), "undo moves the created file away");
+        let moved: Vec<PathBuf> = walkdir::WalkDir::new(s.root.join(".retrodrive/backup")).into_iter().filter_map(Result::ok).filter(|e| e.file_name() == "favorites.m3u").map(|e| e.into_path()).collect();
+        assert_eq!(moved.len(), 1, "never deleted");
+        assert_eq!(fs::read_to_string(&moved[0]).unwrap(), text);
     }
 
     #[test]

@@ -92,6 +92,7 @@ Choices made while implementing (see ADR-010 and ADR-011 in docs/13):
 
 ## Implemented schema v17 (2026-11-06)
 - **`designs`:** `id`, `name` (unique ignoring case), `platform` (`retrobat`), `spec_json` (the finished design; null until finished once), `draft_json` (unfinished edits; null when not editing), `created_at`, `updated_at`, `finished_at`. Catalog only: designing never touches a drive.
+- Design specs gained `play_tracks` (2026-11-07): tracks to play, relative to RetroBat's music folder; `null` leaves RetroBat's choice as is. `settings_changes` rows can now record a **created** file (`old_sha` = `none`, no backup); undo moves such a file into the backup folder.
 - **`design_applications`:** `id`, `design_id` (set null if the design is deleted), `design_name` (snapshot), `installation_id`, `settings_change_ids` (the `settings_changes` rows it made, undone newest first), `added_json` (theme folder and media files added; kept on undo), `state` (`applied`, `partial`, `undone`), `created_at`.
 
 ## Implemented schema v16 (2026-11-06)

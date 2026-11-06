@@ -216,3 +216,16 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risks:** added theme folders and media stay after undo (by design; never deleted). If both the second write and its rollback fail, the user is told to undo the first file from the change history.
 
+## 16. Addendum: choosing which songs play; creating files (2026-11-07)
+**Scope:** owner request ("turn off only the music I want… as part of our customization"). A design can list the tracks to play; applying writes `music\favorites.m3u` and sets `audio.useFavoriteMusic`. Code: `designs.rs` (`play_tracks`), `customizer.rs` (`favorites_text`, `favorite_tracks`, `music_tracks`; `write_file` creating files).
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| Losing music the user owns | Nothing is moved or deleted; unwanted tracks just aren't in the playlist | `a_design_chooses_which_tracks_play` |
+| An empty or broken playlist (RetroBat would turn favorites off) | At least one track required; every track must exist on the drive or be added by the design; names can't contain path tricks or line breaks | same test |
+| Replacing an existing playlist | It's backed up like any settings file; undo puts it back | §12 tests |
+| Creating a file that wasn't there | Journaled with "no previous version"; written to a temporary name, read back, renamed without replacing; undo moves it into the backup folder; crash repair finishes or removes only RetroDrive's own temporary file | `a_new_file_is_created_journaled_and_undone_by_moving_it_aside` |
+| A design blocked by values it didn't change | Values equal to the RetroBat's current ones are skipped before validation | `a_design_can_start_from_a_retrobats_current_setup` |
+
+**Residual risk:** the playlist holds full paths with the drive letter (RetroBat's format); on another letter, apply the design again.
+

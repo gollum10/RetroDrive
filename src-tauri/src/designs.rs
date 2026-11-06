@@ -30,12 +30,12 @@ use std::path::{Path, PathBuf};
 /// and in batocera-emulationstation's Settings.cpp/AudioManager.cpp, 2026-11-06),
 /// with their element type and allowed values.
 pub const MUSIC_SETTINGS: [(&str, &str, &str); 8] = [
-    ("audio.bgmusic", "bool", "Play music in the menus"),
-    ("audio.persystem", "bool", "Music per system (from music\\<system>)"),
-    ("audio.thememusics", "bool", "Use the theme's music"),
+    ("audio.bgmusic", "bool", "Frontend music (play music in the menus)"),
+    ("audio.persystem", "bool", "Only play system-specific music folder"),
+    ("audio.thememusics", "bool", "Play system-specific music (from the theme)"),
     ("audio.display_titles", "bool", "Show song titles"),
     ("audio.display_titles_time", "int", "How long titles show (seconds)"),
-    ("MusicVolume", "int", "Music volume (0-128)"),
+    ("MusicVolume", "int", "Music volume (%)"),
     ("StopMusicOnScreenSaver", "bool", "Stop music in the screensaver"),
     ("VideoLowersMusic", "bool", "Lower music while game videos play"),
 ];
@@ -84,6 +84,10 @@ pub struct DesignSpec {
     /// Per-system settings `<system>.<key>` -> value (`None` = AUTO).
     #[serde(default)]
     pub systems: BTreeMap<String, Option<String>>,
+    /// Only these tracks play (relative to the music folder, e.g. `snes/Song.ogg`),
+    /// through RetroBat's favorites playlist. `None`: leave as is.
+    #[serde(default)]
+    pub play_tracks: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -168,6 +172,14 @@ fn check_shape(spec: &DesignSpec) -> Result<(), String> {
             return Err("Theme colors must be RRGGBB or RRGGBBAA.".into());
         }
     }
+    if let Some(tracks) = &spec.play_tracks {
+        if tracks.is_empty() {
+            return Err("Choose at least one track to play, or turn menu music off.".into());
+        }
+        if tracks.iter().any(|t| t.contains("..") || t.contains(['\\', ':', ';', '\n', '\r']) || t.starts_with('/')) {
+            return Err("A track name isn't valid.".into());
+        }
+    }
     if let Some(video) = &spec.own_video {
         if !video.to_lowercase().ends_with(".mp4") {
             return Err("The boot video must be an .mp4 file.".into());
@@ -183,7 +195,7 @@ fn check_shape(spec: &DesignSpec) -> Result<(), String> {
         let (_, kind, _) = MUSIC_SETTINGS.iter().find(|(k, _, _)| k == key).ok_or(format!("RetroDrive doesn't change {key}."))?;
         let ok = match *kind {
             "bool" => value == "true" || value == "false",
-            _ => value.parse::<u32>().is_ok_and(|n| n <= if key == "MusicVolume" { 128 } else { 60 }),
+            _ => value.parse::<u32>().is_ok_and(|n| n <= if key == "MusicVolume" { 100 } else { 60 }),
         };
         if !ok {
             return Err(format!("{value} isn't valid for {key}."));
@@ -229,7 +241,9 @@ pub fn seed_from(connection: &Connection, installation_id: &str, presence: Prese
     let install = customizer::install(connection, installation_id, presence)?;
     let es = customizer::values(&customizer::entries(&customizer::read_text(&install.root.join(customizer::SETTINGS))?)?)?;
     let ini = customizer::ini_entries(&customizer::read_text(&install.root.join(customizer::INI))?);
-    let mut spec = DesignSpec { theme: es.get("ThemeSet").map(|f| ThemeChoice::Existing { folder: f.clone() }), ..DesignSpec::default() };
+    let on_drive = customizer::theme_folders(&install.root);
+    let theme = es.get("ThemeSet").filter(|f| on_drive.contains(f)).map(|f| ThemeChoice::Existing { folder: f.clone() });
+    let mut spec = DesignSpec { theme, ..DesignSpec::default() };
     for o in customizer::ini_options() {
         let key = format!("{}.{}", o.section, o.key);
         if let Some((value, _, _)) = ini.get(&key) {
@@ -240,6 +254,9 @@ pub fn seed_from(connection: &Connection, installation_id: &str, presence: Prese
         if let Some(v) = es.get(key) {
             spec.music.insert(key.to_string(), v.clone());
         }
+    }
+    if es.get("audio.useFavoriteMusic").map(String::as_str) == Some("true") {
+        spec.play_tracks = customizer::favorite_tracks(&install.root, &install.root_text).filter(|t| !t.is_empty());
     }
     for (name, value) in &es {
         if let Some((_, key)) = name.rsplit_once('.') {
@@ -264,7 +281,9 @@ pub struct MusicSetting {
 pub fn music_settings(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<Vec<MusicSetting>, String> {
     let install = customizer::install(connection, installation_id, presence)?;
     let es = customizer::values(&customizer::entries(&customizer::read_text(&install.root.join(customizer::SETTINGS))?)?)?;
-    Ok(MUSIC_SETTINGS.iter().map(|(key, kind, label)| MusicSetting { key, kind, label, current: es.get(*key).cloned() }).collect())
+    let mut list: Vec<MusicSetting> = MUSIC_SETTINGS.iter().map(|(key, kind, label)| MusicSetting { key, kind, label, current: es.get(*key).cloned() }).collect();
+    list.push(MusicSetting { key: "audio.useFavoriteMusic", kind: "bool", label: "Play only songs from your favorites playlist", current: es.get("audio.useFavoriteMusic").cloned() });
+    Ok(list)
 }
 
 // ---------- applying ----------
@@ -290,6 +309,9 @@ pub struct DesignPreview {
     pub ini_changes: Vec<ChangeRow>,
     pub es_sha: String,
     pub ini_sha: String,
+    /// Tracks that will play / tracks left out, when the design picks tracks.
+    pub tracks_playing: Option<usize>,
+    pub tracks_left_out: Option<usize>,
     /// True when applying would change nothing at all.
     pub nothing: bool,
 }
@@ -305,6 +327,8 @@ struct Plan {
     ini_wanted: BTreeMap<String, String>,
     ini_rows: Vec<ChangeRow>,
     ini_text: String,
+    /// New favorites.m3u text and the current one ("" when there's none).
+    favorites: Option<(String, String)>,
 }
 
 fn finished_spec(connection: &Connection, id: &str) -> Result<(String, DesignSpec), String> {
@@ -386,6 +410,8 @@ fn plan(connection: &Connection, design_id: &str, installation_id: &str, presenc
     let changes: Vec<Change> = spec
         .systems
         .iter()
+        // Values that already match this RetroBat aren't changes, so they aren't re-checked.
+        .filter(|(k, v)| es_current.get(*k) != v.as_ref())
         .filter_map(|(k, v)| k.rsplit_once('.').map(|(system, key)| Change { system: system.to_string(), key: key.to_string(), value: v.clone() }))
         .collect();
     if !changes.is_empty() {
@@ -412,10 +438,37 @@ fn plan(connection: &Connection, design_id: &str, installation_id: &str, presenc
             copies.push((source, folder, &["ogg", "mp3"][..], "Music must be .ogg or .mp3 files."));
         }
     }
+    // Which tracks play: RetroBat's favorites playlist, plus "play only favorites".
+    let (mut tracks_playing, mut tracks_left_out, mut favorites) = (None, None, None);
+    if let Some(chosen) = &spec.play_tracks {
+        let mut available = customizer::music_tracks(&install.root);
+        for f in files.iter().filter(|f| f.folder.starts_with(customizer::MUSIC)) {
+            let sub = f.folder[customizer::MUSIC.len()..].trim_start_matches('/');
+            available.push(if sub.is_empty() { f.name.clone() } else { format!("{sub}/{}", f.name) });
+        }
+        if let Some(missing) = chosen.iter().find(|t| !available.iter().any(|a| a.eq_ignore_ascii_case(t))) {
+            return Err(format!("The design plays {missing}, which isn't on this RetroBat."));
+        }
+        let text = customizer::favorites_text(&install.root_text, chosen);
+        let current = fs::read_to_string(install.root.join(customizer::FAVORITES)).unwrap_or_default();
+        tracks_playing = Some(chosen.len());
+        tracks_left_out = Some(available.len().saturating_sub(chosen.len()));
+        if text != current {
+            favorites = Some((text, current));
+        }
+        es_tags.insert("audio.useFavoriteMusic".into(), "bool");
+        es_wanted.insert("audio.useFavoriteMusic".into(), Some("true".into()));
+    }
     es_wanted.retain(|k, v| es_current.get(k) != v.as_ref());
 
     // retrobat.ini: options, plus the own boot video.
-    let mut ini_changes: Vec<IniChange> = spec.ini.iter().filter_map(|(k, v)| k.split_once('.').map(|(section, key)| IniChange { section: section.into(), key: key.into(), value: v.clone() })).collect();
+    let ini_now = customizer::ini_entries(&ini_text);
+    let mut ini_changes: Vec<IniChange> = spec
+        .ini
+        .iter()
+        .filter(|(k, v)| ini_now.get(*k).map(|e| &e.0) != Some(*v))
+        .filter_map(|(k, v)| k.split_once('.').map(|(section, key)| IniChange { section: section.into(), key: key.into(), value: v.clone() }))
+        .collect();
     let mut extra_videos = Vec::new();
     if let Some(video) = &spec.own_video {
         let source = PathBuf::from(video);
@@ -437,7 +490,7 @@ fn plan(connection: &Connection, design_id: &str, installation_id: &str, presenc
         customizer::ini_edit(&ini_text, &ini_wanted)?;
     }
     let es_changes = customizer::rows(&es_wanted, &es_current);
-    let nothing = es_changes.is_empty() && ini_rows.is_empty() && copies.is_empty() && remix.is_none();
+    let nothing = es_changes.is_empty() && ini_rows.is_empty() && copies.is_empty() && remix.is_none() && favorites.is_none();
     Ok(Plan {
         preview: DesignPreview {
             design: design_name,
@@ -449,6 +502,8 @@ fn plan(connection: &Connection, design_id: &str, installation_id: &str, presenc
             ini_changes: ini_rows.clone(),
             es_sha: customizer::hex_sha(es_text.as_bytes()),
             ini_sha: customizer::hex_sha(ini_text.as_bytes()),
+            tracks_playing,
+            tracks_left_out,
             nothing,
         },
         remix,
@@ -460,6 +515,7 @@ fn plan(connection: &Connection, design_id: &str, installation_id: &str, presenc
         ini_wanted,
         ini_rows,
         ini_text,
+        favorites,
     })
 }
 
@@ -499,14 +555,23 @@ pub fn apply(connection: &Connection, design_id: &str, installation_id: &str, es
         let (_, id) = customizer::write_file(connection, &install, customizer::SETTINGS, &install.root.join(customizer::SETTINGS.replace('/', "\\")), &p.es_text, &new_text, customizer::rows(&p.es_wanted, &p.es_current))?;
         ids.push(id);
     }
+    let roll_back = |ids: &[i64], e: String| -> String {
+        let all = ids.iter().rev().all(|id| customizer::undo(connection, *id, presence, running).is_ok());
+        format!("{e} {}", if all { "The settings were put back as they were." } else { "Some settings were changed; undo them from Changes made." })
+    };
     if !p.ini_wanted.is_empty() {
         let new_text = customizer::ini_edit(&p.ini_text, &p.ini_wanted)?;
         match customizer::write_file(connection, &install, customizer::INI, &install.root.join(customizer::INI), &p.ini_text, &new_text, p.ini_rows.clone()) {
             Ok((_, id)) => ids.push(id),
-            Err(e) => {
-                let rolled_back = ids.first().map(|id| customizer::undo(connection, *id, presence, running).is_ok()).unwrap_or(true);
-                return Err(format!("{e} {}", if rolled_back { "The settings were put back as they were." } else { "es_settings.cfg was changed; undo it from Changes made." }));
-            }
+            Err(e) => return Err(roll_back(&ids, e)),
+        }
+    }
+    if let Some((text, current)) = &p.favorites {
+        let path = install.root.join(customizer::FAVORITES.replace('/', "\\"));
+        let rows = vec![ChangeRow { system: String::new(), key: "favorites".into(), before: None, after: Some(format!("{} track(s)", p.preview.tracks_playing.unwrap_or(0))) }];
+        match customizer::write_file(connection, &install, customizer::FAVORITES, &path, current, text, rows) {
+            Ok((_, id)) => ids.push(id),
+            Err(e) => return Err(roll_back(&ids, e)),
         }
     }
     connection
@@ -668,6 +733,7 @@ mod tests {
             music: [("audio.persystem".to_string(), "true".to_string()), ("MusicVolume".to_string(), "100".to_string())].into_iter().collect(),
             own_music: vec![OwnMusic { path: s.mine.join("Boss.ogg").display().to_string(), system: Some("snes".into()) }],
             systems: [("snes.emulator".to_string(), Some("libretro".to_string())), ("snes.core".to_string(), Some("bsnes".to_string())), ("nes.shaderset".to_string(), None)].into_iter().collect(),
+            play_tracks: None,
         };
         let id = create(&s.catalog, "Neon Nights", spec).unwrap();
         finish(&s.catalog, &id).unwrap();
@@ -729,6 +795,44 @@ mod tests {
     }
 
     #[test]
+    fn a_design_chooses_which_tracks_play() {
+        let s = setup();
+        let music = s.root.join("emulationstation/.emulationstation/music");
+        fs::create_dir_all(music.join("snes")).unwrap();
+        fs::write(music.join("Liked.ogg"), b"a").unwrap();
+        fs::write(music.join("Disliked.ogg"), b"b").unwrap();
+        fs::write(music.join("snes/Snes.ogg"), b"c").unwrap();
+        let es_before = read(&s, customizer::SETTINGS);
+        let spec = DesignSpec {
+            own_music: vec![OwnMusic { path: s.mine.join("Boss.ogg").display().to_string(), system: None }],
+            play_tracks: Some(vec!["Liked.ogg".into(), "snes/Snes.ogg".into(), "Boss.ogg".into()]),
+            ..DesignSpec::default()
+        };
+        let id = create(&s.catalog, "Only the good ones", spec).unwrap();
+        finish(&s.catalog, &id).unwrap();
+        let p = preview(&s.catalog, &id, &s.install, &connected).unwrap();
+        assert_eq!((p.tracks_playing, p.tracks_left_out), (Some(3), Some(1)));
+        assert!(p.es_changes.iter().any(|c| c.system == "audio" && c.key == "useFavoriteMusic"));
+        apply(&s.catalog, &id, &s.install, &p.es_sha, &p.ini_sha, &connected, &closed, &roomy).unwrap();
+        let fav = read(&s, customizer::FAVORITES);
+        assert!(fav.contains("/music/Liked.ogg;Liked\r\n") && fav.contains("/music/snes/Snes.ogg;Snes\r\n") && fav.contains("/music/Boss.ogg;Boss\r\n"));
+        assert!(!fav.contains("Disliked"), "the disliked track won't play");
+        assert!(read(&s, customizer::SETTINGS).contains("<bool name=\"audio.useFavoriteMusic\" value=\"true\" />"));
+        assert!(music.join("Disliked.ogg").exists(), "nothing is deleted");
+        // Undo: favorites.m3u (created) moves aside, settings come back.
+        let app = applications(&s.catalog, &s.install).unwrap()[0].id;
+        undo(&s.catalog, app, &connected, &closed).unwrap();
+        assert!(!s.root.join(customizer::FAVORITES).exists());
+        assert_eq!(read(&s, customizer::SETTINGS), es_before);
+        // A track that isn't there, or no tracks at all, is refused.
+        let bad = create(&s.catalog, "Missing", DesignSpec { play_tracks: Some(vec!["Nope.ogg".into()]), ..DesignSpec::default() }).unwrap();
+        finish(&s.catalog, &bad).unwrap();
+        assert!(preview(&s.catalog, &bad, &s.install, &connected).unwrap_err().contains("isn't on this RetroBat"));
+        let none = create(&s.catalog, "None", DesignSpec { play_tracks: Some(vec![]), ..DesignSpec::default() }).unwrap();
+        assert!(finish(&s.catalog, &none).is_err());
+    }
+
+    #[test]
     fn a_design_can_start_from_a_retrobats_current_setup() {
         let s = setup();
         let seed = seed_from(&s.catalog, &s.install, &connected).unwrap();
@@ -738,5 +842,11 @@ mod tests {
         let id = create(&s.catalog, "As it is", seed).unwrap();
         finish(&s.catalog, &id).unwrap();
         assert!(preview(&s.catalog, &id, &s.install, &connected).unwrap().nothing, "the current setup changes nothing");
+        // Even when a current value isn't among the install's choices (e.g. a shader folder removed since).
+        fs::remove_dir_all(s.root.join("system/shaders/configs/vhs")).unwrap();
+        assert!(preview(&s.catalog, &id, &s.install, &connected).unwrap().nothing, "unchanged values aren't re-checked");
+        // A current theme that isn't on the drive isn't copied into the design.
+        fs::write(s.root.join(customizer::SETTINGS), ES.replace("es-theme-test", "Gone Theme")).unwrap();
+        assert_eq!(seed_from(&s.catalog, &s.install, &connected).unwrap().theme, None);
     }
 }
