@@ -115,3 +115,9 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 ### Owner sign-off
 - [ ] Try one Replace and one Keep both on a real drive; confirm the backup folder and the `(2)` file.
 
+## 8. Addendum: faster journal (step 6, 2026-11-05)
+
+| # | Hazard | Mitigation | Test |
+|---|---|---|---|
+| H24 | With SQLite `synchronous = NORMAL` during copies (about 1.7× faster for small files), a power loss can drop the journal's last entries, so a temporary file or a replace backup might not be recorded | Recovery no longer depends on those entries: for unfinished items of interrupted deployments it looks for `<destination><marker>` (removed only if it carries that deployment's marker and is a plain file inside the installation) and for the deployment's backup path (moved back only if the destination name is free), on the confirmed drive only. The journal still survives app crashes; the catalog stays consistent (WAL). | `copier::tests::leftovers_are_found_by_name_even_without_journal_entries` |
+

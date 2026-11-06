@@ -166,6 +166,11 @@ pub fn deploy(connection: &Connection, job_id: Option<&str>, request: &DeployReq
 
     // Old leftovers on this destination are cleaned before starting.
     cleanup_leftovers(connection, presence)?;
+    // The copy journal uses SQLite's NORMAL sync: still durable if the app crashes,
+    // and about twice as fast for many small files (docs/15). After a power loss the
+    // last journal entries may be missing, so recovery also finds RetroDrive's own
+    // temporary files and backups from the plan itself (`recover_by_name`).
+    let _sync = JournalSync::normal(connection)?;
 
     // 2. Journal before writing.
     let deployment_id = crate::db::new_id();
@@ -583,6 +588,22 @@ fn replace_one(
     })
 }
 
+/// Sets `PRAGMA synchronous = NORMAL` for the copy and restores FULL afterwards.
+struct JournalSync<'c>(&'c Connection);
+
+impl<'c> JournalSync<'c> {
+    fn normal(connection: &'c Connection) -> Result<Self, String> {
+        connection.execute_batch("PRAGMA synchronous = NORMAL;").map_err(|e| e.to_string())?;
+        Ok(Self(connection))
+    }
+}
+
+impl Drop for JournalSync<'_> {
+    fn drop(&mut self) {
+        let _ = self.0.execute_batch("PRAGMA synchronous = FULL;");
+    }
+}
+
 fn set_backup(connection: &Connection, id: i64, backup: Option<&str>, state: &str) -> Result<(), String> {
     connection
         .execute(
@@ -934,7 +955,55 @@ pub fn cleanup_leftovers(connection: &Connection, presence: PresenceFn) -> Resul
                 .map_err(|e| e.to_string())?;
         }
     }
-    Ok(removed + restore_interrupted_replaces(connection, presence)?)
+    Ok(removed + recover_by_name(connection, presence)? + restore_interrupted_replaces(connection, presence)?)
+}
+
+/// Recovery that doesn't rely on the last journal entries (which a power loss can
+/// drop): for unfinished items of interrupted deployments, look for the temporary
+/// file RetroDrive would have used (`<destination><marker>`) and remove it if it's
+/// ours; for unfinished replaces, look in the deployment's backup folder.
+fn recover_by_name(connection: &Connection, presence: PresenceFn) -> Result<usize, String> {
+    let rows: Vec<(i64, String, String, Option<String>, String, String)> = {
+        let mut statement = connection
+            .prepare(
+                "SELECT i.id, i.destination_path, d.destination_root, d.destination_stable_id, d.id, i.planned_action
+                 FROM deployment_items i JOIN deployments d ON d.id = i.deployment_id
+                 WHERE d.status IN ('interrupted', 'failed', 'cancelled') AND i.temp_path IS NULL
+                   AND i.state NOT IN ('verified', 'identical', 'replaced', 'restored', 'skipped', 'conflict')",
+            )
+            .map_err(|e| e.to_string())?;
+        let mapped = statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?))).map_err(|e| e.to_string())?;
+        mapped.collect::<Result<_, _>>().map_err(|e| e.to_string())?
+    };
+    let mut fixed = 0;
+    let mut confirmed: std::collections::HashMap<String, bool> = std::collections::HashMap::new();
+    for (id, destination, root, stable, deployment, planned) in rows {
+        let Some((volume, _)) = paths::split_volume(Path::new(&root)) else { continue };
+        let online = *confirmed.entry(root.clone()).or_insert_with(|| presence(&volume, stable.as_deref()) == Presence::Connected);
+        if !online || !is_inside(&destination, &root) {
+            continue;
+        }
+        let marker = format!("{TEMP_MARKER}{}", &deployment[..8.min(deployment.len())]);
+        let temp = PathBuf::from(format!("{destination}{marker}"));
+        if fs::symlink_metadata(&temp).is_ok() && remove_own_temp(&temp, &marker) {
+            fixed += 1;
+            connection
+                .execute("UPDATE deployment_items SET state = 'failed', message = 'Interrupted; the unfinished temporary file was removed.' WHERE id = ?1", [id])
+                .map_err(|e| e.to_string())?;
+        }
+        if planned == "replace" {
+            let relative = destination[root.len()..].trim_start_matches(['\\', '/']).to_string();
+            let backup = paths::join(&root, &format!("{BACKUP_DIR}/{deployment}/{}", relative.replace('\\', "/")));
+            let dest = PathBuf::from(&destination);
+            if fs::symlink_metadata(&dest).is_err() && fs::metadata(&backup).is_ok_and(|m| m.is_file()) && rename_no_replace(&backup, &dest).is_ok() {
+                fixed += 1;
+                connection
+                    .execute("UPDATE deployment_items SET state = 'restored', message = 'Interrupted during replace; the original file was put back.' WHERE id = ?1", [id])
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+    }
+    Ok(fixed)
 }
 
 /// After a crash during Replace: if the new file never got its name, move the
@@ -1498,5 +1567,70 @@ mod tests {
         assert!(done_backup.exists(), "a completed replace keeps its backup");
         let states: Vec<String> = f.catalog.prepare("SELECT state FROM deployment_items WHERE planned_action = 'replace' ORDER BY id").unwrap().query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect();
         assert_eq!(states, ["restored", "replaced"]);
+    }
+
+    /// Measures copying many small files with a real on-disk catalog (docs/15).
+    /// Run: cargo test --release copy_benchmark_small_files -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn copy_benchmark_small_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("RetroBat");
+        for d in ["emulationstation", "emulators", "roms", "bios"] {
+            fs::create_dir_all(root.join(d)).unwrap();
+        }
+        fs::write(root.join("RetroBat.exe"), b"").unwrap();
+        let library = dir.path().join("library/nes");
+        fs::create_dir_all(&library).unwrap();
+        let count = 2000;
+        for i in 0..count {
+            fs::write(library.join(format!("Game {i:05} (USA).nes")), vec![(i % 251) as u8; 40 * 1024]).unwrap();
+        }
+        let db_path = dir.path().join("catalog.sqlite");
+        let mut catalog = db::open(&db_path).unwrap();
+        db::migrate(&mut catalog, None).unwrap();
+        scanner::scan(&mut catalog, &dir.path().join("library"), &unknown).unwrap();
+        let id = installations::add(&catalog, &root, "retrobat", &unknown).unwrap();
+        let choices = deployment::Choices::new();
+        let fingerprint = deployment::plan_with(&catalog, &id, None, &choices, &connected, &roomy).unwrap().fingerprint;
+        let started = std::time::Instant::now();
+        let summary = deploy(&catalog, None, &DeployRequest { installation_id: &id, systems: None, fingerprint: &fingerprint, choices: &choices }, &connected, &roomy, &mut Quiet).unwrap();
+        let elapsed = started.elapsed();
+        assert_eq!(summary.files_copied, count);
+        eprintln!("copied {count} x 40 KB files in {:?} ({:.1} files/s)", elapsed, count as f64 / elapsed.as_secs_f64());
+    }
+
+    #[test]
+    fn leftovers_are_found_by_name_even_without_journal_entries() {
+        let mut f = Fixture::new(&[("nes/Kid.nes", b"kid")]);
+        f.deploy();
+        let deployment: String = f.catalog.query_row("SELECT id FROM deployments", [], |r| r.get(0)).unwrap();
+        let marker = format!("{TEMP_MARKER}{}", &deployment[..8]);
+        let root = crate::paths::normalize(&f.root).unwrap();
+        // A power loss dropped the journal's temp and backup paths.
+        let lost_dest = root.join("roms").join("nes").join("Half.nes");
+        let temp = PathBuf::from(format!("{}{marker}", lost_dest.display()));
+        fs::write(&temp, b"half").unwrap();
+        let replaced_dest = root.join("roms").join("nes").join("Orig.nes");
+        let backup = root.join(".retrodrive").join("backup").join(&deployment).join("roms").join("nes").join("Orig.nes");
+        fs::create_dir_all(backup.parent().unwrap()).unwrap();
+        fs::write(&backup, b"original").unwrap();
+        f.catalog.execute("UPDATE deployments SET status = 'running'", []).unwrap();
+        for (dest, planned) in [(&lost_dest, "copy"), (&replaced_dest, "replace")] {
+            f.catalog
+                .execute(
+                    "INSERT INTO deployment_items (deployment_id, game_index, game_title, source_path, destination_path, size_bytes, planned_action, state)
+                     VALUES (?1, 0, 'x', 'x', ?2, 4, ?3, 'pending')",
+                    params![deployment, dest.display().to_string(), planned],
+                )
+                .unwrap();
+        }
+        recover(&f.catalog).unwrap();
+        assert_eq!(cleanup_leftovers(&f.catalog, &|_, _| Presence::OtherVolume).unwrap(), 0);
+        assert!(temp.exists() && backup.exists());
+        assert_eq!(cleanup_leftovers(&f.catalog, &connected).unwrap(), 2);
+        assert!(!temp.exists(), "our own temporary file is found by its marked name");
+        assert_eq!(fs::read(&replaced_dest).unwrap(), b"original", "the original comes back from the backup folder");
+        assert!(root.join("roms/nes/Kid.nes").exists(), "verified copies are untouched");
     }
 }

@@ -59,6 +59,7 @@ Run with `cd src-tauri && cargo test`.
 | Leave out / duplicate cleanup (ADR-027) | `duplicates::tests::duplicates_are_left_out_without_touching_files_and_can_come_back` (preview, keep-shorter-path, counts/listing/systems exclude left-out, files untouched, rescans keep marks, bring back, clash resolution), `a_missing_copy_is_never_the_one_kept`; manual 2026-11-05 in a test catalog: banner, preview (3 groups), cleanup, 8 files still on disk | Automated + manual |
 | A–Z and leading-slash playlists | `catalog::tests::letters_filter_titles_and_hash_means_digits_or_symbols` (found a case bug in the # filter), `scanner::tests::playlists_with_a_leading_slash_mean_the_playlists_own_folder`; `references_outside_the_scanned_folder_are_refused` still passes; manual 2026-11-05: Systems A–Z with letter jumps, games letter filter | Automated + manual |
 | Copy choices (step 5b, docs/18 §7) | `copier::tests::replace_moves_the_original_to_the_backup_folder_then_copies`, `a_failed_replace_puts_the_original_back`, `cancelling_during_a_replace_puts_the_original_back`, `keep_both_copies_under_the_next_free_number`, `an_interrupted_replace_is_put_right_on_the_next_start`; `deployment::tests::clash_choices_pick_a_version_or_keep_both`, `conflict_choices_and_multi_file_games`; manual 2026-11-05: Replace + Keep both in the app, verified on disk | Automated + manual |
+| Faster small-file copies (step 6) | `copier::tests::leftovers_are_found_by_name_even_without_journal_entries` (temp files and replace backups found by their marked names when the journal lost its last entries); `copy_benchmark_small_files` (ignored benchmark) | Automated |
 | QA-017 | `db::tests::v0_rows_are_preserved_and_backed_up`, `v1_catalog_upgrades_to_v2_keeping_data`, `v2_catalog_upgrades_to_v3_keeping_references` | Automated |
 | QA-015 (read side) | `scanner::tests::a_different_drive_at_the_same_letter_does_not_inherit_files`, `volumes::tests::system_volume_has_a_fingerprint`; Known drives showed "now a different drive" | Partial: identity is checked; re-checking before *writes* comes with deployment |
 
@@ -97,6 +98,19 @@ Command: `cd src-tauri && cargo test --release benchmark_100k -- --ignored --noc
 After RDS-005 (listing primary files only), rerun the same day: first page 5.4 ms, exact search 4.3 ms, size sort 3.0 ms, platform 36 ms, duplicates 77 ms, stats 40 ms, offset 50,000 159 ms. An intermediate version took 70 ms for the first page because SQLite chose the role index; a unary `+` on that term fixed it.
 
 The query plans (EXPLAIN QUERY PLAN) confirm index-ordered walks (`SCAN g USING INDEX idx_games_title`). **Scan cost:** a first-time scan of 39,300 files took 12 s in the dev app, against about 3 s before the search index; rescans of known files don't touch the index. Not yet measured: 1M rows, memory use.
+
+### Copy speed, many small files (step 6, 2026-11-05)
+Command: `cd src-tauri && cargo test --release copy_benchmark_small_files -- --ignored --nocapture` (2,000 × 40 KB files, on-disk catalog, internal NVMe, Windows Defender on).
+
+| Configuration | Files/s |
+|---|---|
+| Before (journal with SQLite `synchronous = FULL`) | 57–62 |
+| Measurement only: journal `NORMAL` | 101 |
+| Measurement only: no `sync_all` on the game file | 59 |
+| Measurement only: no read-back check | 98 |
+| **Shipped: journal `NORMAL` during copies** | **101** |
+
+The remaining cost is mostly opening each new file again for the read-back check (Windows Defender scans new files when they're opened); it stays, because the read-back is a core safety check. Copying several files at once would hide it (follow-up).
 
 ## Security review checklist
 For any change to file writes, re-run the docs/18 hazard table. Check the dependency license gate (`scripts/check-licenses.py`, LEGAL-014), path traversal, symlink/junction escape, signed/trusted downloads, secret handling, rate limits, frontend IPC validation, backup recovery, unsafe shell usage and dependency vulnerabilities.
