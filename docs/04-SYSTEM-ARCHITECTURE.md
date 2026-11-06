@@ -36,7 +36,7 @@ flowchart TD
 - `jobs`: state machine and cancellations; events for UI progress; durable log.
 - `settings`: provider keys stored through platform secure storage as feasible; user-approved roots and options.
 
-## Platform adapter contract (implemented as contract v1 in `src-tauri/src/adapters/mod.rs`; the TypeScript below is the original concept)
+## Platform adapter contract (implemented, now contract v3, in `src-tauri/src/adapters/mod.rs`; the TypeScript below is the original concept)
 ```typescript
 interface PlatformAdapter {
   id: string;
@@ -70,8 +70,9 @@ Native backend modules in `src-tauri/src/`:
 |---|---|---|
 | `lib.rs` | Tauri setup and commands: `query_games`, `library_stats`, `system_summary`, `import_reference`, `reference_status`, `remove_reference`, `set_game_art`, `remove_game_art`, `set_left_out`, `duplicate_cleanup_preview`, `clean_up_duplicates`, `list_collections`, `create_collection`, `rename_collection`, `delete_collection`, `add_to_collection`, `remove_from_collection`, plus the `rdmedia` image protocol, `list_adapters`, `inspect_installation`, `add_installation`, `list_installations`, `remove_installation`, `set_arcade_system`, `deployment_plan`, `start_deployment`, `list_storage_locations`, `start_scan`, `cancel_job`, `active_scan`, `recent_jobs`, `list_drives`. At startup it migrates the catalog and recovers interrupted jobs; if that fails, every command returns the error. Holds the in-memory registry of running jobs and their cancel flags. | app services |
 | `jobs.rs` | Durable job log: create, add events, finish, list recent, recover interrupted. | `jobs` |
-| `adapters/mod.rs` | `PlatformAdapter` trait (contract v2, read-only; v2 adds `PlacementOptions` such as the arcade choice to each request), `registry()`, `detect_all()`, `catalog()` and `folder_name()` for Windows-safe names. | `platforms` |
-| `adapters/retrobat.rs` | RetroBat detection, layout checks and placement rules, with facts cited from the RetroBat wiki in the module docs. | `platforms` |
+| `adapters/mod.rs` | `PlatformAdapter` trait (contract v3, read-only; v2 adds `PlacementOptions` such as the arcade choice to each request; v3 adds `Capabilities::copy_games`, which the copier requires, and `Detection::hint` for near misses), shared helpers `has_entry` and `plan_in_roms`, `registry()`, `detect_all()`, `catalog()` and `folder_name()` for Windows-safe names. | `platforms` |
+| `adapters/retrobat.rs` | RetroBat detection, layout checks and placement rules, with facts cited from the RetroBat wiki in the module docs. Its system-folder map is shared with Batocera. | `platforms` |
+| `adapters/batocera.rs` | Batocera (RDS-008): detection of the game folder (`\\BATOCERA\share` or `<drive>\batocera`), hints for the boot partition, layout checks and placement previews. `copy_games: false`. | `platforms` |
 | `installations.rs` | Inspect a folder, save, list and forget installations. | `platforms` |
 | `deployment.rs` | RDS-009 deployment plan (read-only): places every available game with the adapter, classifies each destination file (copy, already there, already in place, duplicate, conflict, blocked), measures capacity and returns a plan fingerprint. Only reads metadata; never creates or writes. | `deployment` |
 | `collections.rs` | The user's collections: list, create, rename, delete, add and remove games (catalog lists only). | `collections`, `collection_games` |
