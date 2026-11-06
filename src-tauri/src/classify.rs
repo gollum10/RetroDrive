@@ -52,7 +52,10 @@ const PLATFORMS: &[Platform] = &[
     Platform { name: "Genesis", folders: &["megadrive", "genesis", "md", "genh", "megadrive-japan"], extensions: &["md", "gen", "smd"], folder_only: &["bin"] },
     Platform { name: "Arcade", folders: &["arcade", "mame", "fbneo"], extensions: &["chd"], folder_only: &[] },
     Platform { name: "PlayStation", folders: &["psx", "ps1", "psone", "playstation"], extensions: &["cue", "chd", "iso", "pbp", "m3u"], folder_only: &[] },
-    Platform { name: "PlayStation 2", folders: &["ps2"], extensions: &["iso", "chd", "cso"], folder_only: &[] },
+    // `.cso` is used by both PS2 and PSP, so it only counts inside their folders (2026-11-07:
+    // the owner's `psp` / `pspminis` games were being placed as PS2).
+    Platform { name: "PlayStation 2", folders: &["ps2"], extensions: &["iso", "chd"], folder_only: &["cso"] },
+    Platform { name: "PSP", folders: &["psp", "pspminis", "pspminis2"], extensions: &[], folder_only: &["iso", "cso", "pbp", "chd"] },
     Platform { name: "GBA", folders: &["gba", "gbah"], extensions: &["gba"], folder_only: &[] },
     Platform { name: "Game Boy", folders: &["gb", "gbh"], extensions: &["gb"], folder_only: &[] },
     Platform { name: "Game Boy Color", folders: &["gbc", "gbch"], extensions: &["gbc"], folder_only: &["gb"] },
@@ -113,12 +116,12 @@ const PLATFORMS: &[Platform] = &[
 ];
 
 /// Extensions that are valid game containers but say nothing about the platform.
-const AMBIGUOUS_EXTENSIONS: [&str; 6] = ["zip", "7z", "chd", "iso", "cue", "m3u"];
+const AMBIGUOUS_EXTENSIONS: [&str; 7] = ["zip", "7z", "chd", "iso", "cue", "m3u", "cso"];
 
 fn accepts(platform: &Platform, extension: &str) -> bool {
     platform.extensions.contains(&extension)
         || platform.folder_only.contains(&extension)
-        || (platform.name != "PlayStation" && platform.name != "PlayStation 2" && CARTRIDGE_ARCHIVES.contains(&extension))
+        || (!matches!(platform.name, "PlayStation" | "PlayStation 2" | "PSP") && CARTRIDGE_ARCHIVES.contains(&extension))
 }
 
 /// True for files named like `[BIOS] Game Boy Advance (World).zip`.
@@ -209,6 +212,19 @@ mod tests {
         }
         assert_eq!(platform(&["Downloads"], "gb"), Some("Game Boy"));
         assert_eq!(platform(&["roms", "gbc"], "gb"), Some("Game Boy Color"));
+    }
+
+    #[test]
+    fn psp_games_are_psp_not_ps2() {
+        for folder in ["psp", "pspminis", "PSP"] {
+            assert_eq!(platform(&["roms II", folder], "cso"), Some("PSP"), "{folder}");
+            assert_eq!(platform(&["roms", folder], "iso"), Some("PSP"));
+        }
+        assert_eq!(platform(&["roms", "psp"], "pbp"), Some("PSP"));
+        assert_eq!(platform(&["roms", "psp"], "zip"), None, "PSP games aren't zipped");
+        assert_eq!(platform(&["roms", "ps2"], "cso"), Some("PlayStation 2"));
+        let loose = classify(&["Downloads"], "cso").unwrap();
+        assert_eq!((loose.platform, loose.source), (UNCLASSIFIED, HintSource::Ambiguous), "a .cso alone could be PS2 or PSP");
     }
 
     #[test]

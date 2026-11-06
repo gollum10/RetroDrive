@@ -39,6 +39,10 @@ pub enum Action {
     Duplicate,
     /// Not copied because the user chose another version or chose to skip it.
     Skipped,
+    /// The same game is already on the drive, or another version is being copied, under
+    /// another name (e.g. `Game(J).zip` next to `Game (Japan).zip`); not copied unless
+    /// the user chooses "copy anyway" (ADR-042).
+    SameGame,
     Copy,
     /// The existing file is moved to RetroDrive's backup folder, then replaced (step 5b).
     Replace,
@@ -72,7 +76,8 @@ const EXACT_NAME_PLATFORMS: &[&str] = &["Arcade", "Neo Geo", "CPS1", "CPS2", "CP
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct ChoiceInfo {
     pub key: String,
-    /// `conflict` (a different file is on the drive) or `clash` (library versions collide).
+    /// `conflict` (a different file is on the drive), `clash` (library versions collide) or
+    /// `same_game` (the game is on the drive or in the plan under another name).
     pub situation: &'static str,
     /// Any of `keep`, `use`, `keep_both`, `replace`.
     pub options: Vec<&'static str>,
@@ -123,6 +128,8 @@ pub struct ActionCounts {
     pub already_there: i64,
     pub in_place: i64,
     pub duplicate: i64,
+    /// Already on the drive (or in the plan) under another name; not copied.
+    pub same_game: i64,
     pub conflict: i64,
     pub blocked: i64,
 }
@@ -135,6 +142,7 @@ impl ActionCounts {
             Action::AlreadyThere => self.already_there += 1,
             Action::InPlace => self.in_place += 1,
             Action::Duplicate | Action::Skipped => self.duplicate += 1,
+            Action::SameGame => self.same_game += 1,
             Action::Conflict => self.conflict += 1,
             Action::Blocked => self.blocked += 1,
         }
@@ -182,6 +190,8 @@ pub struct DeploymentPlan {
     /// Conflicts and blocked games (the first 500).
     pub attention: Vec<PlanGame>,
     /// The first games that would be copied.
+    /// Games not copied because they're on the drive (or in the plan) under another name; each can be copied anyway.
+    pub same_game: Vec<PlanGame>,
     pub sample: Vec<PlanGame>,
     /// Stable hash of every source, destination, size and action. RDS-010 rebuilds
     /// the plan before copying and refuses to start if this changed.
@@ -279,6 +289,7 @@ pub(crate) fn build(
     let (mut files_to_copy, mut bytes_to_copy, mut allocated, mut largest, mut long_paths) = (0i64, 0i64, 0u64, 0u64, 0i64);
     let mut new_folders: BTreeSet<String> = BTreeSet::new();
     let mut attention = Vec::new();
+    let mut same_game = Vec::new();
     let mut sample = Vec::new();
     let mut fingerprint = Fnv::new();
     fingerprint.write(&install.adapter_id);
@@ -330,7 +341,11 @@ pub(crate) fn build(
             choice: item.files.iter().find_map(|f| f.choice.clone()),
         };
         // Items with a choice stay listed, so the choice can be seen and changed.
-        if matches!(action, Action::Conflict | Action::Blocked) || game.choice.as_ref().is_some_and(|c| c.current != "keep") {
+        if action == Action::SameGame {
+            if same_game.len() < ATTENTION_LIMIT {
+                same_game.push(game);
+            }
+        } else if matches!(action, Action::Conflict | Action::Blocked) || game.choice.as_ref().is_some_and(|c| c.current != "keep") {
             if attention.len() < ATTENTION_LIMIT {
                 attention.push(game);
             }
@@ -387,6 +402,7 @@ pub(crate) fn build(
         long_paths,
         capacity,
         attention,
+        same_game,
         sample,
         fingerprint: format!("{:016x}", fingerprint.finish()),
     };
@@ -568,6 +584,152 @@ fn check_files(items: &mut [Item], install_root: &Path, max_file: Option<u64>, c
                     file.reason = reason;
                 }
             }
+        }
+    }
+    same_games(items, choices);
+}
+
+/// A game's identity from its file name, ignoring tags and punctuation, so
+/// `10-Yard_Fight(J).zip` and `10-Yard Fight (Japan).zip` match. Disc, disk, side, tape
+/// and part tags are kept (they are different files of one game). `None` when nothing is left.
+fn game_key(file_name: &str) -> Option<String> {
+    let stem = file_name.rsplit_once('.').map(|(s, _)| s).unwrap_or(file_name);
+    let (mut base, mut kept, mut group, mut depth) = (String::new(), String::new(), String::new(), 0);
+    for c in stem.chars() {
+        match c {
+            '(' | '[' => {
+                depth += 1;
+                if depth == 1 {
+                    group.clear();
+                }
+            }
+            ')' | ']' if depth > 0 => {
+                depth -= 1;
+                let g = group.trim().to_lowercase();
+                if depth == 0 && ["disc", "disk", "side", "cd", "tape", "part"].iter().any(|w| g.starts_with(w)) {
+                    kept.push_str(&g);
+                    kept.push(' ');
+                }
+            }
+            _ if depth > 0 => group.push(c),
+            _ => base.push(c),
+        }
+    }
+    // Dots and underscores often stand for spaces (`Addams.Family.The(U)`).
+    let mut base = base.replace(['_', '.'], " ").trim().trim_end_matches(',').trim().to_lowercase();
+    // "Legend of Zelda, The" and "Addams Family The" are "The Legend of Zelda", "The Addams Family".
+    for article in ["the", "a", "an"] {
+        if let Some(rest) = base.strip_suffix(article).filter(|r| r.ends_with([' ', ','])) {
+            base = format!("{article} {}", rest.trim_end_matches([' ', ',']));
+            break;
+        }
+    }
+    let key: String = format!("{base} {kept}").chars().filter(|c| c.is_alphanumeric()).collect();
+    (!key.is_empty()).then_some(key)
+}
+
+/// Which version of a game to copy when the library has several: good dumps over hacks,
+/// betas and bad dumps; then USA/World, Europe, Japan; then the shorter name.
+fn preference(file_name: &str) -> (u8, u8, usize, String) {
+    let lower = file_name.to_lowercase();
+    let mut tags = String::new();
+    let mut depth = 0;
+    for c in lower.chars() {
+        match c {
+            '(' | '[' => depth += 1,
+            ')' | ']' if depth > 0 => {
+                depth -= 1;
+                tags.push(' ');
+            }
+            _ if depth > 0 => tags.push(c),
+            _ => {}
+        }
+    }
+    let words: Vec<&str> = tags.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).collect();
+    let has = |list: &[&str]| words.iter().any(|w| list.contains(w));
+    let bad = lower.contains("[b") || lower.contains("[h") || lower.contains("[t") || lower.contains("[o") || lower.contains("[p") || lower.contains("[f") || has(&["hack", "beta", "proto", "prototype", "pirate", "sample", "demo", "bootleg"]);
+    let region = if has(&["usa", "u", "world", "w", "ju", "ue"]) {
+        0
+    } else if has(&["europe", "e", "eu"]) {
+        1
+    } else if has(&["japan", "j"]) {
+        2
+    } else {
+        3
+    };
+    (bad as u8, region, file_name.len(), lower)
+}
+
+/// Marks a file as "same game" (not copied) unless the user chose to copy it anyway.
+/// Returns true when it stays a copy.
+fn mark_same_game(file: &mut ItemFile, choices: &Choices, reason: String) -> bool {
+    let key = file.relative.to_lowercase();
+    let copy_anyway = matches!(choices.get(&key), Some(Choice::KeepBoth));
+    file.choice = Some(ChoiceInfo { key, situation: "same_game", options: vec!["keep", "keep_both"], current: if copy_anyway { "keep_both" } else { "keep" }, file_id: file.game_file_id.clone() });
+    if copy_anyway {
+        file.reason = Some(format!("{reason} Copied anyway (you chose)."));
+    } else {
+        file.action = Action::SameGame;
+        file.reason = Some(reason);
+    }
+    copy_anyway
+}
+
+/// Games already on the drive, or being copied in another version, under a different
+/// name are not copied by default (owner report 2026-11-07: a second naming style of
+/// the same NES games was being added). Only reads folder listings.
+fn same_games(items: &mut [Item], choices: &Choices) {
+    let eligible = |item: &Item| item.files.len() == 1 && item.files[0].action == Action::Copy && item.files[0].choice.is_none() && !EXACT_NAME_PLATFORMS.contains(&item.platform.as_str()) && item.platform != crate::classify::BIOS;
+    let name_of = |file: &ItemFile| file.destination.file_name().and_then(|n| n.to_str()).map(str::to_string);
+    // 1. On the drive under another name.
+    let mut on_drive: HashMap<PathBuf, HashMap<String, String>> = HashMap::new();
+    let mut chosen: BTreeSet<usize> = BTreeSet::new();
+    for (i, item) in items.iter_mut().enumerate() {
+        if !eligible(item) {
+            continue;
+        }
+        let file = &mut item.files[0];
+        let (Some(name), Some(folder)) = (name_of(file), file.destination.parent().map(Path::to_path_buf)) else { continue };
+        let Some(key) = game_key(&name) else { continue };
+        let existing = on_drive.entry(folder.clone()).or_insert_with(|| {
+            let mut keys = HashMap::new();
+            for entry in std::fs::read_dir(&folder).into_iter().flatten().flatten() {
+                if entry.file_type().is_ok_and(|t| t.is_file()) {
+                    if let Some(n) = entry.file_name().to_str() {
+                        if let Some(k) = game_key(n) {
+                            keys.entry(k).or_insert_with(|| n.to_string());
+                        }
+                    }
+                }
+            }
+            keys
+        });
+        if let Some(other) = existing.get(&key).filter(|o| !o.eq_ignore_ascii_case(&name)).cloned() {
+            if mark_same_game(file, choices, format!("This game is already on the drive as \"{other}\".")) {
+                chosen.insert(i);
+            }
+        }
+    }
+    // 2. Several versions in the plan, none on the drive: copy the preferred one.
+    let mut groups: BTreeMap<(String, String), Vec<(usize, String)>> = BTreeMap::new();
+    for (i, item) in items.iter().enumerate() {
+        if chosen.contains(&i) || !eligible(item) {
+            continue;
+        }
+        let file = &item.files[0];
+        let (Some(name), Some(folder)) = (name_of(file), file.destination.parent()) else { continue };
+        if let Some(key) = game_key(&name) {
+            groups.entry((path_key(folder), key)).or_default().push((i, name));
+        }
+    }
+    for (_, mut members) in groups {
+        if members.len() < 2 {
+            continue;
+        }
+        members.sort_by_key(|(_, name)| preference(name));
+        let best = members[0].1.clone();
+        for (i, _) in &members[1..] {
+            mark_same_game(&mut items[*i].files[0], choices, format!("Another version of this game, \"{best}\", is being copied."));
         }
     }
 }
@@ -912,6 +1074,54 @@ mod tests {
         assert_eq!(plan.games.blocked, 2, "names that differ only in case, with different contents");
         assert!(plan.attention.iter().all(|g| g.reason.as_deref().unwrap().contains("same name")));
         assert_eq!(plan.files_to_copy, 1);
+    }
+
+    #[test]
+    fn the_same_game_under_another_name_is_not_copied_twice() {
+        let f = fixture(&[
+            ("nes/10-Yard_Fight(J).zip", b"goodnes"),
+            ("nes/Adventures of Lolo (U) [!].zip", b"lolo-u"),
+            ("more/nes/Adventures of Lolo (Japan).zip", b"lolo-japan"),
+            ("more/nes/Adventures of Lolo (U) [h1].zip", b"lolo hack"),
+            ("nes/Legend of Zelda, The (U).zip", b"zelda"),
+            ("nes/Brand New (USA).zip", b"new"),
+            ("fds/Saga (Japan) (Disk 1).fds", b"d1"),
+            ("fds/Saga (Japan) (Disk 2).fds", b"d2"),
+        ]);
+        write(&f.root, "roms/nes/10-Yard Fight (Japan).zip", b"no-intro naming");
+        write(&f.root, "roms/nes/The Legend of Zelda (USA).zip", b"zelda, other dump");
+        let before = snapshot(&f.root);
+        let p = plan(&f.catalog, &f.id, None, &connected, &roomy).unwrap();
+        assert_eq!(p.games.same_game, 4, "10-Yard Fight and Zelda are on the drive; two other Lolos");
+        assert_eq!(p.games.copy, 4, "the preferred Lolo, Brand New, both disks of Saga");
+        let reason = |t: &str| p.same_game.iter().find(|g| g.title.starts_with(t)).unwrap_or_else(|| panic!("{t}")).reason.clone().unwrap();
+        assert!(reason("10-Yard").contains("already on the drive as \"10-Yard Fight (Japan).zip\""));
+        assert!(reason("Legend of Zelda").contains("The Legend of Zelda (USA).zip"), "\", The\" names match");
+        assert!(p.same_game.iter().filter(|g| g.title.contains("Lolo")).all(|g| g.reason.as_deref().unwrap().contains("\"Adventures of Lolo (U) [!].zip\", is being copied")), "USA good dump wins over Japan and a hack");
+        assert!(p.same_game.iter().all(|g| g.choice.as_ref().is_some_and(|c| c.situation == "same_game" && c.options == ["keep", "keep_both"])));
+        assert_eq!(snapshot(&f.root), before, "planning reads only");
+
+        // "Copy anyway" for one of them.
+        let key = p.same_game.iter().find(|g| g.title.starts_with("10-Yard")).unwrap().choice.as_ref().unwrap().key.clone();
+        let chosen = plan_choosing(&f, &Choices::from([(key, Choice::KeepBoth)]));
+        assert_eq!((chosen.games.same_game, chosen.games.copy), (3, 5));
+        assert!(chosen.attention.iter().any(|g| g.title.starts_with("10-Yard") && g.reason.as_deref().unwrap().contains("Copied anyway")));
+    }
+
+    #[test]
+    fn game_keys_ignore_tags_but_not_disks() {
+        assert_eq!(game_key("10-Yard_Fight(J).zip"), game_key("10-Yard Fight (Japan).zip"));
+        assert_eq!(game_key("Super Mario Bros. (W) [!].nes"), game_key("Super Mario Bros. (World).zip"));
+        assert_eq!(game_key("Legend of Zelda, The (U).zip"), game_key("The Legend of Zelda (USA).zip"));
+        assert_eq!(game_key("Addams.Family.The(Alt)(U).zip"), game_key("The Addams Family (USA).zip"));
+        assert_eq!(game_key("Mr. Gimmick (Japan).zip"), game_key("Mr Gimmick (J).zip"));
+        assert_ne!(game_key("Tank.zip"), game_key("Ta.zip"), "only a whole word is an article");
+        assert_ne!(game_key("Saga (Disk 1).fds"), game_key("Saga (Disk 2).fds"));
+        assert_ne!(game_key("Game.zip"), game_key("Game II.zip"));
+        assert_eq!(game_key("(Unl).zip"), None);
+        assert!(preference("Lolo (U) [!].zip") < preference("Lolo (Japan).zip"));
+        assert!(preference("Lolo (Japan).zip") < preference("Lolo (U) [h1].zip"), "a hack is the last choice");
+        assert!(preference("Lolo (Europe).zip") < preference("Lolo (Japan).zip"));
     }
 
     #[test]

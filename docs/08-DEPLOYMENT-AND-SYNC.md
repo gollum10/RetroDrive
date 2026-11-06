@@ -38,6 +38,8 @@ The plan is read-only: it reads catalog rows and destination metadata and never 
 | A file sits where a folder is needed, or a folder/link where the file goes | **Blocked** |
 | Destination file exists with the same size | **Already there** (skipped). Content isn't compared in the plan; RDS-010 verifies before skipping |
 | Destination file exists with a different size | **Conflict**: the existing file is kept |
+| **Same game under another name** (2026-11-07, ADR-042): a single-file game (not arcade/romset systems, not BIOS) whose name matches a file already in the destination folder once tags in `()`/`[]`, punctuation, `_`/`.` and a trailing ", The" are ignored (disc/disk/side/tape/part tags still count) | **Already there under another name**: not copied; the reason names the file on the drive. Choice: *Don't copy* (default) / *Copy anyway* |
+| ...or several such versions are in the plan and none is on the drive | The preferred one copies (good dumps over hacks/betas/bad dumps; USA/World, then Europe, then Japan; then the shorter name); the others are **Already there under another name** with *Copy anyway* |
 | Otherwise | **Copy** |
 
 A game takes its most serious file action, so a game with one conflicting file isn't partly copied. Full paths over 259 characters are counted as a warning (some emulators can't open them).
