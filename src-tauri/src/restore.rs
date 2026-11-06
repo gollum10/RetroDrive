@@ -347,6 +347,8 @@ mod tests {
         let request = DeployRequest { installation_id: &install, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None };
         let summary = deploy(&catalog, None, &request, &connected_drive, &roomy, &mut Quiet).unwrap();
         assert_eq!(summary.files_replaced, 1);
+        // The catalog stores the full path; temp folders can be 8.3 short names (CI), so use the same form.
+        let root = paths::normalize(&root).unwrap();
         Setup { _dir: dir, root, catalog, install }
     }
 
