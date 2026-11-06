@@ -125,3 +125,20 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 - **Scope:** Batocera installations can be recognized and planned for, but **not copied to**. This review covered copies to local Windows drives only.
 - **Enforcement:** `Capabilities::copy_games` is false for Batocera. `deployment::build` puts it in the plan (`copy_supported`), and `copier::deploy` refuses as its very first check, before leftovers cleanup, journaling or any file access on the destination. The UI shows a preview note instead of the Copy button. Test: `copier::tests::preview_only_platforms_are_never_copied_to` (destination snapshot unchanged, no deployment row).
 - **Before turning it on (RDS-022):** review no-replace rename and unbuffered read-back over SMB, the share disappearing mid-copy (Batocera shut down), drive identity for `\\BATOCERA\share` (no volume serial guarantees), and exFAT game drives; test on a real Batocera.
+
+## 10. Addendum: undoing a replace (2026-11-06)
+**Scope and authorization:** the owner approved this plan on 2026-11-06: list Replace backups per installation and offer *Undo replace*, as a swap that never deletes; no "delete backups" action, only "Open backup folder". Code: `src-tauri/src/restore.rs`; schema v15.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| Undo moves a file the user changed or swapped after the copy | Refused unless the file on the drive has the size and SHA-256 RetroDrive recorded when it verified the copy | `undo_refuses_when_anything_changed` |
+| Wrong drive under the same letter | Drive confirmed by its fingerprint (as for copies) | `undo_refuses_when_anything_changed` (drive away) |
+| A recorded path points outside the installation | Backup and undo paths must be inside `<installation>\.retrodrive\backup`; the destination inside the installation | same test |
+| Data loss during the swap | Journal `undoing` first; both moves are no-replace renames on the same drive; if the second fails, the first is reversed; nothing is deleted | `undo_puts_the_original_back_and_keeps_retrodrives_copy` |
+| Crash or power loss mid-undo | At startup, with the drive confirmed: both moved → `undone`; only the first → RetroDrive's copy goes back (`replaced`); none → `replaced`; anything else is left for the user | `an_interrupted_undo_is_finished_or_rolled_back_at_startup` |
+| The copier's own recovery misreads undo items | Its recovery queries exclude `undoing` and `undone` | same test (last step) |
+| Undo races a scan, copy or import | Refused while any of them run; scans, copies and imports are refused during an undo | code review (`lib.rs` `undoing` flag) |
+| Backups fill the drive | Shown with their total size; the user deletes them in File Explorer | UI |
+
+**Residual risks:** the deployment manifest on the drive still describes the original copy (the catalog records the undo). An undone file can't be re-applied from this screen; build a new plan and choose Replace again.
+
