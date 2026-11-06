@@ -229,3 +229,19 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** the playlist holds full paths with the drive letter (RetroBat's format); on another letter, apply the design again.
 
+## 17. Addendum: game art and details in RetroBat's game lists (2026-11-07)
+**Scope:** owner request ("apply those [game images] to RetroBat"; answers: when copying and from a button; keep RetroBat's art; box art, logos, catalog details). Code: `gamelists.rs`; `lib.rs` (`preview_retrobat_art`, `apply_retrobat_art`, `start_deployment` `add_art`); scanner stores marquees.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| Overwriting art or names RetroBat already shows | Only missing tags are added; a name is replaced only if it equals the file name; existing entries are never removed or reordered | `art_and_details_fill_gaps_and_keep_retrobats_own` |
+| Replacing an image file | Images are written to a temporary name, read back (SHA-256) and renamed without replacing; a different file already at the name is left alone and the tag isn't added | `a_missing_list_is_created_and_a_stale_review_is_refused` |
+| Corrupting `gamelist.xml` | Edits are text insertions; the result must be well-formed and keep every old entry before it's written; written through the journaled settings writer (backup, temp + read-back, crash repair) | same test; `gamelists_are_read_with_their_layout` |
+| RetroBat overwriting the change, or reading a half-written list | Refused while RetroBat/EmulationStation runs | `art_and_details_fill_gaps_and_keep_retrobats_own` |
+| Acting on an old review | The Customize apply sends the lists' SHA-256 from the review; any change is refused | `a_missing_list_is_created_and_a_stale_review_is_refused` |
+| A failure part-way | Lists already written are put back; copied images stay as harmless new files | code review (rollback uses the tested settings undo; no failure-injection test) |
+| Undo | One *Applied designs* row restores every list (created lists are moved into the backup folder); images are not deleted (never-delete rule) | `art_and_details_fill_gaps_and_keep_retrobats_own`; `a_new_file_is_created_journaled_and_undone_by_moving_it_aside` |
+| Copyright | Only the user's own images, from their own folders, copied to their own drive; RetroDrive ships no art | docs/16 |
+
+**Residual risk:** images on a NAS that isn't connected are skipped (reported); undo leaves the copied images in `images` (unused once the list is restored).
+

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type React from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
 import { AlertTriangle, Check, Eye, Palette, Pencil, Plus, Trash2, Undo2, X } from 'lucide-react';
 import { baseName, fmtSize, localTime, shortPath } from './format';
@@ -22,6 +23,8 @@ type OwnMusic = { path: string; system: string|null };
 type DesignSpec = { theme: ThemeChoice|null; ini: Record<string,string>; own_video: string|null; music: Record<string,string>; own_music: OwnMusic[]; systems: Record<string,string|null>; play_tracks: string[]|null };
 type Design = { id: string; name: string; platform: string; spec: DesignSpec|null; draft: DesignSpec|null; updated_at: string; finished_at: string|null };
 type DesignPreview = { design: string; theme_action: string|null; theme_folder: string|null; theme_bytes: number; files: { name: string; folder: string; action: string }[]; es_changes: SettingChange[]; ini_changes: SettingChange[]; es_sha: string; ini_sha: string; tracks_playing: number|null; tracks_left_out: number|null; nothing: boolean };
+type SystemArt = { system: string; games_updated: number; games_added: number; images: number; kept: number };
+type ArtPreview = { systems: SystemArt[]; images: number; image_bytes: number; games_updated: number; art_unavailable: number; list_shas: Record<string,string>; nothing: boolean };
 type Application = { id: number; design_id: string|null; design_name: string; state: string; added: string[]; when: string };
 export type CustomizeInstall = { id: string; adapter_id: string; adapter_name: string; path: string; presence: string };
 
@@ -88,13 +91,18 @@ export default function Customize({ installs, native, busy, notify }: { installs
   const [newName,setNewName]=useState(''); const [working,setWorking]=useState(false); const [confirm,setConfirm]=useState<string|null>(null);
   const [applyFor,setApplyFor]=useState<{design:Design; preview:DesignPreview}|null>(null); const [emuAll,setEmuAll]=useState(false);
   const [assets,setAssets]=useState<Record<string,string>>({}); const saveTimer=useRef<number|undefined>(undefined);
+  const [art,setArt]=useState<ArtPreview|null>(null); const [artProgress,setArtProgress]=useState<{done:number; total:number}|null>(null);
+  useEffect(()=>{ const un=listen<{done:number; total:number}>('art-progress', e=>setArtProgress(e.payload)); return ()=>{ void un.then(f=>f()); }; },[]);
   const connected=!!target&&target.presence==='connected';
   const blocked=look?.blocked??null;
 
   const fail=(what:string)=>(e:unknown)=>notify(`${what}: ${String(e)}`, true);
   const loadDesigns=async()=>setDesigns(await invoke<Design[]>('list_designs'));
-  const loadTarget=async(id:string)=>{ const [t,l,e,m,a,h]=await Promise.all([invoke<ThemeList>('list_themes',{installationId:id}), invoke<LookOptions>('look_options',{installationId:id}), invoke<SettingsOptions>('emulator_settings',{installationId:id}), invoke<MusicSetting[]>('music_settings',{installationId:id}), invoke<Application[]>('design_applications',{installationId:id}), invoke<SettingsHistory[]>('emulator_settings_history',{installationId:id})]);
-    setThemes(t); setLook(l); setEmu(e); setMusic(m); setApps(a); setHistory(h); };
+  // Each read is independent: one failing (e.g. RetroBat never started, so es_systems.cfg is missing) doesn't hide the rest.
+  const loadTarget=async(id:string)=>{ const args={installationId:id}; const errors:unknown[]=[];
+    const one=<T,>(cmd:string, set:(v:T)=>void)=>invoke<T>(cmd,args).then(set,(e)=>{ errors.push(e); });
+    await Promise.all([one<ThemeList>('list_themes',setThemes), one<LookOptions>('look_options',setLook), one<SettingsOptions>('emulator_settings',setEmu), one<MusicSetting[]>('music_settings',setMusic), one<Application[]>('design_applications',setApps), one<SettingsHistory[]>('emulator_settings_history',setHistory)]);
+    if(errors.length) throw errors[0]; };
   useEffect(()=>{ if(native) void loadDesigns().catch(fail('Could not load your designs')); },[native]);
   useEffect(()=>{ if(native&&connected&&target) void loadTarget(target.id).catch(fail("Could not read RetroBat's settings")); },[native, target?.id, connected]);
   const asset=async(path:string|null|undefined)=>{ if(!path) return null; if(assets[path]) return assets[path]; try { const url=await invoke<string>('theme_preview_asset',{path}); setAssets(a=>({...a,[path]:url})); return url; } catch { return null; } };
@@ -131,6 +139,13 @@ export default function Customize({ installs, native, busy, notify }: { installs
     try { notify(await invoke<string>('undo_design_application',{id:a.id})); await loadTarget(target.id); } catch(e){ fail('Could not undo')(e); } finally { setWorking(false); setConfirm(null); } };
   const undoChange=async(h:SettingsHistory)=>{ if(!target) return; if(confirm!==`change:${h.id}`){ setConfirm(`change:${h.id}`); return; } setWorking(true);
     try { notify(`RetroBat settings: ${await invoke<string>('undo_emulator_settings',{changeId:h.id})}`); await loadTarget(target.id); } catch(e){ fail('Could not undo')(e); } finally { setWorking(false); setConfirm(null); } };
+
+  // ----- game art -----
+  const reviewArt=async()=>{ if(!target) return; setConfirm(null); try { setArt(await invoke<ArtPreview>('preview_retrobat_art',{installationId:target.id})); } catch(e){ fail('Could not check the game lists')(e); } };
+  const applyArt=async()=>{ if(!target||!art) return; if(confirm!=='art'){ setConfirm('art'); return; } setWorking(true); setArtProgress({done:0,total:art.images});
+    notify(`Adding art and details: copying ${art.images.toLocaleString()} images (${fmtSize(art.image_bytes)}). This can take a while on a USB drive…`);
+    try { notify(await invoke<string>('apply_retrobat_art',{installationId:target.id, listShas:art.list_shas})); setArt(null); await loadTarget(target.id); }
+    catch(e){ fail('Could not add the art')(e); } finally { setWorking(false); setConfirm(null); setArtProgress(null); } };
 
   // ----- controls -----
   /** A retrobat.ini option in the studio: "Leave as is" or a value. */
@@ -254,6 +269,17 @@ export default function Customize({ installs, native, busy, notify }: { installs
         {applyFor.preview.ini_changes.map(c=><li key={'i'+c.system+c.key}>{changeText(c)}</li>)}
         <li className="plan-notes">Everything else stays as it is. RetroBat's settings files are backed up first; Undo puts them back in one step. Added files are kept.</li></ul>}
       <div className="actions"><button className="primary" disabled={working||!!blocked||applyFor.preview.nothing} onClick={()=>void doApply()}>{working?'Applying…':confirm==='apply'?'Click again to apply':'Apply design'}</button><button className="ghost" disabled={working} onClick={()=>{ setApplyFor(null); setConfirm(null); }}>Not now</button></div></div>}
+
+    <div className="backups"><h3>Game art and details</h3>
+      <p className="plan-notes">Show your own box art, logos and catalog details (title, year, genre, developer, publisher) in RetroBat's menus for the games RetroDrive copied. Images are copied to each system's <span className="mono">images</span> folder as new files; RetroBat's game lists only get what they're missing, so art RetroBat already shows is kept. New copies get this automatically when you tick it while copying.</p>
+      {!art?<div className="actions"><button className="ghost" disabled={working||busy||!connected} onClick={()=>void reviewArt()}><Eye size={15}/> Check what can be added</button></div>
+      :art.nothing?<p className="plan-notes">Nothing to add: the games RetroDrive copied already have art and details in RetroBat{art.art_unavailable?`, or their images aren't available (${art.art_unavailable.toLocaleString()} games' images are on a drive that isn't connected)`:''}. <button className="link" onClick={()=>setArt(null)}>close</button></p>
+      :<div className="confirm"><p><b>Add art and details for {art.games_updated.toLocaleString()} game{art.games_updated===1?'':'s'}</b> ({art.images.toLocaleString()} images, {fmtSize(art.image_bytes)}):</p>
+        <div className="table-wrap"><table><thead><tr><th>System</th><th>Updated</th><th>Added to the list</th><th>Images</th><th>RetroBat's art kept</th></tr></thead><tbody>{art.systems.map(x=><tr key={x.system}><td className="mono">{x.system}</td><td>{x.games_updated.toLocaleString()}</td><td>{x.games_added.toLocaleString()}</td><td>{x.images.toLocaleString()}</td><td>{x.kept.toLocaleString()}</td></tr>)}</tbody></table></div>
+        {art.art_unavailable>0&&<p className="warn-text">{art.art_unavailable.toLocaleString()} games' images are on a drive that isn't connected; connect it and check again to include them.</p>}
+        {artProgress&&<p className="plan-notes">Copying images: {artProgress.done.toLocaleString()} of {artProgress.total.toLocaleString()}…</p>}
+        <div className="actions"><button className="primary" disabled={working||!!blocked} onClick={()=>void applyArt()}>{working?'Adding…':confirm==='art'?'Click again to add':'Add art and details'}</button><button className="ghost" disabled={working} onClick={()=>{ setArt(null); setConfirm(null); }}>Not now</button></div></div>}
+    </div>
 
     {apps.length>0&&<div className="backups"><h3>Applied designs</h3><div className="table-wrap"><table><thead><tr><th>When</th><th>Design</th><th>Added</th><th></th></tr></thead><tbody>{apps.map(a=><tr key={a.id}><td>{localTime(a.when)}</td><td><b>{a.design_name}</b></td><td>{a.added.length?a.added.map(x=><small key={x} className="mono">{x.replace(/\//g,'\\')}</small>):<small className="plan-notes">—</small>}</td>
       <td>{a.state==='undone'?<small>Undone</small>:<button className={confirm===`undo:${a.id}`?'primary':'ghost'} disabled={working||!!blocked} onClick={()=>void undoApp(a)} onBlur={()=>{ if(confirm===`undo:${a.id}`) setConfirm(null); }}><Undo2 size={15}/>{confirm===`undo:${a.id}`?'Click again to undo':'Undo'}</button>}</td></tr>)}</tbody></table></div></div>}

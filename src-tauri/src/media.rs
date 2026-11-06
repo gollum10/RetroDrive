@@ -172,7 +172,7 @@ fn priority(table: &str) -> String {
 
 /// SQL expression giving `kind|source|added_at` of a game file's best image (for listings).
 pub fn best_media_sql(file_column: &str) -> String {
-    format!("(SELECT gm.kind || '|' || gm.source || '|' || gm.added_at FROM game_media gm WHERE gm.game_file_id = {file_column} ORDER BY {} LIMIT 1)", priority("gm"))
+    format!("(SELECT gm.kind || '|' || gm.source || '|' || gm.added_at FROM game_media gm WHERE gm.game_file_id = {file_column} AND gm.kind <> 'marquee' ORDER BY {} LIMIT 1)", priority("gm"))
 }
 
 /// The image to show for a game file: its full path and MIME type, if the image's
@@ -182,7 +182,7 @@ pub fn resolve(connection: &Connection, game_file_id: &str, presence: PresenceFn
         .query_row(
             &format!(
                 "SELECT s.root_path, s.stable_id, m.relative_path FROM game_media m JOIN storage_locations s ON s.id = m.storage_location_id
-                 WHERE m.game_file_id = ?1 ORDER BY {} LIMIT 1",
+                 WHERE m.game_file_id = ?1 AND m.kind <> 'marquee' ORDER BY {} LIMIT 1",
                 priority("m")
             ),
             [game_file_id],
