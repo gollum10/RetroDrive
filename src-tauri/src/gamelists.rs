@@ -16,8 +16,16 @@
 //!   step is undone at once (recorded like a design application).
 //!
 //! Refused while RetroBat runs: it saves its game lists when it closes.
+//!
+//! Batocera (2026-11-07) uses the same `roms/<system>/gamelist.xml` and `./images/`
+//! convention, so the same step works on a Batocera game drive or share. Batocera runs
+//! on its own machine (no "running" check here); a running Batocera shows the new art
+//! after Start → Game Settings → Update Gamelists.
 
 use crate::copier::{self, TEMP_MARKER};
+
+/// Platforms whose game lists RetroDrive fills in (same format).
+pub const GAMELIST_PLATFORMS: &[&str] = &["retrobat", "batocera"];
 use crate::customizer::{self, ChangeRow, PresenceFn, RunningFn};
 use crate::volumes::Presence;
 use crate::{db, paths};
@@ -492,7 +500,7 @@ fn plan_system(root: &Path, system: &str, targets: &[&Target], sizes: &Sizes) ->
 }
 
 fn plan(connection: &Connection, installation_id: &str, deployment: Option<&str>, presence: PresenceFn, progress: ProgressFn) -> Result<(customizer::Install, Vec<SystemEdit>, usize, Sizes), String> {
-    let install = customizer::install(connection, installation_id, presence)?;
+    let install = customizer::install_for(connection, installation_id, presence, GAMELIST_PLATFORMS, "Game art and details are available for RetroBat and Batocera.")?;
     let (all, unavailable, sizes) = targets(connection, &install, deployment, presence, progress)?;
     let mut by_system: BTreeMap<String, Vec<&Target>> = BTreeMap::new();
     for t in &all {
@@ -577,7 +585,7 @@ pub fn apply(connection: &Connection, installation_id: &str, deployment: Option<
     if let Some(expected) = expected {
         let now: BTreeMap<String, String> = edits.iter().map(|e| (e.system.clone(), sha_or_none(e))).collect();
         if &now != expected {
-            return Err("RetroBat's game lists changed since you reviewed this, so nothing was changed. Review it again.".into());
+            return Err("The game lists changed since you reviewed this, so nothing was changed. Review it again.".into());
         }
     }
     // 1. Images (new files only), several at a time; any failure stops before the lists are touched.
@@ -585,7 +593,7 @@ pub fn apply(connection: &Connection, installation_id: &str, deployment: Option<
     let total = all_copies.len();
     let results = parallel_map(&all_copies, "copying", |(src, dst)| if fs::symlink_metadata(dst).is_err() { copy_image(src, dst) } else { Ok(()) }, progress);
     if let Some(Err(e)) = results.into_iter().find(Result::is_err) {
-        return Err(format!("{e} No game list was changed; images already copied are new files RetroBat doesn't use yet."));
+        return Err(format!("{e} No game list was changed; images already copied are new files nothing uses yet."));
     }
     let added: Vec<String> = edits.iter().filter(|e| !e.copies.is_empty()).map(|e| format!("{} image(s) in roms/{}/images", e.copies.len(), e.system)).collect();
     // 2. Game lists, journaled; if one fails, the ones already written are undone.
@@ -659,6 +667,11 @@ mod tests {
 
     /// A library with art (gamelist images) for three NES games, copied to a RetroBat.
     fn setup() -> Setup {
+        setup_for("retrobat")
+    }
+
+    /// The same, copied to `adapter` ("retrobat", or "batocera": a Batocera game folder).
+    fn setup_for(adapter: &str) -> Setup {
         let dir = tempfile::tempdir().unwrap();
         let lib = dir.path().join("library/nes");
         fs::create_dir_all(lib.join("media/images")).unwrap();
@@ -673,16 +686,26 @@ mod tests {
             "<gameList><game><path>./Kid.zip</path><image>./media/images/Kid.png</image><marquee>./media/wheel/Kid.png</marquee></game><game><path>./Scraped.zip</path><image>./media/images/Scraped.png</image></game><game><path>./New Game.zip</path><image>./media/images/New Game.png</image></game></gameList>",
         )
         .unwrap();
-        let root = dir.path().join("RetroBat");
-        for d in ["emulationstation/.emulationstation", "roms/nes", "bios"] {
-            fs::create_dir_all(root.join(d)).unwrap();
-        }
-        fs::write(root.join("RetroBat.exe"), b"").unwrap();
-        fs::write(root.join("emulationstation/.emulationstation/es_settings.cfg"), "<config></config>").unwrap();
+        let root = if adapter == "batocera" {
+            let share = dir.path().join("batocera");
+            for d in ["roms/nes", "bios", "system"] {
+                fs::create_dir_all(share.join(d)).unwrap();
+            }
+            fs::write(share.join("system/batocera.conf"), b"").unwrap();
+            share
+        } else {
+            let root = dir.path().join("RetroBat");
+            for d in ["emulationstation/.emulationstation", "roms/nes", "bios"] {
+                fs::create_dir_all(root.join(d)).unwrap();
+            }
+            fs::write(root.join("RetroBat.exe"), b"").unwrap();
+            fs::write(root.join("emulationstation/.emulationstation/es_settings.cfg"), "<config></config>").unwrap();
+            root
+        };
         let mut catalog = Connection::open_in_memory().unwrap();
         db::migrate(&mut catalog, None).unwrap();
         scanner::scan(&mut catalog, &dir.path().join("library"), &|_: &str| VolumeProbe::unknown()).unwrap();
-        let install = installations::add(&catalog, &root, "retrobat", &|_: &str| VolumeProbe::unknown()).unwrap();
+        let install = installations::add(&catalog, &root, adapter, &|_: &str| VolumeProbe::unknown()).unwrap();
         let roomy = |_: &Path| Some(crate::volumes::VolumeSpace { free_bytes: 500 << 30, total_bytes: 1 << 40, filesystem: Some("NTFS".into()), cluster_bytes: 4096 });
         let choices = crate::deployment::Choices::new();
         let plan = crate::deployment::plan_with(&catalog, &install, None, None, &choices, &connected, &roomy).unwrap();
@@ -738,6 +761,24 @@ mod tests {
         crate::designs::undo(&s.catalog, app, &connected, &closed).unwrap();
         assert_eq!(list(&s), LIST);
         assert!(s.root.join("roms/nes/images/Kid-image.png").exists(), "copied images are kept");
+    }
+
+    #[test]
+    fn batocera_game_lists_get_the_same_art_and_details() {
+        // Batocera uses the same gamelist.xml and ./images/ convention (2026-11-07).
+        let s = setup_for("batocera");
+        let p = preview(&s.catalog, &s.install, None, &connected, &quiet).unwrap();
+        assert_eq!((p.systems[0].games_updated, p.systems[0].games_added, p.images), (1, 1, 3));
+        apply(&s.catalog, &s.install, None, Some(&p.list_shas), &connected, &closed, &quiet).unwrap();
+        let after = list(&s);
+        assert!(after.contains("<name>Kid Icarus</name>") && after.contains("<image>./images/Kid-image.png</image>"));
+        assert!(after.contains("<image>./images/theirs.png</image>"), "art Batocera already shows is kept");
+        assert_eq!(fs::read(s.root.join("roms/nes/images/Kid-image.png")).unwrap(), b"art of Kid");
+        let app = crate::designs::applications(&s.catalog, &s.install).unwrap()[0].id;
+        crate::designs::undo(&s.catalog, app, &connected, &closed).unwrap();
+        assert_eq!(list(&s), LIST, "undo restores Batocera's list exactly");
+        // Emulator settings stay RetroBat-only.
+        assert!(crate::customizer::install(&s.catalog, &s.install, &connected).is_err());
     }
 
     #[test]
