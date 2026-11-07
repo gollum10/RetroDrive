@@ -7,6 +7,7 @@
 //! `Capabilities::copy_games` is set.
 
 pub mod batocera;
+pub mod esde;
 pub mod retrobat;
 pub mod retropie;
 
@@ -181,7 +182,7 @@ pub fn catalog() -> Vec<AdapterInfo> {
 
 /// Every adapter this build ships.
 pub fn registry() -> Vec<Box<dyn PlatformAdapter>> {
-    vec![Box::new(retrobat::RetroBat), Box::new(batocera::Batocera), Box::new(retropie::RetroPie)]
+    vec![Box::new(retrobat::RetroBat), Box::new(batocera::Batocera), Box::new(retropie::RetroPie), Box::new(esde::EsDe)]
 }
 
 pub fn find(id: &str) -> Option<Box<dyn PlatformAdapter>> {

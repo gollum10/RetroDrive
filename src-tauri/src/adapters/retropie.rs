@@ -116,6 +116,10 @@ impl PlatformAdapter for RetroPie {
             return detection(Confidence::NotDetected, Vec::new(), None);
         }
         let folder = games_folder(root);
+        // ES-DE creates folders for every system (including RetroPie-style names) and marks them.
+        if super::esde::has_esde_markers(&folder) {
+            return detection(Confidence::NotDetected, Vec::new(), None);
+        }
         let (count, distinctive) = system_folders(&folder);
         let mut evidence = Vec::new();
         if count > 0 {

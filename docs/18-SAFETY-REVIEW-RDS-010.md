@@ -377,3 +377,8 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** not yet tried on a real RetroPie or its configs share; backups live in `.retrodrive\backup` on the configs share.
 
+## 29. Addendum: ES-DE is preview-only (RDS-025 step 1, 2026-11-07)
+- **Scope:** ES-DE ROMs folders can be recognized and planned for, but not copied to (`copy_games: false`); the copier refuses before any write. No writes in this step.
+- **Detection safety:** RetroBat and Batocera folders are never claimed; ES-DE's data folder (settings, game lists, media) is never accepted as a game folder; RetroPie no longer claims a folder with ES-DE's markers.
+- **Before turning on copying:** ES-DE's ROMs folder is a normal Windows folder (local drive, USB or NAS), so the reviewed copier applies as for RetroBat; a NAS path gets the share id (§21).
+
