@@ -335,3 +335,8 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** gzip files can't be proven complete without unpacking; the checksum covers that, and the writers verify what they write.
 
+## 25. Addendum: RetroPie is preview-only (RDS-023 step 1, 2026-11-07)
+- **Scope:** RetroPie installations can be recognized and planned for, but **not copied to** (`copy_games: false`); the copier refuses before any write, as for Batocera before §21. No writes of any kind in this step.
+- **Detection safety:** RetroBat and Batocera folders are never claimed; a Raspberry Pi boot partition is never accepted as a game folder.
+- **Before turning on copying (step 2):** the Samba share (`\\RETROPIE\roms`) gets the share id of §21 (every RetroPie is `RETROPIE` by default); test on a real RetroPie (Samba on a Pi), including the Pi shutting down mid-copy; USB sticks are FAT32/exFAT (4 GB limit on FAT32 already enforced).
+

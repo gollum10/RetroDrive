@@ -8,6 +8,7 @@
 
 pub mod batocera;
 pub mod retrobat;
+pub mod retropie;
 
 use serde::Serialize;
 use std::path::Path;
@@ -122,6 +123,9 @@ impl ArcadeSystem {
 pub struct PlacementOptions {
     /// `None`: arcade games aren't placed.
     pub arcade: Option<ArcadeSystem>,
+    /// The installation folder has a `roms` folder inside (RetroPie: a USB `retropie`
+    /// folder) rather than being the roms folder itself (RetroPie's network share).
+    pub has_roms_folder: bool,
 }
 
 /// A game to plan, as the catalog knows it.
@@ -177,7 +181,7 @@ pub fn catalog() -> Vec<AdapterInfo> {
 
 /// Every adapter this build ships.
 pub fn registry() -> Vec<Box<dyn PlatformAdapter>> {
-    vec![Box::new(retrobat::RetroBat), Box::new(batocera::Batocera)]
+    vec![Box::new(retrobat::RetroBat), Box::new(batocera::Batocera), Box::new(retropie::RetroPie)]
 }
 
 pub fn find(id: &str) -> Option<Box<dyn PlatformAdapter>> {
@@ -203,10 +207,16 @@ pub(crate) fn has_entry(root: &Path, name: &str, want_dir: bool) -> bool {
 /// Batocera). Single files go straight into the system folder; multi-file games
 /// get their own subfolder so .m3u/.cue references keep working.
 pub(crate) fn plan_in_roms(system: &str, request: &PlacementRequest) -> Placement {
+    plan_in("roms/", system, request)
+}
+
+/// Like `plan_in_roms`, with the folder that holds the system folders (`""` when the
+/// installation folder is the roms folder itself).
+pub(crate) fn plan_in(prefix: &str, system: &str, request: &PlacementRequest) -> Placement {
     if request.files.iter().any(|f| f.relative_to_primary.split('/').any(|part| part == ".." || part.is_empty())) {
         return Placement::Unsupported { reason: "Its files are spread across folders, so the set can't be copied as one unit.".into() };
     }
-    let base = if request.files.len() > 1 { format!("roms/{system}/{}", folder_name(&request.title)) } else { format!("roms/{system}") };
+    let base = if request.files.len() > 1 { format!("{prefix}{system}/{}", folder_name(&request.title)) } else { format!("{prefix}{system}") };
     Placement::Planned { system_folder: system.to_string(), destinations: request.files.iter().map(|f| format!("{base}/{}", f.relative_to_primary)).collect() }
 }
 
