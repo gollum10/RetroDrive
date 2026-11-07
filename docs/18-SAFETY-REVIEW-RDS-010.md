@@ -464,5 +464,7 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 | Misleading advice for look-alike controllers | Rows that share a USB ID are never merged; a type is only shown when the row's names agree; the card says how many devices share the ID | `the_owners_list_is_loaded_and_looked_up` |
 | Licence obligations for bundled data | zlib and MIT notices shipped (`THIRD_PARTY_CONTROLLERS.txt`) and shown in the workspace with source versions | same test (notices present) |
 
+**Update (controller confirm, ADR-063):** the only new write is one row in RetroDrive's own catalog (`controller_choices`) when the user confirms a style; type ids and USB IDs are validated. Nothing is written to devices or systems.
+
 **Residual risk:** detection not yet tried with a real controller; steps 2 and 3 (pushing setups, light guns) write files and need their own scoped plan and review.
 

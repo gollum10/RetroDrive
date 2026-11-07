@@ -599,8 +599,20 @@ fn open_download_page(id: String) -> Result<(), String> {
 
 /// Controllers workspace: game controllers plugged into this PC (reads only).
 #[tauri::command]
-async fn connected_controllers() -> Result<Vec<controllers::Connected>, String> {
-    tauri::async_runtime::spawn_blocking(controllers::connected).await.map_err(|e| e.to_string())
+async fn connected_controllers(catalog: State<'_, Catalog>) -> Result<Vec<controllers::Connected>, String> {
+    let path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || -> Result<Vec<controllers::Connected>, String> {
+        let remembered = controllers::remembered(&db::open(&path)?)?;
+        Ok(controllers::connected(&remembered))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Controllers workspace: remember the style the user confirmed (`None` forgets it).
+#[tauri::command]
+fn remember_controller_type(catalog: State<'_, Catalog>, vid: String, pid: String, type_id: Option<String>) -> Result<(), String> {
+    controllers::remember(&db::open(&catalog.path()?)?, &vid, &pid, type_id.as_deref())
 }
 
 /// Controllers workspace: look a controller up by name or `vid:pid`.
@@ -1221,6 +1233,7 @@ pub fn run() {
             batocera_options,
             retropie_options,
             connected_controllers,
+            remember_controller_type,
             find_controllers,
             controller_reference,
             preview_bios_step,
