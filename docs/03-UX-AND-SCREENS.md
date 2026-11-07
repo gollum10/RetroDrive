@@ -53,6 +53,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-07 (Recalbox recognized, ADR-058):** a fifth platform card *Recalbox* (recognizes, checks, plans; copying not yet). Dashboard roadmap lists Recalbox; the empty-installations text mentions a Recalbox share.
 
+**Implemented 2026-11-07 (Recalbox copying, ADR-059):** the Recalbox card has **Sync** and *Plan deployment*; the layout check *Copying* is OK for a drive and a warning for the share ("keep Recalbox on…; update the game lists in Recalbox or restart it"). Dashboard roadmap: "Recalbox — Plan & copy games (network or drive)".
+
 ## Drives
 Inventory: manufacturer/model, bus type when known, capacity, filesystem, free space, label, stable identity, mount point, safety classification (system/unknown/removable). Selected drive details: partitions, managed installations, activity, backup state. No prominent 'Erase' control in default view. Clearly distinguish physical disks from mounted volumes.
 

@@ -424,5 +424,16 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 ## 33. Addendum: Recalbox is preview-only (RDS-025 step 4, 2026-11-07)
 - **Scope:** Recalbox shares can be recognized and planned for, but not copied to (`copy_games: false`); the copier refuses before any write. No writes in this step.
 - **Detection safety:** the boot partition is never accepted; RetroBat folders are never claimed; Batocera, RetroPie and ES-DE no longer claim a folder with `system\recalbox.conf`.
-- **Before turning on copying:** `\\RECALBOX\share` gets the share id (§21); an external drive's `recalbox` folder and the SD card's exFAT SHARE partition use the reviewed copier as for Batocera (§21).
+- **Superseded 2026-11-07 by §34.** Original note: `\\RECALBOX\share` gets the share id (§21); an external drive's `recalbox` folder and the SD card's exFAT SHARE partition use the reviewed copier as for Batocera (§21).
+
+## 34. Addendum: copying to Recalbox (RDS-025 step 5, 2026-11-07)
+**Scope and authorization:** owner go-ahead on 2026-11-07 ("go Recalbox"). Recalbox shares get the same copier as Batocera (§21): games into `roms\<system>`, BIOS into `bios`; Sync offered. Code: `adapters/recalbox.rs` (`copy_games: true`), `App.tsx`. No new kind of disk action.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| Another Recalbox named RECALBOX (the default) is written to | Share id on the first network copy (§21) | existing share-id tests |
+| Recalbox's own files replaced | Never overwrite; BIOS already there is kept | `recalbox_shares_are_copied_to`; copier tests |
+| Wrong folder names | Recalbox's names (`o2em`, `amiga600`, `segacd`, `gw`) | `placement_uses_recalbox_folder_names` |
+
+**Residual risk:** not yet tried on a real Recalbox.
 

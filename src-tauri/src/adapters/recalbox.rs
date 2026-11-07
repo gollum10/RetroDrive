@@ -1,6 +1,6 @@
-//! Recalbox adapter (RDS-025 step 4, 2026-11-07): recognition, layout checks and
-//! placement *previews*. Copying is off (`copy_games: false`) until the owner's
-//! go-ahead, as for every new target.
+//! Recalbox adapter (RDS-025, 2026-11-07): recognition, layout checks, placement and
+//! copying (step 5, owner go-ahead "go Recalbox" 2026-11-07; docs/18 §34) with the
+//! same copier as Batocera; `\RECALBOX\share` gets the share id (ADR-046).
 //!
 //! Facts checked 2026-11-07 (Recalbox source on GitLab, `recalbox/recalbox`):
 //! - Recalbox's games live in `/recalbox/share` (`roms/<system>`, `bios`, `saves`,
@@ -65,7 +65,7 @@ impl PlatformAdapter for Recalbox {
         AdapterKind::BootableOs
     }
     fn capabilities(&self) -> Capabilities {
-        Capabilities { detect: true, validate_layout: true, plan_placement: true, copy_games: false, install: false, write_files: false }
+        Capabilities { detect: true, validate_layout: true, plan_placement: true, copy_games: true, install: false, write_files: false }
     }
 
     fn detect(&self, root: &Path) -> Detection {
@@ -113,7 +113,16 @@ impl PlatformAdapter for Recalbox {
                 status: CheckStatus::Ok,
                 detail: if network { "Network share. It's only reachable while Recalbox is running and on the network.".into() } else { "Folder on a drive Windows can read (an external drive's recalbox folder, or the SD card's SHARE partition).".into() },
             },
-            LayoutCheck { id: "copying", label: "Copying".into(), status: CheckStatus::Warning, detail: "RetroDrive can plan for Recalbox and show what would go where, but doesn't copy to it yet.".into() },
+            LayoutCheck {
+                id: "copying",
+                label: "Copying".into(),
+                status: if network { CheckStatus::Warning } else { CheckStatus::Ok },
+                detail: if network {
+                    "Copies over the network are new: keep Recalbox on and connected until the copy finishes. Every file is checked after it's written; nothing is overwritten or deleted. Update the game lists in Recalbox (or restart it) to see new games.".into()
+                } else {
+                    "RetroDrive copies games here, checks every file after it's written, and never overwrites or deletes anything.".into()
+                },
+            },
             LayoutCheck { id: "version", label: "Version".into(), status: CheckStatus::Warning, detail: "Recalbox's version isn't kept in the share; its menu shows it.".into() },
         ]
     }
@@ -167,7 +176,7 @@ mod tests {
         make(boot.path(), &["recalbox-boot.conf", "boot/"]);
         assert!(Recalbox.detect(boot.path()).hint.unwrap().contains("boot partition"));
         assert!(Recalbox.validate_layout(share.path()).iter().all(|c| c.status != CheckStatus::Problem));
-        assert!(!Recalbox.capabilities().copy_games, "preview only until the owner's go-ahead");
+        assert!(Recalbox.capabilities().copy_games, "copies since the owner's go-ahead (docs/18 §34)");
     }
 
     #[test]
