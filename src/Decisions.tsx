@@ -5,12 +5,13 @@ import type { Choice, DeploymentPlan, PlanGame } from './App';
 import { fmtSize, shortPath } from './format';
 
 export type KeptOffChange = { destination: string; title: string; kept: boolean };
-type Kind = 'versions' | 'on_drive' | 'removed' | 'same_name' | 'cant_copy';
+type Kind = 'changed' | 'versions' | 'on_drive' | 'removed' | 'same_name' | 'cant_copy';
 type Row = { key: string; title: string; platform: string; games: PlanGame[] };
 
 const ROWS = 20;
 
 const kindText: Record<Kind, { tab: string; about: string }> = {
+  changed: { tab: 'Changed on the drive', about: 'RetroDrive copied these, but the file on the drive is different now. They’re left as they are unless you choose to restore your library’s version (the drive’s file is moved to .retrodrive\\backup first, never deleted).' },
   versions: { tab: 'Two versions in your library', about: 'Your library has two different files with the same name, often in two folders (like “roms” and “roms II”). They’re skipped until you pick which one to copy.' },
   on_drive: { tab: 'Different file on the drive', about: 'The drive already has a different file with this name. It’s kept unless you choose otherwise. Replacing first moves the drive’s file to .retrodrive\\backup, and is chosen one game at a time.' },
   removed: { tab: 'Removed from the drive', about: 'RetroDrive copied these before, but they’re no longer on the drive. They aren’t copied back unless you say so.' },
@@ -42,6 +43,7 @@ export function useDecisionGroups(plan: DeploymentPlan) {
     const every = [...plan.attention, ...plan.removed, ...plan.same_game];
     const of = (...s: string[]) => rows(every.filter(x => x.choice && s.includes(x.choice.situation)));
     const groups: Record<Kind, Row[]> = {
+      changed: of('changed'),
       versions: of('clash'),
       on_drive: of('conflict'),
       removed: of('removed', 'kept_off'),
@@ -50,7 +52,8 @@ export function useDecisionGroups(plan: DeploymentPlan) {
     };
     const waiting = groups.versions.filter(r => r.games[0].choice?.current === 'keep').length
       + groups.removed.filter(r => r.games[0].choice?.situation === 'removed' && r.games[0].choice.current === 'keep').length;
-    return { groups, waiting };
+    const changed = groups.changed.filter(r => r.games[0].choice?.current === 'keep').length;
+    return { groups, waiting, changed };
   }, [plan]);
 }
 
@@ -82,6 +85,7 @@ function RowSelect({ row, kind, value, disabled, onChange }: { row: Row; kind: K
   const labels = kind === 'versions' ? folderLabels(row.games) : [];
   return <select className="choice" aria-label={`What to do with ${row.title}`} value={value} disabled={disabled} onChange={e => onChange(e.target.value)}>
     {kind === 'versions' && <><option value="keep">Skip for now</option>{row.games.map((g, n) => <option key={g.choice!.file_id} value={'use:' + g.choice!.file_id}>Copy the one from “{labels[n]}” ({fmtSize(g.bytes)})</option>)}{c.options.includes('keep_both') && <option value="keep_both">Copy both (the second gets “(2)”)</option>}</>}
+    {kind === 'changed' && <><option value="keep">Leave it as it is</option>{c.options.includes('replace') && <option value="replace">Restore your library’s version</option>}</>}
     {kind === 'on_drive' && <><option value="keep">Keep the drive’s file</option>{c.options.includes('keep_both') && <option value="keep_both">Copy both (adds “(2)”)</option>}{c.options.includes('replace') && <option value="replace">Replace (drive’s file backed up first)</option>}</>}
     {kind === 'removed' && <>{c.situation === 'removed' && <option value="keep">Ask me later</option>}<option value="keep_both">Copy it again</option><option value="keep_off">Keep it off this drive</option></>}
     {kind === 'same_name' && <><option value="keep">Don’t copy</option><option value="keep_both">Copy anyway</option></>}
@@ -94,6 +98,7 @@ function bulkOptions(kind: Kind, list: Row[]): { value: string; label: string }[
     const folders = [...new Set(list.flatMap(r => folderLabels(r.games)))];
     return [{ value: 'keep', label: 'Skip them for now' }, ...folders.map(f => ({ value: 'folder:' + f, label: `Copy the one from “${f}”` })), { value: 'bigger', label: 'Copy the bigger file' }, { value: 'keep_both', label: 'Copy both' }];
   }
+  if (kind === 'changed') return [{ value: 'keep', label: 'Leave them as they are' }];
   if (kind === 'on_drive') return [{ value: 'keep', label: 'Keep the drive’s files' }, { value: 'keep_both', label: 'Copy both (adds “(2)”)' }];
   if (kind === 'removed') return [{ value: 'keep', label: 'Ask me later' }, { value: 'keep_both', label: 'Copy them again' }, { value: 'keep_off', label: 'Keep them off this drive' }];
   if (kind === 'same_name') return [{ value: 'keep', label: 'Don’t copy' }, { value: 'keep_both', label: 'Copy anyway' }];
@@ -110,11 +115,12 @@ function bulkValueFor(row: Row, bulk: string): string | null {
 
 /** One line under the summary; nothing if there's nothing to review. */
 export function DecisionsLine({ plan, open, onToggle }: { plan: DeploymentPlan; open: boolean; onToggle: () => void }) {
-  const { groups, waiting } = useDecisionGroups(plan);
+  const { groups, waiting, changed } = useDecisionGroups(plan);
   const total = Object.values(groups).reduce((n, g) => n + g.length, 0);
   if (total === 0) return null;
   return <p className="plan-notes decisions-line">
-    {waiting > 0 ? <>{waiting.toLocaleString()} {waiting === 1 ? 'game is' : 'games are'} skipped until you choose; everything else goes ahead. </> : <>Nothing is waiting for you. </>}
+    {waiting > 0 ? <>{waiting.toLocaleString()} {waiting === 1 ? 'game is' : 'games are'} skipped until you choose; everything else goes ahead. </> : changed === 0 ? <>Nothing is waiting for you. </> : null}
+    {changed > 0 && <>{changed.toLocaleString()} {changed === 1 ? 'game has' : 'games have'} changed on the drive (left as {changed === 1 ? 'it is' : 'they are'}). </>}
     <button className="link" onClick={onToggle}>{open ? 'Hide choices' : `Review choices (${total.toLocaleString()})`}</button>
   </p>;
 }

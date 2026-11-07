@@ -764,10 +764,16 @@ async fn sync_plan(catalog: State<'_, Catalog>, installation_id: String, choices
         .map_err(|e| e.to_string())?
 }
 
-/// Saves which platforms Sync leaves out (catalog only).
+/// What Sync keeps up to date on this installation (ADR-045).
 #[tauri::command]
-fn set_sync_skip(catalog: State<'_, Catalog>, installation_id: String, systems: Vec<String>) -> Result<(), String> {
-    installations::set_sync_skip(&db::open(&catalog.path()?)?, &installation_id, &systems)
+fn sync_scope(catalog: State<'_, Catalog>, installation_id: String) -> Result<installations::SyncScope, String> {
+    deployment::sync_scope(&db::open(&catalog.path()?)?, &installation_id, &volumes::presence)
+}
+
+/// Saves what Sync keeps up to date (catalog only; "stop syncing" never touches the drive).
+#[tauri::command]
+fn set_sync_scope(catalog: State<'_, Catalog>, installation_id: String, scope: installations::SyncScope) -> Result<(), String> {
+    installations::set_sync_scope(&db::open(&catalog.path()?)?, &installation_id, &scope)
 }
 
 /// The user's saved decisions for this installation (ADR-044).
@@ -832,6 +838,7 @@ fn start_deployment(
     choices: Option<deployment::Choices>,
     collection_id: Option<String>,
     add_art: Option<bool>,
+    sync: Option<bool>,
 ) -> Result<String, String> {
     let db_path = catalog.path()?;
     let mut running = active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?;
@@ -855,7 +862,7 @@ fn start_deployment(
 
     let id = job_id.clone();
     let choices = choices.unwrap_or_default();
-    tauri::async_runtime::spawn_blocking(move || run_deployment(app, db_path, id, installation_id, systems, fingerprint, choices, collection_id, add_art.unwrap_or(false), cancel));
+    tauri::async_runtime::spawn_blocking(move || run_deployment(app, db_path, id, installation_id, systems, fingerprint, choices, collection_id, add_art.unwrap_or(false), sync.unwrap_or(false), cancel));
     Ok(job_id)
 }
 
@@ -870,12 +877,13 @@ fn run_deployment(
     choices: deployment::Choices,
     collection_id: Option<String>,
     add_art: bool,
+    sync: bool,
     cancel: Arc<AtomicBool>,
 ) {
     let outcome = catch_unwind(AssertUnwindSafe(|| {
         let connection = db::open(&db_path)?;
         let mut observer = DeployUi { app: app.clone(), job_id: job_id.clone(), cancel };
-        let request = copier::DeployRequest { installation_id: &installation_id, systems: systems.as_deref(), fingerprint: &fingerprint, choices: &choices, collection: collection_id.as_deref() };
+        let request = copier::DeployRequest { installation_id: &installation_id, systems: systems.as_deref(), fingerprint: &fingerprint, choices: &choices, collection: collection_id.as_deref(), sync };
         copier::deploy(&connection, Some(&job_id), &request, &volumes::presence, &volumes::space, &mut observer)
     }))
     .unwrap_or_else(|_| Err("The copy stopped because of an internal error. Files already verified were kept; unfinished temporary files are cleaned up next time.".into()));
@@ -884,6 +892,14 @@ fn run_deployment(
         Ok(summary) => (summary.status.clone(), Some(summary), None),
         Err(error) => ("failed".to_string(), None, Some(error)),
     };
+    // A copy from a plan: Sync keeps what it covered up to date from now on (ADR-045).
+    if let Some(s) = &summary {
+        if !sync && matches!(s.status.as_str(), "completed" | "completed_with_issues" | "cancelled") && s.files_copied + s.files_replaced + s.files_identical > 0 {
+            if let Ok(connection) = db::open(&db_path) {
+                let _ = deployment::add_to_sync_scope(&connection, &installation_id, systems.as_deref().unwrap_or(&[]), collection_id.as_deref(), &volumes::presence);
+            }
+        }
+    }
     // Game art and details for the games just copied (RetroBat; the user ticked it when confirming).
     let art = match (&summary, add_art) {
         (Some(s), true) if matches!(s.status.as_str(), "completed" | "completed_with_issues" | "cancelled") && s.files_copied + s.files_replaced + s.files_identical > 0 => {
@@ -1001,7 +1017,8 @@ pub fn run() {
             remove_game_art,
             set_arcade_system,
             sync_plan,
-            set_sync_skip,
+            sync_scope,
+            set_sync_scope,
             set_kept_off,
             saved_choices,
             set_saved_choices,

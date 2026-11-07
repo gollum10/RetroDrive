@@ -248,25 +248,74 @@ pub fn plan(connection: &Connection, installation_id: &str, systems: Option<&[St
 
 /// The plan with the user's conflict and clash choices applied.
 pub fn plan_with(connection: &Connection, installation_id: &str, systems: Option<&[String]>, collection: Option<&str>, choices: &Choices, presence: PresenceFn, space: SpaceFn) -> Result<DeploymentPlan, String> {
-    build(connection, installation_id, systems, &[], collection, choices, presence, space).map(|(plan, _)| plan)
+    build(connection, installation_id, systems, None, collection, choices, presence, space).map(|(plan, _)| plan)
 }
 
 /// The Sync plan (ADR-043): every platform except the ones the user left out of Sync,
 /// with the user's choices for games removed from the drive. Reads only.
 pub fn plan_sync(connection: &Connection, installation_id: &str, choices: &Choices, presence: PresenceFn, space: SpaceFn) -> Result<DeploymentPlan, String> {
-    let skip = installations::sync_skip(connection, installation_id)?;
-    build(connection, installation_id, None, &skip, None, choices, presence, space).map(|(plan, _)| plan)
+    let scope = sync_scope(connection, installation_id, presence)?;
+    if scope.is_empty() {
+        return Err(NOTHING_SYNCED.into());
+    }
+    build(connection, installation_id, None, Some(&scope), None, choices, presence, space).map(|(plan, _)| plan)
+}
+
+pub const NOTHING_SYNCED: &str = "Nothing is synced to this drive yet. Use Plan deployment to choose what goes on it; once copied, Sync keeps those platforms up to date.";
+
+/// What Sync keeps up to date (ADR-045): the saved scope, or, before one is saved, the
+/// platforms RetroDrive copied to this installation that still have a copied game on
+/// the drive (so a platform whose files were all moved off isn't brought back).
+pub fn sync_scope(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<installations::SyncScope, String> {
+    if let Some(scope) = installations::saved_sync_scope(connection, installation_id)? {
+        return Ok(scope);
+    }
+    let install = installations::located(connection, presence, Some(installation_id))?.into_iter().next().ok_or("Installation not found")?;
+    let mut statement = connection
+        .prepare(
+            "SELECT DISTINCT i.destination_path FROM deployment_items i JOIN deployments d ON d.id = i.deployment_id
+             WHERE d.installation_id = ?1 AND i.state IN ('verified', 'identical', 'replaced')",
+        )
+        .map_err(|e| e.to_string())?;
+    let paths: Vec<String> = statement.query_map([installation_id], |r| r.get(0)).map_err(|e| e.to_string())?.collect::<Result<_, _>>().map_err(|e| e.to_string())?;
+    let mut systems: BTreeSet<String> = BTreeSet::new();
+    let connected = install.presence == Presence::Connected;
+    for path in paths {
+        let Some(folder) = system_folder_of(&path) else { continue };
+        if !systems.contains(&folder) && connected && Path::new(&path).exists() {
+            systems.insert(folder);
+        }
+    }
+    Ok(installations::SyncScope { systems: systems.into_iter().collect(), collections: Vec::new() })
+}
+
+/// The system folder of a destination path: the folder after `roms` (with something inside it).
+fn system_folder_of(path: &str) -> Option<String> {
+    let parts: Vec<&str> = path.split(['\\', '/']).collect();
+    let at = parts.iter().position(|p| p.eq_ignore_ascii_case("roms"))?;
+    parts.get(at + 2).and(parts.get(at + 1)).map(|s| s.to_string())
+}
+
+/// After a copy from a plan: the platforms (or collection) it covered are kept up to
+/// date by Sync from now on (ADR-045). Catalog only.
+pub fn add_to_sync_scope(connection: &Connection, installation_id: &str, systems: &[String], collection: Option<&str>, presence: PresenceFn) -> Result<(), String> {
+    let mut scope = sync_scope(connection, installation_id, presence)?;
+    match collection.filter(|c| !c.is_empty()) {
+        Some(c) => scope.collections.push(c.to_string()),
+        None => scope.systems.extend(systems.iter().cloned()),
+    }
+    installations::set_sync_scope(connection, installation_id, &scope)
 }
 
 /// The plan plus every selected item, for the copier.
-/// `collection` limits the plan to the games in that collection (step 7); `skip` leaves
-/// system folders out (Sync's saved selection).
+/// `collection` limits the plan to the games in that collection (step 7); `scope` (Sync)
+/// limits it to the synced platforms plus the games in the synced collections.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build(
     connection: &Connection,
     installation_id: &str,
     systems: Option<&[String]>,
-    skip: &[String],
+    scope: Option<&installations::SyncScope>,
     collection: Option<&str>,
     user_choices: &Choices,
     presence: PresenceFn,
@@ -284,6 +333,17 @@ pub(crate) fn build(
         let members: std::collections::HashSet<String> = statement.query_map([collection], |r| r.get(0)).map_err(|e| e.to_string())?.collect::<Result<_, _>>().map_err(|e| e.to_string())?;
         gathered.items.retain(|item| item.files.first().is_some_and(|f| members.contains(&f.game_file_id)));
     }
+    if let Some(scope) = scope {
+        let mut members: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for c in &scope.collections {
+            let mut statement = connection.prepare("SELECT game_file_id FROM collection_games WHERE collection_id = ?1").map_err(|e| e.to_string())?;
+            let ids = statement.query_map([c], |r| r.get::<_, String>(0)).map_err(|e| e.to_string())?;
+            for id in ids {
+                members.insert(id.map_err(|e| e.to_string())?);
+            }
+        }
+        gathered.items.retain(|item| scope.systems.contains(&item.system_folder) || item.files.first().is_some_and(|f| members.contains(&f.game_file_id)));
+    }
 
     // System folders on offer, and the selection.
     let mut choices: BTreeMap<String, SystemChoice> = BTreeMap::new();
@@ -293,7 +353,7 @@ pub(crate) fn build(
             platforms: Vec::new(),
             games: 0,
             bytes: 0,
-            selected: systems.is_none_or(|s| s.iter().any(|x| x == &item.system_folder)) && !skip.contains(&item.system_folder),
+            selected: systems.is_none_or(|s| s.iter().any(|x| x == &item.system_folder)),
         });
         if !choice.platforms.contains(&item.platform) {
             choice.platforms.push(item.platform.clone());
@@ -323,6 +383,9 @@ pub(crate) fn build(
     fingerprint.write(&adapters::CONTRACT_VERSION.to_string());
     fingerprint.write(&install_root);
     fingerprint.write(collection.unwrap_or(""));
+    if let Some(scope) = scope {
+        fingerprint.write(&format!("sync:{}|{}", scope.systems.join(","), scope.collections.join(",")));
+    }
     for item in &items {
         let action = item.action();
         games.add(action);
@@ -641,6 +704,18 @@ fn mark_removed(connection: &Connection, installation_id: &str, items: &mut [Ite
     }
     let kept_off = installations::kept_off(connection, installation_id)?;
     for item in items.iter_mut() {
+        // A game RetroDrive copied whose file on the drive now differs: "changed on the
+        // drive"; left as it is (default) or restored from the library (ADR-045).
+        if let Some(file) = item.files.iter_mut().find(|f| f.choice.as_ref().is_some_and(|c| c.situation == "conflict") && copied.contains(&path_key(&f.destination))) {
+            if let Some(choice) = file.choice.as_mut() {
+                choice.situation = "changed";
+                choice.options.retain(|o| *o != "keep_both");
+            }
+            if file.action == Action::Conflict {
+                file.reason = Some("This file changed on the drive since RetroDrive copied it. It's left as it is unless you choose to restore your library's version (the drive's file is backed up first).".into());
+            }
+            continue;
+        }
         let primary = &item.files[0];
         if primary.action != Action::Copy || primary.choice.is_some() {
             continue;
@@ -1192,12 +1267,14 @@ mod tests {
     }
 
     #[test]
-    fn sync_keeps_the_saved_selection_and_asks_about_removed_games() {
+    fn sync_keeps_only_what_was_synced_and_asks_about_removed_games() {
         let f = fixture(&[("nes/Kid.nes", b"nes"), ("nes/Gone.nes", b"gone"), ("snes/Quest.sfc", b"snes!")]);
-        // Sync leaves out what the user unticked, until it's changed again.
-        installations::set_sync_skip(&f.catalog, &f.id, &["snes".to_string()]).unwrap();
+        // Nothing copied yet: nothing to sync.
+        assert_eq!(plan_sync(&f.catalog, &f.id, &Choices::new(), &connected, &roomy).unwrap_err(), NOTHING_SYNCED);
+        // A plan copy of NES records it; Sync then covers NES only, never SNES.
+        add_to_sync_scope(&f.catalog, &f.id, &["nes".to_string()], None, &connected).unwrap();
         let p = plan_sync(&f.catalog, &f.id, &Choices::new(), &connected, &roomy).unwrap();
-        assert_eq!(p.systems.iter().map(|s| (s.system_folder.as_str(), s.selected)).collect::<Vec<_>>(), [("nes", true), ("snes", false)]);
+        assert_eq!(p.systems.iter().map(|s| (s.system_folder.as_str(), s.selected)).collect::<Vec<_>>(), [("nes", true)]);
         assert_eq!(p.games.copy, 2);
         // Pretend both NES games were copied before, then Gone was deleted from the drive.
         write(&f.root, "roms/nes/Kid.nes", b"nes");
@@ -1223,6 +1300,52 @@ mod tests {
         installations::set_kept_off(&f.catalog, &f.id, &gone.destination, None, false).unwrap();
         assert_eq!(plan_sync(&f.catalog, &f.id, &Choices::new(), &connected, &roomy).unwrap().games.removed, 1);
         assert_eq!(snapshot(&f.root), before, "planning reads only");
+    }
+
+    #[test]
+    fn sync_scope_starts_from_what_was_copied_and_grows_with_plans() {
+        let f = fixture(&[("nes/Kid.nes", b"nes"), ("snes/Quest.sfc", b"snes!"), ("ps2/Moved.iso", b"ps2"), ("gb/Pal.gb", b"gb"), ("gb/Pal2.gb", b"gb2")]);
+        let all = plan(&f.catalog, &f.id, None, &connected, &roomy).unwrap();
+        let dest = |title: &str| all.sample.iter().find(|g| g.title == title).unwrap().destination.clone();
+        // Copied before: Kid (still on the drive) and Moved (moved off the drive since).
+        write(&f.root, "roms/nes/Kid.nes", b"nes");
+        f.catalog.execute("INSERT INTO deployments (id, installation_id, adapter_id, adapter_contract, destination_root, plan_fingerprint, status) VALUES ('d1', ?1, 'retrobat', 1, 'x', 'f', 'completed')", [&f.id]).unwrap();
+        for title in ["Kid", "Moved"] {
+            f.catalog.execute("INSERT INTO deployment_items (deployment_id, game_index, game_title, source_path, destination_path, size_bytes, planned_action, state) VALUES ('d1', 0, ?1, 'src', ?2, 3, 'copy', 'verified')", [title, &dest(title)]).unwrap();
+        }
+        let scope = sync_scope(&f.catalog, &f.id, &connected).unwrap();
+        assert_eq!(scope.systems, ["nes"], "a platform whose copied games were all moved off isn't synced");
+        // A later plan copy of SNES adds it; a collection copy adds just its games.
+        add_to_sync_scope(&f.catalog, &f.id, &["snes".to_string()], None, &connected).unwrap();
+        let pal = f.catalog.query_row("SELECT id FROM game_files WHERE filename = 'Pal.gb'", [], |r| r.get::<_, String>(0)).unwrap();
+        let party = crate::collections::create(&f.catalog, "Party").unwrap();
+        crate::collections::add(&f.catalog, &party, &[pal]).unwrap();
+        add_to_sync_scope(&f.catalog, &f.id, &["gb".to_string()], Some(&party), &connected).unwrap();
+        let scope = installations::saved_sync_scope(&f.catalog, &f.id).unwrap().unwrap();
+        assert_eq!((scope.systems.clone(), scope.collections.len()), (vec!["nes".to_string(), "snes".to_string()], 1));
+        let p = plan_sync(&f.catalog, &f.id, &Choices::new(), &connected, &roomy).unwrap();
+        let mut titles: Vec<&str> = p.sample.iter().map(|g| g.title.as_str()).collect();
+        titles.sort();
+        assert_eq!(titles, ["Pal", "Quest"], "Kid is already there; only Pal from GB (the collection), never Pal2 or Moved");
+        // Stop syncing SNES: saved, nothing on the drive changes.
+        installations::set_sync_scope(&f.catalog, &f.id, &installations::SyncScope { systems: vec!["nes".into()], collections: scope.collections.clone() }).unwrap();
+        assert!(!plan_sync(&f.catalog, &f.id, &Choices::new(), &connected, &roomy).unwrap().sample.iter().any(|g| g.title == "Quest"));
+    }
+
+    #[test]
+    fn a_synced_game_changed_on_the_drive_is_shown_and_restored_only_if_chosen() {
+        let f = fixture(&[("nes/Kid.nes", b"nes")]);
+        let p = plan(&f.catalog, &f.id, None, &connected, &roomy).unwrap();
+        let dest = p.sample[0].destination.clone();
+        write(&f.root, "roms/nes/Kid.nes", b"changed on the drive");
+        f.catalog.execute("INSERT INTO deployments (id, installation_id, adapter_id, adapter_contract, destination_root, plan_fingerprint, status) VALUES ('d1', ?1, 'retrobat', 1, 'x', 'f', 'completed')", [&f.id]).unwrap();
+        f.catalog.execute("INSERT INTO deployment_items (deployment_id, game_index, game_title, source_path, destination_path, size_bytes, planned_action, state) VALUES ('d1', 0, 'Kid', 'src', ?1, 3, 'copy', 'verified')", [&dest]).unwrap();
+        let s = plan_sync(&f.catalog, &f.id, &Choices::new(), &connected, &roomy).unwrap();
+        let kid = s.attention.iter().find(|g| g.title == "Kid").unwrap();
+        let choice = kid.choice.as_ref().unwrap();
+        assert_eq!((kid.action, choice.situation, choice.options.clone()), (Action::Conflict, "changed", vec!["keep", "replace"]));
+        let restore = plan_sync(&f.catalog, &f.id, &Choices::from([(choice.key.clone(), Choice::Replace)]), &connected, &roomy).unwrap();
+        assert_eq!(restore.games.replace, 1, "restoring is the usual replace: the drive's file is backed up first");
     }
 
     #[test]

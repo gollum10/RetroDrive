@@ -692,7 +692,7 @@ mod tests {
                 1
             }
         }
-        copier::deploy(&catalog, None, &copier::DeployRequest { installation_id: &install, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None }, &connected, &roomy, &mut Quiet).unwrap();
+        copier::deploy(&catalog, None, &copier::DeployRequest { installation_id: &install, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None, sync: false }, &connected, &roomy, &mut Quiet).unwrap();
         // The catalog knows Kid's proper title and details.
         catalog.execute("INSERT INTO reference_catalogs (id, name, file_name, entries, genres_added) VALUES ('c', 'test', 't.csv', 1, 0)", []).unwrap();
         catalog
