@@ -4,6 +4,9 @@
 // remembering the user's gun.
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import { open } from '@tauri-apps/plugin-dialog';
+import { fmtSize } from './format';
 import { Check, Crosshair } from 'lucide-react';
 import ControllerOutline from './ControllerOutline';
 
@@ -19,6 +22,41 @@ const COLLECTION: Record<string, string> = {
 
 const fmt = (n: number) => n.toFixed(1);
 
+type SindenStatus = { installation_id: string; location: string; target: string; installed: boolean; problem: string|null };
+type SindenPreview = { source: string; target: string; to_copy: number; bytes: number; already_there: number; kept: string[]; kept_count: number };
+
+// Light guns D: copy the Sinden software the user downloaded into RetroBat's
+// system/tools/sinden folder (new files only; nothing replaced).
+function SindenStep({ notify }: { notify: (t: string, e?: boolean) => void }) {
+  const [rows, setRows] = useState<SindenStatus[]|null>(null);
+  const [p, setP] = useState<{ id: string; preview: SindenPreview }|null>(null); const [problem, setProblem] = useState('');
+  const [confirm, setConfirm] = useState(false); const [working, setWorking] = useState(false); const [progress, setProgress] = useState<{ done: number; total: number }|null>(null);
+  const load = async () => { try { setRows(await invoke<SindenStatus[]>('sinden_status')); } catch { setRows([]); } };
+  useEffect(() => { void load(); }, []);
+  useEffect(() => { const un = listen<{ done: number; total: number }>('art-progress', e => { if (working) setProgress(e.payload); }); return () => { void un.then(f => f()); }; }, [working]);
+  const choose = async (id: string) => { setProblem(''); setConfirm(false);
+    try { const source = await open({ directory: true, multiple: false, title: 'Select the folder with the Sinden software (Lightgun.exe)' }); if (typeof source !== 'string') return;
+      setP({ id, preview: await invoke<SindenPreview>('preview_sinden_step', { installationId: id, source }) }); } catch (e) { setP(null); setProblem(String(e)); } };
+  const copy = async () => { if (!p) return; if (!confirm) { setConfirm(true); return; } setWorking(true); setProgress(null);
+    try { notify(await invoke<string>('apply_sinden_step', { installationId: p.id, source: p.preview.source })); setP(null); await load(); }
+    catch (e) { notify(`Could not copy the Sinden software: ${String(e)}`, true); } finally { setWorking(false); setConfirm(false); setProgress(null); } };
+  if (!rows || rows.length === 0) return null;
+  return <div className="sinden-step"><b>Sinden software in RetroBat</b>
+    <ul className="setup-list">{rows.map(r => <li key={r.installation_id} className={r.installed ? 'setup-ready' : r.problem ? 'setup-unavailable' : 'setup-add'}>
+      <b>{r.installed ? '✓' : r.problem ? '–' : '＋'} {r.location}</b><br/>
+      <span className="plan-notes">{r.installed ? "The Sinden software is in RetroBat's system\\tools\\sinden folder." : r.problem ?? 'Not there yet. Download the Sinden software from the Sinden website and unpack it, then choose its folder: RetroDrive copies it in for you.'}</span>
+      {!r.installed && !r.problem && (!p || p.id !== r.installation_id) && <div className="actions"><button className="ghost" onClick={() => void choose(r.installation_id)}>Choose the Sinden folder…</button></div>}
+      {p && p.id === r.installation_id && (p.preview.to_copy === 0
+        ? <p className="plan-notes">Nothing to copy: it's already there. <button className="link" onClick={() => setP(null)}>close</button></p>
+        : <div className="confirm"><p><b>Copy {p.preview.to_copy.toLocaleString()} file{p.preview.to_copy === 1 ? '' : 's'}</b> ({fmtSize(p.preview.bytes)}) to <span className="mono">{p.preview.target}</span>?</p>
+          <ul>{p.preview.kept_count > 0 && <li>{p.preview.kept_count} different file(s) with the same name already there are kept{p.preview.kept.length ? ` (e.g. ${p.preview.kept.slice(0, 3).join(', ')})` : ''}.</li>}<li className="plan-notes">New files only; nothing is replaced or deleted.</li></ul>
+          {working && progress && <p className="plan-notes">Copying: {progress.done.toLocaleString()} of {progress.total.toLocaleString()}…</p>}
+          <div className="actions"><button className="primary" disabled={working} onClick={() => void copy()}>{working ? 'Copying…' : confirm ? 'Click again to copy' : 'Copy the Sinden software'}</button><button className="ghost" disabled={working} onClick={() => { setP(null); setConfirm(false); }}>Not now</button></div></div>)}
+    </li>)}</ul>
+    {problem && <p className="warn-text">{problem}</p>}
+  </div>;
+}
+
 function Distance({ gun }: { gun: Gun }) {
   const [inches, setInches] = useState(55);
   if (!gun.distance) return null;
@@ -28,14 +66,14 @@ function Distance({ gun }: { gun: Gun }) {
   return <p className="gun-distance">How far to sit from a <input type="number" min={10} max={150} value={inches} onChange={e => setInches(Math.max(10, Math.min(150, Number(e.target.value) || 55)))}/>-inch screen: <b>about {range(m, 'm')}</b> ({range(x => m(x) / 0.3048, 'ft')}). <small className="plan-notes">From Batocera's light gun guide.</small></p>;
 }
 
-function Guide({ gun, systems, gunGames, onShowGunGames }: { gun: Gun; systems: string[]; gunGames: number; onShowGunGames: () => void }) {
+function Guide({ gun, systems, gunGames, onShowGunGames, notify }: { gun: Gun; systems: string[]; gunGames: number; onShowGunGames: () => void; notify: (t: string, e?: boolean) => void }) {
   const known = systems.filter(s => s === 'retrobat' || s === 'batocera');
   const others = systems.filter(s => s !== 'retrobat' && s !== 'batocera');
   return <div className="gun-guide">
     <h4>Setting up your {gun.name}</h4>
     <Distance gun={gun}/>
     <ol>{gun.setup.map(s => <li key={s}>{s}</li>)}</ol>
-    {known.map(s => <div key={s}><b>On {SYSTEM[s]}</b><ul>{(s === 'retrobat' ? gun.retrobat : gun.batocera).map(x => <li key={x}>{x}</li>)}<li>{COLLECTION[s]}</li></ul></div>)}
+    {known.map(s => <div key={s}><b>On {SYSTEM[s]}</b><ul>{(s === 'retrobat' ? gun.retrobat : gun.batocera).map(x => <li key={x}>{x}</li>)}<li>{COLLECTION[s]}</li></ul>{s === 'retrobat' && gun.id === 'sinden' && <SindenStep notify={notify}/>}</div>)}
     {known.length === 0 && <p className="plan-notes">Add RetroBat or Batocera under Emulation Systems to see the steps for them. Both find most light guns by themselves.</p>}
     {others.length > 0 && <p className="plan-notes">RetroDrive doesn't have light gun steps for {others.map(s => SYSTEM[s] ?? s).join(', ')} yet; check that system's own guide.</p>}
     <p><button className="link" onClick={onShowGunGames}><Crosshair size={14}/> See the light gun games in your library</button> <small className="plan-notes">RetroDrive knows {gunGames.toLocaleString()} light gun games (from Batocera's game list). Pick them in the Game Library, add them to a collection, and copy that collection with Plan.</small></p>
@@ -76,7 +114,7 @@ export default function LightGuns({ notify, onShowGunGames }: { notify: (t: stri
     : state.chosen && changing !== 'manual' ? <p><Check size={15}/> Your light gun: <b>{state.chosen.name}</b> (not plugged in right now). <button className="link" onClick={() => setChanging('manual')}>Change</button> <button className="link" onClick={() => void remember('manual', null)}>I don't have one</button></p>
     : <><p className="plan-notes">No light gun plugged in. Have one? Plug it in and choose <b>Look again</b>, or choose it here to see how to set it up.</p>
       <GunPicker guns={state.guns} initial={state.chosen?.id ?? ''} busy={busy} onPick={id => void remember('manual', id)} onCancel={state.chosen ? () => setChanging(null) : undefined}/></>}
-    {confirmed && <Guide gun={confirmed} systems={state.systems} gunGames={state.gun_games} onShowGunGames={onShowGunGames}/>}
+    {confirmed && <Guide gun={confirmed} systems={state.systems} gunGames={state.gun_games} onShowGunGames={onShowGunGames} notify={notify}/>}
     {!confirmed && <p><button className="link" onClick={onShowGunGames}><Crosshair size={14}/> See the light gun games in your library</button></p>}
   </div>;
 }

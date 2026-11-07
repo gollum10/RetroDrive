@@ -486,3 +486,17 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 ## 39. Addendum: light guns A–C (2026-11-07)
 **Scope and authorization:** owner ("build A, B, and C, then do D"). Reads only: lists HID mice to recognize guns (zero-access handles, as in §37), shows guides and finds light gun games in the catalog. The only write is one row in RetroDrive's own catalog (`gun_choices`) when the user confirms or chooses a gun; gun ids and USB IDs are validated. Nothing is written to devices or systems. Step D (copying the Sinden software into RetroBat) writes files and gets its own addendum.
 
+## 40. Addendum: Sinden software into RetroBat, light guns D (2026-11-07)
+**Scope and authorization:** owner ("build A, B, and C, then do D"). Copies the Sinden software from a folder the user picks into RetroBat's `system\tools\sinden`. Code: `sinden_step.rs`, `LightGuns.tsx`, `lib.rs`.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| A file in RetroBat replaced | New files only: temporary name (create-new), checked, renamed without replacing; different files already there are kept and listed | `the_sinden_software_is_copied_into_retrobat_without_replacing_anything` |
+| Copying the wrong folder (e.g. a whole drive) | The folder must contain `Lightgun.exe`; at most 3,000 files and 2 GB; links aren't followed | same test, `files_below` |
+| Copying a folder into itself | Refused when the source is inside the target or the reverse | same test |
+| Wrong place | Only `system\tools\sinden` inside a connected RetroBat installation that has been started (its `system` folder exists) | `target_for` |
+| Distributing third-party software | RetroDrive ships and downloads nothing; it copies the user's own download | ADR-067 |
+| Crash mid-copy | At worst a temporary `…rdpart` file stays; never a half file under a real name | `copy_image` (§17) |
+
+**Residual risk:** not tried with the real Sinden software (the owner has no Sinden gun); file names come from the user's download.
+

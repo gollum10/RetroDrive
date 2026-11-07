@@ -28,6 +28,7 @@ mod restore;
 mod retropie_settings;
 mod themes;
 mod scanner;
+mod sinden_step;
 mod volumes;
 
 use serde::Serialize;
@@ -667,6 +668,36 @@ async fn light_guns(catalog: State<'_, Catalog>) -> Result<LightGunState, String
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Light guns D: whether each RetroBat installation has the Sinden software (reads only).
+#[tauri::command]
+async fn sinden_status(catalog: State<'_, Catalog>) -> Result<Vec<sinden_step::SindenStatus>, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || sinden_step::status(&db::open(&db_path)?, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Light guns D: what copying the user's Sinden folder into RetroBat would do (reads only).
+#[tauri::command]
+async fn preview_sinden_step(catalog: State<'_, Catalog>, installation_id: String, source: String) -> Result<sinden_step::SindenPreview, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || sinden_step::preview(&db::open(&db_path)?, &installation_id, Path::new(&source), &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Light guns D: copy the Sinden software into RetroBat (new files only; nothing replaced).
+#[tauri::command]
+async fn apply_sinden_step(app: AppHandle, catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, source: String) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        sinden_step::apply(&db::open(&db_path)?, &installation_id, Path::new(&source), &volumes::presence, &|phase, done, total| {
+            let _ = app.emit("art-progress", ArtProgress { phase: phase.to_string(), done, total });
+        })
+    })
+    .await
+    .map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
 }
 
 /// Light guns: remember the user's gun for `vid:pid`, or `manual` (`None` forgets it).
@@ -1319,6 +1350,9 @@ pub fn run() {
             controllers_for_installation,
             light_guns,
             remember_light_gun,
+            sinden_status,
+            preview_sinden_step,
+            apply_sinden_step,
             find_controllers,
             controller_reference,
             preview_bios_step,

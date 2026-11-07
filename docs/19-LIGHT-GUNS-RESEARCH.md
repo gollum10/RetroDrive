@@ -1,6 +1,6 @@
 # Light guns and light bars: research and proposal (RDS-028 step 3)
 
-**Status:** A, B and C built 2026-11-07 (ADR-066; owner "build A, B, and C, then do D"). D is next. Untested with a real gun (the owner doesn't have one). Owner request: "helping them config for complex setups like those with a Lightbar and Lightgun, so I would like to explore that."
+**Status:** A, B and C built 2026-11-07 (ADR-066; owner "build A, B, and C, then do D"). D built the same day (ADR-067). Untested with a real gun (the owner doesn't have one). Owner request: "helping them config for complex setups like those with a Lightbar and Lightgun, so I would like to explore that."
 
 ## 1. What the systems already do
 
