@@ -59,6 +59,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-07 (BIOS step, ADR-061):** Customize shows **BIOS files** for a RetroPie added by its network share and for ES-DE: an explanation of where the files go, *Check BIOS files* → "Copy N BIOS files (size) to <folder>?" with already there / kept / two versions in your library → *Copy BIOS files* (two clicks), progress, result message; or a plain reason (e.g. RetroArch not installed for this ES-DE). Plan's *Not placed automatically* points to this step for those two cases.
 
+**Implemented 2026-11-07 (Controllers workspace step 1, ADR-062):** a **Controllers** page (joystick icon) with: *Connected to this PC* (cards, *Look again*), *Look up a controller* (search by name or `vid:pid`, 12 shown), an opt-in table of the 12 controller types, and *Credits* (SDL GameControllerDB, RetroArch joypad autoconfig, versions, opt-in licence texts). Each card: name, USB ID (or "USB ID not recorded"), other devices sharing the ID, type tag + layout + suitable systems, or a plain reason when the type isn't certain, and whether SDL (RetroBat, ES-DE) and RetroArch already know it. Reads only.
+
 ## Drives
 Inventory: manufacturer/model, bus type when known, capacity, filesystem, free space, label, stable identity, mount point, safety classification (system/unknown/removable). Selected drive details: partitions, managed installations, activity, backup state. No prominent 'Erase' control in default view. Clearly distinguish physical disks from mounted volumes.
 

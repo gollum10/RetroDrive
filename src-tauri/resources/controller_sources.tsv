@@ -1,0 +1,4 @@
+source	url	commit	entries
+SDL GameControllerDB (gamecontrollerdb.txt)	https://github.com/mdqinc/SDL_GameControllerDB	07af1d50187e94c861c9f9f5d8a55b148f11306b	2282
+RetroArch joypad autoconfig	https://github.com/libretro/retroarch-joypad-autoconfig	2e3b8a2728d5efd00fa0207d07ba2488b89e87b2	1107
+Note	Controller type is set only when a controller name contains a clear keyword (see Type basis). If names point to more than one type the row stays blank, except arcade stick (CT09) wins over any other type. Blank means not stated. VID/PID blank when the GUID or cfg has no USB IDs.		
