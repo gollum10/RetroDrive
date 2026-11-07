@@ -262,8 +262,27 @@ pub fn remembered(connection: &rusqlite::Connection) -> Result<BTreeMap<String, 
     rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
 }
 
+/// Controllers the user confirmed: (vid, pid, XInput), oldest first.
+pub fn confirmed(connection: &rusqlite::Connection) -> Result<Vec<(String, String, bool)>, String> {
+    let mut statement = connection.prepare("SELECT usb_id, xinput FROM controller_choices ORDER BY decided_at, usb_id").map_err(|e| e.to_string())?;
+    let rows = statement.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, bool>(1)?))).map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    for row in rows {
+        let (usb, xinput) = row.map_err(|e| e.to_string())?;
+        if let Some((vid, pid)) = usb.split_once(':') {
+            out.push((vid.to_string(), pid.to_string(), xinput));
+        }
+    }
+    Ok(out)
+}
+
+/// A controller's name for messages: the list's name, else its USB ID.
+pub fn display_name(vid: &str, pid: &str) -> String {
+    lookup(vid, pid).filter(|i| !i.mixed_names).map(|i| i.name).unwrap_or_else(|| format!("controller {vid}:{pid}"))
+}
+
 /// Remember the style the user confirmed for a controller (`None` forgets it).
-pub fn remember(connection: &rusqlite::Connection, vid: &str, pid: &str, type_id: Option<&str>) -> Result<(), String> {
+pub fn remember(connection: &rusqlite::Connection, vid: &str, pid: &str, type_id: Option<&str>, xinput: bool) -> Result<(), String> {
     let hex4 = |s: &str| s.len() == 4 && s.chars().all(|c| c.is_ascii_hexdigit());
     if !hex4(vid) || !hex4(pid) {
         return Err("Not a USB ID".into());
@@ -275,7 +294,10 @@ pub fn remember(connection: &rusqlite::Connection, vid: &str, pid: &str, type_id
                 return Err(format!("Unknown controller type {id}"));
             }
             connection
-                .execute("INSERT INTO controller_choices (usb_id, type_id) VALUES (?1, ?2) ON CONFLICT(usb_id) DO UPDATE SET type_id = excluded.type_id, decided_at = CURRENT_TIMESTAMP", rusqlite::params![usb_id, id])
+                .execute(
+                    "INSERT INTO controller_choices (usb_id, type_id, xinput) VALUES (?1, ?2, ?3) ON CONFLICT(usb_id) DO UPDATE SET type_id = excluded.type_id, xinput = excluded.xinput, decided_at = CURRENT_TIMESTAMP",
+                    rusqlite::params![usb_id, id, xinput],
+                )
                 .map_err(|e| e.to_string())?;
         }
         None => {
@@ -409,15 +431,16 @@ mod tests {
         // The user's answer is remembered, wins, and can be forgotten.
         let mut c = rusqlite::Connection::open_in_memory().unwrap();
         crate::db::migrate(&mut c, None).unwrap();
-        remember(&c, "ABCD", "dcba", Some("CT09")).unwrap();
-        remember(&c, "abcd", "dcba", Some("CT06")).unwrap();
+        remember(&c, "ABCD", "dcba", Some("CT09"), false).unwrap();
+        remember(&c, "abcd", "dcba", Some("CT06"), true).unwrap();
+        assert_eq!(confirmed(&c).unwrap(), vec![("abcd".to_string(), "dcba".to_string(), true)]);
         let mine = remembered(&c).unwrap();
         assert_eq!(mine.get("abcd:dcba").map(String::as_str), Some("CT06"));
         let pad = describe("abcd".into(), "dcba".into(), None, true, &mine);
         assert_eq!((pad.suggested.as_ref().map(|t| t.id.as_str()), pad.suggested_by), (Some("CT06"), Some("remembered")));
-        assert!(remember(&c, "abcd", "dcba", Some("CT99")).is_err());
-        assert!(remember(&c, "xyz", "dcba", Some("CT06")).is_err());
-        remember(&c, "abcd", "dcba", None).unwrap();
+        assert!(remember(&c, "abcd", "dcba", Some("CT99"), false).is_err());
+        assert!(remember(&c, "xyz", "dcba", Some("CT06"), false).is_err());
+        remember(&c, "abcd", "dcba", None, false).unwrap();
         assert!(remembered(&c).unwrap().is_empty());
     }
 

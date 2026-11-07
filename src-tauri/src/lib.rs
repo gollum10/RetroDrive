@@ -631,8 +631,15 @@ async fn apply_controller_setup(catalog: State<'_, Catalog>, active: State<'_, A
 
 /// Controllers workspace: remember the style the user confirmed (`None` forgets it).
 #[tauri::command]
-fn remember_controller_type(catalog: State<'_, Catalog>, vid: String, pid: String, type_id: Option<String>) -> Result<(), String> {
-    controllers::remember(&db::open(&catalog.path()?)?, &vid, &pid, type_id.as_deref())
+fn remember_controller_type(catalog: State<'_, Catalog>, vid: String, pid: String, type_id: Option<String>, xinput: Option<bool>) -> Result<(), String> {
+    controllers::remember(&db::open(&catalog.path()?)?, &vid, &pid, type_id.as_deref(), xinput.unwrap_or(false))
+}
+
+/// Plan and Sync: the confirmed controllers' state on this installation (reads only).
+#[tauri::command]
+async fn controllers_for_installation(catalog: State<'_, Catalog>, installation_id: String) -> Result<controller_setup::InstallationControllers, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || controller_setup::for_installation(&db::open(&db_path)?, &installation_id, &volumes::presence)).await.map_err(|e| e.to_string())?
 }
 
 /// Controllers workspace: look a controller up by name or `vid:pid`.
@@ -1050,6 +1057,8 @@ struct DeployFinishedEvent {
     error: Option<String>,
     /// What happened with game art and details after the copy (RetroBat).
     art: Option<String>,
+    /// What happened with controller setups after the copy (the user ticked it).
+    controllers: Option<String>,
 }
 
 /// Copy the reviewed plan to an installation (RDS-010). `fingerprint` must match
@@ -1070,6 +1079,7 @@ fn start_deployment(
     collection_id: Option<String>,
     add_art: Option<bool>,
     sync: Option<bool>,
+    setup_controllers: Option<bool>,
 ) -> Result<String, String> {
     let db_path = catalog.path()?;
     let mut running = active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?;
@@ -1093,7 +1103,7 @@ fn start_deployment(
 
     let id = job_id.clone();
     let choices = choices.unwrap_or_default();
-    tauri::async_runtime::spawn_blocking(move || run_deployment(app, db_path, id, installation_id, systems, fingerprint, choices, collection_id, add_art.unwrap_or(false), sync.unwrap_or(false), cancel));
+    tauri::async_runtime::spawn_blocking(move || run_deployment(app, db_path, id, installation_id, systems, fingerprint, choices, collection_id, add_art.unwrap_or(false), sync.unwrap_or(false), setup_controllers.unwrap_or(false), cancel));
     Ok(job_id)
 }
 
@@ -1109,6 +1119,7 @@ fn run_deployment(
     collection_id: Option<String>,
     add_art: bool,
     sync: bool,
+    setup_controllers: bool,
     cancel: Arc<AtomicBool>,
 ) {
     let outcome = catch_unwind(AssertUnwindSafe(|| {
@@ -1146,6 +1157,15 @@ fn run_deployment(
         }
         _ => None,
     };
+    // Controller setups (the user ticked it when confirming; ADR-065). Not tied to the
+    // games, so it runs whenever the copy itself didn't fail.
+    let controllers = match (&summary, setup_controllers) {
+        (Some(s), true) if matches!(s.status.as_str(), "completed" | "completed_with_issues" | "cancelled") => db::open(&db_path).ok().and_then(|connection| match controller_setup::apply_for_installation(&connection, &installation_id, &volumes::presence) {
+            Ok(message) => message,
+            Err(e) => Some(format!("Your controller wasn't set up: {e} You can do it later on the Controllers page.")),
+        }),
+        _ => None,
+    };
     if let Ok(connection) = db::open(&db_path) {
         if let Some(s) = &summary {
             for issue in &s.issues {
@@ -1167,7 +1187,7 @@ fn run_deployment(
     if let Ok(mut running) = app.state::<ActiveJobs>().jobs.lock() {
         running.remove(&job_id);
     }
-    let _ = app.emit(EVENT_DEPLOY_FINISHED, DeployFinishedEvent { job_id, state, summary, error, art });
+    let _ = app.emit(EVENT_DEPLOY_FINISHED, DeployFinishedEvent { job_id, state, summary, error, art, controllers });
 }
 
 #[tauri::command]
@@ -1256,6 +1276,7 @@ pub fn run() {
             remember_controller_type,
             controller_setup_preview,
             apply_controller_setup,
+            controllers_for_installation,
             find_controllers,
             controller_reference,
             preview_bios_step,

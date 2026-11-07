@@ -338,6 +338,50 @@ pub fn apply(connection: &Connection, installation_ids: &[String], vid: &str, pi
     Ok(format!("Set up. {} Undo is under Customize → Show every settings change.", done.join(" ")))
 }
 
+/// What Plan and Sync tell the user about controllers for one installation (ADR-065).
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct InstallationControllers {
+    /// Controllers the user confirmed on the Controllers page.
+    pub confirmed: usize,
+    /// Names of confirmed controllers RetroDrive can set up here now.
+    pub to_add: Vec<String>,
+    /// Names of confirmed controllers to set up in the system's own menu, and how.
+    pub manual: Vec<String>,
+    pub manual_message: Option<String>,
+}
+
+/// Confirmed controllers' state on one installation (reads only).
+pub fn for_installation(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<InstallationControllers, String> {
+    let located = installations::located(connection, presence, Some(installation_id))?.into_iter().next().ok_or("Installation not found")?;
+    let confirmed = crate::controllers::confirmed(connection)?;
+    let mut out = InstallationControllers { confirmed: confirmed.len(), to_add: Vec::new(), manual: Vec::new(), manual_message: None };
+    for (vid, pid, xinput) in &confirmed {
+        match plan_for(connection, &located, vid, pid, *xinput) {
+            Plan::Add { .. } => out.to_add.push(crate::controllers::display_name(vid, pid)),
+            Plan::Manual(m) => {
+                out.manual.push(crate::controllers::display_name(vid, pid));
+                out.manual_message.get_or_insert(m);
+            }
+            Plan::Ready(_) | Plan::Unavailable(_) => {}
+        }
+    }
+    Ok(out)
+}
+
+/// After a copy (the user ticked it): set up every confirmed controller RetroDrive can
+/// set up on this installation. `None` when there was nothing to do.
+pub fn apply_for_installation(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<Option<String>, String> {
+    let located = installations::located(connection, presence, Some(installation_id))?.into_iter().next().ok_or("Installation not found")?;
+    let mut names = Vec::new();
+    for (vid, pid, xinput) in crate::controllers::confirmed(connection)? {
+        if matches!(plan_for(connection, &located, &vid, &pid, xinput), Plan::Add { .. }) {
+            apply(connection, std::slice::from_ref(&located.id), &vid, &pid, xinput, presence)?;
+            names.push(crate::controllers::display_name(&vid, &pid));
+        }
+    }
+    Ok((!names.is_empty()).then(|| format!("{} set up on {}. Undo is under Customize → Show every settings change.", names.join(", "), label(&located.adapter_id))))
+}
+
 fn fail(connection: &Connection, presence: PresenceFn, ids: &[i64], e: String) -> Result<String, String> {
     let undone = ids.iter().rev().all(|id| customizer::undo(connection, *id, presence, &customizer::never_running).is_ok());
     Err(if ids.is_empty() || undone { format!("{e} Nothing was set up.") } else { format!("{e} Some files were added; undo them under \"Show every settings change\".") })
@@ -450,6 +494,19 @@ mod tests {
         customizer::undo(&catalog, change, &connected, &customizer::never_running).unwrap();
         assert!(!user.exists(), "undo takes the new file away (into RetroDrive's backup folder)");
         assert!(preview(&catalog, "zz", "310a", false, &connected).is_err());
+
+        // Plan and Sync: nothing confirmed yet → the reminder; confirmed → set up after the copy.
+        assert_eq!(for_installation(&catalog, &id, &connected).unwrap().confirmed, 0);
+        crate::controllers::remember(&catalog, "2dc8", "310a", Some("CT07"), false).unwrap();
+        crate::controllers::remember(&catalog, "abcd", "dcba", Some("CT06"), false).unwrap();
+        let summary = for_installation(&catalog, &id, &connected).unwrap();
+        assert_eq!((summary.confirmed, summary.to_add.len(), summary.manual.len()), (2, 1, 1), "{summary:?}");
+        assert!(summary.to_add[0].contains("8BitDo") && summary.manual_message.unwrap().contains("Configure a controller"));
+        let message = apply_for_installation(&catalog, &id, &connected).unwrap().unwrap();
+        assert!(message.contains("8BitDo") && message.contains("RetroBat"), "{message}");
+        assert!(fs::read_to_string(&user).unwrap().contains("8BitDo Ultimate 2C"));
+        assert_eq!(apply_for_installation(&catalog, &id, &connected).unwrap(), None, "nothing left to do");
     }
 }
+
 

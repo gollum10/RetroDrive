@@ -479,5 +479,7 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 | Writing to the wrong place | Only the installation's own folder (RetroBat), the same Pi's `configs` share (RetroPie, roms share connected first), or the RetroArch next to the portable ES-DE (or `C:\RetroArch-Win64`) and its own `joypad_autoconfig_dir` | `plan_for`, tests |
 | Accidental click | Two clicks, the second names the files to be added | UI |
 
+**Update (Plan/Sync tick box, ADR-065):** the same add-only setup can run right after a copy when the user leaves the tick box ticked; it only runs for controllers the user confirmed and only where RetroDrive's plan says *add*; a failure is reported in the result and never affects the copied games.
+
 **Residual risk:** not yet run against a real RetroPie or a RetroArch for ES-DE; the owner's controllers are Xbox-style, for which nothing needs writing.
 
