@@ -481,7 +481,7 @@ export default function App() {
       <div className="actions"><button className="ghost" onClick={()=>setCopyResult(null)}>Close</button></div>
     </section>}
     </>}
-    {page==='Controllers' && <Controllers/>}
+    {page==='Controllers' && <Controllers notify={(text, isError=false)=>{ setError(isError); setMessage(text); }}/>}
     {page==='Customize' && <Customize installs={installs} native={native} busy={busy} notify={(text, isError=false)=>{ setError(isError); setMessage(text); }}/>}
     {page==='Settings' && <section className="panel"><h2>Reference catalog</h2>
       <p>Import your own game catalog (.xlsx or .csv) to show proper titles, years, genres and publishers. RetroDrive matches games by their exact No-Intro or MAME name first, then by title on the same system. Only names and details are imported; <b>art columns are never read</b>. Your files are never changed, and removing the catalog leaves your library as it was.</p>

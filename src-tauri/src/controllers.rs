@@ -59,6 +59,13 @@ pub struct Connected {
     /// The device's own product name, when Windows reports one.
     pub product: Option<String>,
     pub info: Option<ControllerInfo>,
+    /// Windows uses it as an Xbox (XInput) controller.
+    pub xinput: bool,
+    /// The style RetroDrive thinks it is; the user confirms it or picks another.
+    pub suggested: Option<ControllerType>,
+    /// Where the suggestion came from: `remembered` (the user confirmed it before),
+    /// `list`, `name` (words in its name) or `xinput`.
+    pub suggested_by: Option<&'static str>,
 }
 
 #[derive(Debug, Serialize)]
@@ -195,15 +202,87 @@ pub fn reference() -> Reference {
     Reference { types: types(), sources, controllers: rows().len(), notices: NOTICES }
 }
 
-/// A HID device seen by Windows: (vid, pid, product name, de-duplication key).
-type Seen = (String, String, Option<String>, String);
+/// A HID device seen by Windows: (vid, pid, product name, de-duplication key, XInput).
+type Seen = (String, String, Option<String>, String, bool);
 
-/// Game controllers plugged into this PC (reads only).
-pub fn connected() -> Vec<Connected> {
-    devices()
-        .into_iter()
-        .map(|(vid, pid, product, _)| Connected { info: lookup(&vid, &pid), vid, pid, product })
-        .collect()
+/// Game controllers plugged into this PC (reads only). `remembered`: styles the user
+/// confirmed before, by `vid:pid`.
+pub fn connected(remembered: &BTreeMap<String, String>) -> Vec<Connected> {
+    devices().into_iter().map(|(vid, pid, product, _, xinput)| describe(vid, pid, product, xinput, remembered)).collect()
+}
+
+fn describe(vid: String, pid: String, product: Option<String>, xinput: bool, remembered: &BTreeMap<String, String>) -> Connected {
+    let info = lookup(&vid, &pid);
+    let (suggested, suggested_by) = match remembered.get(&format!("{vid}:{pid}")).and_then(|id| type_by_id(id)) {
+        Some(t) => (Some(t), Some("remembered")),
+        None => suggest(info.as_ref(), product.as_deref(), xinput),
+    };
+    Connected { vid, pid, product, info, xinput, suggested, suggested_by }
+}
+
+/// The style to suggest: the list's type when it is certain, else words in the
+/// controller's name, else Xbox-style for controllers Windows uses as Xbox controllers.
+fn suggest(info: Option<&ControllerInfo>, product: Option<&str>, xinput: bool) -> (Option<ControllerType>, Option<&'static str>) {
+    if let Some(t) = info.and_then(|i| i.controller_type.clone()) {
+        return (Some(t), Some("list"));
+    }
+    let named = product.and_then(guess_from_name).or_else(|| info.filter(|i| !i.mixed_names).and_then(|i| guess_from_name(&i.name)));
+    if let Some(t) = named.and_then(type_by_id) {
+        return (Some(t), Some("name"));
+    }
+    if xinput {
+        return (type_by_id("CT07"), Some("xinput"));
+    }
+    (None, None)
+}
+
+/// A controller type from words in a name (whole words; phrases as written).
+pub fn guess_from_name(name: &str) -> Option<&'static str> {
+    let lower = name.to_lowercase();
+    let words: Vec<&str> = lower.split(|c: char| !c.is_ascii_alphanumeric()).filter(|w| !w.is_empty()).collect();
+    let has = |list: &[&str]| list.iter().any(|w| if w.contains([' ', '-']) { lower.contains(w) } else { words.contains(w) });
+    const RULES: [(&str, &[&str]); 9] = [
+        ("CT11", &["gun", "lightgun", "sinden", "gun4ir", "aimtrak", "zapper", "phaser", "guncon", "light gun"]),
+        ("CT12", &["wheel", "racing", "flight", "throttle", "hotas", "dance", "guitar", "drum", "drums", "bongos"]),
+        ("CT09", &["arcade", "fightstick", "encoder", "ipac", "xinmo", "fight stick", "zero delay", "i-pac", "xin-mo"]),
+        ("CT10", &["spinner", "trackball", "paddle", "paddles"]),
+        ("CT07", &["xbox", "xinput", "gamecube", "dreamcast"]),
+        ("CT06", &["playstation", "dualshock", "dualsense", "sixaxis", "ps2", "ps3", "ps4", "ps5"]),
+        ("CT05", &["n64", "nintendo 64"]),
+        ("CT04", &["snes", "genesis", "saturn", "megadrive", "super nintendo", "mega drive", "super famicom"]),
+        ("CT03", &["nes", "famicom", "master system"]),
+    ];
+    RULES.iter().find(|(_, list)| has(list)).map(|(id, _)| *id)
+}
+
+/// Styles the user confirmed, by `vid:pid` (ADR-063).
+pub fn remembered(connection: &rusqlite::Connection) -> Result<BTreeMap<String, String>, String> {
+    let mut statement = connection.prepare("SELECT usb_id, type_id FROM controller_choices").map_err(|e| e.to_string())?;
+    let rows = statement.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))).map_err(|e| e.to_string())?;
+    rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
+}
+
+/// Remember the style the user confirmed for a controller (`None` forgets it).
+pub fn remember(connection: &rusqlite::Connection, vid: &str, pid: &str, type_id: Option<&str>) -> Result<(), String> {
+    let hex4 = |s: &str| s.len() == 4 && s.chars().all(|c| c.is_ascii_hexdigit());
+    if !hex4(vid) || !hex4(pid) {
+        return Err("Not a USB ID".into());
+    }
+    let usb_id = format!("{}:{}", vid.to_lowercase(), pid.to_lowercase());
+    match type_id {
+        Some(id) => {
+            if type_by_id(id).is_none() {
+                return Err(format!("Unknown controller type {id}"));
+            }
+            connection
+                .execute("INSERT INTO controller_choices (usb_id, type_id) VALUES (?1, ?2) ON CONFLICT(usb_id) DO UPDATE SET type_id = excluded.type_id, decided_at = CURRENT_TIMESTAMP", rusqlite::params![usb_id, id])
+                .map_err(|e| e.to_string())?;
+        }
+        None => {
+            connection.execute("DELETE FROM controller_choices WHERE usb_id = ?1", [usb_id]).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -246,7 +325,9 @@ fn devices() -> Vec<Seen> {
             if out.iter().any(|s| s.3 == key && !key.is_empty()) {
                 continue;
             }
-            out.push((format!("{:04x}", hid.dwVendorId & 0xffff), format!("{:04x}", hid.dwProductId & 0xffff), product_name(&name), key));
+            // XInput devices have `IG_` in their device path.
+            let xinput = path.to_lowercase().contains("ig_");
+            out.push((format!("{:04x}", hid.dwVendorId & 0xffff), format!("{:04x}", hid.dwProductId & 0xffff), product_name(&name), key, xinput));
         }
         out
     }
@@ -305,6 +386,40 @@ fn devices() -> Vec<Seen> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_style_is_suggested_and_the_users_answer_is_remembered() {
+        assert_eq!(guess_from_name("PowerA Xbox Series Controller"), Some("CT07"));
+        assert_eq!(guess_from_name("Sony DualSense Wireless Controller"), Some("CT06"));
+        assert_eq!(guess_from_name("8BitDo SN30 Pro for SNES"), Some("CT04"), "SNES isn't NES");
+        assert_eq!(guess_from_name("Sinden Lightgun"), Some("CT11"));
+        assert_eq!(guess_from_name("Ultimarc I-PAC 2"), Some("CT09"));
+        assert_eq!(guess_from_name("Generic USB Joystick"), None);
+        assert_eq!(guess_from_name("Business Pad"), None, "whole words only");
+        let none = BTreeMap::new();
+        // Unknown to the list, but Windows uses it as an Xbox controller.
+        let pad = describe("abcd".into(), "dcba".into(), Some("Wireless Controller".into()), true, &none);
+        assert_eq!((pad.suggested.as_ref().map(|t| t.id.as_str()), pad.suggested_by), (Some("CT07"), Some("xinput")));
+        // Unknown and nothing to go on: no suggestion, the user picks.
+        let unknown = describe("abcd".into(), "dcba".into(), None, false, &none);
+        assert!(unknown.suggested.is_none());
+        // The list's certain type wins over the name.
+        let n64 = describe("2dc8".into(), "9002".into(), Some("Xbox thing".into()), true, &none);
+        assert_eq!((n64.suggested.as_ref().map(|t| t.id.as_str()), n64.suggested_by), (Some("CT05"), Some("list")));
+        // The user's answer is remembered, wins, and can be forgotten.
+        let mut c = rusqlite::Connection::open_in_memory().unwrap();
+        crate::db::migrate(&mut c, None).unwrap();
+        remember(&c, "ABCD", "dcba", Some("CT09")).unwrap();
+        remember(&c, "abcd", "dcba", Some("CT06")).unwrap();
+        let mine = remembered(&c).unwrap();
+        assert_eq!(mine.get("abcd:dcba").map(String::as_str), Some("CT06"));
+        let pad = describe("abcd".into(), "dcba".into(), None, true, &mine);
+        assert_eq!((pad.suggested.as_ref().map(|t| t.id.as_str()), pad.suggested_by), (Some("CT06"), Some("remembered")));
+        assert!(remember(&c, "abcd", "dcba", Some("CT99")).is_err());
+        assert!(remember(&c, "xyz", "dcba", Some("CT06")).is_err());
+        remember(&c, "abcd", "dcba", None).unwrap();
+        assert!(remembered(&c).unwrap().is_empty());
+    }
 
     #[test]
     fn the_owners_list_is_loaded_and_looked_up() {

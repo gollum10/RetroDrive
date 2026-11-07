@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 20;
+pub const SCHEMA_VERSION: i32 = 21;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -190,6 +190,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 20 {
         tx.execute_batch(SCHEMA_V20).map_err(|e| e.to_string())?;
+    }
+    if from_version < 21 {
+        tx.execute_batch(SCHEMA_V21).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -958,6 +961,16 @@ ALTER TABLE installations ADD COLUMN choices_json TEXT;
 /// NULL = not recorded yet (derived from what RetroDrive copied there).
 const SCHEMA_V20: &str = "
 ALTER TABLE installations ADD COLUMN sync_scope_json TEXT;
+";
+
+/// v21 (ADR-063): the controller style the user confirmed, per USB ID (`vid:pid`),
+/// so the Controllers page doesn't ask again.
+const SCHEMA_V21: &str = "
+CREATE TABLE controller_choices (
+    usb_id      TEXT PRIMARY KEY,
+    type_id     TEXT NOT NULL,
+    decided_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 ";
 
 #[cfg(test)]
