@@ -32,7 +32,7 @@ function ConfirmCard({ c, types, onSaved, notify }: { c: Connected; types: Contr
   const name = c.info?.name ?? c.product ?? 'Unknown controller';
   const shown = choosing ? types.find(t => t.id === pick) ?? null : c.suggested;
   const save = async (typeId: string|null) => { setSaving(true);
-    try { await invoke('remember_controller_type', { vid: c.vid, pid: c.pid, typeId }); setChoosing(false); onSaved(); }
+    try { await invoke('remember_controller_type', { vid: c.vid, pid: c.pid, typeId, xinput: c.xinput }); setChoosing(false); onSaved(); }
     catch (e) { notify(`Could not save that: ${String(e)}`, true); } finally { setSaving(false); } };
   const why = c.suggested_by === 'xinput' ? 'Windows uses it as an Xbox controller.' : c.suggested_by === 'name' ? 'Going by its name.' : c.suggested_by === 'list' ? 'From RetroDrive\'s controller list.' : '';
 
