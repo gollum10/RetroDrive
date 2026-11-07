@@ -1,7 +1,7 @@
-//! Batocera adapter (RDS-008): read-only recognition, layout checks and placement
-//! *previews*. Copying into Batocera is off (`copy_games: false`) until it has its
-//! own safety review: the copier's checks were reviewed for local Windows drives
-//! (docs/18), not for network shares.
+//! Batocera adapter (RDS-008, RDS-022): recognition, layout checks, placement and
+//! copying, to a game drive plugged into this PC (`<drive>\batocera`, exFAT or NTFS)
+//! or over the network share `\\BATOCERA\share` (safety review: docs/18 §21; a share
+//! is identified by the id RetroDrive leaves on it, ADR-046).
 //!
 //! Facts checked 2026-11-06:
 //! - Batocera is a bootable OS. The **BATOCERA** partition is the system and the only
@@ -61,7 +61,7 @@ impl PlatformAdapter for Batocera {
         AdapterKind::BootableOs
     }
     fn capabilities(&self) -> Capabilities {
-        Capabilities { detect: true, validate_layout: true, plan_placement: true, copy_games: false, install: false, write_files: false }
+        Capabilities { detect: true, validate_layout: true, plan_placement: true, copy_games: true, install: false, write_files: false }
     }
 
     fn detect(&self, root: &Path) -> Detection {
@@ -139,8 +139,12 @@ impl PlatformAdapter for Batocera {
             LayoutCheck {
                 id: "copying",
                 label: "Copying".into(),
-                status: CheckStatus::Warning,
-                detail: "RetroDrive can plan for Batocera and show what would go where, but doesn't copy to it yet. Copying needs its own safety review first.".into(),
+                status: if network { CheckStatus::Warning } else { CheckStatus::Ok },
+                detail: if network {
+                    "Copies over the network are new: keep Batocera on and connected until the copy finishes. Every file is checked after it's written; nothing is overwritten or deleted.".into()
+                } else {
+                    "RetroDrive copies games here, checks every file after it's written, and never overwrites or deletes anything.".into()
+                },
             },
             LayoutCheck {
                 id: "version",
@@ -243,14 +247,15 @@ mod tests {
     }
 
     #[test]
-    fn layout_checks_say_copying_is_not_available() {
+    fn layout_checks_say_how_copying_works() {
         let dir = tempfile::tempdir().unwrap();
         make(dir.path(), USERDATA);
         let checks = Batocera.validate_layout(dir.path());
         let get = |id: &str| checks.iter().find(|c| c.id == id).unwrap().clone();
         assert_eq!(get("roms").status, CheckStatus::Ok);
         assert_eq!(get("config").status, CheckStatus::Ok);
-        assert_eq!(get("copying").status, CheckStatus::Warning);
+        assert_eq!(get("copying").status, CheckStatus::Ok, "a game drive copies like RetroBat");
+        assert!(get("copying").detail.contains("never overwrites"));
         fs::remove_dir_all(dir.path().join("roms")).unwrap();
         assert_eq!(Batocera.validate_layout(dir.path()).iter().find(|c| c.id == "roms").unwrap().status, CheckStatus::Problem);
         assert!(is_network_path(r"\\BATOCERA\share"));

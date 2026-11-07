@@ -179,6 +179,19 @@ pub fn deploy(connection: &Connection, job_id: Option<&str>, request: &DeployReq
         .map_err(|e| e.to_string())?;
     let install_root = PathBuf::from(&plan.installation_path);
     let work: Vec<&Item> = items.iter().filter(|i| matches!(i.action(), Action::Copy | Action::AlreadyThere | Action::Replace)).collect();
+    // A network share is known by the id RetroDrive leaves on it (RDS-022, ADR-046):
+    // the first copy gives it one and records it, so a different machine answering to
+    // the same name later shows as a different drive and is never copied to.
+    let stable_id = match stable_id {
+        Some(id) if id.starts_with("unc:") && !id.contains('#') && presence(&volume_root, Some(&id)) == Presence::Connected => {
+            let claimed = crate::volumes::share_stable_id(&volume_root, Some(&crate::volumes::claim_share(&volume_root)?));
+            connection
+                .execute("UPDATE storage_locations SET stable_id = ?2 WHERE stable_id = ?1", params![id, claimed])
+                .map_err(|e| format!("Couldn't record the share's id, so nothing was copied: {e}"))?;
+            Some(claimed)
+        }
+        other => other,
+    };
 
     // Old leftovers on this destination are cleaned before starting.
     cleanup_leftovers(connection, presence)?;
@@ -1546,32 +1559,79 @@ mod tests {
         ]
     }
 
-    #[test]
-    fn preview_only_platforms_are_never_copied_to() {
-        // Batocera (RDS-008) plans but doesn't copy: the copier refuses before writing anything.
-        let dir = tempfile::tempdir().unwrap();
-        let share = dir.path().join("share");
+    fn batocera_share(dir: &Path) -> (PathBuf, PathBuf) {
+        let share = dir.join("share");
         for entry in ["roms/snes", "bios", "system"] {
             fs::create_dir_all(share.join(entry)).unwrap();
         }
         fs::write(share.join("system/batocera.conf"), b"").unwrap();
-        let library = dir.path().join("library");
+        let library = dir.join("library");
         write(&library, "snes/Mario.sfc", b"mario");
+        write(&library, "snes/Zelda.sfc", b"zelda!");
+        (share, library)
+    }
+
+    #[test]
+    fn batocera_is_copied_to_like_retrobat() {
+        // RDS-022: a Batocera game folder (e.g. <drive>\batocera) gets verified copies.
+        let dir = tempfile::tempdir().unwrap();
+        let (share, library) = batocera_share(dir.path());
         let mut catalog = Connection::open_in_memory().unwrap();
         db::migrate(&mut catalog, None).unwrap();
         scanner::scan(&mut catalog, &library, &unknown).unwrap();
         let id = installations::add(&catalog, &share, "batocera", &unknown).unwrap();
         let choices = deployment::Choices::new();
         let plan = deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap();
-        assert!(!plan.copy_supported);
-        assert_eq!(plan.files_to_copy, 1, "the preview still shows what would go where");
-        let before = snapshot(&share);
+        assert!(plan.copy_supported);
         let request = DeployRequest { installation_id: &id, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None, sync: false };
-        let error = deploy(&catalog, None, &request, &connected, &roomy, &mut Quiet).unwrap_err();
-        assert!(error.contains("doesn't copy to Batocera"), "{error}");
+        let summary = deploy(&catalog, None, &request, &connected, &roomy, &mut Quiet).unwrap();
+        assert_eq!((summary.status.as_str(), summary.games_copied), ("completed", 2));
+        assert_eq!(fs::read(share.join("roms/snes/Mario.sfc")).unwrap(), b"mario");
+        assert!(!share.join(".retrodrive").join("share-id").exists(), "a local drive needs no share id");
+    }
+
+    /// Real SMB through this PC's own admin share (run by hand: `cargo test -- --ignored
+    /// over_a_network_share`; needs `\\localhost\C$`). The catalog records the scratch
+    /// folder as the share's root, exactly as `\\BATOCERA\share\` would be.
+    #[cfg(windows)]
+    #[test]
+    #[ignore]
+    fn batocera_over_a_network_share_is_known_by_its_id() {
+        use crate::volumes;
+        let dir = tempfile::tempdir().unwrap();
+        let (share, library) = batocera_share(dir.path());
+        let long = fs::canonicalize(&share).unwrap().display().to_string();
+        let local = long.trim_start_matches(r"\\?\").to_string();
+        let unc = format!(r"\\localhost\{}$\{}\", &local[..1], local[3..].trim_end_matches('\\'));
+        assert!(Path::new(&unc).is_dir(), "{unc} must be reachable");
+        let mut catalog = Connection::open_in_memory().unwrap();
+        db::migrate(&mut catalog, None).unwrap();
+        scanner::scan(&mut catalog, &library, &unknown).unwrap();
+        let id = installations::add(&catalog, &share, "batocera", &unknown).unwrap();
+        // Point the record at the share, as adding \\BATOCERA\share does.
+        let location: String = catalog.query_row("SELECT storage_location_id FROM installations WHERE id = ?1", [&id], |r| r.get(0)).unwrap();
+        catalog.execute("INSERT INTO storage_locations (id, kind, stable_id, display_name, root_path) VALUES ('share', 'network', ?1, ?2, ?2)", params![volumes::share_stable_id(&unc, None), unc]).unwrap();
+        catalog.execute("UPDATE installations SET storage_location_id = 'share' WHERE storage_location_id = ?1", [&location]).unwrap();
+        catalog.execute("UPDATE installations SET relative_path = ''", []).unwrap();
+        let choices = deployment::Choices::new();
+        let plan = deployment::plan_with(&catalog, &id, None, None, &choices, &volumes::presence, &volumes::space).unwrap();
+        assert!(plan.installation_path.starts_with(r"\\localhost\"), "{}", plan.installation_path);
+        let request = DeployRequest { installation_id: &id, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None, sync: false };
+        let summary = deploy(&catalog, None, &request, &volumes::presence, &volumes::space, &mut Quiet).unwrap();
+        assert_eq!((summary.status.as_str(), summary.games_copied), ("completed", 2), "{:?}", summary.issues);
+        assert_eq!(fs::read(share.join("roms/snes/Zelda.sfc")).unwrap(), b"zelda!");
+        // The first copy gave the share an id and recorded it.
+        let share_id = volumes::share_id(&unc).expect("share id written");
+        let recorded: String = catalog.query_row("SELECT stable_id FROM storage_locations WHERE id = 'share'", [], |r| r.get(0)).unwrap();
+        assert_eq!(recorded, volumes::share_stable_id(&unc, Some(&share_id)));
+        assert_eq!(volumes::presence(&unc, Some(&recorded)), Presence::Connected);
+        // Another machine answering to the same name (a different id): never copied to.
+        fs::write(share.join(".retrodrive").join("share-id"), "another-batocera").unwrap();
+        assert_eq!(volumes::presence(&unc, Some(&recorded)), Presence::OtherVolume);
+        let before = snapshot(&share);
+        let error = deployment::plan_with(&catalog, &id, None, None, &choices, &volumes::presence, &volumes::space).unwrap_err();
+        assert!(error.contains("isn't connected"), "{error}");
         assert_eq!(snapshot(&share), before, "nothing was written");
-        let deployments: i64 = catalog.query_row("SELECT COUNT(*) FROM deployments", [], |r| r.get(0)).unwrap();
-        assert_eq!(deployments, 0, "no deployment was journaled");
     }
 
     #[test]
