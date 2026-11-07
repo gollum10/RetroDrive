@@ -55,6 +55,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-07 (Recalbox copying, ADR-059):** the Recalbox card has **Sync** and *Plan deployment*; the layout check *Copying* is OK for a drive and a warning for the share ("keep Recalbox on…; update the game lists in Recalbox or restart it"). Dashboard roadmap: "Recalbox — Plan & copy games (network or drive)".
 
+**Implemented 2026-11-07 (Recalbox art, ADR-060):** Customize lists Recalbox installations ("Your box art and catalog details in Recalbox.") with art and Applied designs; the copy confirm box offers art for Recalbox ("a running Recalbox shows them after updating its game lists"); Sync adds art for Recalbox.
+
 ## Drives
 Inventory: manufacturer/model, bus type when known, capacity, filesystem, free space, label, stable identity, mount point, safety classification (system/unknown/removable). Selected drive details: partitions, managed installations, activity, backup state. No prominent 'Erase' control in default view. Clearly distinguish physical disks from mounted volumes.
 

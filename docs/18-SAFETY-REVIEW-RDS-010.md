@@ -437,3 +437,8 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** not yet tried on a real Recalbox.
 
+## 35. Addendum: Recalbox art and details (2026-11-07)
+**Scope:** owner go-ahead ("go recallbox art"). The reviewed game-list step (§17) on Recalbox shares, same in-folder layout as Batocera (§22). No new kind of disk action. Code: `gamelists.rs` (`GAMELIST_PLATFORMS`), `lib.rs`, `App.tsx`, `Customize.tsx`.
+- Existing art and details are kept; only missing fields are added; pictures are new files only; lists are journaled with backups and undoable (`recalbox_game_lists_get_the_same_art_and_details`).
+- Recalbox runs on its own machine: no local running check; the user is told to update the game lists or restart Recalbox. Same residual risk as Batocera (§22): if a running Recalbox rewrote whole lists, art added meanwhile could be dropped (adding it again restores it).
+

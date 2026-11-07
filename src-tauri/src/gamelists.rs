@@ -37,11 +37,15 @@
 //! and the pictures are copied as `covers` (box art or main image) and `marquees`
 //! (logos) named after each game; a picture ES-DE already has (any extension) is kept.
 //! ES-DE saves its lists when it closes, so changes are refused while it runs.
+//!
+//! Recalbox (2026-11-07) keeps `gamelist.xml` in each system's rom folder with
+//! images referenced from it (Recalbox wiki, internal scraper), like Batocera, so it
+//! uses the in-folder layout. It runs on its own machine (no running check).
 
 use crate::copier::{self, TEMP_MARKER};
 
 /// Platforms whose game lists RetroDrive fills in (same format).
-pub const GAMELIST_PLATFORMS: &[&str] = &["retrobat", "batocera", "retropie", "esde"];
+pub const GAMELIST_PLATFORMS: &[&str] = &["retrobat", "batocera", "retropie", "esde", "recalbox"];
 
 /// Where a platform keeps its game lists and pictures.
 enum Layout {
@@ -606,7 +610,7 @@ type Planned = (customizer::Install, Vec<SystemEdit>, usize, Sizes, Vec<String>)
 
 /// `create_lists`: on RetroPie, also create lists for systems without one (opt-in).
 fn plan(connection: &Connection, installation_id: &str, deployment: Option<&str>, create_lists: bool, presence: PresenceFn, progress: ProgressFn) -> Result<Planned, String> {
-    let install = customizer::install_for(connection, installation_id, presence, GAMELIST_PLATFORMS, "Game art and details are available for RetroBat, Batocera, RetroPie and ES-DE.")?;
+    let install = customizer::install_for(connection, installation_id, presence, GAMELIST_PLATFORMS, "Game art and details are available for RetroBat, Batocera, RetroPie, ES-DE and Recalbox.")?;
     let adapter: String = connection.query_row("SELECT adapter_id FROM installations WHERE id = ?1", [installation_id], |r| r.get(0)).map_err(|e| e.to_string())?;
     let (games, _) = games_dir(&install.root);
     let layout = if adapter == "esde" {
@@ -821,7 +825,14 @@ mod tests {
             "<gameList><game><path>./Kid.zip</path><image>./media/images/Kid.png</image><marquee>./media/wheel/Kid.png</marquee></game><game><path>./Scraped.zip</path><image>./media/images/Scraped.png</image></game><game><path>./New Game.zip</path><image>./media/images/New Game.png</image></game></gameList>",
         )
         .unwrap();
-        let root = if adapter == "esde" {
+        let root = if adapter == "recalbox" {
+            let share = dir.path().join("recalbox");
+            for d in ["roms/nes", "bios", "saves", "system"] {
+                fs::create_dir_all(share.join(d)).unwrap();
+            }
+            fs::write(share.join("system/recalbox.conf"), b"").unwrap();
+            share
+        } else if adapter == "esde" {
             // A portable ES-DE like the owner's: ES-DE.exe, ES-DE\ (data), ROMs\.
             let program = dir.path().join("ES-DE");
             for d in ["ROMs/nes", "ES-DE/gamelists", "ES-DE/downloaded_media", "ES-DE/settings"] {
@@ -982,6 +993,19 @@ mod tests {
         crate::designs::undo(&s.catalog, app, &connected, &closed).unwrap();
         assert!(!data.join("gamelists/nes/gamelist.xml").exists());
         assert!(data.join("downloaded_media/nes/covers/Kid.png").exists());
+    }
+
+    #[test]
+    fn recalbox_game_lists_get_the_same_art_and_details() {
+        let s = setup_for("recalbox");
+        let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
+        assert_eq!((p.systems[0].games_updated, p.systems[0].games_added, p.images), (1, 1, 3));
+        apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &closed, &quiet).unwrap();
+        assert!(list(&s).contains("<name>Kid Icarus</name>") && list(&s).contains("<image>./images/Kid-image.png</image>"));
+        assert!(s.root.join("roms/nes/images/Kid-image.png").exists());
+        let app = crate::designs::applications(&s.catalog, &s.install).unwrap()[0].id;
+        crate::designs::undo(&s.catalog, app, &connected, &closed).unwrap();
+        assert_eq!(list(&s), LIST);
     }
 
     #[test]
