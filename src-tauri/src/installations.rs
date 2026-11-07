@@ -9,7 +9,7 @@ use crate::adapters::{self, ArcadeSystem, Confidence, Detection, LayoutCheck, Pl
 use crate::volumes::{Presence, VolumeProbe};
 use crate::{db, paths};
 use rusqlite::{params, Connection, OptionalExtension};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 pub type PresenceFn<'a> = &'a dyn Fn(&str, Option<&str>) -> Presence;
@@ -161,21 +161,38 @@ pub fn list(connection: &Connection, presence: PresenceFn) -> Result<Vec<Install
         .collect())
 }
 
-/// Choose which arcade emulator family's romset this installation uses
-/// (`"mame"`, `"fbneo"`, or `None` to stop placing arcade games). Catalog only.
-/// Platforms (RetroBat/Batocera system folders) the user left out of Sync (ADR-043).
-pub fn sync_skip(connection: &Connection, id: &str) -> Result<Vec<String>, String> {
-    let json: Option<String> = connection.query_row("SELECT sync_skip_json FROM installations WHERE id = ?1", [id], |r| r.get(0)).map_err(|e| e.to_string())?;
-    Ok(json.and_then(|j| serde_json::from_str(&j).ok()).unwrap_or_default())
+/// What Sync keeps up to date (ADR-045): system folders and collection ids chosen in
+/// plans that were copied to this installation.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SyncScope {
+    pub systems: Vec<String>,
+    pub collections: Vec<String>,
 }
 
-/// Saves which platforms Sync leaves out; Sync uses this until it's changed again.
-pub fn set_sync_skip(connection: &Connection, id: &str, systems: &[String]) -> Result<(), String> {
-    let mut list: Vec<String> = systems.iter().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
-    list.sort();
-    list.dedup();
-    let json = (!list.is_empty()).then(|| serde_json::to_string(&list).unwrap_or_default());
-    let changed = connection.execute("UPDATE installations SET sync_skip_json = ?2 WHERE id = ?1", params![id, json]).map_err(|e| e.to_string())?;
+impl SyncScope {
+    pub fn is_empty(&self) -> bool {
+        self.systems.is_empty() && self.collections.is_empty()
+    }
+    fn tidy(mut self) -> Self {
+        for list in [&mut self.systems, &mut self.collections] {
+            list.retain(|s| !s.trim().is_empty());
+            list.sort();
+            list.dedup();
+        }
+        self
+    }
+}
+
+/// The recorded Sync scope, if one was saved.
+pub fn saved_sync_scope(connection: &Connection, id: &str) -> Result<Option<SyncScope>, String> {
+    let json: Option<String> = connection.query_row("SELECT sync_scope_json FROM installations WHERE id = ?1", [id], |r| r.get(0)).map_err(|e| e.to_string())?;
+    Ok(json.and_then(|j| serde_json::from_str(&j).ok()))
+}
+
+/// Saves the Sync scope (catalog only).
+pub fn set_sync_scope(connection: &Connection, id: &str, scope: &SyncScope) -> Result<(), String> {
+    let json = serde_json::to_string(&scope.clone().tidy()).map_err(|e| e.to_string())?;
+    let changed = connection.execute("UPDATE installations SET sync_scope_json = ?2 WHERE id = ?1", params![id, json]).map_err(|e| e.to_string())?;
     if changed == 0 {
         return Err("Installation not found".into());
     }
@@ -223,6 +240,8 @@ pub fn set_kept_off(connection: &Connection, id: &str, key: &str, title: Option<
     Ok(())
 }
 
+/// Choose which arcade emulator family's romset this installation uses
+/// (`"mame"`, `"fbneo"`, or `None` to stop placing arcade games). Catalog only.
 pub fn set_arcade_system(connection: &Connection, id: &str, system: Option<&str>) -> Result<(), String> {
     let value = match system {
         None => None,

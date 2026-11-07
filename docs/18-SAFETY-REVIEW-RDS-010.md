@@ -270,3 +270,14 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 | Hidden choices hide what will happen | The summary always states how many games are skipped until a choice, and counts every outcome; the copier receives exactly the choices shown | app check |
 | A saved version no longer exists | The plan falls back to the default (skip both) | existing `clash_choices_pick_a_version_or_keep_both` handling |
 
+## 20. Addendum: sync scope (2026-11-07)
+**Scope:** Sync limited to what was chosen in copied plans (ADR-045). Code: `deployment.rs` (`sync_scope`, `add_to_sync_scope`, scope filter in `build`, `changed` relabel), `copier.rs` (`DeployRequest.sync`), `lib.rs`, `App.tsx`, `Decisions.tsx`; schema v20.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| Sync copies far more than the user chose | Sync plans only the scope; a plan starts with nothing ticked; with no scope Sync refuses with a message | `sync_keeps_only_what_was_synced_and_asks_about_removed_games` |
+| A platform the user moved off the drive comes back | The derived scope only includes platforms with a copied game still on the drive | `sync_scope_starts_from_what_was_copied_and_grows_with_plans` |
+| Restoring a changed file loses the user's edit | Restore is the existing replace: drive file moved to `.retrodrive\backup` first, restored on failure; per game, never saved, never "for all" | `a_synced_game_changed_on_the_drive_is_shown_and_restored_only_if_chosen`; existing replace tests |
+| The copy runs a different plan than shown | The copier rebuilds the sync plan from the same scope and checks the fingerprint (which includes the scope) | existing fingerprint tests |
+| Stop syncing deletes games | It only edits the catalog scope; the drive isn't touched | `set_sync_scope` |
+

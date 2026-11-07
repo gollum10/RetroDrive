@@ -344,7 +344,7 @@ mod tests {
         let mut choices = deployment::Choices::new();
         choices.insert(key, deployment::Choice::Replace);
         let plan = deployment::plan_with(&catalog, &install, None, None, &choices, &connected_drive, &roomy).unwrap();
-        let request = DeployRequest { installation_id: &install, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None };
+        let request = DeployRequest { installation_id: &install, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None, sync: false };
         let summary = deploy(&catalog, None, &request, &connected_drive, &roomy, &mut Quiet).unwrap();
         assert_eq!(summary.files_replaced, 1);
         // The catalog stores the full path; temp folders can be 8.3 short names (CI), so use the same form.
