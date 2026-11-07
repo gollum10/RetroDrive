@@ -321,3 +321,17 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** not yet tried on a real Batocera.
 
+## 24. Addendum: install helper (RDS-027, 2026-11-07)
+**Scope and authorization:** owner approved the guided plan on 2026-11-07 ("Approve, build it"). RetroDrive reads an image file the user downloaded and starts an image writer the user installed. **No disk writes at all** in this feature. Code: `install_helper.rs`, `InstallHelper.tsx`, `lib.rs`.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| Erasing the wrong drive | RetroDrive never writes images; the user picks the drive in Raspberry Pi Imager or balenaEtcher, which warn before erasing. Imager is started without `--cli`, so it only opens with the image chosen | design (ADR-049); `open_writer` |
+| Starting an arbitrary program | Only the two writers, only from their install folders (Program Files, or Etcher's per-user folder); the screen sends an id, never a path | `only_known_programs_and_pages_are_opened` |
+| A crafted file name or path runs commands | The image path is passed as one process argument (no shell) and must be an existing file | code review |
+| Opening unsafe links | Only fixed official URLs by id (batocera.org, retropie.org.uk, raspberrypi.com, etcher.balena.io) | same test |
+| Writing a damaged or wrong image | Type and size checks, xz end-of-file check, name → system/hardware shown, wrong system noted, optional checksum; Write buttons stay off for a bad file or a checksum mismatch | `images_are_recognized_and_short_downloads_caught`, `checksums_from_the_download_page_are_compared` |
+| Distributing images | RetroDrive links to the official pages; it doesn't download, bundle or host images | design |
+
+**Residual risk:** gzip files can't be proven complete without unpacking; the checksum covers that, and the writers verify what they write.
+

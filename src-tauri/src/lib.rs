@@ -14,6 +14,7 @@ mod deployment;
 mod drives;
 mod gamelists;
 mod duplicates;
+mod install_helper;
 mod installations;
 mod jobs;
 mod media;
@@ -544,6 +545,53 @@ async fn undo_design_application(catalog: State<'_, Catalog>, active: State<'_, 
     .map_err(|e| e.to_string());
     active.undoing.store(false, Ordering::SeqCst);
     result?
+}
+
+/// Install helper (RDS-027): what an image the user downloaded is (reads only).
+#[tauri::command]
+async fn install_image_info(path: String, system: Option<String>) -> Result<install_helper::ImageInfo, String> {
+    tauri::async_runtime::spawn_blocking(move || install_helper::inspect(&path, system.as_deref())).await.map_err(|e| e.to_string())?
+}
+
+#[derive(Clone, Serialize)]
+struct HashProgress {
+    done: u64,
+    total: u64,
+}
+
+/// Compare the image with the checksum from the download page (reads only).
+#[tauri::command]
+async fn install_checksum(app: AppHandle, path: String, expected: String) -> Result<install_helper::ChecksumResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let last = std::sync::atomic::AtomicU64::new(0);
+        install_helper::checksum(&path, &expected, &|done, total| {
+            // About one update per 64 MB.
+            if done - last.load(Ordering::Relaxed) >= 64 << 20 || done == total {
+                last.store(done, Ordering::Relaxed);
+                let _ = app.emit("install-hash", HashProgress { done, total });
+            }
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// The image writers installed on this PC.
+#[tauri::command]
+fn install_writers() -> Vec<install_helper::Writer> {
+    install_helper::writers()
+}
+
+/// Open Raspberry Pi Imager or balenaEtcher (from its install folder) for the image.
+#[tauri::command]
+fn open_install_writer(id: String, image: String) -> Result<String, String> {
+    install_helper::open_writer(&id, &image)
+}
+
+/// Open an official download page (fixed addresses only).
+#[tauri::command]
+fn open_download_page(id: String) -> Result<(), String> {
+    install_helper::open_download_page(&id)
 }
 
 /// Batocera settings and themes offered, with current values (reads only).
@@ -1097,6 +1145,11 @@ pub fn run() {
             sync_scope,
             set_sync_scope,
             batocera_options,
+            install_image_info,
+            install_checksum,
+            install_writers,
+            open_install_writer,
+            open_download_page,
             preview_batocera_settings,
             apply_batocera_settings,
             preview_batocera_theme,
