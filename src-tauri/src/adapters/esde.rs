@@ -14,6 +14,10 @@
 //!   folder (`%USERPROFILE%\ES-DE`, or `ES-DE` next to `ES-DE.exe` when portable), with
 //!   `settings\es_settings.xml`.
 //! - ES-DE launches emulators installed separately, so nothing about emulators is here.
+//! - Portable release (checked on the owner's G:\ES-DE, 2026-11-07): `ES-DE.exe` and
+//!   `portable.txt` with `ES-DE\` (data), an empty `ROMs\` (where games go; the blank
+//!   `ROMDirectory` means this one) and `ROMs_ALL\` (every system folder, to copy from;
+//!   its README says to copy only the ones needed into `ROMs`).
 
 use super::retrobat::system_folder;
 use super::{has_entry, plan_in, AdapterKind, Capabilities, CheckStatus, Confidence, Detection, LayoutCheck, Placement, PlacementRequest, PlatformAdapter};
@@ -41,6 +45,11 @@ fn rom_directory_setting(data: &Path) -> Option<String> {
     let rest = &text[at..text[at..].find("/>").map(|e| at + e).unwrap_or(text.len())];
     let value = rest.split("value=\"").nth(1)?.split('"').next()?.trim();
     (!value.is_empty() && value.len() < 400).then(|| value.to_string())
+}
+
+/// A portable ES-DE program folder (`ES-DE.exe` in it).
+fn is_program_folder(dir: &Path) -> bool {
+    has_entry(dir, "ES-DE.exe", false)
 }
 
 fn is_data_folder(root: &Path) -> bool {
@@ -79,10 +88,27 @@ impl PlatformAdapter for EsDe {
         if has_entry(root, "RetroBat.exe", false) || (has_entry(root, "system", true) && has_entry(&root.join("system"), "batocera.conf", false)) {
             return detection(Confidence::NotDetected, Vec::new(), None);
         }
+        let parent = root.parent();
+        let portable = parent.is_some_and(is_program_folder);
+        let name = root.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+        // The portable program folder: point at its ROMs folder.
+        if is_program_folder(root) {
+            return detection(Confidence::Possible, vec!["ES-DE.exe found".into()], Some(format!("This is ES-DE's program folder. Choose its ROMs folder instead: {}.", root.join("ROMs").display())));
+        }
+        // ROMs_ALL is the catalog of every system to copy from, not where ES-DE reads games.
+        if portable && name == "roms_all" {
+            let roms = parent.map(|p| p.join("ROMs").display().to_string()).unwrap_or_default();
+            return detection(Confidence::Possible, vec!["ES-DE's ROMs_ALL found".into()], Some(format!("ROMs_ALL holds an empty folder for every system ES-DE supports; ES-DE reads games from {roms}. Choose that folder instead (RetroDrive creates the system folders it copies into).")));
+        }
         // ES-DE's own data folder: point at the ROMs folder.
         if is_data_folder(root) {
-            let roms = rom_directory_setting(root).unwrap_or_else(|| std::env::var("USERPROFILE").map(|h| format!("{h}\\ROMs")).unwrap_or_else(|_| "your ROMs folder".into()));
+            let beside = parent.filter(|p| is_program_folder(p)).map(|p| p.join("ROMs").display().to_string());
+            let roms = rom_directory_setting(root).or(beside).unwrap_or_else(|| std::env::var("USERPROFILE").map(|h| format!("{h}\\ROMs")).unwrap_or_else(|_| "your ROMs folder".into()));
             return detection(Confidence::Possible, vec!["ES-DE settings found".into()], Some(format!("This is ES-DE's settings and media folder; games don't go here. Choose ES-DE's ROMs folder instead: {roms}.")));
+        }
+        // A portable ES-DE's ROMs folder, even before it has any system folders.
+        if portable && name == "roms" {
+            return detection(Confidence::Detected, vec!["ROMs folder next to ES-DE.exe (portable ES-DE)".into()], None);
         }
         let count = SYSTEMS.iter().filter(|s| has_entry(root, s, true)).count();
         let marked = has_esde_markers(root);
@@ -104,19 +130,20 @@ impl PlatformAdapter for EsDe {
 
     fn validate_layout(&self, root: &Path) -> Vec<LayoutCheck> {
         let count = SYSTEMS.iter().filter(|s| has_entry(root, s, true)).count();
-        let marked = has_esde_markers(root);
+        let portable = root.parent().is_some_and(is_program_folder);
+        let marked = has_esde_markers(root) || portable;
         vec![
             LayoutCheck {
                 id: "systems",
                 label: "System folders".into(),
-                status: if count > 0 { CheckStatus::Ok } else { CheckStatus::Problem },
-                detail: if count > 0 { format!("Found {count} common system folders.") } else { "No system folders found. In ES-DE: Utilities → Create/update system directories.".into() },
+                status: if count > 0 || portable { CheckStatus::Ok } else { CheckStatus::Problem },
+                detail: if count > 0 { format!("Found {count} common system folders.") } else if portable { "No system folders yet; RetroDrive creates the ones it copies into (ES-DE's names).".into() } else { "No system folders found. In ES-DE: Utilities → Create/update system directories.".into() },
             },
             LayoutCheck {
                 id: "markers",
                 label: "ES-DE files".into(),
                 status: if marked { CheckStatus::Ok } else { CheckStatus::Warning },
-                detail: if marked { "Found ES-DE's systems.txt / systeminfo.txt.".into() } else { "ES-DE's systems.txt isn't here; ES-DE writes it when it creates the system folders.".into() },
+                detail: if portable { "Portable ES-DE: this is the ROMs folder next to ES-DE.exe.".into() } else if marked { "Found ES-DE's systems.txt / systeminfo.txt.".into() } else { "ES-DE's systems.txt isn't here; ES-DE writes it when it creates the system folders.".into() },
             },
             LayoutCheck {
                 id: "copying",
@@ -176,6 +203,24 @@ mod tests {
         make(retrobat.path(), &["RetroBat.exe", "systems.txt", "nes/systeminfo.txt"]);
         assert_eq!(EsDe.detect(retrobat.path()).confidence, Confidence::NotDetected);
         assert!(EsDe.capabilities().copy_games, "copies since the owner's go-ahead (docs/18 §30)");
+    }
+
+    #[test]
+    fn a_portable_esde_is_recognized_from_any_of_its_folders() {
+        // The owner's portable layout: ES-DE.exe, ES-DE\ (data), empty ROMs\, ROMs_ALL\.
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("ES-DE");
+        make(&p, &["ES-DE.exe", "portable.txt", "ROMs/", "ROMs_ALL/systems.txt", "ROMs_ALL/nes/systeminfo.txt", "ROMs_ALL/snes/systeminfo.txt", "ES-DE/gamelists/", "ES-DE/downloaded_media/"]);
+        fs::create_dir_all(p.join("ES-DE/settings")).unwrap();
+        fs::write(p.join("ES-DE/settings/es_settings.xml"), "<string name=\"ROMDirectory\" value=\"\" />\n").unwrap();
+        assert_eq!(EsDe.detect(&p.join("ROMs")).confidence, Confidence::Detected, "the empty ROMs folder next to ES-DE.exe");
+        assert!(EsDe.validate_layout(&p.join("ROMs")).iter().all(|c| c.status != CheckStatus::Problem));
+        for (folder, expect) in [(p.clone(), "program folder"), (p.join("ROMs_ALL"), "ROMs_ALL holds"), (p.join("ES-DE"), "settings and media folder")] {
+            let d = EsDe.detect(&folder);
+            assert_eq!(d.confidence, Confidence::Possible, "{}", folder.display());
+            let hint = d.hint.unwrap();
+            assert!(hint.contains(expect) && hint.contains(&p.join("ROMs").display().to_string()), "{hint}");
+        }
     }
 
     #[test]
