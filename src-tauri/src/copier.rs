@@ -1590,6 +1590,69 @@ mod tests {
         assert!(!share.join(".retrodrive").join("share-id").exists(), "a local drive needs no share id");
     }
 
+    #[test]
+    fn retropie_is_copied_to_in_both_layouts() {
+        // RDS-023 step 2: the roms share holds the system folders; a USB retropie folder has roms inside.
+        for usb in [false, true] {
+            let dir = tempfile::tempdir().unwrap();
+            let root = if usb { dir.path().join("stick").join("retropie") } else { dir.path().join("share").join("roms") };
+            let games = if usb { root.join("roms") } else { root.clone() };
+            for d in ["snes", "atarilynx", "ports", "coleco"] {
+                fs::create_dir_all(games.join(d)).unwrap();
+            }
+            let library = dir.path().join("library");
+            write(&library, "snes/Mario.sfc", b"mario");
+            write(&library, "lynx/Racer.lnx", b"lynx!");
+            let mut catalog = Connection::open_in_memory().unwrap();
+            db::migrate(&mut catalog, None).unwrap();
+            scanner::scan(&mut catalog, &library, &unknown).unwrap();
+            let id = installations::add(&catalog, &root, "retropie", &unknown).unwrap();
+            let choices = deployment::Choices::new();
+            let plan = deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap();
+            assert!(plan.copy_supported);
+            assert_eq!(plan.systems_prefix, if usb { "roms\\" } else { "" });
+            let request = DeployRequest { installation_id: &id, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None, sync: false };
+            let summary = deploy(&catalog, None, &request, &connected, &roomy, &mut Quiet).unwrap();
+            assert_eq!((summary.status.as_str(), summary.games_copied), ("completed", 2), "usb: {usb}");
+            assert_eq!(fs::read(games.join("snes/Mario.sfc")).unwrap(), b"mario");
+            assert_eq!(fs::read(games.join("atarilynx/Racer.lnx")).unwrap(), b"lynx!", "RetroPie's folder name");
+        }
+    }
+
+    /// The same over real SMB, the way RetroPie's roms share is reached (run by hand:
+    /// `cargo test -- --ignored retropie_over_a_network_share`; needs this PC's C$ admin share).
+    #[cfg(windows)]
+    #[test]
+    #[ignore]
+    fn retropie_over_a_network_share_is_known_by_its_id() {
+        use crate::volumes;
+        let dir = tempfile::tempdir().unwrap();
+        let roms = dir.path().join("roms");
+        for d in ["snes", "ports", "coleco"] {
+            fs::create_dir_all(roms.join(d)).unwrap();
+        }
+        let library = dir.path().join("library");
+        write(&library, "snes/Mario.sfc", b"mario");
+        let local = fs::canonicalize(&roms).unwrap().display().to_string().trim_start_matches(r"\\?\").to_string();
+        let unc = format!(r"\\localhost\{}$\{}\", &local[..1], local[3..].trim_end_matches('\\'));
+        let mut catalog = Connection::open_in_memory().unwrap();
+        db::migrate(&mut catalog, None).unwrap();
+        scanner::scan(&mut catalog, &library, &unknown).unwrap();
+        let id = installations::add(&catalog, &roms, "retropie", &unknown).unwrap();
+        let location: String = catalog.query_row("SELECT storage_location_id FROM installations WHERE id = ?1", [&id], |r| r.get(0)).unwrap();
+        catalog.execute("INSERT INTO storage_locations (id, kind, stable_id, display_name, root_path) VALUES ('share', 'network', ?1, ?2, ?2)", params![volumes::share_stable_id(&unc, None), unc]).unwrap();
+        catalog.execute("UPDATE installations SET storage_location_id = 'share', relative_path = '' WHERE storage_location_id = ?1", [&location]).unwrap();
+        let choices = deployment::Choices::new();
+        let plan = deployment::plan_with(&catalog, &id, None, None, &choices, &volumes::presence, &volumes::space).unwrap();
+        let request = DeployRequest { installation_id: &id, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None, sync: false };
+        let summary = deploy(&catalog, None, &request, &volumes::presence, &volumes::space, &mut Quiet).unwrap();
+        assert_eq!((summary.status.as_str(), summary.games_copied), ("completed", 1), "{:?}", summary.issues);
+        assert_eq!(fs::read(roms.join("snes/Mario.sfc")).unwrap(), b"mario");
+        assert!(volumes::share_id(&unc).is_some(), "the share got its id");
+        fs::write(roms.join(".retrodrive").join("share-id"), "another-pi").unwrap();
+        assert!(deployment::plan_with(&catalog, &id, None, None, &choices, &volumes::presence, &volumes::space).unwrap_err().contains("isn't connected"));
+    }
+
     /// Real SMB through this PC's own admin share (run by hand: `cargo test -- --ignored
     /// over_a_network_share`; needs `\\localhost\C$`). The catalog records the scratch
     /// folder as the share's root, exactly as `\\BATOCERA\share\` would be.

@@ -1,6 +1,8 @@
-//! RetroPie adapter (RDS-023 step 1, 2026-11-07): recognition, layout checks and
-//! placement *previews*. Copying is off (`copy_games: false`) until its own safety
-//! review, as Batocera's was.
+//! RetroPie adapter (RDS-023, 2026-11-07): recognition, layout checks, placement and
+//! copying (step 2, owner go-ahead 2026-11-07; docs/18 §26) to the RetroPie network share
+//! or a USB `retropie`/`retropie-mount` folder, with the same copier as RetroBat.
+//! A network share is known by the id RetroDrive leaves on it (ADR-046), since every
+//! RetroPie is `RETROPIE` by default.
 //!
 //! Facts checked 2026-11-07 (RetroPie-Setup and RetroPie-Docs on GitHub):
 //! - Games live in `~/RetroPie/roms/<system>` on the Pi's Linux partition, which
@@ -97,7 +99,7 @@ impl PlatformAdapter for RetroPie {
         AdapterKind::BootableOs
     }
     fn capabilities(&self) -> Capabilities {
-        Capabilities { detect: true, validate_layout: true, plan_placement: true, copy_games: false, install: false, write_files: false }
+        Capabilities { detect: true, validate_layout: true, plan_placement: true, copy_games: true, install: false, write_files: false }
     }
 
     fn detect(&self, root: &Path) -> Detection {
@@ -162,8 +164,12 @@ impl PlatformAdapter for RetroPie {
             LayoutCheck {
                 id: "copying",
                 label: "Copying".into(),
-                status: CheckStatus::Warning,
-                detail: "RetroDrive can plan for RetroPie and show what would go where, but doesn't copy to it yet. Copying needs its own safety review first.".into(),
+                status: if network { CheckStatus::Warning } else { CheckStatus::Ok },
+                detail: if network {
+                    "Copies over the network are new: keep RetroPie on and connected until the copy finishes. Every file is checked after it's written; nothing is overwritten or deleted. Restart RetroPie (or EmulationStation) afterwards to see new games.".into()
+                } else {
+                    "RetroDrive copies games here, checks every file after it's written, and never overwrites or deletes anything. Plug the stick back into RetroPie afterwards.".into()
+                },
             },
             LayoutCheck { id: "version", label: "Version".into(), status: CheckStatus::Warning, detail: "RetroPie's version isn't visible from here; its menu shows it.".into() },
         ]
@@ -222,7 +228,7 @@ mod tests {
         let bato = tempfile::tempdir().unwrap();
         make(bato.path(), &["roms/nes/", "roms/snes/", "roms/fba/", "roms/ports/", "system/batocera.conf"]);
         assert_eq!(RetroPie.detect(bato.path()).confidence, Confidence::NotDetected);
-        assert!(!RetroPie.capabilities().copy_games, "preview only until its own safety review");
+        assert!(RetroPie.capabilities().copy_games, "copies since its safety review (docs/18 §26)");
     }
 
     #[test]

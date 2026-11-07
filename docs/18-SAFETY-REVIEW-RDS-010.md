@@ -338,5 +338,17 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 ## 25. Addendum: RetroPie is preview-only (RDS-023 step 1, 2026-11-07)
 - **Scope:** RetroPie installations can be recognized and planned for, but **not copied to** (`copy_games: false`); the copier refuses before any write, as for Batocera before §21. No writes of any kind in this step.
 - **Detection safety:** RetroBat and Batocera folders are never claimed; a Raspberry Pi boot partition is never accepted as a game folder.
-- **Before turning on copying (step 2):** the Samba share (`\\RETROPIE\roms`) gets the share id of §21 (every RetroPie is `RETROPIE` by default); test on a real RetroPie (Samba on a Pi), including the Pi shutting down mid-copy; USB sticks are FAT32/exFAT (4 GB limit on FAT32 already enforced).
+- **Superseded 2026-11-07 by §26** (copying turned on). Original note: **Before turning on copying (step 2):** the Samba share (`\\RETROPIE\roms`) gets the share id of §21 (every RetroPie is `RETROPIE` by default); test on a real RetroPie (Samba on a Pi), including the Pi shutting down mid-copy; USB sticks are FAT32/exFAT (4 GB limit on FAT32 already enforced).
+
+## 26. Addendum: copying to RetroPie (RDS-023 step 2, 2026-11-07)
+**Scope and authorization:** owner go-ahead on 2026-11-07 ("go") for copying to RetroPie's `\\RETROPIE\roms` share and a USB `retropie`/`retropie-mount` folder, same rules as RetroBat and Batocera. Code: `adapters/retropie.rs` (`copy_games: true`, layout check wording). No new kind of disk action: the copier (§2, §11), the share id (§21) and recovery are unchanged.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| Another Pi named RETROPIE (the default) is written to | Share id written on the first copy and required afterwards (§21) | `retropie_over_a_network_share_is_known_by_its_id` (real SMB) |
+| Games land in the wrong folder (share root vs USB `roms`) | Placement follows `has_roms_folder`; plans show the real prefix | `retropie_is_copied_to_in_both_layouts` |
+| The Pi shuts down mid-copy | Same drive-loss handling as §11/§21: stop, keep verified games, clean temporary files when the share (with its id) is back | existing tests; per-file steps unchanged |
+| FAT32 USB sticks | Files over 4 GB are blocked by the existing filesystem check | existing `max_file_bytes` handling |
+
+**Residual risk:** not yet tried on a real RetroPie (Samba on a Pi).
 
