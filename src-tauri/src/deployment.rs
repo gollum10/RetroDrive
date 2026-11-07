@@ -186,6 +186,9 @@ pub struct DeploymentPlan {
     pub installation_path: String,
     /// False for preview-only adapters (Batocera): the plan is shown, but the copier refuses.
     pub copy_supported: bool,
+    /// Where system folders sit inside the installation, as shown: `roms\\` (RetroBat,
+    /// Batocera, a RetroPie USB folder) or empty (RetroPie's roms share).
+    pub systems_prefix: String,
     /// Every system folder with placeable games, and whether it's in this plan.
     pub systems: Vec<SystemChoice>,
     pub unsupported: Vec<UnsupportedGroup>,
@@ -484,6 +487,7 @@ pub(crate) fn build(
         adapter_name: adapter.display_name().to_string(),
         adapter_contract: adapters::CONTRACT_VERSION,
         copy_supported: adapter.capabilities().copy_games,
+        systems_prefix: if adapter.id() == "retropie" && !install.options.has_roms_folder { String::new() } else { "roms\\".into() },
         installation_path: install_root,
         selected_games: items.len() as i64,
         systems: choices.into_values().collect(),

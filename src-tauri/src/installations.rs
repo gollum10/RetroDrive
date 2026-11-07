@@ -131,7 +131,7 @@ pub(crate) fn located(connection: &Connection, presence: PresenceFn, only: Optio
         let volume = presence(&root, stable.as_deref());
         let path = paths::join(&root, &relative);
         let presence = if volume == Presence::Connected && !path.is_dir() { Presence::NotConnected } else { volume };
-        let options = PlacementOptions { arcade: arcade.as_deref().and_then(ArcadeSystem::parse) };
+        let options = PlacementOptions { arcade: arcade.as_deref().and_then(ArcadeSystem::parse), has_roms_folder: path.join("roms").is_dir() };
         Ok(Located { id, adapter_id, root: path, version, presence, added_at, options })
     })
     .collect()
