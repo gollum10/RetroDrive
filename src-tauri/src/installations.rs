@@ -182,6 +182,26 @@ pub fn set_sync_skip(connection: &Connection, id: &str, systems: &[String]) -> R
     Ok(())
 }
 
+/// The user's saved decisions for this installation (ADR-044). Unreadable data counts as none.
+pub fn saved_choices(connection: &Connection, id: &str) -> Result<crate::deployment::Choices, String> {
+    let json: Option<String> = connection.query_row("SELECT choices_json FROM installations WHERE id = ?1", [id], |r| r.get(0)).map_err(|e| e.to_string())?;
+    Ok(json.and_then(|j| serde_json::from_str(&j).ok()).unwrap_or_default())
+}
+
+/// Saves the user's decisions. Only "copy this version" and "copy both" are kept:
+/// "keep" is the default anyway, and "replace" is never remembered, so a later Sync
+/// can't replace a file on the drive without the user choosing it again that time.
+pub fn set_saved_choices(connection: &Connection, id: &str, choices: &crate::deployment::Choices) -> Result<(), String> {
+    use crate::deployment::Choice;
+    let kept: std::collections::BTreeMap<&String, &Choice> = choices.iter().filter(|(_, c)| matches!(c, Choice::Use { .. } | Choice::KeepBoth)).collect();
+    let json = (!kept.is_empty()).then(|| serde_json::to_string(&kept).unwrap_or_default());
+    let changed = connection.execute("UPDATE installations SET choices_json = ?2 WHERE id = ?1", params![id, json]).map_err(|e| e.to_string())?;
+    if changed == 0 {
+        return Err("Installation not found".into());
+    }
+    Ok(())
+}
+
 /// Games the user removed from the drive and chose to keep off it, by destination key
 /// (the destination path, lower-case, backslashes).
 pub fn kept_off(connection: &Connection, id: &str) -> Result<std::collections::HashSet<String>, String> {

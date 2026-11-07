@@ -770,6 +770,18 @@ fn set_sync_skip(catalog: State<'_, Catalog>, installation_id: String, systems: 
     installations::set_sync_skip(&db::open(&catalog.path()?)?, &installation_id, &systems)
 }
 
+/// The user's saved decisions for this installation (ADR-044).
+#[tauri::command]
+fn saved_choices(catalog: State<'_, Catalog>, installation_id: String) -> Result<deployment::Choices, String> {
+    installations::saved_choices(&db::open(&catalog.path()?)?, &installation_id)
+}
+
+/// Saves the user's decisions (catalog only; "replace" is never saved).
+#[tauri::command]
+fn set_saved_choices(catalog: State<'_, Catalog>, installation_id: String, choices: deployment::Choices) -> Result<(), String> {
+    installations::set_saved_choices(&db::open(&catalog.path()?)?, &installation_id, &choices)
+}
+
 /// Remembers (or forgets) that a game removed from the drive stays off it (catalog only).
 #[tauri::command]
 fn set_kept_off(catalog: State<'_, Catalog>, installation_id: String, destination: String, title: Option<String>, kept: bool) -> Result<(), String> {
@@ -991,6 +1003,8 @@ pub fn run() {
             sync_plan,
             set_sync_skip,
             set_kept_off,
+            saved_choices,
+            set_saved_choices,
             start_deployment,
             list_storage_locations, start_scan, cancel_job, active_scan, recent_jobs, list_drives])
         .run(tauri::generate_context!())

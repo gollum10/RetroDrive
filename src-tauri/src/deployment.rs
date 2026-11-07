@@ -1226,6 +1226,23 @@ mod tests {
     }
 
     #[test]
+    fn decisions_are_saved_except_replace() {
+        let f = fixture(&[("nes/Kid.nes", b"nes")]);
+        let choices = Choices::from([
+            ("a".to_string(), Choice::Use { file_id: "f1".into() }),
+            ("b".to_string(), Choice::KeepBoth),
+            ("c".to_string(), Choice::Replace),
+            ("d".to_string(), Choice::Keep),
+        ]);
+        installations::set_saved_choices(&f.catalog, &f.id, &choices).unwrap();
+        let saved = installations::saved_choices(&f.catalog, &f.id).unwrap();
+        assert_eq!(saved, Choices::from([("a".to_string(), Choice::Use { file_id: "f1".into() }), ("b".to_string(), Choice::KeepBoth)]), "replace is never remembered");
+        installations::set_saved_choices(&f.catalog, &f.id, &Choices::new()).unwrap();
+        assert!(installations::saved_choices(&f.catalog, &f.id).unwrap().is_empty());
+        assert!(installations::set_saved_choices(&f.catalog, "nope", &choices).is_err());
+    }
+
+    #[test]
     fn game_keys_ignore_tags_but_not_disks() {
         assert_eq!(game_key("10-Yard_Fight(J).zip"), game_key("10-Yard Fight (Japan).zip"));
         assert_eq!(game_key("Super Mario Bros. (W) [!].nes"), game_key("Super Mario Bros. (World).zip"));

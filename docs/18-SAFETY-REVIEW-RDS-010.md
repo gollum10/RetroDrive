@@ -260,3 +260,13 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** a tool that rewrites a file on the drive and then sets both its modified and created times back to before RetroDrive's confirmation would not be re-read; nothing is written in that case, only the "already there" report could be wrong.
 
+## 19. Addendum: saved choices (2026-11-07)
+**Scope:** choices kept out of the way and saved per installation (ADR-044). Code: `src/Decisions.tsx`, `App.tsx`, `installations.rs` (`saved_choices`, `set_saved_choices`), schema v19.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| A saved choice replaces a drive file later without the user seeing it | *Replace* is never saved; it must be chosen in that plan, and the drive file is still moved to the backup folder first | `decisions_are_saved_except_replace` |
+| "For all" does something drastic | "For all" offers only skip, a version, the bigger file, copy both, copy again or keep off; never replace | `Decisions.tsx` `bulkOptions` |
+| Hidden choices hide what will happen | The summary always states how many games are skipped until a choice, and counts every outcome; the copier receives exactly the choices shown | app check |
+| A saved version no longer exists | The plan falls back to the default (skip both) | existing `clash_choices_pick_a_version_or_keep_both` handling |
+

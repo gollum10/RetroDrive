@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 18;
+pub const SCHEMA_VERSION: i32 = 19;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -184,6 +184,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 18 {
         tx.execute_batch(SCHEMA_V18).map_err(|e| e.to_string())?;
+    }
+    if from_version < 19 {
+        tx.execute_batch(SCHEMA_V19).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -939,6 +942,12 @@ CREATE TABLE sync_kept_off (
     decided_at       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (installation_id, destination_key)
 );
+";
+
+/// v19 (ADR-044): the user's saved decisions for games that need one (which version
+/// to copy, copy both), so a later Sync or plan doesn't ask again. JSON map; NULL = none.
+const SCHEMA_V19: &str = "
+ALTER TABLE installations ADD COLUMN choices_json TEXT;
 ";
 
 #[cfg(test)]
