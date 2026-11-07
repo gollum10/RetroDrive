@@ -57,6 +57,7 @@ Enumerate mounted storage; display OS-reported capacity/free space, filesystem t
   - **Detection:** `roms` + `system\recalbox.conf` → "Detected"; a drive with a `recalbox` folder → points at it; the boot partition explains. Batocera, RetroPie and ES-DE step aside for `recalbox.conf` (a Recalbox share has Batocera-like folders and RetroPie-like names such as `fba`).
   - **Folder mapping:** RetroBat's names except `amiga600` (Amiga 500), `o2em` (Odyssey 2), `segacd`, `gw` (Game & Watch); no CPS folders (CPS follows the arcade choice: `mame`/`fbneo`). BIOS go to `bios`.
   - **Copying and Sync (step 5, 2026-11-07, owner go-ahead "go Recalbox", docs/18 §34):** on, with the same copier as Batocera (games and BIOS); `\\RECALBOX\share` gets the share id; the card has **Sync**. Art for Recalbox isn't added yet.
+  - **Art and details (step 6, 2026-11-07, owner go-ahead, ADR-060, docs/18 §35):** Recalbox keeps `gamelist.xml` in each system's rom folder with images referenced from it ([Recalbox wiki: internal scraper](https://wiki-next.recalbox.com/en/basic-usage/features/internal-scraper)), so it uses the same in-folder layout as RetroBat and Batocera: details and `./images/` pictures fill in only what's missing; undoable. Recalbox runs on its own machine (no running check); the result says to update the game lists from Recalbox's menu or restart it.
   - **Preview only:** `copy_games: false` until the owner's go-ahead.
 - **Lakka and others:** later adapters (RDS-025).
 

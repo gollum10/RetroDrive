@@ -664,7 +664,7 @@ async fn apply_batocera_theme(catalog: State<'_, Catalog>, active: State<'_, Act
 /// its own files when it closes): RetroBat yes; Batocera runs on its own machine.
 fn running_for(connection: &rusqlite::Connection, installation_id: &str) -> customizer::RunningFn<'static> {
     let adapter: String = connection.query_row("SELECT adapter_id FROM installations WHERE id = ?1", [installation_id], |r| r.get(0)).unwrap_or_default();
-    if adapter == "batocera" || adapter == "retropie" {
+    if adapter == "batocera" || adapter == "retropie" || adapter == "recalbox" {
         &customizer::never_running
     } else if adapter == "esde" {
         &customizer::esde_running
@@ -680,6 +680,8 @@ fn batocera_note(connection: &rusqlite::Connection, installation_id: &str) -> &'
         " If Batocera is running, press Start → Game Settings → Update Gamelists to see them."
     } else if adapter == "retropie" {
         " Restart RetroPie (or EmulationStation) to see them."
+    } else if adapter == "recalbox" {
+        " If Recalbox is running, update the game lists from its menu (or restart it) to see them."
     } else {
         ""
     }
