@@ -7,6 +7,7 @@ mod bios_step;
 mod catalog;
 mod classify;
 mod collections;
+mod controller_setup;
 mod controllers;
 mod customizer;
 mod designs;
@@ -607,6 +608,25 @@ async fn connected_controllers(catalog: State<'_, Catalog>) -> Result<Vec<contro
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Controllers step 2: each installation's state for this controller (reads only).
+#[tauri::command]
+async fn controller_setup_preview(catalog: State<'_, Catalog>, vid: String, pid: String, xinput: bool) -> Result<Vec<controller_setup::SetupTarget>, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || controller_setup::preview(&db::open(&db_path)?, &vid, &pid, xinput, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Controllers step 2: add the setup files on the chosen installations (journaled, undoable).
+#[tauri::command]
+async fn apply_controller_setup(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, vid: String, pid: String, xinput: bool, installation_ids: Vec<String>) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || controller_setup::apply(&db::open(&db_path)?, &installation_ids, &vid, &pid, xinput, &volumes::presence))
+        .await
+        .map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
 }
 
 /// Controllers workspace: remember the style the user confirmed (`None` forgets it).
@@ -1234,6 +1254,8 @@ pub fn run() {
             retropie_options,
             connected_controllers,
             remember_controller_type,
+            controller_setup_preview,
+            apply_controller_setup,
             find_controllers,
             controller_reference,
             preview_bios_step,
