@@ -352,3 +352,15 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** not yet tried on a real RetroPie (Samba on a Pi).
 
+## 27. Addendum: RetroPie Sync and art (2026-11-07)
+**Scope:** step 3 of the RetroPie work, owner's choice "only existing lists, opt in". No new kind of disk action: Sync (§18, §20) and the game-list step (§17: new image files only, journaled list edits with backups, undo). Code: `gamelists.rs`, `lib.rs`, `App.tsx`, `Customize.tsx`.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| Creating a rom-folder list hides RetroPie's home-folder list (scraped art, favorites, play counts) | Only lists already in rom folders are filled in; creating one needs the per-check opt-in with a warning; never after a copy | `retropie_lists_are_filled_in_and_only_created_when_asked` |
+| Lists or images in the wrong place on the share (no `roms` level) | `games_dir` uses `roms\` only when it exists; the RetroPie test checks `nes\images` at the share root | same test |
+| A created list is unwanted | Undo moves it aside (the journal's "no file before" case); RetroPie goes back to its home-folder list | existing undo tests |
+| RetroPie running while lists change | Its EmulationStation reads lists at start; RetroDrive says to restart it; it doesn't run on this PC, so no local "close it first" check | design note |
+
+**Residual risk:** not yet tried on a real RetroPie.
+

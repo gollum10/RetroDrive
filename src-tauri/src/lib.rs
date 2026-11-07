@@ -639,7 +639,7 @@ async fn apply_batocera_theme(catalog: State<'_, Catalog>, active: State<'_, Act
 /// its own files when it closes): RetroBat yes; Batocera runs on its own machine.
 fn running_for(connection: &rusqlite::Connection, installation_id: &str) -> customizer::RunningFn<'static> {
     let adapter: String = connection.query_row("SELECT adapter_id FROM installations WHERE id = ?1", [installation_id], |r| r.get(0)).unwrap_or_default();
-    if adapter == "batocera" {
+    if adapter == "batocera" || adapter == "retropie" {
         &customizer::never_running
     } else {
         &customizer::retrobat_running
@@ -651,6 +651,8 @@ fn batocera_note(connection: &rusqlite::Connection, installation_id: &str) -> &'
     let adapter: String = connection.query_row("SELECT adapter_id FROM installations WHERE id = ?1", [installation_id], |r| r.get(0)).unwrap_or_default();
     if adapter == "batocera" {
         " If Batocera is running, press Start → Game Settings → Update Gamelists to see them."
+    } else if adapter == "retropie" {
+        " Restart RetroPie (or EmulationStation) to see them."
     } else {
         ""
     }
@@ -658,10 +660,10 @@ fn batocera_note(connection: &rusqlite::Connection, installation_id: &str) -> &'
 
 /// What adding game art and details to the game lists would do (reads only).
 #[tauri::command]
-async fn preview_retrobat_art(app: AppHandle, catalog: State<'_, Catalog>, installation_id: String) -> Result<gamelists::ArtPreview, String> {
+async fn preview_retrobat_art(app: AppHandle, catalog: State<'_, Catalog>, installation_id: String, create_lists: Option<bool>) -> Result<gamelists::ArtPreview, String> {
     let db_path = catalog.path()?;
     tauri::async_runtime::spawn_blocking(move || {
-        gamelists::preview(&db::open(&db_path)?, &installation_id, None, &volumes::presence, &|phase, done, total| {
+        gamelists::preview(&db::open(&db_path)?, &installation_id, None, create_lists.unwrap_or(false), &volumes::presence, &|phase, done, total| {
             let _ = app.emit("art-progress", ArtProgress { phase: phase.to_string(), done, total });
         })
     })
@@ -679,12 +681,12 @@ struct ArtProgress {
 
 /// Add the user's art and catalog details to RetroBat's game lists (reviewed; undoable). Emits `art-progress`.
 #[tauri::command]
-async fn apply_retrobat_art(app: AppHandle, catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, list_shas: std::collections::BTreeMap<String, String>) -> Result<String, String> {
+async fn apply_retrobat_art(app: AppHandle, catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, list_shas: std::collections::BTreeMap<String, String>, create_lists: Option<bool>) -> Result<String, String> {
     claim_drive_change(&active)?;
     let db_path = catalog.path()?;
     let result = tauri::async_runtime::spawn_blocking(move || {
         let connection = db::open(&db_path)?;
-        let message = gamelists::apply(&connection, &installation_id, None, Some(&list_shas), &volumes::presence, running_for(&connection, &installation_id), &|phase, done, total| {
+        let message = gamelists::apply(&connection, &installation_id, None, Some(&list_shas), create_lists.unwrap_or(false), &volumes::presence, running_for(&connection, &installation_id), &|phase, done, total| {
             let _ = app.emit("art-progress", ArtProgress { phase: phase.to_string(), done, total });
         })?;
         Ok::<String, String>(format!("{message}{}", batocera_note(&connection, &installation_id)))
@@ -1030,7 +1032,7 @@ fn run_deployment(
         (Some(s), true) if matches!(s.status.as_str(), "completed" | "completed_with_issues" | "cancelled") && s.files_copied + s.files_replaced + s.files_identical > 0 => {
             db::open(&db_path).ok().and_then(|connection| {
                 let adapter: String = connection.query_row("SELECT adapter_id FROM installations WHERE id = ?1", [&installation_id], |r| r.get(0)).unwrap_or_default();
-                gamelists::GAMELIST_PLATFORMS.contains(&adapter.as_str()).then(|| match gamelists::apply(&connection, &installation_id, Some(&s.deployment_id), None, &volumes::presence, running_for(&connection, &installation_id), &|_, _, _| {}) {
+                gamelists::GAMELIST_PLATFORMS.contains(&adapter.as_str()).then(|| match gamelists::apply(&connection, &installation_id, Some(&s.deployment_id), None, false, &volumes::presence, running_for(&connection, &installation_id), &|_, _, _| {}) {
                     Ok(message) => format!("{message}{}", batocera_note(&connection, &installation_id)),
                     // Nothing missing isn't a failure.
                     Err(e) if e.starts_with("There's no art or detail to add") => "Nothing new to add: these games already have their art and details.".to_string(),

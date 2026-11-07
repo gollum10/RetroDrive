@@ -26,7 +26,7 @@ type Design = { id: string; name: string; platform: string; spec: DesignSpec|nul
 type DesignPreview = { design: string; theme_action: string|null; theme_folder: string|null; theme_bytes: number; files: { name: string; folder: string; action: string }[]; es_changes: SettingChange[]; ini_changes: SettingChange[]; es_sha: string; ini_sha: string; tracks_playing: number|null; tracks_left_out: number|null; nothing: boolean };
 type ArtProgress = { phase: 'checking'|'copying'; done: number; total: number };
 type SystemArt = { system: string; games_updated: number; games_added: number; images: number; kept: number };
-type ArtPreview = { systems: SystemArt[]; images: number; image_bytes: number; games_updated: number; art_unavailable: number; list_shas: Record<string,string>; nothing: boolean };
+type ArtPreview = { systems: SystemArt[]; images: number; image_bytes: number; games_updated: number; art_unavailable: number; list_shas: Record<string,string>; nothing: boolean; lists_not_created: string[] };
 type Application = { id: number; design_id: string|null; design_name: string; state: string; added: string[]; when: string };
 export type CustomizeInstall = { id: string; adapter_id: string; adapter_name: string; path: string; presence: string };
 
@@ -85,7 +85,7 @@ function summary(spec:DesignSpec|null):string[] {
 
 export default function Customize({ installs, native, busy, notify }: { installs: CustomizeInstall[]; native: boolean; busy: boolean; notify: (text:string, error?:boolean)=>void }) {
   // Designs, themes and settings are RetroBat's; Batocera gets game art and details (settings and themes are next).
-  const targets=installs.filter(i=>i.adapter_id==='retrobat'||i.adapter_id==='batocera');
+  const targets=installs.filter(i=>i.adapter_id==='retrobat'||i.adapter_id==='batocera'||i.adapter_id==='retropie');
   const [targetId,setTargetId]=useState(''); const target=targets.find(i=>i.id===targetId)??targets[0];
   const [designs,setDesigns]=useState<Design[]>([]);
   const [themes,setThemes]=useState<ThemeList|null>(null); const [look,setLook]=useState<LookOptions|null>(null); const [emu,setEmu]=useState<SettingsOptions|null>(null); const [music,setMusic]=useState<MusicSetting[]|null>(null);
@@ -94,7 +94,7 @@ export default function Customize({ installs, native, busy, notify }: { installs
   const [newName,setNewName]=useState(''); const [working,setWorking]=useState(false); const [confirm,setConfirm]=useState<string|null>(null);
   const [applyFor,setApplyFor]=useState<{design:Design; preview:DesignPreview}|null>(null); const [emuAll,setEmuAll]=useState(false);
   const [assets,setAssets]=useState<Record<string,string>>({}); const saveTimer=useRef<number|undefined>(undefined);
-  const [art,setArt]=useState<ArtPreview|null>(null); const [artProgress,setArtProgress]=useState<ArtProgress|null>(null); const [artChecking,setArtChecking]=useState(false); const [artError,setArtError]=useState('');
+  const [art,setArt]=useState<ArtPreview|null>(null); const [createLists,setCreateLists]=useState(false); const [artProgress,setArtProgress]=useState<ArtProgress|null>(null); const [artChecking,setArtChecking]=useState(false); const [artError,setArtError]=useState('');
   useEffect(()=>{ const un=listen<ArtProgress>('art-progress', e=>setArtProgress(e.payload)); return ()=>{ void un.then(f=>f()); }; },[]);
   const connected=!!target&&target.presence==='connected'; const isRetroBat=target?.adapter_id==='retrobat'; const sysName=target?.adapter_name??'RetroBat';
   const blocked=look?.blocked??null;
@@ -145,11 +145,11 @@ export default function Customize({ installs, native, busy, notify }: { installs
     try { notify(`RetroBat settings: ${await invoke<string>('undo_emulator_settings',{changeId:h.id})}`); await loadTarget(target.id); } catch(e){ fail('Could not undo')(e); } finally { setWorking(false); setConfirm(null); } };
 
   // ----- game art -----
-  const reviewArt=async()=>{ if(!target||artChecking) return; setConfirm(null); setArtError(''); setArtChecking(true); setArtProgress(null);
-    try { setArt(await invoke<ArtPreview>('preview_retrobat_art',{installationId:target.id})); } catch(e){ setArtError(String(e)); fail('Could not check the game lists')(e); } finally { setArtChecking(false); setArtProgress(null); } };
+  const reviewArt=async(create:boolean=createLists)=>{ if(!target||artChecking) return; setConfirm(null); setArtError(''); setArtChecking(true); setArtProgress(null); setCreateLists(create);
+    try { setArt(await invoke<ArtPreview>('preview_retrobat_art',{installationId:target.id, createLists:create})); } catch(e){ setArtError(String(e)); fail('Could not check the game lists')(e); } finally { setArtChecking(false); setArtProgress(null); } };
   const applyArt=async()=>{ if(!target||!art) return; if(confirm!=='art'){ setConfirm('art'); return; } setWorking(true); setArtProgress(null);
     notify(`Adding art and details: copying ${art.images.toLocaleString()} images (${fmtSize(art.image_bytes)}). This can take a while on a USB drive…`);
-    try { notify(await invoke<string>('apply_retrobat_art',{installationId:target.id, listShas:art.list_shas})); setArt(null); await loadTarget(target.id); }
+    try { notify(await invoke<string>('apply_retrobat_art',{installationId:target.id, listShas:art.list_shas, createLists})); setArt(null); await loadTarget(target.id); }
     catch(e){ fail('Could not add the art')(e); } finally { setWorking(false); setConfirm(null); setArtProgress(null); } };
 
   // ----- controls -----
@@ -248,7 +248,7 @@ export default function Customize({ installs, native, busy, notify }: { installs
   // ================= designs and applying =================
   const lastApplied=apps.find(a=>a.state!=='undone');
   return <section className="panel customize">
-    <div className="section-heading"><div><h2>Customize</h2><p>{isRetroBat?'Design how RetroBat looks and behaves (theme, boot video, music, behavior, emulators), then apply a finished design. Designs are kept in RetroDrive, so you can reuse them on other drives.':`Batocera's settings and theme, and your box art and catalog details in its menus.`}</p></div>
+    <div className="section-heading"><div><h2>Customize</h2><p>{isRetroBat?'Design how RetroBat looks and behaves (theme, boot video, music, behavior, emulators), then apply a finished design. Designs are kept in RetroDrive, so you can reuse them on other drives.':target.adapter_id==='batocera'?`Batocera's settings and theme, and your box art and catalog details in its menus.`:`Your box art and catalog details in ${sysName}'s menus. ${sysName} settings come later.`}</p></div>
       {targets.length>1&&<label className="cust-pick">Apply to <select value={target.id} onChange={e=>setTargetId(e.target.value)}>{targets.map(i=><option key={i.id} value={i.id}>{i.adapter_name} · {i.path}</option>)}</select></label>}</div>
     <p className="mono cust-target">{target.adapter_name} · {target.path}{lastApplied?` · last applied: "${lastApplied.design_name}"`:''}</p>
     {!connected&&<p className="warn-text">{isRetroBat?"This RetroBat's drive isn't connected. You can still design; applying needs the drive.":`This ${sysName} isn't connected. Plug in its game drive, or start it so its network share is reachable.`}</p>}
@@ -275,15 +275,17 @@ export default function Customize({ installs, native, busy, notify }: { installs
         <li className="plan-notes">Everything else stays as it is. RetroBat's settings files are backed up first; Undo puts them back in one step. Added files are kept.</li></ul>}
       <div className="actions"><button className="primary" disabled={working||!!blocked||applyFor.preview.nothing} onClick={()=>void doApply()}>{working?'Applying…':confirm==='apply'?'Click again to apply':'Apply design'}</button><button className="ghost" disabled={working} onClick={()=>{ setApplyFor(null); setConfirm(null); }}>Not now</button></div></div>}
 
-    {!isRetroBat&&connected&&<BatoceraSettings installationId={target.id} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
+    {target.adapter_id==='batocera'&&connected&&<BatoceraSettings installationId={target.id} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
     <div className="backups"><h3>Game art and details</h3>
-      <p className="plan-notes">Show your own box art, logos and catalog details (title, year, genre, developer, publisher) in {sysName}'s menus for the games RetroDrive copied. Images are copied to each system's <span className="mono">images</span> folder as new files; {sysName}'s game lists only get what they're missing, so art {sysName} already shows is kept. New copies get this automatically when you tick it while copying.{!isRetroBat&&' If Batocera is running, press Start → Game Settings → Update Gamelists afterwards to see the new art.'}</p>
-      {!art?<><div className="actions"><button className="ghost" disabled={working||busy||!connected||artChecking} onClick={()=>void reviewArt()}><Eye size={15}/> {artChecking?'Checking…':'Check what can be added'}</button></div>
+      <p className="plan-notes">Show your own box art, logos and catalog details (title, year, genre, developer, publisher) in {sysName}'s menus for the games RetroDrive copied. Images are copied to each system's <span className="mono">images</span> folder as new files; {sysName}'s game lists only get what they're missing, so art {sysName} already shows is kept. New copies get this automatically when you tick it while copying.{target.adapter_id==='batocera'&&' If Batocera is running, press Start → Game Settings → Update Gamelists afterwards to see the new art.'}{target.adapter_id==='retropie'&&" On RetroPie, only game lists already in its rom folders are filled in (RetroPie would otherwise stop using the list in its home folder, where any scraped art, favorites and play counts are). Restart RetroPie afterwards to see the new art."}</p>
+      {art&&(art.lists_not_created.length>0||createLists)&&<div className="warn-box"><label className="check"><input type="checkbox" checked={createLists} disabled={artChecking||working} onChange={e=>void reviewArt(e.target.checked)}/> Also create game lists for {createLists?'systems without one':`${art.lists_not_created.length} system${art.lists_not_created.length===1?'':'s'} without one (${art.lists_not_created.join(', ')})`}</label>
+        <small className="plan-notes">RetroPie will then use the new list instead of the one in its home folder, so any art, favorites or play counts it scraped or saved there won't show (they aren't deleted; Undo brings the old behavior back). Leave this off if you scraped on this RetroPie.</small></div>}
+      {!art?<><div className="actions"><button className="ghost" disabled={working||busy||!connected||artChecking} onClick={()=>void reviewArt(false)}><Eye size={15}/> {artChecking?'Checking…':'Check what can be added'}</button></div>
         {artChecking&&<p className="plan-notes">{artProgress?.phase==='checking'?`Checking your games and their images: ${artProgress.done.toLocaleString()} of ${artProgress.total.toLocaleString()}…`:'Reading the catalog…'} A big library on a network drive can take a minute.</p>}
         {!artChecking&&artError&&<p className="warn-text">{artError}</p>}
         {!connected&&<p className="plan-notes">Connect {sysName} to check.</p>}
         {busy&&<p className="plan-notes">Available when the current scan or copy has finished.</p>}</>
-      :art.nothing?<p className="plan-notes">Nothing to add: the games RetroDrive copied already have art and details in {sysName}{art.art_unavailable?`, or their images aren't available (${art.art_unavailable.toLocaleString()} games' images are on a drive that isn't connected)`:''}. <button className="link" onClick={()=>setArt(null)}>close</button></p>
+      :art.nothing?<p className="plan-notes">{art.lists_not_created.length>0?<>Nothing to add without a game list (see above)</>:<>Nothing to add: the games RetroDrive copied already have art and details in {sysName}</>}{art.art_unavailable?`, or their images aren't available (${art.art_unavailable.toLocaleString()} games' images are on a drive that isn't connected)`:''}. <button className="link" onClick={()=>setArt(null)}>close</button></p>
       :<div className="confirm"><p><b>Add art and details for {art.games_updated.toLocaleString()} game{art.games_updated===1?'':'s'}</b> ({art.images.toLocaleString()} images, {fmtSize(art.image_bytes)}):</p>
         <div className="table-wrap"><table><thead><tr><th>System</th><th>Updated</th><th>Added to the list</th><th>Images</th><th>{sysName}'s art kept</th></tr></thead><tbody>{art.systems.map(x=><tr key={x.system}><td className="mono">{x.system}</td><td>{x.games_updated.toLocaleString()}</td><td>{x.games_added.toLocaleString()}</td><td>{x.images.toLocaleString()}</td><td>{x.kept.toLocaleString()}</td></tr>)}</tbody></table></div>
         {art.art_unavailable>0&&<p className="warn-text">{art.art_unavailable.toLocaleString()} games' images are on a drive that isn't connected; connect it and check again to include them.</p>}
