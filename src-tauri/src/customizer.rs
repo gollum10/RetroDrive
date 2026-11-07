@@ -500,7 +500,7 @@ pub(crate) fn install_for(connection: &Connection, installation_id: &str, presen
 }
 
 pub(crate) fn running_message(running: RunningFn) -> Option<String> {
-    running().then(|| "RetroBat is running. Close it first: it saves its own settings when it closes, which would undo these changes.".to_string())
+    running().then(|| "RetroBat or ES-DE is running. Close it first: it saves its own settings and game lists when it closes, which would undo these changes.".to_string())
 }
 
 pub(crate) struct Offer {
@@ -1365,11 +1365,20 @@ pub fn never_running() -> bool {
 }
 
 /// Whether RetroBat's interface or launcher is running on this computer.
-#[cfg(windows)]
 pub fn retrobat_running() -> bool {
+    any_running(&["retrobat.exe", "emulationstation.exe", "emulatorlauncher.exe"])
+}
+
+/// Whether ES-DE is running on this computer (it saves its game lists when it closes).
+pub fn esde_running() -> bool {
+    any_running(&["es-de.exe"])
+}
+
+/// Whether a process with one of these (lower-case) names is running.
+#[cfg(windows)]
+fn any_running(names: &[&str]) -> bool {
     use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
     use windows_sys::Win32::System::Diagnostics::ToolHelp::{CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS};
-    const NAMES: [&str; 3] = ["retrobat.exe", "emulationstation.exe", "emulatorlauncher.exe"];
     // SAFETY: standard ToolHelp snapshot walk; the entry's size is set before use and the handle is closed.
     unsafe {
         let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -1383,7 +1392,7 @@ pub fn retrobat_running() -> bool {
         while more {
             let len = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(entry.szExeFile.len());
             let name = String::from_utf16_lossy(&entry.szExeFile[..len]).to_lowercase();
-            if NAMES.contains(&name.as_str()) {
+            if names.contains(&name.as_str()) {
                 found = true;
                 break;
             }
@@ -1395,7 +1404,7 @@ pub fn retrobat_running() -> bool {
 }
 
 #[cfg(not(windows))]
-pub fn retrobat_running() -> bool {
+fn any_running(_names: &[&str]) -> bool {
     false
 }
 

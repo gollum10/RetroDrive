@@ -29,11 +29,58 @@
 //! folder are filled in; creating one is an explicit opt-in (`create_lists`), never
 //! done after a copy. RetroPie's roms share has no `roms` level: system folders are
 //! found under `games_dir`.
+//!
+//! ES-DE (2026-11-07, docs/18 §32) keeps its lists in its data folder
+//! (`ES-DE\gamelists\<system>\gamelist.xml`) and finds media by file name in
+//! `downloaded_media\<system>\<type>\<game path without extension>.png|jpg` (user
+//! guide), with no image tags in the list. So for ES-DE the details go into its list
+//! and the pictures are copied as `covers` (box art or main image) and `marquees`
+//! (logos) named after each game; a picture ES-DE already has (any extension) is kept.
+//! ES-DE saves its lists when it closes, so changes are refused while it runs.
 
 use crate::copier::{self, TEMP_MARKER};
 
 /// Platforms whose game lists RetroDrive fills in (same format).
-pub const GAMELIST_PLATFORMS: &[&str] = &["retrobat", "batocera", "retropie"];
+pub const GAMELIST_PLATFORMS: &[&str] = &["retrobat", "batocera", "retropie", "esde"];
+
+/// Where a platform keeps its game lists and pictures.
+enum Layout {
+    /// `<games>\<system>\gamelist.xml`, pictures in `<system>\images` with tags in the list.
+    InFolder,
+    /// ES-DE: lists under `<data>\gamelists`, pictures under `<media>\<system>\<type>` by name.
+    EsDe { data: PathBuf, media: PathBuf },
+}
+
+/// ES-DE's data folder for a ROMs folder: `ES-DE` next to a portable `ES-DE.exe`, or
+/// `%USERPROFILE%\ES-DE` when its settings point at this ROMs folder (or at the default one).
+pub(crate) fn esde_data_dir(roms: &Path) -> Option<PathBuf> {
+    if let Some(parent) = roms.parent().filter(|p| p.join("ES-DE.exe").is_file()) {
+        return Some(parent.join("ES-DE")).filter(|d| d.is_dir());
+    }
+    let home = PathBuf::from(std::env::var_os("USERPROFILE")?);
+    let data = home.join("ES-DE");
+    let setting = esde_setting(&data, "ROMDirectory").unwrap_or_default();
+    let target = if setting.is_empty() { home.join("ROMs") } else { PathBuf::from(setting.replace("~", &home.display().to_string())) };
+    let same = |a: &Path, b: &Path| a.display().to_string().trim_end_matches(['\\', '/']).eq_ignore_ascii_case(b.display().to_string().trim_end_matches(['\\', '/']));
+    (data.is_dir() && same(&target, roms)).then_some(data)
+}
+
+/// A string setting from ES-DE's `settings\es_settings.xml`.
+fn esde_setting(data: &Path, key: &str) -> Option<String> {
+    let text = fs::read_to_string(data.join("settings").join("es_settings.xml")).ok()?;
+    let values = customizer::values(&customizer::entries(&text).ok()?).ok()?;
+    values.get(key).map(|v| v.trim().to_string())
+}
+
+/// ES-DE's media folder: the `MediaDirectory` setting, or `<data>\downloaded_media`.
+fn esde_media_dir(data: &Path) -> PathBuf {
+    esde_setting(data, "MediaDirectory").filter(|v| !v.is_empty()).map(PathBuf::from).unwrap_or_else(|| data.join("downloaded_media"))
+}
+
+/// Whether ES-DE already has a picture of this type for a game (`.png`, `.jpg` or `.jpeg`).
+fn esde_has_media(dir: &Path, stem: &str) -> bool {
+    ["png", "jpg", "jpeg"].iter().any(|ext| dir.join(format!("{stem}.{ext}")).is_file())
+}
 
 /// Where the system folders are: `<root>\roms`, or the root itself (RetroPie's roms share).
 fn games_dir(root: &Path) -> (PathBuf, &'static str) {
@@ -385,8 +432,11 @@ fn xml(v: &str) -> String {
     v.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
-fn plan_system(games: &Path, system: &str, targets: &[&Target], sizes: &Sizes) -> Result<Option<SystemEdit>, String> {
-    let list_path = games.join(system).join("gamelist.xml");
+fn plan_system(games: &Path, layout: &Layout, system: &str, targets: &[&Target], sizes: &Sizes) -> Result<Option<SystemEdit>, String> {
+    let list_path = match layout {
+        Layout::InFolder => games.join(system).join("gamelist.xml"),
+        Layout::EsDe { data, .. } => data.join("gamelists").join(system).join("gamelist.xml"),
+    };
     let exists = list_path.is_file();
     let old_text = if exists { customizer::read_text(&list_path)? } else { String::new() };
     let base = if exists { old_text.clone() } else { "<?xml version=\"1.0\"?>\n<gameList>\n</gameList>\n".to_string() };
@@ -422,13 +472,41 @@ fn plan_system(games: &Path, system: &str, targets: &[&Target], sizes: &Sizes) -
             lines.push(format!("<{tag}>./images/{}</{tag}>", xml(&name)));
             true
         };
-        let had_art = entry.is_some_and(|e| has(e, "image"));
         let mut added_images = 0;
-        added_images += art_field("image", "image", &t.image, &mut lines, &mut copies) as usize;
-        added_images += art_field("thumbnail", "thumb", &t.thumbnail, &mut lines, &mut copies) as usize;
-        added_images += art_field("marquee", "marquee", &t.marquee, &mut lines, &mut copies) as usize;
-        if had_art && t.image.is_some() {
-            summary.kept += 1;
+        match layout {
+            Layout::InFolder => {
+                let had_art = entry.is_some_and(|e| has(e, "image"));
+                added_images += art_field("image", "image", &t.image, &mut lines, &mut copies) as usize;
+                added_images += art_field("thumbnail", "thumb", &t.thumbnail, &mut lines, &mut copies) as usize;
+                added_images += art_field("marquee", "marquee", &t.marquee, &mut lines, &mut copies) as usize;
+                if had_art && t.image.is_some() {
+                    summary.kept += 1;
+                }
+            }
+            Layout::EsDe { media, .. } => {
+                // Pictures named after the game (its path without the extension), no tags.
+                let stem_path = t.rel.rsplit_once('.').map(|(s, _)| s).unwrap_or(&t.rel);
+                if stem_path.split('/').any(|p| p.is_empty() || p == "..") {
+                    continue;
+                }
+                let mut had = false;
+                for (kind, source) in [("covers", t.image.as_ref().or(t.thumbnail.as_ref())), ("marquees", t.marquee.as_ref())] {
+                    let Some(src) = source else { continue };
+                    let dir = media.join(system).join(kind);
+                    let (sub, stem) = stem_path.rsplit_once('/').map(|(d, s)| (Some(d), s)).unwrap_or((None, stem_path));
+                    let dir = sub.map(|d| dir.join(d)).unwrap_or(dir);
+                    if esde_has_media(&dir, stem) {
+                        had = true;
+                        continue;
+                    }
+                    let ext = src.extension().and_then(|e| e.to_str()).unwrap_or("png").to_lowercase();
+                    copies.push((src.clone(), dir.join(format!("{stem}.{ext}"))));
+                    added_images += 1;
+                }
+                if had {
+                    summary.kept += 1;
+                }
+            }
         }
         let d = &t.details;
         let add_text = |tag: &str, value: &Option<String>, lines: &mut Vec<String>| {
@@ -475,13 +553,18 @@ fn plan_system(games: &Path, system: &str, targets: &[&Target], sizes: &Sizes) -
                     }
                     edits.push((at, at, block));
                 }
-                if changed {
+                if changed || added_images > 0 {
                     summary.games_updated += 1;
                     summary.images += added_images;
                 }
             }
             None => {
                 if lines.is_empty() && d.title.is_none() {
+                    // ES-DE: a picture alone needs no list entry (it's found by name).
+                    if added_images > 0 {
+                        summary.games_updated += 1;
+                        summary.images += added_images;
+                    }
                     continue;
                 }
                 new_entries.push_str(&format!("\t<game>{newline}\t\t<path>./{}</path>{newline}\t\t<name>{}</name>{newline}", xml(&t.rel), xml(d.title.as_deref().unwrap_or(stem))));
@@ -494,7 +577,7 @@ fn plan_system(games: &Path, system: &str, targets: &[&Target], sizes: &Sizes) -
             }
         }
     }
-    if edits.is_empty() && new_entries.is_empty() {
+    if edits.is_empty() && new_entries.is_empty() && copies.is_empty() {
         return Ok(None);
     }
     if !new_entries.is_empty() {
@@ -523,9 +606,16 @@ type Planned = (customizer::Install, Vec<SystemEdit>, usize, Sizes, Vec<String>)
 
 /// `create_lists`: on RetroPie, also create lists for systems without one (opt-in).
 fn plan(connection: &Connection, installation_id: &str, deployment: Option<&str>, create_lists: bool, presence: PresenceFn, progress: ProgressFn) -> Result<Planned, String> {
-    let install = customizer::install_for(connection, installation_id, presence, GAMELIST_PLATFORMS, "Game art and details are available for RetroBat, Batocera and RetroPie.")?;
+    let install = customizer::install_for(connection, installation_id, presence, GAMELIST_PLATFORMS, "Game art and details are available for RetroBat, Batocera, RetroPie and ES-DE.")?;
     let adapter: String = connection.query_row("SELECT adapter_id FROM installations WHERE id = ?1", [installation_id], |r| r.get(0)).map_err(|e| e.to_string())?;
     let (games, _) = games_dir(&install.root);
+    let layout = if adapter == "esde" {
+        let data = esde_data_dir(&install.root).ok_or("RetroDrive couldn't find ES-DE's settings folder for this ROMs folder (ES-DE next to its ES-DE.exe, or in your user folder), so it can't add art for ES-DE.")?;
+        let media = esde_media_dir(&data);
+        Layout::EsDe { data, media }
+    } else {
+        Layout::InFolder
+    };
     let mut not_created = Vec::new();
     let (all, unavailable, sizes) = targets(connection, &install, deployment, presence, progress)?;
     let mut by_system: BTreeMap<String, Vec<&Target>> = BTreeMap::new();
@@ -541,7 +631,7 @@ fn plan(connection: &Connection, installation_id: &str, deployment: Option<&str>
             not_created.push(system);
             continue;
         }
-        if let Some(edit) = plan_system(&games, &system, &list, &sizes)? {
+        if let Some(edit) = plan_system(&games, &layout, &system, &list, &sizes)? {
             edits.push(edit);
         }
     }
@@ -612,6 +702,12 @@ pub fn apply(connection: &Connection, installation_id: &str, deployment: Option<
     }
     let (install, edits, _, _, _) = plan(connection, installation_id, deployment, create_lists, presence, progress)?;
     let (_, prefix) = games_dir(&install.root);
+    // ES-DE's lists live in its data folder: journal and back them up there.
+    let esde = connection.query_row("SELECT adapter_id = 'esde' FROM installations WHERE id = ?1", [installation_id], |r| r.get::<_, bool>(0)).unwrap_or(false);
+    let list_install = match (esde, esde_data_dir(&install.root)) {
+        (true, Some(data)) => customizer::Install { id: install.id.clone(), root_text: data.display().to_string(), root: data, stable: None },
+        _ => customizer::Install { id: install.id.clone(), root: install.root.clone(), root_text: install.root_text.clone(), stable: install.stable.clone() },
+    };
     if edits.is_empty() {
         return Err("There's no art or detail to add: the games RetroDrive copied already have them, or their images aren't available.".into());
     }
@@ -628,14 +724,20 @@ pub fn apply(connection: &Connection, installation_id: &str, deployment: Option<
     if let Some(Err(e)) = results.into_iter().find(Result::is_err) {
         return Err(format!("{e} No game list was changed; images already copied are new files nothing uses yet."));
     }
-    let added: Vec<String> = edits.iter().filter(|e| !e.copies.is_empty()).map(|e| format!("{} image(s) in {prefix}{}/images", e.copies.len(), e.system)).collect();
+    let added: Vec<String> = edits.iter().filter(|e| !e.copies.is_empty()).map(|e| if esde { format!("{} image(s) in ES-DE's downloaded_media/{}", e.copies.len(), e.system) } else { format!("{} image(s) in {prefix}{}/images", e.copies.len(), e.system) }).collect();
     // 2. Game lists, journaled; if one fails, the ones already written are undone.
     let mut ids = Vec::new();
     for e in &edits {
-        let relative = format!("{prefix}{}/gamelist.xml", e.system);
+        if e.new_text == e.old_text {
+            continue; // ES-DE: pictures only, the list already had everything.
+        }
+        let relative = if esde { format!("gamelists/{}/gamelist.xml", e.system) } else { format!("{prefix}{}/gamelist.xml", e.system) };
+        if esde {
+            copier::ensure_folders(&list_install.root, &relative).map_err(|e| format!("{e} No game list was changed."))?;
+        }
         let s = &e.summary;
         let rows = vec![ChangeRow { system: e.system.clone(), key: "gamelist".into(), before: None, after: Some(format!("{} game(s) updated, {} added, {} image(s)", s.games_updated, s.games_added, s.images)) }];
-        match customizer::write_file(connection, &install, &relative, &e.list_path, &e.old_text, &e.new_text, rows) {
+        match customizer::write_file(connection, &list_install, &relative, &e.list_path, &e.old_text, &e.new_text, rows) {
             Ok((_, id)) => ids.push(id),
             Err(err) => {
                 let all = ids.iter().rev().all(|id| customizer::undo(connection, *id, presence, running).is_ok());
@@ -719,7 +821,16 @@ mod tests {
             "<gameList><game><path>./Kid.zip</path><image>./media/images/Kid.png</image><marquee>./media/wheel/Kid.png</marquee></game><game><path>./Scraped.zip</path><image>./media/images/Scraped.png</image></game><game><path>./New Game.zip</path><image>./media/images/New Game.png</image></game></gameList>",
         )
         .unwrap();
-        let root = if adapter == "retropie" {
+        let root = if adapter == "esde" {
+            // A portable ES-DE like the owner's: ES-DE.exe, ES-DE\ (data), ROMs\.
+            let program = dir.path().join("ES-DE");
+            for d in ["ROMs/nes", "ES-DE/gamelists", "ES-DE/downloaded_media", "ES-DE/settings"] {
+                fs::create_dir_all(program.join(d)).unwrap();
+            }
+            fs::write(program.join("ES-DE.exe"), b"").unwrap();
+            fs::write(program.join("ROMs/systems.txt"), b"nes: Nintendo Entertainment System\n").unwrap();
+            program.join("ROMs")
+        } else if adapter == "retropie" {
             // RetroPie's roms share: the system folders are at the top.
             let roms = dir.path().join("roms");
             for d in ["nes", "snes", "ports"] {
@@ -842,6 +953,35 @@ mod tests {
         assert_eq!((asked.systems[0].games_added, asked.lists_not_created.len()), (3, 0));
         apply(&s.catalog, &s.install, None, Some(&asked.list_shas), true, &connected, &closed, &quiet).unwrap();
         assert!(list(&s).contains("<path>./Kid.zip</path>"));
+    }
+
+    #[test]
+    fn esde_gets_details_in_its_own_list_and_pictures_named_after_each_game() {
+        let s = setup_for("esde");
+        let data = s.root.parent().unwrap().join("ES-DE");
+        assert_eq!(esde_data_dir(&s.root).as_deref(), Some(data.as_path()));
+        // ES-DE already has a cover for Scraped (as .jpg): it's kept.
+        fs::create_dir_all(data.join("downloaded_media/nes/covers")).unwrap();
+        fs::write(data.join("downloaded_media/nes/covers/Scraped.jpg"), b"theirs").unwrap();
+        let rom_list = fs::read_to_string(s.root.join("nes/gamelist.xml")).unwrap();
+        let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
+        let nes = &p.systems[0];
+        assert_eq!((nes.games_added, nes.games_updated, nes.images, nes.kept), (1, 1, 3, 1), "Kid listed with details; New Game's cover only; Scraped's cover kept");
+        assert!(apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &open, &quiet).unwrap_err().contains("running"), "not while ES-DE runs");
+        apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &closed, &quiet).unwrap();
+        let list = fs::read_to_string(data.join("gamelists/nes/gamelist.xml")).unwrap();
+        assert!(list.contains("<path>./Kid.zip</path>") && list.contains("<name>Kid Icarus</name>") && list.contains("<genre>Platform</genre>"));
+        assert!(!list.contains("<image>"), "ES-DE finds pictures by name, not by tags");
+        assert_eq!(fs::read(data.join("downloaded_media/nes/covers/Kid.png")).unwrap(), b"art of Kid");
+        assert_eq!(fs::read(data.join("downloaded_media/nes/marquees/Kid.png")).unwrap(), b"kid logo");
+        assert_eq!(fs::read(data.join("downloaded_media/nes/covers/New Game.png")).unwrap(), b"art of New Game");
+        assert_eq!(fs::read(data.join("downloaded_media/nes/covers/Scraped.jpg")).unwrap(), b"theirs");
+        assert_eq!(fs::read_to_string(s.root.join("nes/gamelist.xml")).unwrap(), rom_list, "nothing written in the ROMs folder");
+        // Undo puts ES-DE's list back (it didn't exist); pictures stay.
+        let app = crate::designs::applications(&s.catalog, &s.install).unwrap()[0].id;
+        crate::designs::undo(&s.catalog, app, &connected, &closed).unwrap();
+        assert!(!data.join("gamelists/nes/gamelist.xml").exists());
+        assert!(data.join("downloaded_media/nes/covers/Kid.png").exists());
     }
 
     #[test]

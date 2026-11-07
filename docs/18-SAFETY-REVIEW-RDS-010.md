@@ -408,3 +408,16 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** libraries indexed before this change need re-importing so files in BIOS subfolders are known.
 
+## 32. Addendum: ES-DE art and details (2026-11-07)
+**Scope:** the reviewed game-list step (§17) for ES-DE, writing in ES-DE's data folder instead of the ROMs folder. Code: `gamelists.rs` (`Layout::EsDe`), `customizer.rs` (`esde_running`), `lib.rs`, `App.tsx`, `Customize.tsx`.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| ES-DE overwrites the edited lists when it closes | Refused while `ES-DE.exe` runs (same check as RetroBat) | `esde_gets_details_in_its_own_list_and_pictures_named_after_each_game` |
+| ES-DE's own pictures replaced | A picture ES-DE already has for that game and type (`.png`/`.jpg`/`.jpeg`) is kept; copies are new files only (temporary name, checked, no-replace rename) | same test |
+| Writing in the wrong ES-DE | The data folder must be the one next to the portable `ES-DE.exe`, or the user folder's ES-DE whose `ROMDirectory` is this ROMs folder; otherwise art is refused with an explanation | `esde_data_dir` |
+| A created list is unwanted | Journaled with backup; Undo moves it aside; pictures stay (as for other platforms) | same test |
+| Path tricks from game paths | Picture names come from the catalog's game path; empty or `..` parts are skipped | code review |
+
+**Residual risk:** not yet tried on the owner's real ES-DE (needs the owner's go-ahead to write in `G:" + B + "ES-DE" + B + "ES-DE`).
+
