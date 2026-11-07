@@ -41,6 +41,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-07 (RetroPie Sync and art, ADR-052):** the RetroPie card has **Sync**; the copy confirm box offers art ("only lists already in RetroPie's rom folders; restart RetroPie to see them"). Customize lists RetroPie installations with *Game art and details* and *Applied designs* only ("RetroPie settings come later"). After *Check what can be added*, systems without a rom-folder list appear in an amber box: *Also create game lists for N systems without one (…)*, off by default, explaining that RetroPie would then use the new list instead of its home-folder list; ticking it re-checks with those lists included. "Nothing to add without a game list (see above)" when that's the only reason.
 
+**Implemented 2026-11-07 (RetroPie emulators, ADR-053):** Customize for RetroPie shows **RetroPie settings: emulators**: a grid of systems with games, each with a select of its installed emulators (current marked; *Not set* if none), 12 shown then *Show all*; *Review N changes* → "system: before → after" → **Save**. If RetroPie was added from a USB stick or the configs share can't be reached, a one-line explanation replaces the grid. Changes appear in *Show every settings change* with Undo.
+
 ## Drives
 Inventory: manufacturer/model, bus type when known, capacity, filesystem, free space, label, stable identity, mount point, safety classification (system/unknown/removable). Selected drive details: partitions, managed installations, activity, backup state. No prominent 'Erase' control in default view. Clearly distinguish physical disks from mounted volumes.
 

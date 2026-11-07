@@ -1229,8 +1229,8 @@ fn undo_block(j: &Journal, presence: PresenceFn) -> Option<String> {
     }
     match file_sha(Path::new(&j.file)) {
         Some(sha) if sha == j.new_sha => None,
-        Some(_) => Some("RetroBat's settings changed since then (in RetroBat or by another change), so undoing would lose those changes.".into()),
-        None => Some("RetroBat's settings file is missing.".into()),
+        Some(_) => Some("The settings file changed since then (in its own menus or by another change), so undoing would lose those changes.".into()),
+        None => Some("The settings file is missing.".into()),
     }
 }
 
