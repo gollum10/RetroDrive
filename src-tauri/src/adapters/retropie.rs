@@ -186,7 +186,7 @@ impl PlatformAdapter for RetroPie {
             return if request.options.has_roms_folder {
                 super::plan_bios("BIOS", request)
             } else {
-                Placement::Unsupported { reason: "Over the network, RetroPie keeps BIOS files on its separate bios share; RetroDrive doesn't copy there yet. A USB stick's retropie folder works.".into() }
+                Placement::Unsupported { reason: "Over the network, RetroPie keeps BIOS files on its separate bios share: use BIOS files in Customize to copy them there.".into() }
             };
         }
         match retropie_folder(&request.platform, &request.extension, request) {

@@ -442,3 +442,16 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 - Existing art and details are kept; only missing fields are added; pictures are new files only; lists are journaled with backups and undoable (`recalbox_game_lists_get_the_same_art_and_details`).
 - Recalbox runs on its own machine: no local running check; the user is told to update the game lists or restart Recalbox. Same residual risk as Batocera (§22): if a running Recalbox rewrote whole lists, art added meanwhile could be dropped (adding it again restores it).
 
+## 36. Addendum: BIOS files outside the installation folder (2026-11-07)
+**Scope and authorization:** owner ("Do #1 next"). Copies library BIOS files to RetroPie's `\\<host>\bios` share or ES-DE's RetroArch `system` folder. Code: `bios_step.rs`, `BiosStep.tsx`, `lib.rs`.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| A BIOS or emulator file replaced | New files only: temporary name (create-new), checked, renamed without replacing; anything already there is left alone (different ones listed as kept) | `missing_bios_files_are_copied_and_nothing_is_replaced` |
+| Writing to another Pi's bios share | The installation (roms share) must be connected with its share id before anything is planned; the bios share is on the same host | `target_for` |
+| Writing to the wrong RetroArch | Only RetroArch next to the portable ES-DE (or RetroArch's default `C:\RetroArch-Win64`); its own `system_directory` setting is respected | `locations_for_retropie_and_retroarch` |
+| Two library versions of a BIOS | Not copied; listed so the user can decide | same test |
+| Crash mid-copy | At worst a temporary `…rdpart` file stays next to the target (never a half file under the real name); no journal is needed because nothing is replaced | `copy_image` behavior (§17) |
+
+**Residual risk:** not tried on a real RetroPie or with RetroArch installed for ES-DE (the owner's ES-DE has no emulators yet).
+

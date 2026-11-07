@@ -157,7 +157,7 @@ impl PlatformAdapter for EsDe {
 
     fn plan_placement(&self, request: &PlacementRequest) -> Placement {
         if request.platform == crate::classify::BIOS {
-            return Placement::Unsupported { reason: "ES-DE has no BIOS folder of its own: each emulator keeps its own (RetroArch's is its system folder). RetroDrive doesn't place them there yet.".into() };
+            return Placement::Unsupported { reason: "ES-DE has no BIOS folder of its own: use BIOS files in Customize to copy them into RetroArch's system folder.".into() };
         }
         match esde_folder(&request.platform, &request.extension, request) {
             Ok(system) => plan_in("", system, request),

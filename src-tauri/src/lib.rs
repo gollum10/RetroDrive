@@ -3,6 +3,7 @@
 
 mod adapters;
 mod batocera_settings;
+mod bios_step;
 mod catalog;
 mod classify;
 mod collections;
@@ -595,6 +596,29 @@ fn open_download_page(id: String) -> Result<(), String> {
     install_helper::open_download_page(&id)
 }
 
+/// BIOS step (RetroPie's bios share, ES-DE's RetroArch system folder): what it would do (reads only).
+#[tauri::command]
+async fn preview_bios_step(catalog: State<'_, Catalog>, installation_id: String) -> Result<bios_step::BiosPreview, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || bios_step::preview(&db::open(&db_path)?, &installation_id, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// BIOS step: copy the missing files (new files only; nothing replaced or deleted).
+#[tauri::command]
+async fn apply_bios_step(app: AppHandle, catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        bios_step::apply(&db::open(&db_path)?, &installation_id, &volumes::presence, &|phase, done, total| {
+            let _ = app.emit("art-progress", ArtProgress { phase: phase.to_string(), done, total });
+        })
+    })
+    .await
+    .map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
 /// RetroPie: installed emulators per system and the defaults (reads only).
 #[tauri::command]
 async fn retropie_options(catalog: State<'_, Catalog>, installation_id: String) -> Result<retropie_settings::RetroPieOptions, String> {
@@ -1177,6 +1201,8 @@ pub fn run() {
             set_sync_scope,
             batocera_options,
             retropie_options,
+            preview_bios_step,
+            apply_bios_step,
             preview_retropie_emulators,
             apply_retropie_emulators,
             install_image_info,

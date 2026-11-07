@@ -7,6 +7,7 @@ import { AlertTriangle, Check, Eye, Palette, Pencil, Plus, Trash2, Undo2, X } fr
 import { baseName, fmtSize, localTime, shortPath } from './format';
 import BatoceraSettings from './BatoceraSettings';
 import RetroPieSettings from './RetroPieSettings';
+import BiosStep from './BiosStep';
 
 // ---------- data from the backend ----------
 type ThemeVar = { name: string; value: string; kind: 'color'|'image'; path: string|null };
@@ -276,6 +277,7 @@ export default function Customize({ installs, native, busy, notify }: { installs
         <li className="plan-notes">Everything else stays as it is. RetroBat's settings files are backed up first; Undo puts them back in one step. Added files are kept.</li></ul>}
       <div className="actions"><button className="primary" disabled={working||!!blocked||applyFor.preview.nothing} onClick={()=>void doApply()}>{working?'Applying…':confirm==='apply'?'Click again to apply':'Apply design'}</button><button className="ghost" disabled={working} onClick={()=>{ setApplyFor(null); setConfirm(null); }}>Not now</button></div></div>}
 
+    {(target.adapter_id==='retropie'&&target.path.startsWith('\\')||target.adapter_id==='esde')&&connected&&<BiosStep installationId={target.id} adapterId={target.adapter_id} disabled={busy} notify={notify}/>}
     {target.adapter_id==='retropie'&&connected&&<RetroPieSettings installationId={target.id} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
     {target.adapter_id==='batocera'&&connected&&<BatoceraSettings installationId={target.id} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
     <div className="backups"><h3>Game art and details</h3>

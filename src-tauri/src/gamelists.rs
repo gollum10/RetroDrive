@@ -113,7 +113,7 @@ pub type ProgressFn<'a> = &'a (dyn Fn(&str, usize, usize) + Sync);
 const CHECK_THREADS: usize = 16;
 
 /// Runs `work` on every item, `CHECK_THREADS` at a time, keeping the order.
-fn parallel_map<T: Sync, R: Send>(items: &[T], phase: &str, work: impl Fn(&T) -> R + Sync, progress: ProgressFn) -> Vec<R> {
+pub(crate) fn parallel_map<T: Sync, R: Send>(items: &[T], phase: &str, work: impl Fn(&T) -> R + Sync, progress: ProgressFn) -> Vec<R> {
     let total = items.len();
     let next = AtomicUsize::new(0);
     let done = AtomicUsize::new(0);
@@ -672,7 +672,7 @@ pub fn preview(connection: &Connection, installation_id: &str, deployment: Optio
 }
 
 /// Copy one image to a new file (temporary name, checked, renamed without replacing).
-fn copy_image(source: &Path, target: &Path) -> Result<(), String> {
+pub(crate) fn copy_image(source: &Path, target: &Path) -> Result<(), String> {
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("Couldn't create {}: {e}", parent.display()))?;
     }
