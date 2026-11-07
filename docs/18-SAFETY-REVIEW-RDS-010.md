@@ -380,5 +380,16 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 ## 29. Addendum: ES-DE is preview-only (RDS-025 step 1, 2026-11-07)
 - **Scope:** ES-DE ROMs folders can be recognized and planned for, but not copied to (`copy_games: false`); the copier refuses before any write. No writes in this step.
 - **Detection safety:** RetroBat and Batocera folders are never claimed; ES-DE's data folder (settings, game lists, media) is never accepted as a game folder; RetroPie no longer claims a folder with ES-DE's markers.
-- **Before turning on copying:** ES-DE's ROMs folder is a normal Windows folder (local drive, USB or NAS), so the reviewed copier applies as for RetroBat; a NAS path gets the share id (§21).
+- **Superseded 2026-11-07 by §30.** Original note: ES-DE's ROMs folder is a normal Windows folder (local drive, USB or NAS), so the reviewed copier applies as for RetroBat; a NAS path gets the share id (§21).
+
+## 30. Addendum: copying to ES-DE (RDS-025 step 2, 2026-11-07)
+**Scope and authorization:** owner go-ahead on 2026-11-07 ("merged, go"). ES-DE's ROMs folder gets the same copier as RetroBat (§2, §11); Sync is offered (§18, §20) without the art step. Code: `adapters/esde.rs` (`copy_games: true`), `App.tsx`. No new kind of disk action.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| ES-DE's own files in the ROMs folder overwritten | Copies never overwrite; only game files go into system folders; `systems.txt`/`systeminfo.txt` untouched | `esde_roms_folders_are_copied_to` |
+| ROMs folder on a NAS shared with other machines | Network paths get the share id (§21) | existing share-id tests |
+| RetroDrive's records confuse ES-DE | Records are in `.retrodrive`, which isn't an ES-DE system name | ES-DE loads only es_systems.xml folders |
+
+**Residual risk:** not yet tried with a real ES-DE installation (not installed on the test PC); the folder layout follows ES-DE's source.
 
