@@ -6,12 +6,13 @@ import sidebarArtUrl from './assets/retrodrive-sidebar-art.png';
 import iconUrl from './assets/retrodrive-icon.png';
 import Customize from './Customize';
 import InstallHelper from './InstallHelper';
+import Controllers from './Controllers';
 import { fmtSize, localTime, shortPath } from './format';
 import { DecisionsLine, DecisionsPanel, type KeptOffChange } from './Decisions';
 
 /** Platforms with game lists RetroDrive fills in and keeps up to date (Sync, art and details). */
 const GAMELIST_PLATFORMS=['retrobat','batocera','retropie'];
-import { Activity, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, CircleStop, Copy, RefreshCw, Database, Eye, History, Palette, Plus, Undo2, XCircle, FolderOpen, Gamepad2, HardDrive, LayoutDashboard, LayoutGrid, LibraryBig, List, RefreshCcw, Search, Settings2, ShieldCheck, Download } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, CircleStop, Copy, RefreshCw, Database, Eye, History, Palette, Plus, Undo2, XCircle, FolderOpen, Gamepad2, HardDrive, LayoutDashboard, LayoutGrid, LibraryBig, List, RefreshCcw, Search, Settings2, ShieldCheck, Download, Joystick } from 'lucide-react';
 
 type Availability = 'online'|'offline'|'missing';
 type Game = { id: string; game_id: string; title: string; platform: string; path: string; file_size: number; disc_count: number; incomplete: boolean; storage_name: string; availability: Availability; duplicate_count: number; reference: RefInfo|null; file_id: string; art: string|null };
@@ -96,10 +97,10 @@ function describeScan(r: ScanSummary): string {
 }
 const availabilityLabel: Record<Availability,string> = { online:'Online', offline:'Offline (drive not connected)', missing:'Missing at last scan' };
 type Drive = { name: string; mount_point: string; total_bytes: number; available_bytes: number; removable: boolean };
-type Page = 'Dashboard'|'Game Library'|'Drive Manager'|'Emulation Systems'|'Customize'|'Settings';
+type Page = 'Dashboard'|'Game Library'|'Drive Manager'|'Emulation Systems'|'Controllers'|'Customize'|'Settings';
 const menus = [
   {title:'Dashboard',icon:LayoutDashboard}, {title:'Game Library',icon:LibraryBig},
-  {title:'Drive Manager',icon:HardDrive}, {title:'Emulation Systems',icon:Gamepad2}, {title:'Customize',icon:Palette}, {title:'Settings',icon:Settings2},
+  {title:'Drive Manager',icon:HardDrive}, {title:'Emulation Systems',icon:Gamepad2}, {title:'Controllers',icon:Joystick}, {title:'Customize',icon:Palette}, {title:'Settings',icon:Settings2},
 ] as const;
 const bytes = (n:number) => `${(n/1024/1024/1024).toFixed(1)} GB`;
 export default function App() {
@@ -480,6 +481,7 @@ export default function App() {
       <div className="actions"><button className="ghost" onClick={()=>setCopyResult(null)}>Close</button></div>
     </section>}
     </>}
+    {page==='Controllers' && <Controllers/>}
     {page==='Customize' && <Customize installs={installs} native={native} busy={busy} notify={(text, isError=false)=>{ setError(isError); setMessage(text); }}/>}
     {page==='Settings' && <section className="panel"><h2>Reference catalog</h2>
       <p>Import your own game catalog (.xlsx or .csv) to show proper titles, years, genres and publishers. RetroDrive matches games by their exact No-Intro or MAME name first, then by title on the same system. Only names and details are imported; <b>art columns are never read</b>. Your files are never changed, and removing the catalog leaves your library as it was.</p>

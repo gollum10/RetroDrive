@@ -1,0 +1,13 @@
+id	name	layout	systems
+CT01	Classic joystick	One stick, one button	Atari 2600, Atari 7800, Commodore 64
+CT02	Keypad controller	Disc or stick with a number pad	Intellivision, ColecoVision, Atari 5200
+CT03	Rectangle D-pad	D-pad with 2 face buttons	NES, Master System, Game Boy
+CT04	Rounded D-pad	D-pad, 4 to 6 face buttons, shoulder buttons	SNES, Genesis, Saturn, TurboGrafx-16
+CT05	Three-prong	Analog stick, C-buttons, Z trigger	Nintendo 64
+CT06	Dual-analog (side by side)	Two sticks level below the face	PlayStation, PS2, PS3
+CT07	Offset sticks	Left stick high, D-pad low	Xbox, GameCube, Dreamcast
+CT08	Motion or remote	Pointer and motion sensing	Wii, PlayStation Move
+CT09	Arcade stick	Bat-top stick with 6 to 8 buttons	Arcade, Neo Geo, fight sticks
+CT10	Spinner or trackball	Rotary paddle, spinner or ball	Atari paddles, Arkanoid, Centipede
+CT11	Light gun	Aim and shoot at the screen	NES Zapper, Sega Light Phaser, GunCon
+CT12	Specialty	Wheels, flight sticks, dance pads, rods, bongos	Many systems

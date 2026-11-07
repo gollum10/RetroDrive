@@ -7,6 +7,7 @@ mod bios_step;
 mod catalog;
 mod classify;
 mod collections;
+mod controllers;
 mod customizer;
 mod designs;
 mod copier;
@@ -594,6 +595,24 @@ fn open_install_writer(id: String, image: String) -> Result<String, String> {
 #[tauri::command]
 fn open_download_page(id: String) -> Result<(), String> {
     install_helper::open_download_page(&id)
+}
+
+/// Controllers workspace: game controllers plugged into this PC (reads only).
+#[tauri::command]
+async fn connected_controllers() -> Result<Vec<controllers::Connected>, String> {
+    tauri::async_runtime::spawn_blocking(controllers::connected).await.map_err(|e| e.to_string())
+}
+
+/// Controllers workspace: look a controller up by name or `vid:pid`.
+#[tauri::command]
+fn find_controllers(query: String) -> Vec<controllers::ControllerInfo> {
+    controllers::search(&query)
+}
+
+/// Controllers workspace: controller types, data sources and their licences.
+#[tauri::command]
+fn controller_reference() -> controllers::Reference {
+    controllers::reference()
 }
 
 /// BIOS step (RetroPie's bios share, ES-DE's RetroArch system folder): what it would do (reads only).
@@ -1201,6 +1220,9 @@ pub fn run() {
             set_sync_scope,
             batocera_options,
             retropie_options,
+            connected_controllers,
+            find_controllers,
+            controller_reference,
             preview_bios_step,
             apply_bios_step,
             preview_retropie_emulators,

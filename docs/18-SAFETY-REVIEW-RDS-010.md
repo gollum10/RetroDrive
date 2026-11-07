@@ -455,3 +455,14 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** not tried on a real RetroPie or with RetroArch installed for ES-DE (the owner's ES-DE has no emulators yet).
 
+## 37. Addendum: Controllers workspace, step 1 (2026-11-07)
+**Scope and authorization:** owner (RDS-028, "I like all three"). Step 1 only reads: it lists HID game controllers through Windows Raw Input, opens each device with zero access rights just to read its product name, and looks it up in a list compiled into the app. Code: `controllers.rs`, `Controllers.tsx`, `lib.rs`.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| Writing to a device or a system | No writes anywhere: device handles are opened with access 0 (query only) and closed; no files are created | code review of `controllers.rs` |
+| Misleading advice for look-alike controllers | Rows that share a USB ID are never merged; a type is only shown when the row's names agree; the card says how many devices share the ID | `the_owners_list_is_loaded_and_looked_up` |
+| Licence obligations for bundled data | zlib and MIT notices shipped (`THIRD_PARTY_CONTROLLERS.txt`) and shown in the workspace with source versions | same test (notices present) |
+
+**Residual risk:** detection not yet tried with a real controller; steps 2 and 3 (pushing setups, light guns) write files and need their own scoped plan and review.
+
