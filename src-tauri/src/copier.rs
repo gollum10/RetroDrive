@@ -1620,6 +1620,33 @@ mod tests {
     }
 
     #[test]
+    fn recalbox_shares_are_copied_to() {
+        // RDS-025 step 5: a Recalbox share (\RECALBOX\share, a drive's recalbox folder or the SD card's SHARE).
+        let dir = tempfile::tempdir().unwrap();
+        let share = dir.path().join("recalbox");
+        for d in ["roms/snes", "roms/o2em", "bios", "saves", "system"] {
+            fs::create_dir_all(share.join(d)).unwrap();
+        }
+        fs::write(share.join("system/recalbox.conf"), b"").unwrap();
+        let library = dir.path().join("library");
+        write(&library, "snes/Mario.sfc", b"mario");
+        write(&library, "odyssey2/Pickaxe.bin", b"o2!");
+        write(&library, "bios/scph1001.bin", b"psx bios");
+        let mut catalog = Connection::open_in_memory().unwrap();
+        db::migrate(&mut catalog, None).unwrap();
+        scanner::scan(&mut catalog, &library, &unknown).unwrap();
+        let id = installations::add(&catalog, &share, "recalbox", &unknown).unwrap();
+        let choices = deployment::Choices::new();
+        let plan = deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap();
+        assert!(plan.copy_supported);
+        let request = DeployRequest { installation_id: &id, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None, sync: false };
+        let summary = deploy(&catalog, None, &request, &connected, &roomy, &mut Quiet).unwrap();
+        assert_eq!((summary.status.as_str(), summary.games_copied), ("completed", 3), "{:?}", summary.issues);
+        assert_eq!(fs::read(share.join("roms/o2em/Pickaxe.bin")).unwrap(), b"o2!", "Recalbox's folder name");
+        assert_eq!(fs::read(share.join("bios/scph1001.bin")).unwrap(), b"psx bios", "BIOS too");
+    }
+
+    #[test]
     fn esde_roms_folders_are_copied_to() {
         // RDS-025 step 2: ES-DE's ROMs folder holds the system folders; ES-DE's names.
         let dir = tempfile::tempdir().unwrap();

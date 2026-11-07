@@ -74,8 +74,8 @@ impl PlatformAdapter for Batocera {
                 Some("This is Batocera's system partition; games don't go here. Choose Batocera's game folder instead: \\\\BATOCERA\\share over the network while Batocera is running, or the batocera folder on an external game drive. Windows can't read Batocera's own SHARE partition (ext4) by default.".into()),
             );
         }
-        // RetroBat has a similar layout; never claim a RetroBat folder.
-        if has_entry(root, "RetroBat.exe", false) {
+        // RetroBat and Recalbox have similar layouts; never claim their folders.
+        if has_entry(root, "RetroBat.exe", false) || super::recalbox::has_recalbox_conf(root) {
             return detection(Confidence::NotDetected, Vec::new(), None);
         }
         let roms = has_entry(root, "roms", true);
