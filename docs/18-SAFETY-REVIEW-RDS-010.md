@@ -124,7 +124,7 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 ## 9. Addendum: Batocera is preview-only (RDS-008, 2026-11-06)
 - **Scope:** Batocera installations can be recognized and planned for, but **not copied to**. This review covered copies to local Windows drives only.
 - **Enforcement:** `Capabilities::copy_games` is false for Batocera. `deployment::build` puts it in the plan (`copy_supported`), and `copier::deploy` refuses as its very first check, before leftovers cleanup, journaling or any file access on the destination. The UI shows a preview note instead of the Copy button. Test: `copier::tests::preview_only_platforms_are_never_copied_to` (destination snapshot unchanged, no deployment row).
-- **Before turning it on (RDS-022):** review no-replace rename and unbuffered read-back over SMB, the share disappearing mid-copy (Batocera shut down), drive identity for `\\BATOCERA\share` (no volume serial guarantees), and exFAT game drives; test on a real Batocera.
+- **Superseded 2026-11-07 by §21** (copying turned on). Original note: **Before turning it on (RDS-022):** review no-replace rename and unbuffered read-back over SMB, the share disappearing mid-copy (Batocera shut down), drive identity for `\\BATOCERA\share` (no volume serial guarantees), and exFAT game drives; test on a real Batocera.
 
 ## 10. Addendum: undoing a replace (2026-11-06)
 **Scope and authorization:** the owner approved this plan on 2026-11-06: list Replace backups per installation and offer *Undo replace*, as a swap that never deletes; no "delete backups" action, only "Open backup folder". Code: `src-tauri/src/restore.rs`; schema v15.
@@ -280,4 +280,19 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 | Restoring a changed file loses the user's edit | Restore is the existing replace: drive file moved to `.retrodrive\backup` first, restored on failure; per game, never saved, never "for all" | `a_synced_game_changed_on_the_drive_is_shown_and_restored_only_if_chosen`; existing replace tests |
 | The copy runs a different plan than shown | The copier rebuilds the sync plan from the same scope and checks the fingerprint (which includes the scope) | existing fingerprint tests |
 | Stop syncing deletes games | It only edits the catalog scope; the drive isn't touched | `set_sync_scope` |
+
+## 21. Addendum: copying to Batocera (RDS-022, 2026-11-07)
+**Scope and authorization:** the owner approved step 1 of the Batocera plan on 2026-11-07 ("Yes, start step 1"): copying to a Batocera game drive plugged into this PC and over `\\BATOCERA\share`, same rules as RetroBat. Code: `adapters/batocera.rs` (`copy_games: true`), `volumes.rs` (share id), `copier.rs` (claims the share before journaling). No new kind of disk action except one small id file.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| A different machine with the same name (`\\BATOCERA\share` is the default) is written to | The first copy writes a random id to `<share>\.retrodrive\share-id` (create-new) and records it in the fingerprint; from then on presence needs the same id, so another machine is *a different drive* and plans, copies and recovery refuse it | `a_share_is_known_by_its_id_once_it_has_one`; `batocera_over_a_network_share_is_known_by_its_id` (real SMB) |
+| The id file overwrites something | Written only if missing, with create-new; an existing file is never replaced; unreadable contents count as no id | same unit test |
+| Batocera shuts down mid-copy | The copier checks the share every second and after any failed file (`presence` → the folder is gone), stops new games and keeps verified ones; temporary files are cleaned on the next copy once the share (with its id) is back | existing drive-loss handling (§11) and recovery tests; per-file steps unchanged |
+| Read-back served from the PC's cache over SMB | Read-back uses `FILE_FLAG_NO_BUFFERING`, which makes the SMB client fetch from the server; falls back to a normal read only if the filesystem refuses unbuffered reads | real SMB test (copies verified); code review |
+| Rename replaces a file over SMB or exFAT | `MoveFileExW` without `MOVEFILE_REPLACE_EXISTING` fails if the target exists on both | real SMB test; existing `a_parallel_copy_never_overwrites_a_file_that_appears` |
+| exFAT game drive limits | exFAT has no 4 GB limit (only FAT32 does, already checked) and supports the same rename and unbuffered reads; free space and cluster size are measured as for any drive | code review; **not yet tried on an exFAT drive** |
+| Copying into the BATOCERA system partition | Detection never accepts it (it explains to pick the game folder instead), so it can't become an installation | `adapters::batocera::tests::near_misses_explain_which_folder_to_choose` |
+
+**Residual risks:** not yet tried on a real Batocera (Samba rather than Windows' SMB server) or on an exFAT drive; the in-app note says network copies are new. A share that loses its `.retrodrive` folder after a copy shows as a different drive until it's re-added (Forget, then add; the next copy gives it a new id).
 

@@ -87,6 +87,7 @@ Choices made while implementing (see ADR-010 and ADR-011 in docs/13):
   - `stable_id` is now `UNIQUE`; `root_path` (the last known mount) is no longer unique and has an index.
   - New columns: `volume_label`, `filesystem`, `volume_serial`, `volume_guid`, `total_bytes`. `display_name` becomes `LABEL (E:\)` when the volume has a label.
 - **Fingerprint format:** `vol:<serial XXXX-XXXX>:<total bytes>` for local and removable volumes, and `unc:<\\server\share\>` for network shares. The serial changes only when a volume is reformatted. **Known limitation:** byte-identical clones share a fingerprint.
+- **Network share id (2026-11-07, ADR-046):** a share's fingerprint becomes `unc:<\\server\share\>#<id>` once RetroDrive has copied there: the first copy writes a random id to `<share>\.retrodrive\share-id` (create-new, never replaced) and updates `storage_locations.stable_id`. With an id recorded, the share must show the same id to count as connected; without one, the path decides (scanned NAS folders are unchanged).
 - **Older locations** from v0/v1 data have no fingerprint. A scan claims one only when sampled files from it exist on the scanned volume.
 - **Tests:** `db::tests::v2_catalog_upgrades_to_v3_keeping_references`, `same_volume_under_a_new_letter_is_recognized`, `different_volume_at_a_known_letter_gets_its_own_location`, `unidentified_location_is_claimed_only_when_its_files_are_there`.
 

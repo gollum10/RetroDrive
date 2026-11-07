@@ -295,7 +295,7 @@ mod tests {
             assert!(!caps.install && !caps.write_files, "{} must be read-only", adapter.id());
         }
         assert!(find("retrobat").unwrap().capabilities().copy_games);
-        assert!(!find("batocera").unwrap().capabilities().copy_games, "Batocera is preview-only until its own safety review");
+        assert!(find("batocera").unwrap().capabilities().copy_games, "Batocera copies since its safety review (docs/18 §21)");
         let info = catalog();
         assert_eq!(info[0].kind, AdapterKind::PortableApp);
         assert_eq!(info[0].contract_version, CONTRACT_VERSION);
