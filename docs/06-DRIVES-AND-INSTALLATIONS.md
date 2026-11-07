@@ -40,7 +40,7 @@ Enumerate mounted storage; display OS-reported capacity/free space, filesystem t
   - **Detection:** "Detected" needs at least 3 RetroPie system folders including one only RetroPie uses (`ports`, `coleco`, `fba`, `mame-libretro`, `atarilynx`, `sg-1000`, `videopac`, `wonderswan`, …); 3 generic ones → "Possible"; a drive with `retropie`/`retropie-mount` → points at it; a Raspberry Pi boot partition (`config.txt`, `cmdline.txt`, `start*.elf`/`bootcode.bin`) → explains where games go. RetroBat and Batocera folders are never claimed.
   - **Folder mapping:** RetroBat's, translated to `platforms.cfg` names: `atarilynx`, `atarijaguar`, `amiga`, `msx`, `segacd`, `sg-1000`, `coleco`, `videopac`, `wonderswan(color)`; PC Engine CD and SuperGrafx in `pcengine`; no RetroPie folder for Amiga CD32, Neo Geo CD, GX4000, Supervision, Naomi, Atomiswave. Arcade (and CPS): FinalBurn Neo → `fba`, MAME → `mame-libretro` (choose lr-mame on the Pi for current MAME sets).
   - **Layout:** `PlacementOptions.has_roms_folder` (set when the installation folder has `roms` inside) chooses `roms/<system>` or `<system>`; plans show the real prefix (`DeploymentPlan.systems_prefix`).
-  - **Preview only:** `copy_games: false`; the copier refuses, the plan shows the preview note.
+  - **Copying (step 2, 2026-11-07, owner go-ahead, docs/18 §26):** on, with the same copier as RetroBat and Batocera, to the roms share or a USB `retropie`/`retropie-mount` folder; the share gets the share id of ADR-046. The layout check *Copying* is OK for a USB folder and a warning for the share ("keep RetroPie on…; restart RetroPie or EmulationStation afterwards to see new games").
 - **Recalbox/Lakka and others:** later adapters (RDS-025).
 
 ## Installation wizard (later, gated release)
