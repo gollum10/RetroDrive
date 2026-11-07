@@ -1967,7 +1967,20 @@ mod tests {
         let mut f = Fixture::new(&[("nes/Kid.nes", b"kid"), ("nes/Zelda.nes", b"zelda")]);
         assert_eq!(f.deploy().files_copied, 2);
         let reused = |c: &Connection| -> i64 { c.query_row("SELECT COUNT(*) FROM deployment_items WHERE message LIKE 'Confirmed by an earlier copy%'", [], |r| r.get(0)).unwrap() };
-        // Confirmed just now, in the same second as the files were written: checked again by content.
+        // A confirmation in the same second as the files last changed isn't trusted: checked again by content.
+        // (Pinned to the files' own latest time, so the result doesn't depend on the clock.)
+        let latest = ["Kid.nes", "Zelda.nes"]
+            .iter()
+            .flat_map(|n| [f.root.join("roms/nes").join(n), f.library.join("nes").join(n)])
+            .flat_map(|p| {
+                let m = fs::metadata(&p).unwrap();
+                [m.modified().ok(), m.created().ok()]
+            })
+            .flatten()
+            .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64)
+            .max()
+            .unwrap();
+        f.catalog.execute("UPDATE deployment_items SET updated_at = datetime(?1, 'unixepoch')", [latest]).unwrap();
         assert_eq!(f.deploy().files_identical, 2);
         assert_eq!(reused(&f.catalog), 0, "a confirmation isn't trusted for files modified in the same second");
         // Confirmations made after the files last changed are trusted (no reading).
