@@ -1018,7 +1018,12 @@ fn gather(connection: &Connection, adapter: &dyn adapters::PlatformAdapter, inst
             files.push(PlacementFile { relative_to_primary, size: *member_size });
             sources.push((member_relative.clone(), member_id.clone()));
         }
-        let request = PlacementRequest { title: title.clone(), platform: platform.clone(), extension, files, options };
+        // BIOS files in a library `bios` folder keep their place below it (e.g. `dc/dc_boot.bin`).
+        let bios_path = (platform == crate::classify::BIOS).then(|| {
+            let parts: Vec<&str> = relative.split('/').collect();
+            parts.iter().position(|p| p.eq_ignore_ascii_case("bios")).map(|at| parts[at + 1..].join("/")).filter(|p| !p.is_empty())
+        }).flatten();
+        let request = PlacementRequest { title: title.clone(), platform: platform.clone(), extension, files, options, bios_path };
         match adapter.plan_placement(&request) {
             Placement::Planned { system_folder, destinations } => {
                 let files = sources
@@ -1350,6 +1355,19 @@ mod tests {
         assert_eq!((kid.action, choice.situation, choice.options.clone()), (Action::Conflict, "changed", vec!["keep", "replace"]));
         let restore = plan_sync(&f.catalog, &f.id, &Choices::from([(choice.key.clone(), Choice::Replace)]), &connected, &roomy).unwrap();
         assert_eq!(restore.games.replace, 1, "restoring is the usual replace: the drive's file is backed up first");
+    }
+
+    #[test]
+    fn bios_files_from_a_library_bios_folder_are_planned_into_bios() {
+        // Owner request 2026-11-07: copy BIOS files too, keeping their subfolders.
+        let f = fixture(&[("bios/dc/dc_boot.bin", b"dc boot"), ("bios/scph1001.bin", b"psx bios"), ("nes/Kid.nes", b"nes")]);
+        let p = plan(&f.catalog, &f.id, None, &connected, &roomy).unwrap();
+        let bios = p.systems.iter().find(|s| s.system_folder == "bios").expect("a BIOS row in the plan");
+        assert_eq!((bios.games, bios.platforms.clone()), (2, vec!["BIOS".to_string()]));
+        let mut dest: Vec<String> = p.sample.iter().filter(|g| g.system_folder == "bios").map(|g| g.destination.replace('\\', "/")).collect();
+        dest.sort();
+        assert!(dest[0].ends_with("RetroBat/bios/dc/dc_boot.bin") && dest[1].ends_with("RetroBat/bios/scph1001.bin"), "{dest:?}");
+        assert!(p.unsupported.iter().all(|u| u.platform != "BIOS"), "nothing left unplaced");
     }
 
     #[test]

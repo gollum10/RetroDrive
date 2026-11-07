@@ -47,6 +47,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-07 (ES-DE copying and Sync, ADR-055):** the ES-DE card has **Sync** and *Plan deployment*; the confirm box has no art option for ES-DE yet; the Sync summary mentions art only for platforms that get it. Dashboard roadmap: "ES-DE — Plan & copy games".
 
+**Implemented 2026-11-07 (BIOS files, ADR-056):** the plan's platform table has a **bios** row (folder shown as `bios`, platform *BIOS*) to tick like any platform; Sync keeps it up to date once copied. Where BIOS can't be placed, *Not placed automatically* explains why (RetroPie network share, ES-DE, `[BIOS]` archives, housekeeping files). That list is no longer shown inside Sync (it describes the whole library).
+
 ## Drives
 Inventory: manufacturer/model, bus type when known, capacity, filesystem, free space, label, stable identity, mount point, safety classification (system/unknown/removable). Selected drive details: partitions, managed installations, activity, backup state. No prominent 'Erase' control in default view. Clearly distinguish physical disks from mounted volumes.
 

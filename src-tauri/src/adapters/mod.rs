@@ -139,6 +139,9 @@ pub struct PlacementRequest {
     /// The primary file first, then its discs and tracks.
     pub files: Vec<PlacementFile>,
     pub options: PlacementOptions,
+    /// For BIOS files kept in a library `bios` folder: the path below it (e.g.
+    /// `dc/dc_boot.bin`), so they land in the same place in the installation's bios folder.
+    pub bios_path: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -221,6 +224,24 @@ pub(crate) fn plan_in(prefix: &str, system: &str, request: &PlacementRequest) ->
     Placement::Planned { system_folder: system.to_string(), destinations: request.files.iter().map(|f| format!("{base}/{}", f.relative_to_primary)).collect() }
 }
 
+/// BIOS files from a library `bios` folder go to the installation's BIOS folder
+/// (`folder`), keeping their subfolders (owner request 2026-11-07; docs/18 §31).
+pub(crate) fn plan_bios(folder: &str, request: &PlacementRequest) -> Placement {
+    let Some(path) = request.bios_path.as_deref().filter(|p| !p.is_empty()) else {
+        return Placement::Unsupported {
+            reason: "BIOS sets named like \"[BIOS] … .zip\" are archives of the original chips; emulators need the files themselves with their exact names, so RetroDrive doesn't place these. Keep the BIOS files you use in a folder named bios in your library.".into(),
+        };
+    };
+    let name = path.rsplit('/').next().unwrap_or(path).to_lowercase();
+    if name.starts_with('.') || ["_ds_store", "thumbs.db", "desktop.ini", "_info.txt"].contains(&name.as_str()) {
+        return Placement::Unsupported { reason: "Housekeeping files (like .gitkeep, .DS_Store or _info.txt) aren't copied.".into() };
+    }
+    if request.files.len() != 1 || path.split('/').any(|part| part.is_empty() || part == "." || part == "..") {
+        return Placement::Unsupported { reason: "This BIOS file's path can't be copied as it is.".into() };
+    }
+    Placement::Planned { system_folder: "bios".into(), destinations: vec![format!("{folder}/{path}")] }
+}
+
 /// Make a game title safe as a Windows folder name.
 pub fn folder_name(title: &str) -> String {
     let cleaned: String = title
@@ -291,6 +312,7 @@ mod tests {
             extension: "nes".into(),
             files: vec![PlacementFile { relative_to_primary: "X.nes".into(), size: 1 }],
             options: PlacementOptions::default(),
+            bios_path: None,
         });
         assert_eq!(plan, Placement::Planned { system_folder: "all".into(), destinations: vec!["games/X.nes".into()] });
     }

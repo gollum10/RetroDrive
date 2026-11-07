@@ -156,6 +156,9 @@ impl PlatformAdapter for Batocera {
     }
 
     fn plan_placement(&self, request: &PlacementRequest) -> Placement {
+        if request.platform == crate::classify::BIOS {
+            return super::plan_bios("bios", request);
+        }
         let folder = match request.platform.as_str() {
             // Batocera has no CPS folders; CPS games are arcade romsets.
             "CPS1" | "CPS2" | "CPS3" => arcade_folder(&request.extension, request.options),
@@ -195,6 +198,7 @@ mod tests {
             extension: ext.into(),
             files: files.iter().map(|f| PlacementFile { relative_to_primary: f.to_string(), size: 1 }).collect(),
             options: PlacementOptions::default(),
+            bios_path: None,
         }
     }
 
@@ -273,7 +277,7 @@ mod tests {
             Placement::Planned { system_folder: "psx".into(), destinations: vec!["roms/psx/Saga/Saga.m3u".into(), "roms/psx/Saga/Saga (Disc 1).cue".into()] }
         );
         match plan("BIOS", "bin", &["scph.bin"]) {
-            Placement::Unsupported { reason } => assert!(reason.contains("Batocera's bios folder"), "{reason}"),
+            Placement::Unsupported { reason } => assert!(reason.contains("[BIOS]"), "a BIOS file outside a bios folder: {reason}"),
             other => panic!("{other:?}"),
         }
         // CPS games follow the arcade choice; without one they aren't placed.
