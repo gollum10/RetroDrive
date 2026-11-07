@@ -421,3 +421,8 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** not yet tried on the owner's real ES-DE (needs the owner's go-ahead to write in `G:" + B + "ES-DE" + B + "ES-DE`).
 
+## 33. Addendum: Recalbox is preview-only (RDS-025 step 4, 2026-11-07)
+- **Scope:** Recalbox shares can be recognized and planned for, but not copied to (`copy_games: false`); the copier refuses before any write. No writes in this step.
+- **Detection safety:** the boot partition is never accepted; RetroBat folders are never claimed; Batocera, RetroPie and ES-DE no longer claim a folder with `system\recalbox.conf`.
+- **Before turning on copying:** `\\RECALBOX\share` gets the share id (§21); an external drive's `recalbox` folder and the SD card's exFAT SHARE partition use the reviewed copier as for Batocera (§21).
+
