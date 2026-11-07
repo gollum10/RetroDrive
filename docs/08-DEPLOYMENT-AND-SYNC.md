@@ -71,6 +71,15 @@ Stage temporary files in destination where feasible; stream chunks and hashes; a
 - Rename to side-by-side path if supported by destination adapter.
 Never make delete-on-sync the default.
 
+## Sync (implemented 2026-11-07, ADR-043)
+Owner request: "We should have a Sync button… The Sync should just keep the selected import files synchronized… If the user deletes a file from the drive and RetroDrive scans and sees it is missing then it should ask. Clicking sync should also initiate a check of everything already planned and update it."
+
+- **Sync** on a RetroBat installation builds the plan for **every platform except those left out of Sync** (`installations.sync_skip_json`; *Choose platforms* in the Sync summary saves it, and it stays until changed). New games in the imported folders are included automatically.
+- **One summary, then go:** counts, space, platforms synced, games removed from the drive, then **Start sync**. *Details* opens the full plan with the same selection. Art and details are always added afterwards (docs/18 §17).
+- **Everything already copied is checked again** (the copier's "already there" step). A file an earlier copy confirmed by content is not read again when its source and size are the same and neither file was modified or created since that confirmation; anything else is compared by content (ADR-043).
+- **Removed from the drive:** a game RetroDrive copied before (verified/identical/replaced in `deployment_items`) whose file is gone is **not copied back silently**. It's listed with *Ask me later* (default; not copied, asked again next time), *Copy it again*, or *Keep it off this drive* (remembered in `sync_kept_off`; shown as *kept off*, can be copied again later).
+- **Never deletes:** games removed from the library stay on the drive; nothing on the drive is overwritten (conflicts are kept, as in any copy).
+
 ## Synchronization semantics
 - New source game: offer deployment to user-selected targets; optional opt-in automation later.
 - Removed source game: preserve destination copy unless explicitly requested.

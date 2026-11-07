@@ -40,6 +40,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 use serde_json::json;
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
@@ -153,7 +154,7 @@ enum Outcome {
 /// pre-check fails; otherwise a summary, even when some files failed.
 pub fn deploy(connection: &Connection, job_id: Option<&str>, request: &DeployRequest, presence: PresenceFn, space: SpaceFn, observer: &mut dyn DeployObserver) -> Result<DeploySummary, String> {
     // 1. Re-check everything. No writes before this passes.
-    let (plan, items) = deployment::build(connection, request.installation_id, request.systems, request.collection, request.choices, presence, space)?;
+    let (plan, items) = deployment::build(connection, request.installation_id, request.systems, &[], request.collection, request.choices, presence, space)?;
     if !plan.copy_supported {
         return Err(format!("RetroDrive doesn't copy to {} yet, so nothing was copied. The plan is a preview.", plan.adapter_name));
     }
@@ -454,9 +455,64 @@ impl DeploySummary {
     }
 }
 
+/// Files an earlier copy to this installation confirmed by content, by destination
+/// (lower-case, backslashes): (source, size, sha256, when confirmed as Unix seconds).
+type Confirmed = HashMap<String, (String, i64, String, i64)>;
+
+/// From earlier copies to the same installation as `deployment_id`.
+fn confirmed_before(connection: &Connection, deployment_id: &str) -> Result<Confirmed, String> {
+    let mut statement = connection
+        .prepare(
+            "SELECT i.destination_path, i.source_path, i.size_bytes, i.sha256, i.updated_at FROM deployment_items i JOIN deployments d ON d.id = i.deployment_id
+             WHERE d.installation_id = (SELECT installation_id FROM deployments WHERE id = ?1) AND d.id <> ?1 AND i.state IN ('verified', 'identical', 'replaced') AND i.sha256 IS NOT NULL ORDER BY i.id",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = statement
+        .query_map([deployment_id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?, r.get::<_, String>(3)?, r.get::<_, String>(4)?)))
+        .map_err(|e| e.to_string())?;
+    let mut out = Confirmed::new();
+    for row in rows {
+        let (destination, source, size, sha, at) = row.map_err(|e| e.to_string())?;
+        if let Some(at) = unix_seconds(&at) {
+            out.insert(destination.replace('/', "\\").to_lowercase(), (source.replace('/', "\\").to_lowercase(), size, sha, at));
+        }
+    }
+    Ok(out)
+}
+
+/// `YYYY-MM-DD HH:MM:SS` (SQLite's UTC `CURRENT_TIMESTAMP`) as Unix seconds.
+fn unix_seconds(text: &str) -> Option<i64> {
+    let (date, time) = text.split_once(' ')?;
+    let mut d = date.split('-').map(|p| p.parse::<i64>());
+    let (y, m, day) = (d.next()?.ok()?, d.next()?.ok()?, d.next()?.ok()?);
+    let mut t = time.split(':').map(|p| p.parse::<i64>());
+    let (h, min, sec) = (t.next()?.ok()?, t.next()?.ok()?, t.next()?.ok()?);
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let doy = (153 * ((m + 9) % 12) + 2) / 5 + day - 1;
+    let days = era * 146_097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719_468;
+    Some(days * 86_400 + h * 3600 + min * 60 + sec)
+}
+
+/// The hash an earlier copy confirmed for this file, if nothing changed since: same
+/// source and size, and neither file modified or created at or after the confirmation (Sync, ADR-043).
+/// Anything else is compared by content as usual.
+fn still_confirmed(confirmed: &Confirmed, source: &Path, destination: &Path, size: i64) -> Option<String> {
+    let key = destination.display().to_string().replace('/', "\\").to_lowercase();
+    let (was_source, was_size, sha, at) = confirmed.get(&key)?;
+    // Both dates: copying a file in Explorer keeps its old modified date but sets a new
+    // created date, so a file replaced that way is still noticed.
+    let secs = |t: std::io::Result<std::time::SystemTime>| t.ok()?.duration_since(std::time::UNIX_EPOCH).ok().map(|d| d.as_secs() as i64);
+    let unchanged = |p: &Path| fs::metadata(p).ok().is_some_and(|m| secs(m.modified()).is_some_and(|t| t < *at) && secs(m.created()).is_none_or(|t| t < *at));
+    (*was_source == source.display().to_string().replace('/', "\\").to_lowercase() && *was_size == size && unchanged(source) && unchanged(destination)).then(|| sha.clone())
+}
+
 /// Copy one game: check "already there" files by content, then copy or replace the
 /// rest. Large files take `big` (when given) so only one is written at a time.
-fn copy_game(ctx: &mut dyn Ctx, item: &Item, ids: &[i64], install_root: &Path, deployment_id: &str, marker: &str, big: Option<&Mutex<()>>) -> Result<GameReport, String> {
+/// `confirmed`: files an earlier copy already confirmed (not read again if unchanged).
+#[allow(clippy::too_many_arguments)]
+fn copy_game(ctx: &mut dyn Ctx, item: &Item, ids: &[i64], install_root: &Path, deployment_id: &str, marker: &str, big: Option<&Mutex<()>>, confirmed: &Confirmed) -> Result<GameReport, String> {
     let mut report = GameReport { title: item.title.clone(), ..GameReport::default() };
     ctx.started(&item.title);
 
@@ -464,6 +520,13 @@ fn copy_game(ctx: &mut dyn Ctx, item: &Item, ids: &[i64], install_root: &Path, d
     let mut differs: Option<String> = None;
     let mut unreadable: Option<String> = None;
     for (file, &id) in item.files.iter().zip(ids).filter(|(f, _)| f.action == Action::AlreadyThere) {
+        if let Some(hash) = still_confirmed(confirmed, &file.source, &file.destination, file.size) {
+            ctx.set_item(id, "identical", Some(&hash), Temp::Keep, Some("Confirmed by an earlier copy and unchanged since."))?;
+            report.identical += 1;
+            report.files_done += 1;
+            ctx.add_bytes(file.size);
+            continue;
+        }
         let compared = same_contents(&file.source, &file.destination, &mut || ctx.cancelled());
         match compared {
             Ok(Some(hash)) => {
@@ -590,6 +653,7 @@ fn run_journaled(
     presence: PresenceFn,
     observer: &mut dyn DeployObserver,
 ) -> Result<DeploySummary, String> {
+    let confirmed = confirmed_before(connection, deployment_id)?;
     let deployment_id = deployment_id.to_string();
     let mut progress = DeployProgress { deployment_id: deployment_id.clone(), games_total: work.len() as i64, ..DeployProgress::default() };
     for item in work {
@@ -617,7 +681,7 @@ fn run_journaled(
             }
             let report = {
                 let mut ctx = Direct { connection, observer: &mut *observer, progress: &mut progress, last_progress: &mut last_progress };
-                copy_game(&mut ctx, item, &item_ids[index], install_root, &deployment_id, marker, None)?
+                copy_game(&mut ctx, item, &item_ids[index], install_root, &deployment_id, marker, None, &confirmed)?
             };
             let (cancelled, failure, gone) = (report.cancelled, report.failure, report.drive_gone);
             progress.files_done += report.files_done;
@@ -645,7 +709,7 @@ fn run_journaled(
             let (tx, rx) = mpsc::channel::<Msg>();
             for _ in 0..workers {
                 let tx = tx.clone();
-                let (next, stop, cancel, big, deployment_id) = (&next, &stop, &cancel, &big, deployment_id.as_str());
+                let (next, stop, cancel, big, deployment_id, confirmed) = (&next, &stop, &cancel, &big, deployment_id.as_str(), &confirmed);
                 scope.spawn(move || {
                     let mut ctx = Remote { tx: tx.clone(), cancel };
                     loop {
@@ -656,7 +720,7 @@ fn run_journaled(
                         if index >= work.len() {
                             break;
                         }
-                        let result = copy_game(&mut ctx, work[index], &item_ids[index], install_root, deployment_id, marker, Some(big));
+                        let result = copy_game(&mut ctx, work[index], &item_ids[index], install_root, deployment_id, marker, Some(big), confirmed);
                         let broken = result.is_err();
                         if tx.send(Msg::Done(result)).is_err() || broken {
                             break;
@@ -1832,6 +1896,28 @@ mod tests {
         assert_eq!(summary.games_conflict, 1);
         assert_eq!(fs::read(f.root.join("roms/nes/Looks.nes")).unwrap(), b"MINE", "the existing file is kept");
         assert!(summary.issues.iter().any(|i| i.message.contains("contents differ")));
+    }
+
+    #[test]
+    fn a_later_copy_trusts_earlier_checks_only_while_nothing_changed() {
+        let mut f = Fixture::new(&[("nes/Kid.nes", b"kid"), ("nes/Zelda.nes", b"zelda")]);
+        assert_eq!(f.deploy().files_copied, 2);
+        let reused = |c: &Connection| -> i64 { c.query_row("SELECT COUNT(*) FROM deployment_items WHERE message LIKE 'Confirmed by an earlier copy%'", [], |r| r.get(0)).unwrap() };
+        // Confirmed just now, in the same second as the files were written: checked again by content.
+        assert_eq!(f.deploy().files_identical, 2);
+        assert_eq!(reused(&f.catalog), 0, "a confirmation isn't trusted for files modified in the same second");
+        // Confirmations made after the files last changed are trusted (no reading).
+        f.catalog.execute("UPDATE deployment_items SET updated_at = '2999-01-01 00:00:00'", []).unwrap();
+        assert_eq!(f.deploy().files_identical, 2);
+        assert_eq!(reused(&f.catalog), 2);
+        // A file changed on the drive after its confirmation (same size) is compared again and kept.
+        f.catalog.execute("UPDATE deployment_items SET updated_at = '2000-01-01 00:00:00'", []).unwrap();
+        write(&f.root, "roms/nes/Zelda.nes", b"ZELDA");
+        let after = f.deploy();
+        assert_eq!((after.files_identical, after.games_conflict), (1, 1), "the change is noticed");
+        assert_eq!(fs::read(f.root.join("roms/nes/Zelda.nes")).unwrap(), b"ZELDA", "and the drive's file is kept");
+        assert_eq!(unix_seconds("1970-01-02 00:00:01"), Some(86_401));
+        assert_eq!(unix_seconds("2026-11-07 12:00:00"), Some(1_794_052_800));
     }
 
     #[test]

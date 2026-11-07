@@ -755,6 +755,27 @@ async fn deployment_plan(
     .map_err(|e| e.to_string())?
 }
 
+/// The Sync plan (ADR-043): every platform except those left out of Sync. Nothing is written.
+#[tauri::command]
+async fn sync_plan(catalog: State<'_, Catalog>, installation_id: String, choices: Option<deployment::Choices>) -> Result<deployment::DeploymentPlan, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || deployment::plan_sync(&db::open(&db_path)?, &installation_id, &choices.unwrap_or_default(), &volumes::presence, &volumes::space))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Saves which platforms Sync leaves out (catalog only).
+#[tauri::command]
+fn set_sync_skip(catalog: State<'_, Catalog>, installation_id: String, systems: Vec<String>) -> Result<(), String> {
+    installations::set_sync_skip(&db::open(&catalog.path()?)?, &installation_id, &systems)
+}
+
+/// Remembers (or forgets) that a game removed from the drive stays off it (catalog only).
+#[tauri::command]
+fn set_kept_off(catalog: State<'_, Catalog>, installation_id: String, destination: String, title: Option<String>, kept: bool) -> Result<(), String> {
+    installations::set_kept_off(&db::open(&catalog.path()?)?, &installation_id, &destination, title.as_deref(), kept)
+}
+
 /// Forwards copy progress to the UI and relays cancellation requests.
 struct DeployUi {
     app: AppHandle,
@@ -858,6 +879,8 @@ fn run_deployment(
                 let is_retrobat: bool = connection.query_row("SELECT adapter_id = 'retrobat' FROM installations WHERE id = ?1", [&installation_id], |r| r.get(0)).unwrap_or(false);
                 is_retrobat.then(|| match gamelists::apply(&connection, &installation_id, Some(&s.deployment_id), None, &volumes::presence, &customizer::retrobat_running, &|_, _, _| {}) {
                     Ok(message) => message,
+                    // Nothing missing isn't a failure.
+                    Err(e) if e.starts_with("There's no art or detail to add") => "Nothing new to add: these games already have their art and details in RetroBat.".to_string(),
                     Err(e) => format!("Game art wasn't added: {e} You can add it later under Customize."),
                 })
             })
@@ -965,6 +988,9 @@ pub fn run() {
             set_game_art,
             remove_game_art,
             set_arcade_system,
+            sync_plan,
+            set_sync_skip,
+            set_kept_off,
             start_deployment,
             list_storage_locations, start_scan, cancel_job, active_scan, recent_jobs, list_drives])
         .run(tauri::generate_context!())

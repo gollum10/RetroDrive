@@ -163,6 +163,46 @@ pub fn list(connection: &Connection, presence: PresenceFn) -> Result<Vec<Install
 
 /// Choose which arcade emulator family's romset this installation uses
 /// (`"mame"`, `"fbneo"`, or `None` to stop placing arcade games). Catalog only.
+/// Platforms (RetroBat/Batocera system folders) the user left out of Sync (ADR-043).
+pub fn sync_skip(connection: &Connection, id: &str) -> Result<Vec<String>, String> {
+    let json: Option<String> = connection.query_row("SELECT sync_skip_json FROM installations WHERE id = ?1", [id], |r| r.get(0)).map_err(|e| e.to_string())?;
+    Ok(json.and_then(|j| serde_json::from_str(&j).ok()).unwrap_or_default())
+}
+
+/// Saves which platforms Sync leaves out; Sync uses this until it's changed again.
+pub fn set_sync_skip(connection: &Connection, id: &str, systems: &[String]) -> Result<(), String> {
+    let mut list: Vec<String> = systems.iter().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+    list.sort();
+    list.dedup();
+    let json = (!list.is_empty()).then(|| serde_json::to_string(&list).unwrap_or_default());
+    let changed = connection.execute("UPDATE installations SET sync_skip_json = ?2 WHERE id = ?1", params![id, json]).map_err(|e| e.to_string())?;
+    if changed == 0 {
+        return Err("Installation not found".into());
+    }
+    Ok(())
+}
+
+/// Games the user removed from the drive and chose to keep off it, by destination key
+/// (the destination path, lower-case, backslashes).
+pub fn kept_off(connection: &Connection, id: &str) -> Result<std::collections::HashSet<String>, String> {
+    let mut statement = connection.prepare("SELECT destination_key FROM sync_kept_off WHERE installation_id = ?1").map_err(|e| e.to_string())?;
+    let keys = statement.query_map([id], |r| r.get::<_, String>(0)).map_err(|e| e.to_string())?.collect::<Result<_, _>>().map_err(|e| e.to_string())?;
+    Ok(keys)
+}
+
+/// Remember (or forget) that a game stays off the drive. Nothing on the drive changes.
+pub fn set_kept_off(connection: &Connection, id: &str, key: &str, title: Option<&str>, kept: bool) -> Result<(), String> {
+    let key = key.replace('/', "\\").to_lowercase();
+    if kept {
+        connection
+            .execute("INSERT INTO sync_kept_off (installation_id, destination_key, title) VALUES (?1, ?2, ?3) ON CONFLICT DO UPDATE SET title = excluded.title", params![id, key, title])
+            .map_err(|e| e.to_string())?;
+    } else {
+        connection.execute("DELETE FROM sync_kept_off WHERE installation_id = ?1 AND destination_key = ?2", params![id, key]).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 pub fn set_arcade_system(connection: &Connection, id: &str, system: Option<&str>) -> Result<(), String> {
     let value = match system {
         None => None,

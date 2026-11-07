@@ -247,3 +247,16 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Update (2026-11-07, speed):** checks and image copies now run 16 at a time. Each image is still copied to a temporary name, read back and renamed without replacing; an image already at the name is compared by size, then contents. If any image fails, no game list is changed (images already copied are new, unused files).
 
+## 18. Addendum: Sync (2026-11-07)
+**Scope:** owner request (one-click Sync that keeps the selected platforms up to date, asks about games deleted from the drive, and re-checks what's there). Code: `deployment.rs` (`plan_sync`, `mark_removed`), `installations.rs` (sync selection, kept-off list), `copier.rs` (`confirmed_before`, `still_confirmed`), `App.tsx` (Sync panel). Schema v18.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| Sync writes more than the user expects | It's the normal plan and copy: one summary with counts and space before anything starts; fingerprint re-checked; no overwrites; every copy verified | existing copier tests; app check |
+| A game the user deleted comes back | Games copied before and now missing are *removed*, not copied, until the user chooses *copy again*; *keep off* is remembered | `sync_keeps_the_saved_selection_and_asks_about_removed_games` |
+| Sync deletes something | Nothing deletes: games removed from the library stay on the drive; the kept-off list is catalog-only | same test (planning writes nothing) |
+| Skipping the content check hides a changed file | Only when source path and size match an earlier confirmation **and** neither file was modified or created at or after it (Explorer copies get a new created time); otherwise compared by content as before. Skipping never writes anything | `a_later_copy_trusts_earlier_checks_only_while_nothing_changed` |
+| Left-out platforms forgotten | Saved per installation and shown in every Sync summary ("left out: …") | sync test |
+
+**Residual risk:** a tool that rewrites a file on the drive and then sets both its modified and created times back to before RetroDrive's confirmation would not be re-read; nothing is written in that case, only the "already there" report could be wrong.
+
