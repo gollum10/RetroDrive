@@ -21,11 +21,28 @@
 //! convention, so the same step works on a Batocera game drive or share. Batocera runs
 //! on its own machine (no "running" check here); a running Batocera shows the new art
 //! after Start → Game Settings → Update Gamelists.
+//!
+//! RetroPie (2026-11-07, docs/18 §27): its EmulationStation uses a `gamelist.xml` in
+//! the system's rom folder *instead of* the one in its home folder
+//! (`SystemData::getGamelistPath`), which holds any scraped art, favorites and play
+//! counts and which Windows can't see. So on RetroPie only lists already in the rom
+//! folder are filled in; creating one is an explicit opt-in (`create_lists`), never
+//! done after a copy. RetroPie's roms share has no `roms` level: system folders are
+//! found under `games_dir`.
 
 use crate::copier::{self, TEMP_MARKER};
 
 /// Platforms whose game lists RetroDrive fills in (same format).
-pub const GAMELIST_PLATFORMS: &[&str] = &["retrobat", "batocera"];
+pub const GAMELIST_PLATFORMS: &[&str] = &["retrobat", "batocera", "retropie"];
+
+/// Where the system folders are: `<root>\roms`, or the root itself (RetroPie's roms share).
+fn games_dir(root: &Path) -> (PathBuf, &'static str) {
+    if root.join("roms").is_dir() {
+        (root.join("roms"), "roms/")
+    } else {
+        (root.to_path_buf(), "")
+    }
+}
 use crate::customizer::{self, ChangeRow, PresenceFn, RunningFn};
 use crate::volumes::Presence;
 use crate::{db, paths};
@@ -119,6 +136,9 @@ pub struct ArtPreview {
     /// SHA-256 of each list as read (`none` when it doesn't exist yet).
     pub list_shas: BTreeMap<String, String>,
     pub nothing: bool,
+    /// RetroPie: systems with games but no game list in their rom folder (not created
+    /// unless asked: RetroPie would then use it instead of its home-folder list).
+    pub lists_not_created: Vec<String>,
 }
 
 // ---------- reading a gamelist ----------
@@ -303,7 +323,7 @@ fn targets(connection: &Connection, install: &customizer::Install, deployment: O
         .map_err(|e| e.to_string())?
         .collect::<Result<_, _>>()
         .map_err(|e| e.to_string())?;
-    let roms = format!("{}\\roms\\", install.root_text.trim_end_matches(['\\', '/']));
+    let roms = format!("{}\\", games_dir(&install.root).0.display().to_string().trim_end_matches(['\\', '/']));
     // 1. The catalog (fast): one entry per game on the drive; a later copy of the same file wins.
     let mut seen: BTreeMap<String, Pending> = BTreeMap::new();
     let mut online = HashMap::new();
@@ -365,15 +385,15 @@ fn xml(v: &str) -> String {
     v.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
-fn plan_system(root: &Path, system: &str, targets: &[&Target], sizes: &Sizes) -> Result<Option<SystemEdit>, String> {
-    let list_path = root.join("roms").join(system).join("gamelist.xml");
+fn plan_system(games: &Path, system: &str, targets: &[&Target], sizes: &Sizes) -> Result<Option<SystemEdit>, String> {
+    let list_path = games.join(system).join("gamelist.xml");
     let exists = list_path.is_file();
     let old_text = if exists { customizer::read_text(&list_path)? } else { String::new() };
     let base = if exists { old_text.clone() } else { "<?xml version=\"1.0\"?>\n<gameList>\n</gameList>\n".to_string() };
     let entries = parse(&base)?;
     let newline = if base.contains("\r\n") { "\r\n" } else { "\n" };
     let by_key: HashMap<&str, &Entry> = entries.iter().map(|e| (e.key.as_str(), e)).collect();
-    let images_dir = root.join("roms").join(system).join("images");
+    let images_dir = games.join(system).join("images");
     let mut summary = SystemArt { system: system.to_string(), games_updated: 0, games_added: 0, images: 0, kept: 0 };
     let mut copies = Vec::new();
     // (position, replace_end, text) edits; applied from the end.
@@ -499,8 +519,14 @@ fn plan_system(root: &Path, system: &str, targets: &[&Target], sizes: &Sizes) ->
     Ok(Some(SystemEdit { system: system.to_string(), list_path, old_text, new_text, copies, summary }))
 }
 
-fn plan(connection: &Connection, installation_id: &str, deployment: Option<&str>, presence: PresenceFn, progress: ProgressFn) -> Result<(customizer::Install, Vec<SystemEdit>, usize, Sizes), String> {
-    let install = customizer::install_for(connection, installation_id, presence, GAMELIST_PLATFORMS, "Game art and details are available for RetroBat and Batocera.")?;
+type Planned = (customizer::Install, Vec<SystemEdit>, usize, Sizes, Vec<String>);
+
+/// `create_lists`: on RetroPie, also create lists for systems without one (opt-in).
+fn plan(connection: &Connection, installation_id: &str, deployment: Option<&str>, create_lists: bool, presence: PresenceFn, progress: ProgressFn) -> Result<Planned, String> {
+    let install = customizer::install_for(connection, installation_id, presence, GAMELIST_PLATFORMS, "Game art and details are available for RetroBat, Batocera and RetroPie.")?;
+    let adapter: String = connection.query_row("SELECT adapter_id FROM installations WHERE id = ?1", [installation_id], |r| r.get(0)).map_err(|e| e.to_string())?;
+    let (games, _) = games_dir(&install.root);
+    let mut not_created = Vec::new();
     let (all, unavailable, sizes) = targets(connection, &install, deployment, presence, progress)?;
     let mut by_system: BTreeMap<String, Vec<&Target>> = BTreeMap::new();
     for t in &all {
@@ -511,11 +537,15 @@ fn plan(connection: &Connection, installation_id: &str, deployment: Option<&str>
         if system.contains(['.', '\\', ':']) {
             continue;
         }
-        if let Some(edit) = plan_system(&install.root, &system, &list, &sizes)? {
+        if adapter == "retropie" && !create_lists && !games.join(&system).join("gamelist.xml").is_file() {
+            not_created.push(system);
+            continue;
+        }
+        if let Some(edit) = plan_system(&games, &system, &list, &sizes)? {
             edits.push(edit);
         }
     }
-    Ok((install, edits, unavailable, sizes))
+    Ok((install, edits, unavailable, sizes, not_created))
 }
 
 fn sha_or_none(edit: &SystemEdit) -> String {
@@ -527,8 +557,8 @@ fn sha_or_none(edit: &SystemEdit) -> String {
 }
 
 /// What adding art and details would do (reads only). `deployment`: only games from that copy.
-pub fn preview(connection: &Connection, installation_id: &str, deployment: Option<&str>, presence: PresenceFn, progress: ProgressFn) -> Result<ArtPreview, String> {
-    let (_, edits, unavailable, sizes) = plan(connection, installation_id, deployment, presence, progress)?;
+pub fn preview(connection: &Connection, installation_id: &str, deployment: Option<&str>, create_lists: bool, presence: PresenceFn, progress: ProgressFn) -> Result<ArtPreview, String> {
+    let (_, edits, unavailable, sizes, lists_not_created) = plan(connection, installation_id, deployment, create_lists, presence, progress)?;
     let images = edits.iter().map(|e| e.copies.len()).sum();
     let image_bytes = edits.iter().flat_map(|e| e.copies.iter()).filter_map(|(s, _)| sizes.get(s)).sum();
     Ok(ArtPreview {
@@ -539,6 +569,7 @@ pub fn preview(connection: &Connection, installation_id: &str, deployment: Optio
         image_bytes,
         art_unavailable: unavailable,
         nothing: false,
+        lists_not_created,
     })
     .map(|mut p| {
         p.nothing = p.systems.is_empty();
@@ -574,11 +605,13 @@ fn copy_image(source: &Path, target: &Path) -> Result<(), String> {
 }
 
 /// Add art and details. `expected`: the list checksums from the preview (`None`: no review, e.g. right after a copy).
-pub fn apply(connection: &Connection, installation_id: &str, deployment: Option<&str>, expected: Option<&BTreeMap<String, String>>, presence: PresenceFn, running: RunningFn, progress: ProgressFn) -> Result<String, String> {
+#[allow(clippy::too_many_arguments)]
+pub fn apply(connection: &Connection, installation_id: &str, deployment: Option<&str>, expected: Option<&BTreeMap<String, String>>, create_lists: bool, presence: PresenceFn, running: RunningFn, progress: ProgressFn) -> Result<String, String> {
     if let Some(reason) = customizer::running_message(running) {
         return Err(format!("{reason} Nothing was changed."));
     }
-    let (install, edits, _, _) = plan(connection, installation_id, deployment, presence, progress)?;
+    let (install, edits, _, _, _) = plan(connection, installation_id, deployment, create_lists, presence, progress)?;
+    let (_, prefix) = games_dir(&install.root);
     if edits.is_empty() {
         return Err("There's no art or detail to add: the games RetroDrive copied already have them, or their images aren't available.".into());
     }
@@ -595,11 +628,11 @@ pub fn apply(connection: &Connection, installation_id: &str, deployment: Option<
     if let Some(Err(e)) = results.into_iter().find(Result::is_err) {
         return Err(format!("{e} No game list was changed; images already copied are new files nothing uses yet."));
     }
-    let added: Vec<String> = edits.iter().filter(|e| !e.copies.is_empty()).map(|e| format!("{} image(s) in roms/{}/images", e.copies.len(), e.system)).collect();
+    let added: Vec<String> = edits.iter().filter(|e| !e.copies.is_empty()).map(|e| format!("{} image(s) in {prefix}{}/images", e.copies.len(), e.system)).collect();
     // 2. Game lists, journaled; if one fails, the ones already written are undone.
     let mut ids = Vec::new();
     for e in &edits {
-        let relative = format!("roms/{}/gamelist.xml", e.system);
+        let relative = format!("{prefix}{}/gamelist.xml", e.system);
         let s = &e.summary;
         let rows = vec![ChangeRow { system: e.system.clone(), key: "gamelist".into(), before: None, after: Some(format!("{} game(s) updated, {} added, {} image(s)", s.games_updated, s.games_added, s.images)) }];
         match customizer::write_file(connection, &install, &relative, &e.list_path, &e.old_text, &e.new_text, rows) {
@@ -686,7 +719,14 @@ mod tests {
             "<gameList><game><path>./Kid.zip</path><image>./media/images/Kid.png</image><marquee>./media/wheel/Kid.png</marquee></game><game><path>./Scraped.zip</path><image>./media/images/Scraped.png</image></game><game><path>./New Game.zip</path><image>./media/images/New Game.png</image></game></gameList>",
         )
         .unwrap();
-        let root = if adapter == "batocera" {
+        let root = if adapter == "retropie" {
+            // RetroPie's roms share: the system folders are at the top.
+            let roms = dir.path().join("roms");
+            for d in ["nes", "snes", "ports"] {
+                fs::create_dir_all(roms.join(d)).unwrap();
+            }
+            roms
+        } else if adapter == "batocera" {
             let share = dir.path().join("batocera");
             for d in ["roms/nes", "bios", "system"] {
                 fs::create_dir_all(share.join(d)).unwrap();
@@ -723,26 +763,26 @@ mod tests {
             .unwrap();
         catalog.execute("INSERT INTO game_reference (game_id, entry_id, method) SELECT g.id, 1, 'name' FROM games g WHERE g.canonical_title = 'Kid'", []).unwrap();
         let root = crate::paths::normalize(&root).unwrap();
-        fs::write(root.join("roms/nes/gamelist.xml"), LIST).unwrap();
+        fs::write(games_dir(&root).0.join("nes/gamelist.xml"), LIST).unwrap();
         Setup { _dir: dir, root, catalog, install }
     }
 
     fn list(s: &Setup) -> String {
-        fs::read_to_string(s.root.join("roms/nes/gamelist.xml")).unwrap()
+        fs::read_to_string(games_dir(&s.root).0.join("nes/gamelist.xml")).unwrap()
     }
 
     #[test]
     fn art_and_details_fill_gaps_and_keep_retrobats_own() {
         let s = setup();
-        let p = preview(&s.catalog, &s.install, None, &connected, &quiet).unwrap();
+        let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
         assert_eq!(p.systems.len(), 1);
         let nes = &p.systems[0];
         assert_eq!((nes.games_updated, nes.games_added, nes.kept), (1, 1, 1), "Kid updated, New Game added, Scraped kept");
         assert_eq!(p.images, 3, "Kid's image and logo, New Game's image");
         assert_eq!(list(&s), LIST, "previewing changes nothing");
 
-        assert!(apply(&s.catalog, &s.install, None, Some(&p.list_shas), &connected, &open, &quiet).unwrap_err().contains("running"));
-        apply(&s.catalog, &s.install, None, Some(&p.list_shas), &connected, &closed, &quiet).unwrap();
+        assert!(apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &open, &quiet).unwrap_err().contains("running"));
+        apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &closed, &quiet).unwrap();
         let after = list(&s);
         assert!(after.contains("\t\t<name>Kid Icarus</name>\r\n"), "a file-name title becomes the catalog title");
         assert!(after.contains("\t\t<image>./images/Kid-image.png</image>\r\n\t\t<marquee>./images/Kid-marquee.png</marquee>\r\n"));
@@ -756,7 +796,7 @@ mod tests {
         assert_eq!(fs::read(s.root.join("roms/nes/images/Kid-marquee.png")).unwrap(), b"kid logo");
 
         // Nothing left to add; undo restores the list exactly (images stay).
-        assert!(preview(&s.catalog, &s.install, None, &connected, &quiet).unwrap().nothing);
+        assert!(preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap().nothing);
         let app = crate::designs::applications(&s.catalog, &s.install).unwrap()[0].id;
         crate::designs::undo(&s.catalog, app, &connected, &closed).unwrap();
         assert_eq!(list(&s), LIST);
@@ -767,9 +807,9 @@ mod tests {
     fn batocera_game_lists_get_the_same_art_and_details() {
         // Batocera uses the same gamelist.xml and ./images/ convention (2026-11-07).
         let s = setup_for("batocera");
-        let p = preview(&s.catalog, &s.install, None, &connected, &quiet).unwrap();
+        let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
         assert_eq!((p.systems[0].games_updated, p.systems[0].games_added, p.images), (1, 1, 3));
-        apply(&s.catalog, &s.install, None, Some(&p.list_shas), &connected, &closed, &quiet).unwrap();
+        apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &closed, &quiet).unwrap();
         let after = list(&s);
         assert!(after.contains("<name>Kid Icarus</name>") && after.contains("<image>./images/Kid-image.png</image>"));
         assert!(after.contains("<image>./images/theirs.png</image>"), "art Batocera already shows is kept");
@@ -782,23 +822,46 @@ mod tests {
     }
 
     #[test]
+    fn retropie_lists_are_filled_in_and_only_created_when_asked() {
+        // RetroPie uses a rom-folder gamelist.xml instead of its home-folder list, so a
+        // missing one is only created on request (docs/18 §27).
+        let s = setup_for("retropie");
+        let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
+        assert_eq!((p.systems[0].games_updated, p.systems[0].games_added, p.images), (1, 1, 3), "an existing list is filled in");
+        apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &closed, &quiet).unwrap();
+        assert!(list(&s).contains("<name>Kid Icarus</name>") && list(&s).contains("<image>./images/Kid-image.png</image>"));
+        assert!(s.root.join("nes/images/Kid-image.png").exists(), "images next to the list, no roms level");
+        // Without a list: nothing is created unless asked.
+        let s = setup_for("retropie");
+        fs::remove_file(s.root.join("nes/gamelist.xml")).unwrap();
+        let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
+        assert!(p.nothing && p.lists_not_created == ["nes"], "{:?}", p.lists_not_created);
+        assert!(apply(&s.catalog, &s.install, None, None, false, &connected, &closed, &quiet).is_err());
+        assert!(!s.root.join("nes/gamelist.xml").exists(), "never created without asking");
+        let asked = preview(&s.catalog, &s.install, None, true, &connected, &quiet).unwrap();
+        assert_eq!((asked.systems[0].games_added, asked.lists_not_created.len()), (3, 0));
+        apply(&s.catalog, &s.install, None, Some(&asked.list_shas), true, &connected, &closed, &quiet).unwrap();
+        assert!(list(&s).contains("<path>./Kid.zip</path>"));
+    }
+
+    #[test]
     fn a_missing_list_is_created_and_a_stale_review_is_refused() {
         let s = setup();
         fs::remove_file(s.root.join("roms/nes/gamelist.xml")).unwrap();
-        let p = preview(&s.catalog, &s.install, None, &connected, &quiet).unwrap();
+        let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
         assert_eq!(p.list_shas.get("nes").map(String::as_str), Some("none"));
         assert_eq!(p.systems[0].games_added, 3);
         let mut stale = p.list_shas.clone();
         stale.insert("nes".into(), "different".into());
-        assert!(apply(&s.catalog, &s.install, None, Some(&stale), &connected, &closed, &quiet).unwrap_err().contains("changed since"));
-        apply(&s.catalog, &s.install, None, Some(&p.list_shas), &connected, &closed, &quiet).unwrap();
+        assert!(apply(&s.catalog, &s.install, None, Some(&stale), false, &connected, &closed, &quiet).unwrap_err().contains("changed since"));
+        apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &closed, &quiet).unwrap();
         let created = list(&s);
         assert!(created.starts_with("<?xml") && created.matches("<game>").count() == 3);
         // An image name taken by someone else's different file is left alone.
         let s2 = setup();
         fs::create_dir_all(s2.root.join("roms/nes/images")).unwrap();
         fs::write(s2.root.join("roms/nes/images/Kid-image.png"), b"someone else's").unwrap();
-        apply(&s2.catalog, &s2.install, None, None, &connected, &closed, &quiet).unwrap();
+        apply(&s2.catalog, &s2.install, None, None, false, &connected, &closed, &quiet).unwrap();
         assert_eq!(fs::read(s2.root.join("roms/nes/images/Kid-image.png")).unwrap(), b"someone else's");
         assert!(!list(&s2).contains("Kid-image.png"));
     }

@@ -39,6 +39,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-07 (RetroPie recognized, ADR-050):** a third platform card *RetroPie* (recognizes, checks, plans; copying not yet; install helper). Installations show RetroPie's checks (system folders, access, copying not yet, version unknown). The plan's platform table shows folders as they really are (`snes` on the roms share, `roms\snes` on a USB `retropie` folder) and the preview note. Dashboard roadmap lists RetroPie; the empty-installations text mentions a RetroPie roms folder.
 
+**Implemented 2026-11-07 (RetroPie Sync and art, ADR-052):** the RetroPie card has **Sync**; the copy confirm box offers art ("only lists already in RetroPie's rom folders; restart RetroPie to see them"). Customize lists RetroPie installations with *Game art and details* and *Applied designs* only ("RetroPie settings come later"). After *Check what can be added*, systems without a rom-folder list appear in an amber box: *Also create game lists for N systems without one (…)*, off by default, explaining that RetroPie would then use the new list instead of its home-folder list; ticking it re-checks with those lists included. "Nothing to add without a game list (see above)" when that's the only reason.
+
 ## Drives
 Inventory: manufacturer/model, bus type when known, capacity, filesystem, free space, label, stable identity, mount point, safety classification (system/unknown/removable). Selected drive details: partitions, managed installations, activity, backup state. No prominent 'Erase' control in default view. Clearly distinguish physical disks from mounted volumes.
 
