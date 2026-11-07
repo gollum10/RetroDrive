@@ -483,3 +483,6 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** not yet run against a real RetroPie or a RetroArch for ES-DE; the owner's controllers are Xbox-style, for which nothing needs writing.
 
+## 39. Addendum: light guns A–C (2026-11-07)
+**Scope and authorization:** owner ("build A, B, and C, then do D"). Reads only: lists HID mice to recognize guns (zero-access handles, as in §37), shows guides and finds light gun games in the catalog. The only write is one row in RetroDrive's own catalog (`gun_choices`) when the user confirms or chooses a gun; gun ids and USB IDs are validated. Nothing is written to devices or systems. Step D (copying the Sinden software into RetroBat) writes files and gets its own addendum.
+

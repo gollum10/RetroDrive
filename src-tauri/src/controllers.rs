@@ -203,7 +203,7 @@ pub fn reference() -> Reference {
 }
 
 /// A HID device seen by Windows: (vid, pid, product name, de-duplication key, XInput).
-type Seen = (String, String, Option<String>, String, bool);
+pub(crate) type Seen = (String, String, Option<String>, String, bool);
 
 /// Game controllers plugged into this PC (reads only). `remembered`: styles the user
 /// confirmed before, by `vid:pid`.
@@ -307,8 +307,19 @@ pub fn remember(connection: &rusqlite::Connection, vid: &str, pid: &str, type_id
     Ok(())
 }
 
-#[cfg(windows)]
+/// HID game controllers: usage page 1, usage 4 (joystick), 5 (gamepad) or 8 (multi-axis).
 fn devices() -> Vec<Seen> {
+    hid_scan(&|page, usage, _, _| page == 1 && matches!(usage, 4 | 5 | 8))
+}
+
+/// HID mice (usage page 1, usage 2), where light guns show up, plus GunCons by USB ID
+/// (light guns, ADR-066).
+pub(crate) fn pointing_devices() -> Vec<Seen> {
+    hid_scan(&|page, usage, vid, _| (page == 1 && usage == 2) || vid == "0b9a")
+}
+
+#[cfg(windows)]
+fn hid_scan(want: &dyn Fn(u16, u16, &str, &str) -> bool) -> Vec<Seen> {
     use windows_sys::Win32::UI::Input::{GetRawInputDeviceInfoW, GetRawInputDeviceList, RAWINPUTDEVICELIST, RIDI_DEVICEINFO, RIDI_DEVICENAME, RID_DEVICE_INFO, RIM_TYPEHID};
     let mut count: u32 = 0;
     let item = std::mem::size_of::<RAWINPUTDEVICELIST>() as u32;
@@ -332,7 +343,8 @@ fn devices() -> Vec<Seen> {
                 continue;
             }
             let hid = info.Anonymous.hid;
-            if hid.usUsagePage != 1 || !matches!(hid.usUsage, 4 | 5 | 8) {
+            let (vid, pid) = (format!("{:04x}", hid.dwVendorId & 0xffff), format!("{:04x}", hid.dwProductId & 0xffff));
+            if !want(hid.usUsagePage, hid.usUsage, &vid, &pid) {
                 continue;
             }
             let mut len: u32 = 0;
@@ -349,7 +361,7 @@ fn devices() -> Vec<Seen> {
             }
             // XInput devices have `IG_` in their device path.
             let xinput = path.to_lowercase().contains("ig_");
-            out.push((format!("{:04x}", hid.dwVendorId & 0xffff), format!("{:04x}", hid.dwProductId & 0xffff), product_name(&name), key, xinput));
+            out.push((vid, pid, product_name(&name), key, xinput));
         }
         out
     }
@@ -401,7 +413,7 @@ fn product_name(path: &[u16]) -> Option<String> {
 }
 
 #[cfg(not(windows))]
-fn devices() -> Vec<Seen> {
+fn hid_scan(_want: &dyn Fn(u16, u16, &str, &str) -> bool) -> Vec<Seen> {
     Vec::new()
 }
 
@@ -450,7 +462,8 @@ mod tests {
         assert_eq!(r.controllers, 1405);
         assert_eq!(r.types.len(), 12);
         assert_eq!(r.types[0].name, "Classic joystick");
-        assert_eq!(r.sources.len(), 2, "the note row isn't a source");
+        assert_eq!(r.sources.len(), 3, "the note row isn't a source");
+        assert!(r.notices.contains("gamesdb.xml"));
         assert!(r.notices.contains("zlib") || r.notices.contains("Permission is granted"));
         assert!(r.notices.contains("MIT License"));
         // 8BitDo N64 (2dc8:9002): a three-prong controller, with its own name.

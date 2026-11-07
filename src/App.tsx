@@ -12,10 +12,10 @@ import { DecisionsLine, DecisionsPanel, type KeptOffChange } from './Decisions';
 
 /** Platforms with game lists RetroDrive fills in and keeps up to date (Sync, art and details). */
 const GAMELIST_PLATFORMS=['retrobat','batocera','retropie'];
-import { Activity, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, CircleStop, Copy, RefreshCw, Database, Eye, History, Palette, Plus, Undo2, XCircle, FolderOpen, Gamepad2, HardDrive, LayoutDashboard, LayoutGrid, LibraryBig, List, RefreshCcw, Search, Settings2, ShieldCheck, Download, Joystick } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, CircleStop, Copy, RefreshCw, Database, Eye, History, Palette, Plus, Undo2, XCircle, FolderOpen, Gamepad2, HardDrive, LayoutDashboard, LayoutGrid, LibraryBig, List, RefreshCcw, Search, Settings2, ShieldCheck, Download, Joystick, Crosshair } from 'lucide-react';
 
 type Availability = 'online'|'offline'|'missing';
-type Game = { id: string; game_id: string; title: string; platform: string; path: string; file_size: number; disc_count: number; incomplete: boolean; storage_name: string; availability: Availability; duplicate_count: number; reference: RefInfo|null; file_id: string; art: string|null };
+type Game = { id: string; game_id: string; title: string; platform: string; path: string; file_size: number; disc_count: number; incomplete: boolean; storage_name: string; availability: Availability; duplicate_count: number; reference: RefInfo|null; file_id: string; art: string|null; lightgun: boolean };
 /** URL of a game's linked image (served only by RetroDrive's media protocol), or null. */
 const artUrl = (g: { file_id: string; art: string|null }) => g.art ? `${convertFileSrc(g.file_id, 'rdmedia')}?v=${encodeURIComponent(g.art.split('|')[2] ?? '')}` : null;
 const artSource = (g: { art: string|null }) => g.art?.split('|')[1] ?? null;
@@ -33,8 +33,8 @@ type GamePage = { rows: Game[]; total: number; total_capped: boolean; offset: nu
 type LibraryStats = { files: number; online: number; offline: number; missing: number; duplicate_files: number; left_out: number; platforms: { platform: string; files: number }[] };
 type CleanupPreview = { groups: number; files_to_leave_out: number; bytes_to_leave_out: number; examples: { title: string; keep: string; leave_out: string[] }[] };
 type SystemSummary = { platform: string; games: number; bytes: number };
-type Filters = { text: string; platform: string; availability: ''|Availability|'left_out'; storage_id: string; duplicates_only: boolean; sort: 'title'|'platform'|'size'; letter: string; collection_id: string };
-const noFilters: Filters = { text:'', platform:'', availability:'', storage_id:'', duplicates_only:false, sort:'title', letter:'', collection_id:'' };
+type Filters = { text: string; platform: string; availability: ''|Availability|'left_out'; storage_id: string; duplicates_only: boolean; lightgun_only: boolean; sort: 'title'|'platform'|'size'; letter: string; collection_id: string };
+const noFilters: Filters = { text:'', platform:'', availability:'', storage_id:'', duplicates_only:false, lightgun_only:false, sort:'title', letter:'', collection_id:'' };
 const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
 const initialOf = (name: string) => { const c = name.trim().charAt(0).toUpperCase(); return c >= 'A' && c <= 'Z' ? c : '#'; };
 const PAGE_SIZE = 100;
@@ -116,7 +116,7 @@ export default function App() {
   const loadCollections=async()=>{ if(!native) return; try { setCollectionList(await invoke<CollectionRow[]>('list_collections')); } catch { /* shown when used */ } };
   useEffect(()=>{ void loadCollections(); },[page,libraryMode]);
   const collectionName=(id:string)=>collectionList.find(c=>c.id===id)?.name??'collection';
-  const currentQuery=()=>({ text:filters.text||null, platform:filters.platform||null, availability:filters.availability&&filters.availability!=='left_out'?filters.availability:null, left_out:filters.availability==='left_out', letter:filters.letter||null, collection_id:filters.collection_id||null, storage_id:filters.storage_id||null, duplicates_only:filters.duplicates_only, sort:filters.sort, offset:0 });
+  const currentQuery=()=>({ text:filters.text||null, platform:filters.platform||null, availability:filters.availability&&filters.availability!=='left_out'?filters.availability:null, left_out:filters.availability==='left_out', letter:filters.letter||null, collection_id:filters.collection_id||null, storage_id:filters.storage_id||null, duplicates_only:filters.duplicates_only, lightgun_only:filters.lightgun_only, sort:filters.sort, offset:0 });
   const createCollection=async(name:string)=>{ try { const id=await invoke<string>('create_collection',{name}); setNewCollection(''); await loadCollections(); return id; } catch(e){ setError(true); setMessage(`Could not create the collection: ${String(e)}`); return null; } };
   const renameCollection=async()=>{ if(!renaming) return; try { await invoke('rename_collection',{id:renaming.id,name:renaming.name}); setRenaming(null); await loadCollections(); } catch(e){ setError(true); setMessage(`Could not rename the collection: ${String(e)}`); } };
   const deleteCollection=async(c:CollectionRow)=>{ if(deletingCollection!==c.id){ setDeletingCollection(c.id); return; } try { await invoke('delete_collection',{id:c.id}); setDeletingCollection(null); if(filters.collection_id===c.id) updateFilters({collection_id:''}); setError(false); setMessage(`Collection "${c.name}" deleted. Its games are still in your library.`); await loadCollections(); } catch(e){ setError(true); setMessage(`Could not delete the collection: ${String(e)}`); } };
@@ -152,19 +152,20 @@ export default function App() {
   useEffect(()=>{
     if(!native) return;
     const id=++requestId.current; setLibraryLoading(true);
-    const query={ text:filters.text||null, platform:filters.platform||null, availability:filters.availability&&filters.availability!=='left_out'?filters.availability:null, left_out:filters.availability==='left_out', letter:filters.letter||null, collection_id:filters.collection_id||null, storage_id:filters.storage_id||null, duplicates_only:filters.duplicates_only, sort:filters.sort, offset, limit:PAGE_SIZE };
+    const query={ text:filters.text||null, platform:filters.platform||null, availability:filters.availability&&filters.availability!=='left_out'?filters.availability:null, left_out:filters.availability==='left_out', letter:filters.letter||null, collection_id:filters.collection_id||null, storage_id:filters.storage_id||null, duplicates_only:filters.duplicates_only, lightgun_only:filters.lightgun_only, sort:filters.sort, offset, limit:PAGE_SIZE };
     invoke<GamePage>('query_games',{query})
       .then(p=>{ if(id===requestId.current) setLibrary(p); })
       .catch(e=>{ if(id===requestId.current){ setError(true); setMessage(`Could not search the library: ${String(e)}`); } })
       .finally(()=>{ if(id===requestId.current) setLibraryLoading(false); });
   },[filters,offset,reloadKey]);
-  const filtersActive = filters.collection_id!==''||filters.letter!==''||filters.text!==''||filters.platform!==''||filters.availability!==''||filters.storage_id!==''||filters.duplicates_only;
+  const filtersActive = filters.collection_id!==''||filters.letter!==''||filters.text!==''||filters.platform!==''||filters.availability!==''||filters.storage_id!==''||filters.duplicates_only||filters.lightgun_only;
   const clearFilters=()=>{ setSearchText(''); setFilters(f=>({...noFilters,sort:f.sort})); setOffset(0); };
   const goToOffset=(next:number)=>{ setOffset(next); document.querySelector('.library-panel')?.scrollIntoView({block:'start'}); };
   const [cleanup,setCleanup]=useState<CleanupPreview|null>(null); const [cleanupBusy,setCleanupBusy]=useState(false);
   const previewCleanup=async()=>{ setPage('Game Library'); setCleanupBusy(true); try { setCleanup(await invoke<CleanupPreview>('duplicate_cleanup_preview')); } catch(e){ setError(true); setMessage(`Could not check duplicates: ${String(e)}`); } finally { setCleanupBusy(false); } };
   const applyCleanup=async()=>{ setCleanupBusy(true); try { const n=await invoke<number>('clean_up_duplicates'); setCleanup(null); setError(false); setMessage(`Left ${n.toLocaleString()} duplicate files out of the library. They're still on your drives; choose Status: Left out of library to see or bring them back.`); await load(); setReloadKey(k=>k+1); } catch(e){ setError(true); setMessage(`Could not clean up duplicates: ${String(e)}`); } finally { setCleanupBusy(false); } };
   const setLeftOut=async(g:Game, leftOut:boolean)=>{ try { await invoke<number>('set_left_out',{fileIds:[g.file_id], leftOut}); setError(false); setMessage(leftOut?`${displayTitle(g)} was left out of the library. The file is still on your drive.`:`${displayTitle(g)} is back in the library.`); await load(); setReloadKey(k=>k+1); } catch(e){ setError(true); setMessage(`Could not change ${displayTitle(g)}: ${String(e)}`); } };
+  const showGunGames=()=>{ setSearchText(''); setFilters({...noFilters,lightgun_only:true}); setOffset(0); chooseMode('games'); setPage('Game Library'); };
   const reviewDuplicates=()=>{ setSearchText(''); setFilters({...noFilters,duplicates_only:true}); setOffset(0); setPage('Game Library'); };
   useEffect(()=>{ if(copyResult) resultRef.current?.scrollIntoView({behavior:'smooth',block:'nearest'}); },[copyResult]);
   useEffect(()=>{
@@ -372,11 +373,12 @@ export default function App() {
         <select aria-label="Drive" value={filters.storage_id} onChange={e=>updateFilters({storage_id:e.target.value})}><option value="">All drives</option>{storage.map(d=><option key={d.id} value={d.id}>{d.volume_label??d.display_name}</option>)}</select>
         <select aria-label="Sort" value={filters.sort} onChange={e=>updateFilters({sort:e.target.value as Filters['sort']})}><option value="title">Sort: Title</option><option value="platform">Sort: Platform</option><option value="size">Sort: Largest first</option></select>
         <label className="check"><input type="checkbox" checked={filters.duplicates_only} onChange={e=>updateFilters({duplicates_only:e.target.checked})}/> Possible duplicates only</label>
+        <label className="check" title="Games made for a light gun (from Batocera's game list)"><input type="checkbox" checked={filters.lightgun_only} onChange={e=>updateFilters({lightgun_only:e.target.checked})}/> Light gun games</label>
         {filtersActive&&<button className="link" onClick={clearFilters}>Clear filters</button>}{native&&library&&library.total>0&&filters.availability!=='left_out'&&<button className="link" onClick={()=>{ void loadCollections(); setAddTarget({mode:'all'}); }}>Add all shown to a collection…</button>}
       </div>
       <nav className="az-bar" aria-label="Show games by first letter"><button className={filters.letter===''?'on':''} onClick={()=>updateFilters({letter:''})}>All</button>{LETTERS.map(l=><button key={l} className={filters.letter===l?'on':''} aria-pressed={filters.letter===l} onClick={()=>updateFilters({letter:filters.letter===l?'':l})}>{l}</button>)}</nav>
       {libraryView==='grid' ? <div className={'game-grid'+(libraryLoading?' loading':'')}>{library?.rows.map(g=><article key={g.id} className={'game-card '+g.availability} title={`${displayTitle(g)}${g.reference?.publisher?`\n${g.reference.publisher}`:''}\n${g.path}\n${availabilityLabel[g.availability]}`}>
-        <div className="cover" style={{['--hue' as string]:platformHue(g.platform)}}><span className="cover-initials">{initials(displayTitle(g))}</span>{artUrl(g)&&<img className="cover-img" src={artUrl(g)!} alt="" loading="lazy" onError={e=>{e.currentTarget.style.display='none';}}/>}<span className="cover-platform">{g.platform}</span>{native&&<div className="art-actions"><button onClick={()=>void setArt(g)}>{g.art?'Change art':'Add art'}</button>{artSource(g)==='user'&&<button onClick={()=>void removeArt(g)}>Remove my art</button>}{filters.availability==='left_out'?<button onClick={()=>void setLeftOut(g,false)}>Bring back</button>:<><button onClick={()=>{ void loadCollections(); setAddTarget({mode:'one',game:g}); }}>Add to collection</button>{filters.collection_id&&<button onClick={()=>void removeFromCollection(g)}>Remove from collection</button>}<button onClick={()=>void setLeftOut(g,true)}>Leave out</button></>}</div>}</div>
+        <div className="cover" style={{['--hue' as string]:platformHue(g.platform)}}><span className="cover-initials">{initials(displayTitle(g))}</span>{artUrl(g)&&<img className="cover-img" src={artUrl(g)!} alt="" loading="lazy" onError={e=>{e.currentTarget.style.display='none';}}/>}<span className="cover-platform">{g.platform}</span>{g.lightgun&&<span className="cover-gun" title="A light gun game"><Crosshair size={12}/> Light gun</span>}{native&&<div className="art-actions"><button onClick={()=>void setArt(g)}>{g.art?'Change art':'Add art'}</button>{artSource(g)==='user'&&<button onClick={()=>void removeArt(g)}>Remove my art</button>}{filters.availability==='left_out'?<button onClick={()=>void setLeftOut(g,false)}>Bring back</button>:<><button onClick={()=>{ void loadCollections(); setAddTarget({mode:'one',game:g}); }}>Add to collection</button>{filters.collection_id&&<button onClick={()=>void removeFromCollection(g)}>Remove from collection</button>}<button onClick={()=>void setLeftOut(g,true)}>Leave out</button></>}</div>}</div>
         <div className="card-body"><b>{displayTitle(g)}</b>{g.reference&&refLine(g.reference)&&<small className="ref-line">{refLine(g.reference)}</small>}<small>{fmtSize(g.file_size)} · <span className={'state '+g.availability}>{g.availability==='online'?'Online':g.availability==='offline'?'Offline':'Missing'}</span></small>
           <div className="card-badges">{g.disc_count>1&&<span className="disc-badge">{g.disc_count} discs</span>}{g.incomplete&&<span className="incomplete-badge">Incomplete</span>}{g.duplicate_count>1&&<span className="dup-badge" title="Possible duplicate copies (same platform, name and size)">×{g.duplicate_count}</span>}</div></div></article>)}
         {library&&library.rows.length===0&&<div className="empty"><Database size={26}/>{(stats?.files??0)===0?'No games yet. Import a ROM folder to begin.':<>No games match these filters. <button className="link" onClick={clearFilters}>Clear filters</button></>}</div>}</div>
@@ -484,7 +486,7 @@ export default function App() {
       <div className="actions"><button className="ghost" onClick={()=>setCopyResult(null)}>Close</button></div>
     </section>}
     </>}
-    {page==='Controllers' && <Controllers notify={(text, isError=false)=>{ setError(isError); setMessage(text); }}/>}
+    {page==='Controllers' && <Controllers onShowGunGames={showGunGames} notify={(text, isError=false)=>{ setError(isError); setMessage(text); }}/>}
     {page==='Customize' && <Customize installs={installs} native={native} busy={busy} notify={(text, isError=false)=>{ setError(isError); setMessage(text); }}/>}
     {page==='Settings' && <section className="panel"><h2>Reference catalog</h2>
       <p>Import your own game catalog (.xlsx or .csv) to show proper titles, years, genres and publishers. RetroDrive matches games by their exact No-Intro or MAME name first, then by title on the same system. Only names and details are imported; <b>art columns are never read</b>. Your files are never changed, and removing the catalog leaves your library as it was.</p>

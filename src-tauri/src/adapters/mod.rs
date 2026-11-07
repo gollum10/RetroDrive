@@ -201,6 +201,12 @@ pub fn detect_all(root: &Path) -> Vec<Detection> {
 }
 
 /// Case-insensitive check for an entry directly inside `root`.
+/// The RetroBat/Batocera system folder for a catalog platform (arcade as MAME), or
+/// `None` when it has none. Used to match light gun games (ADR-066).
+pub(crate) fn batocera_folder(platform: &str, extension: &str) -> Option<&'static str> {
+    retrobat::system_folder(platform, extension, PlacementOptions { arcade: Some(ArcadeSystem::Mame), has_roms_folder: true }, "RetroBat").ok()
+}
+
 pub(crate) fn has_entry(root: &Path, name: &str, want_dir: bool) -> bool {
     let Ok(entries) = std::fs::read_dir(root) else { return false };
     entries.filter_map(Result::ok).any(|e| {

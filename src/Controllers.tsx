@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Check, RefreshCw, Search } from 'lucide-react';
 import ControllerOutline from './ControllerOutline';
+import LightGuns from './LightGuns';
 
 type ControllerType = { id: string; name: string; layout: string; systems: string };
 type Info = { vid: string; pid: string; name: string; also_known_as: string[]; controller_type: ControllerType|null; type_basis: string|null; sources: string; sdl_windows: boolean; retroarch_files: string[]; shares_usb_id: number; mixed_names: boolean };
@@ -106,7 +107,7 @@ function LookupCard({ info }: { info: Info }) {
   </article>;
 }
 
-export default function Controllers({ notify }: { notify: (text: string, error?: boolean) => void }) {
+export default function Controllers({ notify, onShowGunGames }: { notify: (text: string, error?: boolean) => void; onShowGunGames: () => void }) {
   const [connected, setConnected] = useState<Connected[]|null>(null); const [looking, setLooking] = useState(false);
   const [showLookup, setShowLookup] = useState(false); const [query, setQuery] = useState(''); const [found, setFound] = useState<Info[]>([]);
   const [ref, setRef] = useState<Reference|null>(null); const [showTypes, setShowTypes] = useState(false); const [showNotices, setShowNotices] = useState(false);
@@ -115,12 +116,14 @@ export default function Controllers({ notify }: { notify: (text: string, error?:
   useEffect(() => { if (!showLookup) return; const t = window.setTimeout(() => { void invoke<Info[]>('find_controllers', { query }).then(setFound).catch(() => setFound([])); }, 250); return () => window.clearTimeout(t); }, [query, showLookup]);
 
   return <section className="panel controllers">
-    <div className="section-heading"><div><h2>Controllers</h2><p>Plug in your controller and RetroDrive works out what kind it is. Confirm it once and RetroDrive remembers it, then sets it up on your systems. Light guns come next.</p></div>
+    <div className="section-heading"><div><h2>Controllers</h2><p>Plug in your controller and RetroDrive works out what kind it is. Confirm it once and RetroDrive remembers it, then sets it up on your systems. Light guns have their own section below.</p></div>
       <button className="ghost" disabled={looking} onClick={() => void detect()}><RefreshCw size={16}/> {looking ? 'Looking…' : 'Look again'}</button></div>
 
     {connected === null ? <p className="plan-notes">Looking for controllers…</p>
     : connected.length === 0 ? <p className="plan-notes">No game controllers found. Plug one in (USB, or pair it over Bluetooth), then choose <b>Look again</b>.</p>
     : <div className="controller-grid">{connected.map((c, i) => <ConfirmCard key={`${c.vid}:${c.pid}:${i}:${c.suggested_by}:${c.suggested?.id}`} c={c} types={ref?.types ?? []} onSaved={() => void detect()} notify={notify}/>)}</div>}
+
+    <LightGuns key={looking ? 'looking' : 'ready'} notify={notify} onShowGunGames={onShowGunGames}/>
 
     <p className="controller-more">
       <button className="link" onClick={() => setShowLookup(v => !v)}><Search size={14}/> {showLookup ? 'Hide look-up' : 'Look up a controller'}</button>

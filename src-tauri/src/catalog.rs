@@ -42,6 +42,8 @@ pub struct GameRow {
     pub file_id: String,
     /// `kind|source|added_at` of the best linked image, or `None`.
     pub art: Option<String>,
+    /// A light gun game (ADR-066).
+    pub lightgun: bool,
     pub storage_name: String,
     /// `online`: file was present at the last scan and its volume is attached.
     /// `offline`: the volume (drive / share) is not attached, or its drive letter
@@ -69,6 +71,8 @@ pub struct GameQuery {
     pub letter: Option<String>,
     /// Only games in this collection.
     pub collection_id: Option<String>,
+    /// Only light gun games (ADR-066).
+    pub lightgun_only: bool,
     /// `title` (default), `platform` or `size`.
     pub sort: Option<String>,
     pub offset: u32,
@@ -186,7 +190,7 @@ fn like_pattern(text: &str) -> String {
 }
 
 /// WHERE clause, bound values and whether the query is filtered, for a library query.
-fn filter_sql(query: &GameQuery, offline: &str) -> Result<(String, Vec<Value>, bool), String> {
+fn filter_sql(query: &GameQuery, offline: &str, guns: &str) -> Result<(String, Vec<Value>, bool), String> {
     let offline = offline.to_string();
     // Always list primary files only. The unary `+` stops SQLite from choosing the
     // role index for this term, which would scan every primary file instead of
@@ -250,6 +254,10 @@ fn filter_sql(query: &GameQuery, offline: &str) -> Result<(String, Vec<Value>, b
         conditions.push("gf.id IN (SELECT game_file_id FROM collection_games WHERE collection_id = ?)");
         values.push(Value::Text(collection.to_string()));
     }
+    if query.lightgun_only {
+        conditions.push("g.id IN (SELECT value FROM json_each(?))");
+        values.push(Value::Text(guns.to_string()));
+    }
     let filtered = conditions.len() > 1 || query.left_out;
     // Left-out files are hidden unless asked for; this alone doesn't make a query "filtered".
     conditions.push(if query.left_out { "gf.excluded_at IS NOT NULL" } else { "gf.excluded_at IS NULL" });
@@ -257,11 +265,20 @@ fn filter_sql(query: &GameQuery, offline: &str) -> Result<(String, Vec<Value>, b
     Ok((where_clause, values, filtered))
 }
 
+/// The library's light gun game ids as JSON, when the query filters on them.
+fn gun_ids_json(connection: &Connection, query: &GameQuery) -> Result<String, String> {
+    if !query.lightgun_only {
+        return Ok("[]".into());
+    }
+    let ids = crate::lightguns::game_ids(connection)?;
+    serde_json::to_string(&ids.iter().collect::<Vec<_>>()).map_err(|e| e.to_string())
+}
+
 /// Every primary file id matching a library query (up to `cap`), e.g. to add all
 /// shown games to a collection.
 pub fn matching_file_ids(connection: &Connection, query: &GameQuery, presence: PresenceFn, cap: usize) -> Result<Vec<String>, String> {
     let offline = offline_storage_ids(connection, presence)?;
-    let (where_clause, values, _) = filter_sql(query, &offline)?;
+    let (where_clause, values, _) = filter_sql(query, &offline, &gun_ids_json(connection, query)?)?;
     let mut statement = connection.prepare(&format!("SELECT gf.id {FROM} {where_clause} LIMIT {cap}")).map_err(|e| e.to_string())?;
     let rows = statement.query_map(params_from_iter(values.iter()), |r| r.get(0)).map_err(|e| e.to_string())?;
     rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
@@ -274,7 +291,7 @@ pub fn matching_file_ids(connection: &Connection, query: &GameQuery, presence: P
 pub fn query_games(connection: &Connection, query: &GameQuery, presence: PresenceFn) -> Result<GamePage, String> {
     let limit = query.limit.unwrap_or(DEFAULT_PAGE_SIZE).clamp(1, MAX_PAGE_SIZE);
     let offline = offline_storage_ids(connection, presence)?;
-    let (where_clause, values, filtered) = filter_sql(query, &offline)?;
+    let (where_clause, values, filtered) = filter_sql(query, &offline, &gun_ids_json(connection, query)?)?;
     let (page_from, order) = match query.sort.as_deref() {
         Some("platform") => (FROM_BY_GAME, "g.platform, g.display_title COLLATE NOCASE, g.rowid, fl.id"),
         Some("size") => (FROM_BY_FILE, "gf.file_role DESC, gf.payload_bytes DESC, fl.id"),
@@ -369,13 +386,22 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
                 },
                 file_id: r.get(18)?,
                 art: r.get(19)?,
+                lightgun: false,
             })
         })
         .map_err(|e| e.to_string())?
         .map(|row| row.map(|r| (r.id.clone(), r)))
         .collect::<Result<_, _>>()
         .map_err(|e| e.to_string())?;
-    let rows = ids.iter().filter_map(|id| by_id.remove(id)).collect();
+    let guns = crate::lightguns::game_ids(connection)?;
+    let rows = ids
+        .iter()
+        .filter_map(|id| by_id.remove(id))
+        .map(|mut r| {
+            r.lightgun = guns.contains(&r.game_id);
+            r
+        })
+        .collect();
     Ok(GamePage { rows, total, total_capped, offset: query.offset, limit })
 }
 
