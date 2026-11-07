@@ -2,6 +2,7 @@
 //! The frontend is unprivileged; every command validates its own inputs.
 
 mod adapters;
+mod batocera_settings;
 mod catalog;
 mod classify;
 mod collections;
@@ -362,7 +363,13 @@ async fn emulator_settings_history(catalog: State<'_, Catalog>, installation_id:
 async fn undo_emulator_settings(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, change_id: i64) -> Result<String, String> {
     claim_drive_change(&active)?;
     let db_path = catalog.path()?;
-    let result = tauri::async_runtime::spawn_blocking(move || customizer::undo(&db::open(&db_path)?, change_id, &volumes::presence, &customizer::retrobat_running)).await.map_err(|e| e.to_string());
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let connection = db::open(&db_path)?;
+        let installation: String = connection.query_row("SELECT installation_id FROM settings_changes WHERE id = ?1", [change_id], |r| r.get(0)).map_err(|e| e.to_string())?;
+        customizer::undo(&connection, change_id, &volumes::presence, running_for(&connection, &installation))
+    })
+    .await
+    .map_err(|e| e.to_string());
     active.undoing.store(false, Ordering::SeqCst);
     result?
 }
@@ -535,6 +542,47 @@ async fn undo_design_application(catalog: State<'_, Catalog>, active: State<'_, 
     })
     .await
     .map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
+/// Batocera settings and themes offered, with current values (reads only).
+#[tauri::command]
+async fn batocera_options(catalog: State<'_, Catalog>, installation_id: String) -> Result<batocera_settings::BatoceraOptions, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || batocera_settings::options(&db::open(&db_path)?, &installation_id, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// What Batocera settings changes would do (reads only).
+#[tauri::command]
+async fn preview_batocera_settings(catalog: State<'_, Catalog>, installation_id: String, changes: Vec<batocera_settings::ConfChange>) -> Result<customizer::Preview, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || batocera_settings::preview(&db::open(&db_path)?, &installation_id, &changes, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Save reviewed Batocera settings (journaled, backed up, undoable).
+#[tauri::command]
+async fn apply_batocera_settings(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, changes: Vec<batocera_settings::ConfChange>, file_sha: String) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || batocera_settings::apply(&db::open(&db_path)?, &installation_id, &changes, &file_sha, &volumes::presence)).await.map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
+/// What switching Batocera's theme would change (reads only).
+#[tauri::command]
+async fn preview_batocera_theme(catalog: State<'_, Catalog>, installation_id: String, theme: String) -> Result<customizer::Preview, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || batocera_settings::preview_theme(&db::open(&db_path)?, &installation_id, &theme, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Switch Batocera's theme (journaled, backed up, undoable).
+#[tauri::command]
+async fn apply_batocera_theme(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, theme: String, file_sha: String) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || batocera_settings::apply_theme(&db::open(&db_path)?, &installation_id, &theme, &file_sha, &volumes::presence)).await.map_err(|e| e.to_string());
     active.undoing.store(false, Ordering::SeqCst);
     result?
 }
@@ -1048,6 +1096,11 @@ pub fn run() {
             sync_plan,
             sync_scope,
             set_sync_scope,
+            batocera_options,
+            preview_batocera_settings,
+            apply_batocera_settings,
+            preview_batocera_theme,
+            apply_batocera_theme,
             set_kept_off,
             saved_choices,
             set_saved_choices,

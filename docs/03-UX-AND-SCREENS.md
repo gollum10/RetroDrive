@@ -33,6 +33,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-07 (Batocera Sync, art and details, ADR-047):** Batocera cards show **Sync** like RetroBat. The copy confirm box offers "Also add your box art… to Batocera's game lists (… a running Batocera shows them after Update Gamelists; undo under Customize)"; the result adds "If Batocera is running, press Start → Game Settings → Update Gamelists to see them." **Customize** lists RetroBat and Batocera installations; for Batocera it shows only *Game art and details* and *Applied designs* (Undo), with "Batocera settings and themes are coming next." The undo message no longer names RetroBat.
 
+**Implemented 2026-11-07 (Batocera settings and theme, ADR-048):** Customize for a Batocera shows **Batocera settings**: "Settings for" (*All systems* or a system with games; systems with unsaved edits get •), a two-column grid of selects (*Auto (Batocera decides)* for all systems, *Same as all systems (…)* per system, then Batocera's values), *Review N changes* → a list of "scope: setting: before → after" → **Save** / *Not now*, *Discard*. **Theme**: a select of the built-in *Carbon (built in)* and added themes (current marked), *Use this theme* → *Switch to …*; over the network it says to restart Batocera right after. Changes appear in *Show every settings change* with Undo.
+
 ## Drives
 Inventory: manufacturer/model, bus type when known, capacity, filesystem, free space, label, stable identity, mount point, safety classification (system/unknown/removable). Selected drive details: partitions, managed installations, activity, backup state. No prominent 'Erase' control in default view. Clearly distinguish physical disks from mounted volumes.
 

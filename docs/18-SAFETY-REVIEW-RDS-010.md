@@ -308,3 +308,16 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** not yet tried on a real Batocera; if it does rewrite whole lists, art added while it runs could be dropped (adding art again restores it; nothing is lost).
 
+## 23. Addendum: Batocera settings and theme (2026-11-07)
+**Scope:** step 3 of the owner-approved Batocera plan. Edits two Batocera files through the reviewed settings writer (§12: SHA check, temporary file read back, original moved into `.retrodrive\backup`, journal, undo, startup repair). Code: `batocera_settings.rs`, `BatoceraSettings.tsx`, `lib.rs`.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| Other settings in batocera.conf changed or lost (Wi-Fi password, hostname…) | Only offered keys can be changed; after editing, every other active key must be identical or nothing is written; lines are edited in place like Batocera's menu | `edits_change_only_the_wanted_keys_like_batoceras_menu`; `conf_edit` self-check |
+| A value that breaks Batocera or injects a line | Only Batocera's own values for each setting; line breaks refused; scopes limited to all systems or systems with games | `settings_and_theme_are_reviewed_saved_and_undone` |
+| Batocera's menu and RetroDrive overwrite each other | Batocera re-reads the file and changes only its own lines (`SystemConf::saveSystemConf`); RetroDrive checks the file is unchanged since review | design note; stale-review test |
+| Theme switch lost when Batocera quits | Batocera rewrites es_settings.cfg on quit only if a menu setting changed; the app says to restart Batocera right after switching over the network | message in `apply_theme` |
+| Theme set to something that doesn't exist | Only the built-in Carbon or folders in `themes`; Batocera also falls back to an available theme | same test |
+
+**Residual risk:** not yet tried on a real Batocera.
+

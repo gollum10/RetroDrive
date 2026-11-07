@@ -5,6 +5,7 @@ import { listen } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
 import { AlertTriangle, Check, Eye, Palette, Pencil, Plus, Trash2, Undo2, X } from 'lucide-react';
 import { baseName, fmtSize, localTime, shortPath } from './format';
+import BatoceraSettings from './BatoceraSettings';
 
 // ---------- data from the backend ----------
 type ThemeVar = { name: string; value: string; kind: 'color'|'image'; path: string|null };
@@ -30,7 +31,7 @@ type Application = { id: number; design_id: string|null; design_name: string; st
 export type CustomizeInstall = { id: string; adapter_id: string; adapter_name: string; path: string; presence: string };
 
 // ---------- labels ----------
-const settingLabel: Record<string,string> = { emulator:'Emulator', core:'Core', shaderset:'Shader', bezel:'Bezel', ratio:'Aspect ratio', integerscale:'Integer scaling', ThemeSet:'Theme',
+const settingLabel: Record<string,string> = { emulator:'Emulator', core:'Core', shaderset:'Shader', bezel:'Bezel', ratio:'Aspect ratio', integerscale:'Integer scaling', ThemeSet:'Theme', smooth:'Smooth games', rewind:'Rewind', autosave:'Auto save/load', bgmusic:'Menu music',
   EnableIntro:'Boot video on', RandomVideo:'Random video', FileName:'Boot video', WaitForVideoEnd:'Wait for the video to end', GamepadVideoKill:'Skip with a gamepad', KillVideoWhenESReady:'Stop the video when ready', VideoDelay:'Video delay (ms)',
   InterfaceMode:'Interface mode', Fullscreen:'Fullscreen', FullscreenBorderless:'Borderless fullscreen', RandomTheme:'Random theme', NoExitMenu:'Hide the Quit option', VSync:'VSync in menus', DrawFramerate:'Show frame rate', LanguageDetection:"Use Windows' language", DisableWindowsInterface:'Hide Windows while playing',
   'audio.bgmusic':'Frontend music', 'audio.persystem':'Only system-specific music folder', 'audio.thememusics':'System-specific music (theme)', 'audio.useFavoriteMusic':'Play only favorite songs', favorites:'Tracks that play', 'audio.display_titles':'Song titles', 'audio.display_titles_time':'Title time (s)', MusicVolume:'Music volume', StopMusicOnScreenSaver:'Stop music in screensaver', VideoLowersMusic:'Lower music for videos' };
@@ -103,7 +104,7 @@ export default function Customize({ installs, native, busy, notify }: { installs
   // Each read is independent: one failing (e.g. RetroBat never started, so es_systems.cfg is missing) doesn't hide the rest.
   const loadTarget=async(id:string)=>{ const args={installationId:id}; const errors:unknown[]=[];
     const one=<T,>(cmd:string, set:(v:T)=>void)=>invoke<T>(cmd,args).then(set,(e)=>{ errors.push(e); });
-    if(installs.find(i=>i.id===id)?.adapter_id!=='retrobat'){ setThemes(null); setLook(null); setEmu(null); setMusic(null); setHistory([]); await one<Application[]>('design_applications',setApps); if(errors.length) throw errors[0]; return; }
+    if(installs.find(i=>i.id===id)?.adapter_id!=='retrobat'){ setThemes(null); setLook(null); setEmu(null); setMusic(null); setHistory([]); await Promise.all([one<Application[]>('design_applications',setApps), one<SettingsHistory[]>('emulator_settings_history',setHistory)]); if(errors.length) throw errors[0]; return; }
     await Promise.all([one<ThemeList>('list_themes',setThemes), one<LookOptions>('look_options',setLook), one<SettingsOptions>('emulator_settings',setEmu), one<MusicSetting[]>('music_settings',setMusic), one<Application[]>('design_applications',setApps), one<SettingsHistory[]>('emulator_settings_history',setHistory)]);
     if(errors.length) throw errors[0]; };
   useEffect(()=>{ if(native) void loadDesigns().catch(fail('Could not load your designs')); },[native]);
@@ -247,7 +248,7 @@ export default function Customize({ installs, native, busy, notify }: { installs
   // ================= designs and applying =================
   const lastApplied=apps.find(a=>a.state!=='undone');
   return <section className="panel customize">
-    <div className="section-heading"><div><h2>Customize</h2><p>{isRetroBat?'Design how RetroBat looks and behaves (theme, boot video, music, behavior, emulators), then apply a finished design. Designs are kept in RetroDrive, so you can reuse them on other drives.':`Add your box art and catalog details to ${sysName}'s menus. ${sysName} settings and themes are coming next.`}</p></div>
+    <div className="section-heading"><div><h2>Customize</h2><p>{isRetroBat?'Design how RetroBat looks and behaves (theme, boot video, music, behavior, emulators), then apply a finished design. Designs are kept in RetroDrive, so you can reuse them on other drives.':`Batocera's settings and theme, and your box art and catalog details in its menus.`}</p></div>
       {targets.length>1&&<label className="cust-pick">Apply to <select value={target.id} onChange={e=>setTargetId(e.target.value)}>{targets.map(i=><option key={i.id} value={i.id}>{i.adapter_name} · {i.path}</option>)}</select></label>}</div>
     <p className="mono cust-target">{target.adapter_name} · {target.path}{lastApplied?` · last applied: "${lastApplied.design_name}"`:''}</p>
     {!connected&&<p className="warn-text">{isRetroBat?"This RetroBat's drive isn't connected. You can still design; applying needs the drive.":`This ${sysName} isn't connected. Plug in its game drive, or start it so its network share is reachable.`}</p>}
@@ -274,6 +275,7 @@ export default function Customize({ installs, native, busy, notify }: { installs
         <li className="plan-notes">Everything else stays as it is. RetroBat's settings files are backed up first; Undo puts them back in one step. Added files are kept.</li></ul>}
       <div className="actions"><button className="primary" disabled={working||!!blocked||applyFor.preview.nothing} onClick={()=>void doApply()}>{working?'Applying…':confirm==='apply'?'Click again to apply':'Apply design'}</button><button className="ghost" disabled={working} onClick={()=>{ setApplyFor(null); setConfirm(null); }}>Not now</button></div></div>}
 
+    {!isRetroBat&&connected&&<BatoceraSettings installationId={target.id} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
     <div className="backups"><h3>Game art and details</h3>
       <p className="plan-notes">Show your own box art, logos and catalog details (title, year, genre, developer, publisher) in {sysName}'s menus for the games RetroDrive copied. Images are copied to each system's <span className="mono">images</span> folder as new files; {sysName}'s game lists only get what they're missing, so art {sysName} already shows is kept. New copies get this automatically when you tick it while copying.{!isRetroBat&&' If Batocera is running, press Start → Game Settings → Update Gamelists afterwards to see the new art.'}</p>
       {!art?<><div className="actions"><button className="ghost" disabled={working||busy||!connected||artChecking} onClick={()=>void reviewArt()}><Eye size={15}/> {artChecking?'Checking…':'Check what can be added'}</button></div>
