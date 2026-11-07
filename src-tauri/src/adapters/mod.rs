@@ -225,6 +225,12 @@ pub(crate) fn plan_in(prefix: &str, system: &str, request: &PlacementRequest) ->
     Placement::Planned { system_folder: system.to_string(), destinations: request.files.iter().map(|f| format!("{base}/{}", f.relative_to_primary)).collect() }
 }
 
+/// Housekeeping files found in BIOS folders that aren't copied (`.gitkeep`, `.DS_Store`, …).
+pub(crate) fn is_housekeeping(path: &str) -> bool {
+    let name = path.rsplit('/').next().unwrap_or(path).to_lowercase();
+    name.starts_with('.') || ["_ds_store", "thumbs.db", "desktop.ini", "_info.txt"].contains(&name.as_str())
+}
+
 /// BIOS files from a library `bios` folder go to the installation's BIOS folder
 /// (`folder`), keeping their subfolders (owner request 2026-11-07; docs/18 §31).
 pub(crate) fn plan_bios(folder: &str, request: &PlacementRequest) -> Placement {
@@ -233,8 +239,7 @@ pub(crate) fn plan_bios(folder: &str, request: &PlacementRequest) -> Placement {
             reason: "BIOS sets named like \"[BIOS] … .zip\" are archives of the original chips; emulators need the files themselves with their exact names, so RetroDrive doesn't place these. Keep the BIOS files you use in a folder named bios in your library.".into(),
         };
     };
-    let name = path.rsplit('/').next().unwrap_or(path).to_lowercase();
-    if name.starts_with('.') || ["_ds_store", "thumbs.db", "desktop.ini", "_info.txt"].contains(&name.as_str()) {
+    if is_housekeeping(path) {
         return Placement::Unsupported { reason: "Housekeeping files (like .gitkeep, .DS_Store or _info.txt) aren't copied.".into() };
     }
     if request.files.len() != 1 || path.split('/').any(|part| part.is_empty() || part == "." || part == "..") {

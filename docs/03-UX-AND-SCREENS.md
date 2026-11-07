@@ -57,6 +57,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-07 (Recalbox art, ADR-060):** Customize lists Recalbox installations ("Your box art and catalog details in Recalbox.") with art and Applied designs; the copy confirm box offers art for Recalbox ("a running Recalbox shows them after updating its game lists"); Sync adds art for Recalbox.
 
+**Implemented 2026-11-07 (BIOS step, ADR-061):** Customize shows **BIOS files** for a RetroPie added by its network share and for ES-DE: an explanation of where the files go, *Check BIOS files* → "Copy N BIOS files (size) to <folder>?" with already there / kept / two versions in your library → *Copy BIOS files* (two clicks), progress, result message; or a plain reason (e.g. RetroArch not installed for this ES-DE). Plan's *Not placed automatically* points to this step for those two cases.
+
 ## Drives
 Inventory: manufacturer/model, bus type when known, capacity, filesystem, free space, label, stable identity, mount point, safety classification (system/unknown/removable). Selected drive details: partitions, managed installations, activity, backup state. No prominent 'Erase' control in default view. Clearly distinguish physical disks from mounted volumes.
 
