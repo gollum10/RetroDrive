@@ -393,3 +393,4 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** not yet tried with a real ES-DE installation (not installed on the test PC); the folder layout follows ES-DE's source.
 
+**§30 note (2026-11-07, portable ES-DE):** the `ROMs` folder next to `ES-DE.exe` is accepted even while empty; `ROMs_ALL` (ES-DE's catalog of empty system folders) and the program/data folders are never accepted as game folders. No new writes.
