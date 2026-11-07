@@ -112,7 +112,7 @@ impl PlatformAdapter for RetroPie {
             );
         }
         // Never claim RetroBat or Batocera folders.
-        if has_entry(root, "RetroBat.exe", false) || (has_entry(root, "system", true) && has_entry(&root.join("system"), "batocera.conf", false)) {
+        if has_entry(root, "RetroBat.exe", false) || (has_entry(root, "system", true) && has_entry(&root.join("system"), "batocera.conf", false)) || super::recalbox::has_recalbox_conf(root) {
             return detection(Confidence::NotDetected, Vec::new(), None);
         }
         let folder = games_folder(root);

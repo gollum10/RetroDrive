@@ -85,7 +85,7 @@ impl PlatformAdapter for EsDe {
 
     fn detect(&self, root: &Path) -> Detection {
         let detection = |confidence, evidence: Vec<String>, hint: Option<String>| Detection { adapter_id: ID, display_name: NAME, kind: AdapterKind::Frontend, confidence, evidence, version: None, hint };
-        if has_entry(root, "RetroBat.exe", false) || (has_entry(root, "system", true) && has_entry(&root.join("system"), "batocera.conf", false)) {
+        if has_entry(root, "RetroBat.exe", false) || (has_entry(root, "system", true) && has_entry(&root.join("system"), "batocera.conf", false)) || super::recalbox::has_recalbox_conf(root) {
             return detection(Confidence::NotDetected, Vec::new(), None);
         }
         let parent = root.parent();

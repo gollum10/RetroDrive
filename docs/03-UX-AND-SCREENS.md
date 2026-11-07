@@ -51,6 +51,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-07 (ES-DE art, ADR-057):** Customize lists ES-DE installations ("Your box art and catalog details in ES-DE.") with *Game art and details* and *Applied designs*; the text explains that details go into ES-DE's own lists and pictures into `downloaded_media` as covers and marquees, and to close ES-DE first. The copy confirm box offers art for ES-DE ("in ES-DE's own lists and media folders; needs ES-DE closed").
 
+**Implemented 2026-11-07 (Recalbox recognized, ADR-058):** a fifth platform card *Recalbox* (recognizes, checks, plans; copying not yet). Dashboard roadmap lists Recalbox; the empty-installations text mentions a Recalbox share.
+
 ## Drives
 Inventory: manufacturer/model, bus type when known, capacity, filesystem, free space, label, stable identity, mount point, safety classification (system/unknown/removable). Selected drive details: partitions, managed installations, activity, backup state. No prominent 'Erase' control in default view. Clearly distinguish physical disks from mounted volumes.
 
