@@ -1619,6 +1619,34 @@ mod tests {
         }
     }
 
+    #[test]
+    fn esde_roms_folders_are_copied_to() {
+        // RDS-025 step 2: ES-DE's ROMs folder holds the system folders; ES-DE's names.
+        let dir = tempfile::tempdir().unwrap();
+        let roms = dir.path().join("ROMs");
+        for d in ["snes", "atarilynx", "ports", "colecovision"] {
+            fs::create_dir_all(roms.join(d)).unwrap();
+            fs::write(roms.join(d).join("systeminfo.txt"), b"").unwrap();
+        }
+        fs::write(roms.join("systems.txt"), b"snes: Nintendo SNES
+").unwrap();
+        let library = dir.path().join("library");
+        write(&library, "snes/Mario.sfc", b"mario");
+        write(&library, "lynx/Racer.lnx", b"lynx!");
+        let mut catalog = Connection::open_in_memory().unwrap();
+        db::migrate(&mut catalog, None).unwrap();
+        scanner::scan(&mut catalog, &library, &unknown).unwrap();
+        let id = installations::add(&catalog, &roms, "esde", &unknown).unwrap();
+        let choices = deployment::Choices::new();
+        let plan = deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap();
+        assert!(plan.copy_supported && plan.systems_prefix.is_empty());
+        let request = DeployRequest { installation_id: &id, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None, sync: false };
+        let summary = deploy(&catalog, None, &request, &connected, &roomy, &mut Quiet).unwrap();
+        assert_eq!((summary.status.as_str(), summary.games_copied), ("completed", 2));
+        assert_eq!(fs::read(roms.join("atarilynx/Racer.lnx")).unwrap(), b"lynx!", "ES-DE's folder name");
+        assert_eq!(fs::read(roms.join("snes/systeminfo.txt")).unwrap(), b"", "ES-DE's own files untouched");
+    }
+
     /// The same over real SMB, the way RetroPie's roms share is reached (run by hand:
     /// `cargo test -- --ignored retropie_over_a_network_share`; needs this PC's C$ admin share).
     #[cfg(windows)]

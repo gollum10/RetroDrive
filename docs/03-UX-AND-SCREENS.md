@@ -45,6 +45,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-07 (ES-DE recognized, ADR-054):** a fourth platform card *ES-DE* ("Frontend"; recognizes, checks, plans; copying not yet). Installations show ES-DE's checks (system folders, ES-DE files, copying not yet, emulators are separate). Plans list folders as `snes` (no `roms\` level). Dashboard roadmap lists ES-DE; the empty-installations text mentions an ES-DE ROMs folder.
 
+**Implemented 2026-11-07 (ES-DE copying and Sync, ADR-055):** the ES-DE card has **Sync** and *Plan deployment*; the confirm box has no art option for ES-DE yet; the Sync summary mentions art only for platforms that get it. Dashboard roadmap: "ES-DE — Plan & copy games".
+
 ## Drives
 Inventory: manufacturer/model, bus type when known, capacity, filesystem, free space, label, stable identity, mount point, safety classification (system/unknown/removable). Selected drive details: partitions, managed installations, activity, backup state. No prominent 'Erase' control in default view. Clearly distinguish physical disks from mounted volumes.
 

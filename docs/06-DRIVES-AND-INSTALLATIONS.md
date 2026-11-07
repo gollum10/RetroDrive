@@ -47,7 +47,7 @@ Enumerate mounted storage; display OS-reported capacity/free space, filesystem t
   - **Where games are:** a ROMs folder with one folder per system (`%ROMPATH%\<system>` in `resources/systems/windows/es_systems.xml`); default `%USERPROFILE%\ROMs`, or the `ROMDirectory` setting in `ES-DE\settings\es_settings.xml`. ES-DE writes `systems.txt` in the ROMs folder and `systeminfo.txt` in each system folder when it creates them.
   - **Detection:** ES-DE's markers plus a system folder → "Detected"; 3 system folders without markers → "Possible"; ES-DE's data folder → points at the ROMs folder. RetroBat and Batocera folders are never claimed, and the RetroPie adapter steps aside when ES-DE's markers are present (ES-DE creates RetroPie-style folder names too).
   - **Folder mapping:** RetroBat's names, except `atarilynx`, `atarijaguar`, `amiga`, `sg-1000`, `wonderswan`, `wonderswancolor`; arcade to `mame` or `fbneo`, CPS to `cps1/2/3` (all ES-DE systems). Plans show folders at the top of the ROMs folder.
-  - **Preview only:** `copy_games: false` until the owner's go-ahead.
+  - **Copying and Sync (step 2, 2026-11-07, owner go-ahead "go", docs/18 §30):** on, with the reviewed copier (a normal Windows folder: local, USB or NAS; a NAS path gets the share id). The ES-DE card has **Sync**; art isn't added yet (ES-DE keeps game lists and media in its own data folder, next step). RetroDrive's copy records go in the ROMs folder's `.retrodrive` folder, which ES-DE doesn't load (it only loads folders named after its systems).
 - **Recalbox/Lakka and others:** later adapters (RDS-025).
 
 ## Installation wizard (later, gated release)

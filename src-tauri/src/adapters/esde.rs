@@ -1,6 +1,7 @@
-//! ES-DE adapter (RDS-025 step 1, 2026-11-07): recognition, layout checks and
-//! placement *previews*. Copying is off (`copy_games: false`) until the owner's
-//! go-ahead, as for the other platforms.
+//! ES-DE adapter (RDS-025, 2026-11-07): recognition, layout checks, placement and
+//! copying (step 2, owner go-ahead 2026-11-07; docs/18 §30). ES-DE's ROMs folder is a
+//! normal Windows folder (local, USB or NAS), so the reviewed copier applies as for
+//! RetroBat; a NAS path gets the share id (ADR-046).
 //!
 //! Facts checked 2026-11-07 (ES-DE source and user guide on GitLab):
 //! - Games go in a ROMs folder with one folder per system, named after ES-DE's systems
@@ -70,7 +71,7 @@ impl PlatformAdapter for EsDe {
         AdapterKind::Frontend
     }
     fn capabilities(&self) -> Capabilities {
-        Capabilities { detect: true, validate_layout: true, plan_placement: true, copy_games: false, install: false, write_files: false }
+        Capabilities { detect: true, validate_layout: true, plan_placement: true, copy_games: true, install: false, write_files: false }
     }
 
     fn detect(&self, root: &Path) -> Detection {
@@ -120,8 +121,8 @@ impl PlatformAdapter for EsDe {
             LayoutCheck {
                 id: "copying",
                 label: "Copying".into(),
-                status: CheckStatus::Warning,
-                detail: "RetroDrive can plan for ES-DE and show what would go where, but doesn't copy to it yet.".into(),
+                status: CheckStatus::Ok,
+                detail: "RetroDrive copies games here, checks every file after it's written, and never overwrites or deletes anything. ES-DE finds new games the next time it starts.".into(),
             },
             LayoutCheck { id: "emulators", label: "Emulators".into(), status: CheckStatus::Ok, detail: "ES-DE starts emulators you install separately; RetroDrive only places games.".into() },
         ]
@@ -174,7 +175,7 @@ mod tests {
         let retrobat = tempfile::tempdir().unwrap();
         make(retrobat.path(), &["RetroBat.exe", "systems.txt", "nes/systeminfo.txt"]);
         assert_eq!(EsDe.detect(retrobat.path()).confidence, Confidence::NotDetected);
-        assert!(!EsDe.capabilities().copy_games, "preview only for now");
+        assert!(EsDe.capabilities().copy_games, "copies since the owner's go-ahead (docs/18 §30)");
     }
 
     #[test]
