@@ -44,6 +44,7 @@ function ConfirmCard({ c, types, onSaved, notify }: { c: Connected; types: Contr
         {confirmed && !choosing ? <>
           <p><Check size={15}/> <b>{c.suggested!.name}</b>. {c.suggested!.layout}.</p>
           <p className="plan-notes">Suits {c.suggested!.systems}. <button className="link" onClick={() => { setPick(c.suggested!.id); setChoosing(true); }}>Change</button></p>
+          <SetupPanel c={c} notify={notify}/>
         </> : !choosing && c.suggested ? <>
           <p>Does yours look like this? <b>{c.suggested.name}</b>: {c.suggested.layout}.</p>
           <p className="plan-notes">{why} Suits {c.suggested.systems}.</p>
@@ -65,6 +66,36 @@ function ConfirmCard({ c, types, onSaved, notify }: { c: Connected; types: Contr
   </article>;
 }
 
+type SetupTarget = { installation_id: string; adapter_id: string; location: string; status: 'ready'|'add'|'manual'|'unavailable'; message: string; files: string[] };
+const SYSTEM: Record<string, string> = { retrobat: 'RetroBat', batocera: 'Batocera', retropie: 'RetroPie', esde: 'ES-DE', recalbox: 'Recalbox' };
+// The last two folders of a path (the full path is in the tooltip).
+const shortPath = (p: string) => p.split(/[\\/]/).filter(Boolean).slice(-2).join('\\');
+const MARK: Record<string, string> ={ ready: '✓', add: '＋', manual: '•', unavailable: '–' };
+
+// Step 2: where this controller stands on each installation, and one button to set it up.
+function SetupPanel({ c, notify }: { c: Connected; notify: (t: string, e?: boolean) => void }) {
+  const [targets, setTargets] = useState<SetupTarget[]|null>(null); const [problem, setProblem] = useState('');
+  const [confirm, setConfirm] = useState(false); const [working, setWorking] = useState(false);
+  const check = async () => { setProblem(''); setConfirm(false);
+    try { setTargets(await invoke<SetupTarget[]>('controller_setup_preview', { vid: c.vid, pid: c.pid, xinput: c.xinput })); } catch (e) { setProblem(String(e)); } };
+  useEffect(() => { void check(); }, [c.vid, c.pid]);
+  const adds = targets?.filter(t => t.status === 'add') ?? [];
+  const files = adds.reduce((n, t) => n + t.files.length, 0);
+  const apply = async () => { if (!confirm) { setConfirm(true); return; } setWorking(true);
+    try { notify(await invoke<string>('apply_controller_setup', { vid: c.vid, pid: c.pid, xinput: c.xinput, installationIds: adds.map(t => t.installation_id) })); }
+    catch (e) { notify(`Could not set the controller up: ${String(e)}`, true); } finally { setWorking(false); setConfirm(false); void check(); } };
+  if (problem) return <p className="warn-text">{problem}</p>;
+  if (!targets) return <p className="plan-notes">Checking your systems…</p>;
+  if (targets.length === 0) return <p className="plan-notes">Add a system under Emulation Systems and RetroDrive can set this controller up there.</p>;
+  return <div className="setup-panel">
+    {adds.length > 0 && <div className="actions"><button className="primary" disabled={working} onClick={() => void apply()}>{working ? 'Setting up…' : confirm ? `Click again to add ${files} file${files === 1 ? '' : 's'}` : `Set up on ${adds.map(t => SYSTEM[t.adapter_id] ?? t.adapter_id).join(' and ')}`}</button>
+      {confirm && <button className="ghost" onClick={() => setConfirm(false)}>Not now</button>}</div>}
+    {confirm && <p className="plan-notes">Adds only: {adds.flatMap(t => t.files).join(', ')}. Nothing already there is changed. Undo is under Customize → Show every settings change.</p>}
+    <ul className="setup-list">{targets.map(t => <li key={t.installation_id} className={`setup-${t.status}`}><b>{MARK[t.status]} {SYSTEM[t.adapter_id] ?? t.adapter_id}</b> <small className="mono" title={t.location}>{shortPath(t.location)}</small><br/><span className="plan-notes">{t.status === 'add' ? `RetroDrive can set it up. ${t.message}` : t.message}</span></li>)}</ul>
+    {adds.length === 0 && <button className="link" onClick={() => void check()}>Check again</button>}
+  </div>;
+}
+
 function LookupCard({ info }: { info: Info }) {
   const t = info.controller_type;
   return <article className="controller-card">
@@ -84,7 +115,7 @@ export default function Controllers({ notify }: { notify: (text: string, error?:
   useEffect(() => { if (!showLookup) return; const t = window.setTimeout(() => { void invoke<Info[]>('find_controllers', { query }).then(setFound).catch(() => setFound([])); }, 250); return () => window.clearTimeout(t); }, [query, showLookup]);
 
   return <section className="panel controllers">
-    <div className="section-heading"><div><h2>Controllers</h2><p>Plug in your controller and RetroDrive works out what kind it is. Confirm it once and RetroDrive remembers. Setting it up on your systems (and light guns) comes next.</p></div>
+    <div className="section-heading"><div><h2>Controllers</h2><p>Plug in your controller and RetroDrive works out what kind it is. Confirm it once and RetroDrive remembers it, then sets it up on your systems. Light guns come next.</p></div>
       <button className="ghost" disabled={looking} onClick={() => void detect()}><RefreshCw size={16}/> {looking ? 'Looking…' : 'Look again'}</button></div>
 
     {connected === null ? <p className="plan-notes">Looking for controllers…</p>

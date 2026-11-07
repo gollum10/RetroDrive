@@ -468,3 +468,16 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** detection not yet tried with a real controller; steps 2 and 3 (pushing setups, light guns) write files and need their own scoped plan and review.
 
+## 38. Addendum: controller setup, step 2 (2026-11-07)
+**Scope and authorization:** owner ("Yes, start step 2", and yes to bundling RetroArch's setup files). Writes controller setup files on the user's systems from the Controllers page. Code: `controller_setup.rs`, `Controllers.tsx`, `lib.rs`.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| A working controller setup changed or replaced | Add only: RetroArch files are new files (a name already taken is skipped); RetroBat's user `gamecontrollerdb.txt` keeps every existing line and only gets lines added at the end. Nothing is planned when the system already knows the controller | `retrobat_gets_the_sdl_line_only_when_it_needs_it`, `retropie_and_retroarch_get_new_files_and_keep_existing_ones` |
+| A wrong mapping breaks the controller | No hand-made button numbers: only SDL GameControllerDB lines (applied by SDL with its own GUID matching) and RetroArch's own setup files; Batocera/Recalbox get menu steps instead of a guessed `es_input.cfg` | ADR-064 |
+| Can't take it back | Each file goes through `customizer::write_file` (journal, read-back check, no-replace renames, backup of a changed file); listed under *Show every settings change*; if one file fails, the earlier ones are undone | `a_setup_is_added_journaled_and_undone` |
+| Writing to the wrong place | Only the installation's own folder (RetroBat), the same Pi's `configs` share (RetroPie, roms share connected first), or the RetroArch next to the portable ES-DE (or `C:\RetroArch-Win64`) and its own `joypad_autoconfig_dir` | `plan_for`, tests |
+| Accidental click | Two clicks, the second names the files to be added | UI |
+
+**Residual risk:** not yet run against a real RetroPie or a RetroArch for ES-DE; the owner's controllers are Xbox-style, for which nothing needs writing.
+
