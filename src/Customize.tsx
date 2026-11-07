@@ -83,7 +83,8 @@ function summary(spec:DesignSpec|null):string[] {
 }
 
 export default function Customize({ installs, native, busy, notify }: { installs: CustomizeInstall[]; native: boolean; busy: boolean; notify: (text:string, error?:boolean)=>void }) {
-  const targets=installs.filter(i=>i.adapter_id==='retrobat');
+  // Designs, themes and settings are RetroBat's; Batocera gets game art and details (settings and themes are next).
+  const targets=installs.filter(i=>i.adapter_id==='retrobat'||i.adapter_id==='batocera');
   const [targetId,setTargetId]=useState(''); const target=targets.find(i=>i.id===targetId)??targets[0];
   const [designs,setDesigns]=useState<Design[]>([]);
   const [themes,setThemes]=useState<ThemeList|null>(null); const [look,setLook]=useState<LookOptions|null>(null); const [emu,setEmu]=useState<SettingsOptions|null>(null); const [music,setMusic]=useState<MusicSetting[]|null>(null);
@@ -94,7 +95,7 @@ export default function Customize({ installs, native, busy, notify }: { installs
   const [assets,setAssets]=useState<Record<string,string>>({}); const saveTimer=useRef<number|undefined>(undefined);
   const [art,setArt]=useState<ArtPreview|null>(null); const [artProgress,setArtProgress]=useState<ArtProgress|null>(null); const [artChecking,setArtChecking]=useState(false); const [artError,setArtError]=useState('');
   useEffect(()=>{ const un=listen<ArtProgress>('art-progress', e=>setArtProgress(e.payload)); return ()=>{ void un.then(f=>f()); }; },[]);
-  const connected=!!target&&target.presence==='connected';
+  const connected=!!target&&target.presence==='connected'; const isRetroBat=target?.adapter_id==='retrobat'; const sysName=target?.adapter_name??'RetroBat';
   const blocked=look?.blocked??null;
 
   const fail=(what:string)=>(e:unknown)=>notify(`${what}: ${String(e)}`, true);
@@ -102,10 +103,11 @@ export default function Customize({ installs, native, busy, notify }: { installs
   // Each read is independent: one failing (e.g. RetroBat never started, so es_systems.cfg is missing) doesn't hide the rest.
   const loadTarget=async(id:string)=>{ const args={installationId:id}; const errors:unknown[]=[];
     const one=<T,>(cmd:string, set:(v:T)=>void)=>invoke<T>(cmd,args).then(set,(e)=>{ errors.push(e); });
+    if(installs.find(i=>i.id===id)?.adapter_id!=='retrobat'){ setThemes(null); setLook(null); setEmu(null); setMusic(null); setHistory([]); await one<Application[]>('design_applications',setApps); if(errors.length) throw errors[0]; return; }
     await Promise.all([one<ThemeList>('list_themes',setThemes), one<LookOptions>('look_options',setLook), one<SettingsOptions>('emulator_settings',setEmu), one<MusicSetting[]>('music_settings',setMusic), one<Application[]>('design_applications',setApps), one<SettingsHistory[]>('emulator_settings_history',setHistory)]);
     if(errors.length) throw errors[0]; };
   useEffect(()=>{ if(native) void loadDesigns().catch(fail('Could not load your designs')); },[native]);
-  useEffect(()=>{ if(native&&connected&&target) void loadTarget(target.id).catch(fail("Could not read RetroBat's settings")); },[native, target?.id, connected]);
+  useEffect(()=>{ if(native&&connected&&target) void loadTarget(target.id).catch(fail(`Could not read ${target.adapter_name}'s settings`)); },[native, target?.id, connected]);
   const asset=async(path:string|null|undefined)=>{ if(!path) return null; if(assets[path]) return assets[path]; try { const url=await invoke<string>('theme_preview_asset',{path}); setAssets(a=>({...a,[path]:url})); return url; } catch { return null; } };
 
   // ----- designs list -----
@@ -159,7 +161,7 @@ export default function Customize({ installs, native, busy, notify }: { installs
   const iniGrid=(s:DesignSpec, section:(o:IniOption)=>boolean)=> <div className="option-grid">{(look?.options??[]).filter(section).map(o=><label key={o.key} title={o.help}><span>{o.label}{o.help&&<small>{o.help}</small>}</span>{iniPick(o,s)}</label>)}</div>;
 
   if(!native) return null;
-  if(!target) return <section className="panel customize"><h2>Customize</h2><div className="empty">Add a RetroBat installation under Emulation Systems first. Batocera, RetroPie and other systems are planned.</div></section>;
+  if(!target) return <section className="panel customize"><h2>Customize</h2><div className="empty">Add a RetroBat or Batocera installation under Emulation Systems first. RetroPie and other systems are planned.</div></section>;
 
   // ================= studio =================
   if(editing){ const s=editing.spec; const theme=s.theme;
@@ -245,13 +247,13 @@ export default function Customize({ installs, native, busy, notify }: { installs
   // ================= designs and applying =================
   const lastApplied=apps.find(a=>a.state!=='undone');
   return <section className="panel customize">
-    <div className="section-heading"><div><h2>Customize</h2><p>Design how RetroBat looks and behaves (theme, boot video, music, behavior, emulators), then apply a finished design. Designs are kept in RetroDrive, so you can reuse them on other drives.</p></div>
+    <div className="section-heading"><div><h2>Customize</h2><p>{isRetroBat?'Design how RetroBat looks and behaves (theme, boot video, music, behavior, emulators), then apply a finished design. Designs are kept in RetroDrive, so you can reuse them on other drives.':`Add your box art and catalog details to ${sysName}'s menus. ${sysName} settings and themes are coming next.`}</p></div>
       {targets.length>1&&<label className="cust-pick">Apply to <select value={target.id} onChange={e=>setTargetId(e.target.value)}>{targets.map(i=><option key={i.id} value={i.id}>{i.adapter_name} · {i.path}</option>)}</select></label>}</div>
     <p className="mono cust-target">{target.adapter_name} · {target.path}{lastApplied?` · last applied: "${lastApplied.design_name}"`:''}</p>
-    {!connected&&<p className="warn-text">This RetroBat's drive isn't connected. You can still design; applying needs the drive.</p>}
+    {!connected&&<p className="warn-text">{isRetroBat?"This RetroBat's drive isn't connected. You can still design; applying needs the drive.":`This ${sysName} isn't connected. Plug in its game drive, or start it so its network share is reachable.`}</p>}
     {blocked&&<p className="warn-text"><AlertTriangle size={15}/> {blocked} <button className="ghost" onClick={()=>void loadTarget(target.id)}>Check again</button></p>}
 
-    <div className="backups"><div className="designs-head"><h3>My designs</h3>
+    {isRetroBat&&<div className="backups"><div className="designs-head"><h3>My designs</h3>
       <div className="actions"><input className="design-new" placeholder="Name for a new design" value={newName} maxLength={60} onChange={e=>setNewName(e.target.value)}/><button className="primary" disabled={working} onClick={()=>void startDesign(false)}><Plus size={16}/> New design</button><button className="ghost" disabled={working||!connected} title="Start from this RetroBat's current theme and settings" onClick={()=>void startDesign(true)}><Palette size={16}/> New from this RetroBat</button></div></div>
       {designs.length===0?<p className="plan-notes">No designs yet. Start one: nothing changes on RetroBat until you finish a design and apply it.</p>
       :<div className="theme-grid">{designs.map(d=><article key={d.id} className="theme-card design-card">
@@ -259,7 +261,7 @@ export default function Customize({ installs, native, busy, notify }: { installs
         <ul className="design-summary">{summary(d.spec??d.draft).map(x=><li key={x}>{x}</li>)}</ul>
         <div className="actions">{d.spec&&<button className="primary" disabled={working||busy||!connected} onClick={()=>void reviewApply(d)}>Apply to RetroBat…</button>}
           <button className="ghost" onClick={()=>openStudio(d)}><Pencil size={15}/>{d.draft?'Continue':'Edit'}</button>
-          <button className={confirm===`delete:${d.id}`?'danger':'ghost'} onClick={()=>void deleteDesign(d)} onBlur={()=>{ if(confirm===`delete:${d.id}`) setConfirm(null); }}><Trash2 size={15}/>{confirm===`delete:${d.id}`?'Click again':'Delete'}</button></div></article>)}</div>}</div>
+          <button className={confirm===`delete:${d.id}`?'danger':'ghost'} onClick={()=>void deleteDesign(d)} onBlur={()=>{ if(confirm===`delete:${d.id}`) setConfirm(null); }}><Trash2 size={15}/>{confirm===`delete:${d.id}`?'Click again':'Delete'}</button></div></article>)}</div>}</div>}
 
     {applyFor&&<div className="confirm apply-design"><p><b>Apply "{applyFor.design.name}" to {target.path}?</b></p>
       {applyFor.preview.nothing?<p className="plan-notes">This RetroBat already looks like this design; nothing would change.</p>:<ul>
@@ -273,15 +275,15 @@ export default function Customize({ installs, native, busy, notify }: { installs
       <div className="actions"><button className="primary" disabled={working||!!blocked||applyFor.preview.nothing} onClick={()=>void doApply()}>{working?'Applying…':confirm==='apply'?'Click again to apply':'Apply design'}</button><button className="ghost" disabled={working} onClick={()=>{ setApplyFor(null); setConfirm(null); }}>Not now</button></div></div>}
 
     <div className="backups"><h3>Game art and details</h3>
-      <p className="plan-notes">Show your own box art, logos and catalog details (title, year, genre, developer, publisher) in RetroBat's menus for the games RetroDrive copied. Images are copied to each system's <span className="mono">images</span> folder as new files; RetroBat's game lists only get what they're missing, so art RetroBat already shows is kept. New copies get this automatically when you tick it while copying.</p>
+      <p className="plan-notes">Show your own box art, logos and catalog details (title, year, genre, developer, publisher) in {sysName}'s menus for the games RetroDrive copied. Images are copied to each system's <span className="mono">images</span> folder as new files; {sysName}'s game lists only get what they're missing, so art {sysName} already shows is kept. New copies get this automatically when you tick it while copying.{!isRetroBat&&' If Batocera is running, press Start → Game Settings → Update Gamelists afterwards to see the new art.'}</p>
       {!art?<><div className="actions"><button className="ghost" disabled={working||busy||!connected||artChecking} onClick={()=>void reviewArt()}><Eye size={15}/> {artChecking?'Checking…':'Check what can be added'}</button></div>
         {artChecking&&<p className="plan-notes">{artProgress?.phase==='checking'?`Checking your games and their images: ${artProgress.done.toLocaleString()} of ${artProgress.total.toLocaleString()}…`:'Reading the catalog…'} A big library on a network drive can take a minute.</p>}
         {!artChecking&&artError&&<p className="warn-text">{artError}</p>}
-        {!connected&&<p className="plan-notes">Connect the drive with RetroBat to check.</p>}
+        {!connected&&<p className="plan-notes">Connect {sysName} to check.</p>}
         {busy&&<p className="plan-notes">Available when the current scan or copy has finished.</p>}</>
-      :art.nothing?<p className="plan-notes">Nothing to add: the games RetroDrive copied already have art and details in RetroBat{art.art_unavailable?`, or their images aren't available (${art.art_unavailable.toLocaleString()} games' images are on a drive that isn't connected)`:''}. <button className="link" onClick={()=>setArt(null)}>close</button></p>
+      :art.nothing?<p className="plan-notes">Nothing to add: the games RetroDrive copied already have art and details in {sysName}{art.art_unavailable?`, or their images aren't available (${art.art_unavailable.toLocaleString()} games' images are on a drive that isn't connected)`:''}. <button className="link" onClick={()=>setArt(null)}>close</button></p>
       :<div className="confirm"><p><b>Add art and details for {art.games_updated.toLocaleString()} game{art.games_updated===1?'':'s'}</b> ({art.images.toLocaleString()} images, {fmtSize(art.image_bytes)}):</p>
-        <div className="table-wrap"><table><thead><tr><th>System</th><th>Updated</th><th>Added to the list</th><th>Images</th><th>RetroBat's art kept</th></tr></thead><tbody>{art.systems.map(x=><tr key={x.system}><td className="mono">{x.system}</td><td>{x.games_updated.toLocaleString()}</td><td>{x.games_added.toLocaleString()}</td><td>{x.images.toLocaleString()}</td><td>{x.kept.toLocaleString()}</td></tr>)}</tbody></table></div>
+        <div className="table-wrap"><table><thead><tr><th>System</th><th>Updated</th><th>Added to the list</th><th>Images</th><th>{sysName}'s art kept</th></tr></thead><tbody>{art.systems.map(x=><tr key={x.system}><td className="mono">{x.system}</td><td>{x.games_updated.toLocaleString()}</td><td>{x.games_added.toLocaleString()}</td><td>{x.images.toLocaleString()}</td><td>{x.kept.toLocaleString()}</td></tr>)}</tbody></table></div>
         {art.art_unavailable>0&&<p className="warn-text">{art.art_unavailable.toLocaleString()} games' images are on a drive that isn't connected; connect it and check again to include them.</p>}
         {working&&artProgress&&<p className="plan-notes">{artProgress.phase==='checking'?'Checking games again':'Copying images'}: {artProgress.done.toLocaleString()} of {artProgress.total.toLocaleString()}…</p>}
         <div className="actions"><button className="primary" disabled={working||!!blocked} onClick={()=>void applyArt()}>{working?'Adding…':confirm==='art'?'Click again to add':'Add art and details'}</button><button className="ghost" disabled={working} onClick={()=>{ setArt(null); setConfirm(null); }}>Not now</button></div></div>}

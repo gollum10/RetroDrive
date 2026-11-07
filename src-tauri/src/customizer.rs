@@ -480,9 +480,14 @@ pub(crate) struct Install {
 }
 
 pub(crate) fn install(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<Install, String> {
+    install_for(connection, installation_id, presence, &["retrobat"], "Emulator settings are only available for RetroBat so far.")
+}
+
+/// The installation, if its platform is one of `adapters` (e.g. game lists: RetroBat and Batocera).
+pub(crate) fn install_for(connection: &Connection, installation_id: &str, presence: PresenceFn, adapters: &[&str], refusal: &str) -> Result<Install, String> {
     let located = installations::located(connection, presence, Some(installation_id))?.into_iter().next().ok_or("Installation not found")?;
-    if located.adapter_id != "retrobat" {
-        return Err("Emulator settings are only available for RetroBat so far.".into());
+    if !adapters.contains(&located.adapter_id.as_str()) {
+        return Err(refusal.into());
     }
     if located.presence != Presence::Connected {
         return Err("The drive isn't connected.".into());
@@ -1352,6 +1357,11 @@ pub fn recover(connection: &Connection, presence: PresenceFn) -> Result<usize, S
         }
     }
     Ok(fixed)
+}
+
+/// For installations whose frontend never runs on this PC (Batocera runs on its own machine).
+pub fn never_running() -> bool {
+    false
 }
 
 /// Whether RetroBat's interface or launcher is running on this computer.

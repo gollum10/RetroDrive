@@ -630,7 +630,7 @@ pub fn undo(connection: &Connection, application_id: i64, presence: PresenceFn, 
         done += 1;
     }
     connection.execute("UPDATE design_applications SET state = 'undone' WHERE id = ?1", [application_id]).map_err(|e| e.to_string())?;
-    Ok(format!("\"{name}\" undone: RetroBat's previous settings are back. Added theme and media files were kept on the drive."))
+    Ok(format!("\"{name}\" undone: the previous files are back. Added theme, media and image files were kept on the drive."))
 }
 
 #[cfg(test)]

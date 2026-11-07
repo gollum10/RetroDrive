@@ -296,3 +296,15 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risks:** not yet tried on a real Batocera (Samba rather than Windows' SMB server) or on an exFAT drive; the in-app note says network copies are new. A share that loses its `.retrodrive` folder after a copy shows as a different drive until it's re-added (Forget, then add; the next copy gives it a new id).
 
+## 22. Addendum: Batocera Sync, art and details (2026-11-07)
+**Scope:** step 2 of the owner-approved Batocera plan. No new kind of disk action: the reviewed game-list step (§17: new image files only, journaled list edits with backups, undo) and Sync (§18, §20) now also run on Batocera installations. Code: `gamelists.rs`, `customizer.rs` (`install_for`, `never_running`), `lib.rs` (`running_for`), `App.tsx`, `Customize.tsx`.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| Batocera overwrites RetroDrive's list edits | EmulationStation is believed to update only the entries it changed when saving (to verify); RetroDrive only adds what's missing, every list is backed up and undoable; the user is told to use Update Gamelists so the running Batocera reloads | design note (ADR-047); not yet seen on a real Batocera |
+| A RetroBat running on this PC blocks Batocera changes, or Batocera changes skip a needed check | The running check follows the installation: RetroBat's for RetroBat, none for Batocera | code review (`running_for`); RetroBat tests unchanged |
+| RetroBat-only settings written to a Batocera | Emulator settings, themes and designs still use `customizer::install`, which refuses Batocera; Customize hides them for Batocera | `batocera_game_lists_get_the_same_art_and_details` (last assertion) |
+| Undo on a share that went away | Undo checks the drive (and the share id, §21) like any undo | existing undo tests |
+
+**Residual risk:** not yet tried on a real Batocera; if it does rewrite whole lists, art added while it runs could be dropped (adding art again restores it; nothing is lost).
+
