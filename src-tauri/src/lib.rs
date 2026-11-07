@@ -21,6 +21,7 @@ mod media;
 mod paths;
 mod reference;
 mod restore;
+mod retropie_settings;
 mod themes;
 mod scanner;
 mod volumes;
@@ -594,6 +595,30 @@ fn open_download_page(id: String) -> Result<(), String> {
     install_helper::open_download_page(&id)
 }
 
+/// RetroPie: installed emulators per system and the defaults (reads only).
+#[tauri::command]
+async fn retropie_options(catalog: State<'_, Catalog>, installation_id: String) -> Result<retropie_settings::RetroPieOptions, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || retropie_settings::options(&db::open(&db_path)?, &installation_id, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// What changing RetroPie's default emulators would do (reads only).
+#[tauri::command]
+async fn preview_retropie_emulators(catalog: State<'_, Catalog>, installation_id: String, changes: Vec<retropie_settings::EmulatorChange>) -> Result<retropie_settings::EmulatorPreview, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || retropie_settings::preview(&db::open(&db_path)?, &installation_id, &changes, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Save reviewed default emulators on RetroPie (journaled, backed up, undoable).
+#[tauri::command]
+async fn apply_retropie_emulators(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, changes: Vec<retropie_settings::EmulatorChange>, shas: std::collections::BTreeMap<String, String>) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || retropie_settings::apply(&db::open(&db_path)?, &installation_id, &changes, &shas, &volumes::presence)).await.map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
 /// Batocera settings and themes offered, with current values (reads only).
 #[tauri::command]
 async fn batocera_options(catalog: State<'_, Catalog>, installation_id: String) -> Result<batocera_settings::BatoceraOptions, String> {
@@ -1147,6 +1172,9 @@ pub fn run() {
             sync_scope,
             set_sync_scope,
             batocera_options,
+            retropie_options,
+            preview_retropie_emulators,
+            apply_retropie_emulators,
             install_image_info,
             install_checksum,
             install_writers,

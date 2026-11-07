@@ -364,3 +364,16 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** not yet tried on a real RetroPie.
 
+## 28. Addendum: RetroPie default emulators (2026-11-07)
+**Scope:** step 4 of the RetroPie work (owner: "do in your proposed order 1-3", item 1 = RetroPie Sync, art and settings). Edits `configs\<system>\emulators.cfg` on RetroPie's `configs` share through the reviewed settings writer (§12). Code: `retropie_settings.rs`, `RetroPieSettings.tsx`, `lib.rs`.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| Writing to a different Pi's configs | The roms share must be connected with its share id (§21) before anything is read or written; configs is derived from the same host; undo requires the exact file RetroDrive wrote | code (`context`); undo check |
+| An emulator that isn't installed, or an injected line | Only ids already in that file; ids limited to letters, digits and `-_.+`; after editing, the emulator list must be identical and the default the new one | `only_the_default_line_changes_to_an_installed_emulator` |
+| Other lines or systems changed | Only the `default` line; only the reviewed systems' files; each checked against its reviewed SHA | `emulator_choices_are_reviewed_saved_and_undone` |
+| Path tricks in a system name | System names with `\ / : .` refused | same test |
+| A failure halfway through several systems | Files already written are undone; otherwise each is listed for Undo | code review |
+
+**Residual risk:** not yet tried on a real RetroPie or its configs share; backups live in `.retrodrive\backup` on the configs share.
+

@@ -6,6 +6,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { AlertTriangle, Check, Eye, Palette, Pencil, Plus, Trash2, Undo2, X } from 'lucide-react';
 import { baseName, fmtSize, localTime, shortPath } from './format';
 import BatoceraSettings from './BatoceraSettings';
+import RetroPieSettings from './RetroPieSettings';
 
 // ---------- data from the backend ----------
 type ThemeVar = { name: string; value: string; kind: 'color'|'image'; path: string|null };
@@ -248,7 +249,7 @@ export default function Customize({ installs, native, busy, notify }: { installs
   // ================= designs and applying =================
   const lastApplied=apps.find(a=>a.state!=='undone');
   return <section className="panel customize">
-    <div className="section-heading"><div><h2>Customize</h2><p>{isRetroBat?'Design how RetroBat looks and behaves (theme, boot video, music, behavior, emulators), then apply a finished design. Designs are kept in RetroDrive, so you can reuse them on other drives.':target.adapter_id==='batocera'?`Batocera's settings and theme, and your box art and catalog details in its menus.`:`Your box art and catalog details in ${sysName}'s menus. ${sysName} settings come later.`}</p></div>
+    <div className="section-heading"><div><h2>Customize</h2><p>{isRetroBat?'Design how RetroBat looks and behaves (theme, boot video, music, behavior, emulators), then apply a finished design. Designs are kept in RetroDrive, so you can reuse them on other drives.':target.adapter_id==='batocera'?`Batocera's settings and theme, and your box art and catalog details in its menus.`:`${sysName}'s emulator choices, and your box art and catalog details in its menus.`}</p></div>
       {targets.length>1&&<label className="cust-pick">Apply to <select value={target.id} onChange={e=>setTargetId(e.target.value)}>{targets.map(i=><option key={i.id} value={i.id}>{i.adapter_name} · {i.path}</option>)}</select></label>}</div>
     <p className="mono cust-target">{target.adapter_name} · {target.path}{lastApplied?` · last applied: "${lastApplied.design_name}"`:''}</p>
     {!connected&&<p className="warn-text">{isRetroBat?"This RetroBat's drive isn't connected. You can still design; applying needs the drive.":`This ${sysName} isn't connected. Plug in its game drive, or start it so its network share is reachable.`}</p>}
@@ -275,6 +276,7 @@ export default function Customize({ installs, native, busy, notify }: { installs
         <li className="plan-notes">Everything else stays as it is. RetroBat's settings files are backed up first; Undo puts them back in one step. Added files are kept.</li></ul>}
       <div className="actions"><button className="primary" disabled={working||!!blocked||applyFor.preview.nothing} onClick={()=>void doApply()}>{working?'Applying…':confirm==='apply'?'Click again to apply':'Apply design'}</button><button className="ghost" disabled={working} onClick={()=>{ setApplyFor(null); setConfirm(null); }}>Not now</button></div></div>}
 
+    {target.adapter_id==='retropie'&&connected&&<RetroPieSettings installationId={target.id} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
     {target.adapter_id==='batocera'&&connected&&<BatoceraSettings installationId={target.id} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
     <div className="backups"><h3>Game art and details</h3>
       <p className="plan-notes">Show your own box art, logos and catalog details (title, year, genre, developer, publisher) in {sysName}'s menus for the games RetroDrive copied. Images are copied to each system's <span className="mono">images</span> folder as new files; {sysName}'s game lists only get what they're missing, so art {sysName} already shows is kept. New copies get this automatically when you tick it while copying.{target.adapter_id==='batocera'&&' If Batocera is running, press Start → Game Settings → Update Gamelists afterwards to see the new art.'}{target.adapter_id==='retropie'&&" On RetroPie, only game lists already in its rom folders are filled in (RetroPie would otherwise stop using the list in its home folder, where any scraped art, favorites and play counts are). Restart RetroPie afterwards to see the new art."}</p>
