@@ -242,6 +242,9 @@ impl PlatformAdapter for RetroBat {
     }
 
     fn plan_placement(&self, request: &PlacementRequest) -> Placement {
+        if request.platform == crate::classify::BIOS {
+            return super::plan_bios("bios", request);
+        }
         match system_folder(&request.platform, &request.extension, request.options, NAME) {
             Ok(system) => plan_in_roms(system, request),
             Err(reason) => Placement::Unsupported { reason },
@@ -274,6 +277,29 @@ mod tests {
         ("bios", true),
     ];
 
+    #[test]
+    fn bios_files_keep_their_subfolders_in_the_bios_folder() {
+        let mut r = request("BIOS", "bin", &["dc_boot.bin"]);
+        r.bios_path = Some("dc/dc_boot.bin".into());
+        assert_eq!(RetroBat.plan_placement(&r), Placement::Planned { system_folder: "bios".into(), destinations: vec!["bios/dc/dc_boot.bin".into()] });
+        r.bios_path = Some("dc/.gitkeep".into());
+        assert!(matches!(RetroBat.plan_placement(&r), Placement::Unsupported { .. }), "housekeeping files stay behind");
+        r.bios_path = Some("../evil.bin".into());
+        assert!(matches!(RetroBat.plan_placement(&r), Placement::Unsupported { .. }), "no path tricks");
+        r.bios_path = None;
+        match RetroBat.plan_placement(&r) {
+            Placement::Unsupported { reason } => assert!(reason.contains("[BIOS]"), "{reason}"),
+            other => panic!("{other:?}"),
+        }
+        // RetroPie: BIOS beside roms on a USB folder; not over the network. ES-DE: not yet.
+        r.bios_path = Some("scph1001.bin".into());
+        let usb = PlacementRequest { options: PlacementOptions { has_roms_folder: true, ..PlacementOptions::default() }, ..r.clone() };
+        assert_eq!(crate::adapters::retropie::RetroPie.plan_placement(&usb), Placement::Planned { system_folder: "bios".into(), destinations: vec!["BIOS/scph1001.bin".into()] });
+        assert!(matches!(crate::adapters::retropie::RetroPie.plan_placement(&r), Placement::Unsupported { .. }));
+        assert!(matches!(crate::adapters::esde::EsDe.plan_placement(&r), Placement::Unsupported { .. }));
+        assert_eq!(crate::adapters::batocera::Batocera.plan_placement(&r), Placement::Planned { system_folder: "bios".into(), destinations: vec!["bios/scph1001.bin".into()] });
+    }
+
     fn request(platform: &str, ext: &str, files: &[&str]) -> PlacementRequest {
         PlacementRequest {
             title: "Saga: Part 2 (USA)".into(),
@@ -281,6 +307,7 @@ mod tests {
             extension: ext.into(),
             files: files.iter().map(|f| PlacementFile { relative_to_primary: f.to_string(), size: 1 }).collect(),
             options: PlacementOptions::default(),
+            bios_path: None,
         }
     }
 

@@ -394,3 +394,17 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 **Residual risk:** not yet tried with a real ES-DE installation (not installed on the test PC); the folder layout follows ES-DE's source.
 
 **§30 note (2026-11-07, portable ES-DE):** the `ROMs` folder next to `ES-DE.exe` is accepted even while empty; `ROMs_ALL` (ES-DE's catalog of empty system folders) and the program/data folders are never accepted as game folders. No new writes.
+
+## 31. Addendum: copying BIOS files (2026-11-07)
+**Scope and authorization:** owner request ("I think we should"). BIOS files from library `bios` folders are copied with the reviewed copier into the installation's BIOS folder. No new kind of disk action. Code: `classify.rs`, `deployment.rs` (`bios_path`), `adapters/mod.rs` (`plan_bios`), adapters, `App.tsx`.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| A BIOS (or emulator file) already on the drive is replaced | The copier never overwrites; a different file with the same name is a conflict and kept (62 on the owner's RetroBat, e.g. newer PPSSPP shaders) | read-only plan on the owner's files; existing copier tests |
+| Files land outside the BIOS folder | `bios_path` comes from the catalog path below `bios`; `..`/empty parts refused; destinations stay inside the installation | `bios_files_keep_their_subfolders_in_the_bios_folder` |
+| Two library versions of a BIOS | The usual clash choice (pick one or keep both) | existing clash handling; 8 on the owner's files |
+| Junk copied | Housekeeping files (`.gitkeep`, `.DS_Store`, `_info.txt`, `Thumbs.db`, `desktop.ini`) aren't placed | same test |
+| Distributing BIOS | RetroDrive copies only the user's own files from their library; nothing is shipped | design |
+
+**Residual risk:** libraries indexed before this change need re-importing so files in BIOS subfolders are known.
+

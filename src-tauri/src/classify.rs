@@ -124,6 +124,9 @@ fn accepts(platform: &Platform, extension: &str) -> bool {
         || (!matches!(platform.name, "PlayStation" | "PlayStation 2" | "PSP") && CARTRIDGE_ARCHIVES.contains(&extension))
 }
 
+/// Not BIOS even inside a `bios` folder: Windows' own files and shortcuts.
+const BIOS_SKIP: &[&str] = &["db", "ini", "lnk", "url"];
+
 /// True for files named like `[BIOS] Game Boy Advance (World).zip`.
 pub fn looks_like_bios(filename: &str) -> bool {
     filename.trim_start().to_ascii_lowercase().starts_with("[bios]")
@@ -133,6 +136,12 @@ pub fn looks_like_bios(filename: &str) -> bool {
 /// and the file, ordered from the scan root down to the file's parent.
 /// `extension` must be lower-case without the dot. Returns `None` for non-game files.
 pub fn classify(folders: &[&str], extension: &str) -> Option<Classification> {
+    // Everything inside a `bios` folder is a BIOS file, whatever its subfolder (`bios\dc`,
+    // `bios\PPSSPP`, …) or extension (`neogeo.zip`, `.dat`, …), except Windows clutter
+    // (owner request 2026-11-07: copy BIOS files; docs/18 §31).
+    if folders.iter().any(|f| f.eq_ignore_ascii_case("bios")) {
+        return (!BIOS_SKIP.contains(&extension)).then_some(Classification { platform: BIOS, source: HintSource::Folder });
+    }
     for folder in folders.iter().rev() {
         let folder = folder.to_lowercase();
         if let Some(platform) = PLATFORMS.iter().find(|p| p.folders.contains(&folder.as_str())) {
@@ -159,6 +168,15 @@ mod tests {
 
     fn platform(folders: &[&str], ext: &str) -> Option<&'static str> {
         classify(folders, ext).map(|c| c.platform)
+    }
+
+    #[test]
+    fn everything_in_a_bios_folder_is_bios() {
+        assert_eq!(platform(&["roms", "bios", "dc"], "bin"), Some(BIOS), "a system-named subfolder inside bios");
+        assert_eq!(platform(&["roms", "BIOS"], "zip"), Some(BIOS), "neogeo.zip");
+        assert_eq!(platform(&["roms", "bios", "PPSSPP", "flash0", "font"], "pgf"), Some(BIOS));
+        assert_eq!(platform(&["roms", "bios"], "db"), None, "Thumbs.db");
+        assert_eq!(platform(&["roms", "dc"], "bin"), None, "outside bios, dc rules still apply");
     }
 
     #[test]

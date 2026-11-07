@@ -180,6 +180,15 @@ impl PlatformAdapter for RetroPie {
     }
 
     fn plan_placement(&self, request: &PlacementRequest) -> Placement {
+        if request.platform == crate::classify::BIOS {
+            // A USB retropie / retropie-mount folder has BIOS beside roms; over the network
+            // RetroPie keeps them on its separate bios share (not yet).
+            return if request.options.has_roms_folder {
+                super::plan_bios("BIOS", request)
+            } else {
+                Placement::Unsupported { reason: "Over the network, RetroPie keeps BIOS files on its separate bios share; RetroDrive doesn't copy there yet. A USB stick's retropie folder works.".into() }
+            };
+        }
         match retropie_folder(&request.platform, &request.extension, request) {
             Ok(system) => plan_in(if request.options.has_roms_folder { "roms/" } else { "" }, system, request),
             Err(reason) => Placement::Unsupported { reason },
@@ -206,7 +215,7 @@ mod tests {
     }
 
     fn request(platform: &str, ext: &str, options: PlacementOptions) -> PlacementRequest {
-        PlacementRequest { title: "Saga".into(), platform: platform.into(), extension: ext.into(), files: vec![PlacementFile { relative_to_primary: format!("Saga.{ext}"), size: 1 }], options }
+        PlacementRequest { title: "Saga".into(), platform: platform.into(), extension: ext.into(), files: vec![PlacementFile { relative_to_primary: format!("Saga.{ext}"), size: 1 }], options, bios_path: None }
     }
 
     #[test]
