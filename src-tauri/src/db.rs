@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 22;
+pub const SCHEMA_VERSION: i32 = 23;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -196,6 +196,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 22 {
         tx.execute_batch(SCHEMA_V22).map_err(|e| e.to_string())?;
+    }
+    if from_version < 23 {
+        tx.execute_batch(SCHEMA_V23).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -980,6 +983,16 @@ CREATE TABLE controller_choices (
 /// (XInput) controller, so Plan and Sync can set it up while it isn't plugged in.
 const SCHEMA_V22: &str = "
 ALTER TABLE controller_choices ADD COLUMN xinput INTEGER NOT NULL DEFAULT 0;
+";
+
+/// v23 (ADR-066): the light gun the user confirmed, per USB ID (`vid:pid`), or
+/// `manual` for one chosen without a gun plugged in.
+const SCHEMA_V23: &str = "
+CREATE TABLE gun_choices (
+    usb_id      TEXT PRIMARY KEY,
+    gun_id      TEXT NOT NULL,
+    decided_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 ";
 
 #[cfg(test)]

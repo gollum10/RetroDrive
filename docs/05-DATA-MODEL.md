@@ -100,6 +100,7 @@ Choices made while implementing (see ADR-010 and ADR-011 in docs/13):
 - **v20 (2026-11-07, sync scope, ADR-045):** `installations.sync_scope_json`: `{"systems": [system folders], "collections": [collection ids]}` that Sync keeps up to date; `NULL` = not saved yet (derived from copied games still on the drive). `sync_skip_json` (v18) is no longer used.
 - **v21 (2026-11-07, controller confirm, ADR-063):** `controller_choices(usb_id TEXT PRIMARY KEY 'vid:pid', type_id, decided_at)`: the controller style the user confirmed, so the Controllers page doesn't ask again.
 - **v22 (2026-11-07, controller tick box, ADR-065):** `controller_choices.xinput` (0/1): whether Windows used the confirmed controller as an Xbox controller, so Plan and Sync can set it up while it isn't plugged in.
+- **v23 (2026-11-07, light guns, ADR-066):** `gun_choices(usb_id TEXT PRIMARY KEY 'vid:pid' or 'manual', gun_id, decided_at)`: the light gun the user confirmed or chose. Light gun games aren't stored: they're worked out from the library and a bundled list, and cached in memory until the library changes.
 - **Classification change (2026-11-07, ADR-056):** every file inside a folder named `bios` (at any depth) is classified `BIOS`, whatever its subfolder or extension, except `db`, `ini`, `lnk`, `url`. Before, the nearest system-named subfolder decided (so `bios\dc\dc_boot.bin` was skipped as a non-Dreamcast file) and only `.bin`/`.rom`/`.img` counted. Libraries need re-importing to pick up the newly recognized files.
 
 ## Implemented schema v16 (2026-11-06)

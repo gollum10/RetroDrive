@@ -19,6 +19,7 @@ mod gamelists;
 mod duplicates;
 mod install_helper;
 mod installations;
+mod lightguns;
 mod jobs;
 mod media;
 mod paths;
@@ -633,6 +634,45 @@ async fn apply_controller_setup(catalog: State<'_, Catalog>, active: State<'_, A
 #[tauri::command]
 fn remember_controller_type(catalog: State<'_, Catalog>, vid: String, pid: String, type_id: Option<String>, xinput: Option<bool>) -> Result<(), String> {
     controllers::remember(&db::open(&catalog.path()?)?, &vid, &pid, type_id.as_deref(), xinput.unwrap_or(false))
+}
+
+/// Light guns: the guns plugged into this PC, and the user's own gun (reads only).
+#[derive(serde::Serialize)]
+struct LightGunState {
+    connected: Vec<lightguns::ConnectedGun>,
+    /// The gun the user chose without one plugged in.
+    chosen: Option<lightguns::Gun>,
+    guns: Vec<lightguns::Gun>,
+    gun_games: usize,
+    /// Platforms of the user's installations (for the guide).
+    systems: Vec<String>,
+}
+
+#[tauri::command]
+async fn light_guns(catalog: State<'_, Catalog>) -> Result<LightGunState, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || -> Result<LightGunState, String> {
+        let connection = db::open(&db_path)?;
+        let remembered = lightguns::remembered(&connection)?;
+        let mut systems: Vec<String> = installations::located(&connection, &volumes::presence, None)?.into_iter().map(|l| l.adapter_id).collect();
+        systems.sort();
+        systems.dedup();
+        Ok(LightGunState {
+            connected: lightguns::connected(&remembered),
+            chosen: remembered.get("manual").and_then(|id| lightguns::gun(id)).cloned(),
+            guns: lightguns::guns().to_vec(),
+            gun_games: lightguns::gun_game_count(),
+            systems,
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Light guns: remember the user's gun for `vid:pid`, or `manual` (`None` forgets it).
+#[tauri::command]
+fn remember_light_gun(catalog: State<'_, Catalog>, usb_id: String, gun_id: Option<String>) -> Result<(), String> {
+    lightguns::remember(&db::open(&catalog.path()?)?, &usb_id, gun_id.as_deref())
 }
 
 /// Plan and Sync: the confirmed controllers' state on this installation (reads only).
@@ -1277,6 +1317,8 @@ pub fn run() {
             controller_setup_preview,
             apply_controller_setup,
             controllers_for_installation,
+            light_guns,
+            remember_light_gun,
             find_controllers,
             controller_reference,
             preview_bios_step,
