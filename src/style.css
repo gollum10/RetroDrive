@@ -173,3 +173,13 @@ button.danger{background:#7f1d1d;border:1px solid #b91c1c;color:#fff}
 button.small{padding:4px 10px;font-size:12.5px}
 .sync-scope{display:flex;flex-direction:column;gap:6px;border:1px solid #2a3b52;border-radius:10px;padding:10px 14px;margin:6px 0 12px;background:#0f1828}
 .sync-scope small.mono{color:#8ea3bd;margin-left:6px}
+/* Install helper (RDS-027) */
+.install-steps{margin:8px 0 0 18px;display:flex;flex-direction:column;gap:14px}
+.install-steps>li{font-size:14px}
+.install-steps>li>b{display:block;margin-bottom:4px}
+.install-steps .actions{margin:6px 0}
+.install-steps ul{margin:4px 0 0 18px;font-size:13px;color:#b5c7dc}
+.install-steps .checksum{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin-top:6px;font-size:13px}
+.install-steps .checksum input{min-width:340px}
+.install-steps p{margin:3px 0}
+.heading-actions{display:flex;gap:10px;flex-wrap:nowrap;align-items:center;flex:none}.heading-actions button{white-space:nowrap}
