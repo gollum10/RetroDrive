@@ -79,6 +79,7 @@ Owner request: "We should have a Sync button… The Sync should just keep the se
 - **Everything already copied is checked again** (the copier's "already there" step). A file an earlier copy confirmed by content is not read again when its source and size are the same and neither file was modified or created since that confirmation; anything else is compared by content (ADR-043).
 - **Removed from the drive:** a game RetroDrive copied before (verified/identical/replaced in `deployment_items`) whose file is gone is **not copied back silently**. It's listed with *Ask me later* (default; not copied, asked again next time), *Copy it again*, or *Keep it off this drive* (remembered in `sync_kept_off`; shown as *kept off*, can be copied again later).
 - **Never deletes:** games removed from the library stay on the drive; nothing on the drive is overwritten (conflicts are kept, as in any copy).
+- **Choices don't get in the way (ADR-044):** games needing a choice are skipped and everything else goes ahead; one line under the summary links to *Review choices*. Choices (which version, copy both, copy again) are saved per installation, so the next Sync doesn't ask again. *Replace* is chosen each time and never saved.
 
 ## Synchronization semantics
 - New source game: offer deployment to user-selected targets; optional opt-in automation later.
