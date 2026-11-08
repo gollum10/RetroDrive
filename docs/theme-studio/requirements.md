@@ -1,5 +1,7 @@
 # Theme Studio delivery tracking
 
+PR 2 update: backend storage for PROJ-001/002/004 and NFR-002 is implemented in [projects/IPC](persistence.md), including checkpoint/draft separation, revision conflicts, recovery/discard, rename and Save As. UI autosave/recovery/navigation flushing remains PR 3. The table below records PR 1 evidence and later scope; it does not imply PR 2 UI completion.
+
 The [approved master](../RetroDrive_Theme_Studio_Master_Design_v1.md) retains all requirement IDs/priorities. Sprint completion is not completion of every P0 feature.
 
 | Requirements | PR 1 evidence | Remaining work |

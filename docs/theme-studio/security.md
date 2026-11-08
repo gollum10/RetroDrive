@@ -1,5 +1,7 @@
 # Theme Studio security boundaries
 
+PR 2 adds only managed-catalog writes via bounded validated source and transactional/revision-checked project commands. No caller may select a database or writable target path. Checkpoint/draft recovery and additive migration are tested in disposable catalogs. Uneditable source is returned intact rather than replaced with defaults. No installation, package, asset or game file is touched; [storage contract](persistence.md). The no-IPC statement below applies to PR 1 only. Work in this same isolated checkout now uses branch `feature/theme-studio-persistence`; PR 1 was merged by the owner, so PR 2 targets main directly.
+
 PR 1 adds pure JSON domain code. No Tauri commands, schema migrations, installed-theme writers, extractors or rendering code. Existing Customize and disk services are unchanged.
 
 Untrusted source enters bounded parse_project: version/shape, duplicate keys, size/depth/counts, absolute paths, graph/reference checks, typed bindings, finite layout and asset declarations. Unknown data stays inert. Constructed models need validate_project before persistence/serialization. No path fetches resources, evaluates expressions, renders SVG or executes theme content.

@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 26;
+pub const SCHEMA_VERSION: i32 = 27;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -208,6 +208,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 26 {
         tx.execute_batch(SCHEMA_V26).map_err(|e| e.to_string())?;
+    }
+    if from_version < 27 {
+        tx.execute_batch(SCHEMA_V27).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -1032,6 +1035,27 @@ const SCHEMA_V26: &str = "
 ALTER TABLE collections ADD COLUMN position INTEGER;
 ";
 
+/// Universal theme source only; legacy designs and installation history are untouched.
+const SCHEMA_V27: &str = "
+CREATE TABLE theme_projects (
+    id TEXT PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    schema_version TEXT NOT NULL,
+    saved_json TEXT NOT NULL CHECK(json_valid(saved_json)),
+    draft_json TEXT CHECK(draft_json IS NULL OR json_valid(draft_json)),
+    revision INTEGER NOT NULL DEFAULT 0 CHECK(typeof(revision) = 'integer' AND revision >= 0 AND revision <= 9007199254740991),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    saved_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK(json_extract(saved_json, '$.id') IS id),
+    CHECK(json_extract(saved_json, '$.schemaVersion') IS schema_version),
+    CHECK(draft_json IS NULL OR (json_extract(draft_json, '$.id') IS id
+        AND json_extract(draft_json, '$.schemaVersion') IS schema_version)),
+    CHECK(name IS json_extract(COALESCE(draft_json, saved_json), '$.metadata.name'))
+);
+CREATE INDEX idx_theme_projects_recent ON theme_projects(updated_at DESC, id);
+";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1078,6 +1102,48 @@ mod tests {
         for table in ["storage_locations", "indexed_roots", "games", "game_releases", "game_files", "file_locations", "jobs", "job_events", "games_fts", "installations"] {
             assert!(table_exists(&c, table).unwrap(), "{table} missing");
         }
+    }
+
+    #[test]
+    fn v26_theme_upgrade_backs_up_and_preserves_legacy_designs_and_history() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("catalog.sqlite");
+        let mut c = open(&path).unwrap();
+        migrate(&mut c,Some(&path)).unwrap();
+        // Exact v26 catalog layout: v27 is additive and creates just this table/index.
+        c.execute_batch("DROP TABLE theme_projects; PRAGMA user_version=26;").unwrap();
+        let id = crate::designs::create(&c,"Finished legacy",crate::designs::DesignSpec::default()).unwrap();
+        crate::designs::finish(&c,&id).unwrap();
+        crate::designs::create(&c,"Draft legacy",crate::designs::DesignSpec::default()).unwrap();
+        c.execute_batch("INSERT INTO settings_changes(file_path,root_path,old_sha,new_sha,changes_json,state) VALUES('settings.cfg','synthetic-root','old','new','[]','applied');").unwrap();
+        c.execute("INSERT INTO design_applications(design_id,design_name,settings_change_ids,added_json,state) VALUES(?1,'Finished legacy','[1]','[]','applied')",[&id]).unwrap();
+        fn snapshot(c: &Connection,table: &str) -> Vec<Vec<String>> {
+            let mut q = c.prepare(&format!("SELECT * FROM {table} ORDER BY rowid")).unwrap();
+            let columns = q.column_count();
+            q.query_map([],|r|Ok((0..columns).map(|i|format!("{:?}",r.get_ref(i).unwrap())).collect())).unwrap().map(|r|r.unwrap()).collect()
+        }
+        let tables = ["designs","settings_changes","design_applications"];
+        let before: Vec<_> = tables.iter().map(|t|snapshot(&c,t)).collect();
+        let report = migrate(&mut c,Some(&path)).unwrap();
+        assert_eq!((report.from_version,report.to_version),(26,27));
+        let backup = open(report.backup_path.as_ref().unwrap()).unwrap();
+        assert_eq!(user_version(&backup).unwrap(),26);
+        assert!(!table_exists(&backup,"theme_projects").unwrap());
+        for (i,t) in tables.iter().enumerate() { assert_eq!(snapshot(&c,t),before[i]); assert_eq!(snapshot(&backup,t),before[i]); }
+        assert_eq!(crate::designs::list(&c).unwrap().len(),2);
+        assert!(table_exists(&c,"theme_projects").unwrap());
+        assert_eq!(migrate(&mut c,Some(&path)).unwrap().backup_path,None);
+    }
+
+    #[test]
+    fn failed_theme_migration_rolls_back_without_changing_v26() {
+        let mut c = Connection::open_in_memory().unwrap();
+        migrate(&mut c,None).unwrap();
+        c.execute_batch("DROP TABLE theme_projects; CREATE TABLE theme_projects(marker TEXT); INSERT INTO theme_projects VALUES('keep me'); PRAGMA user_version=26;").unwrap();
+        assert!(migrate(&mut c,None).is_err());
+        assert_eq!(user_version(&c).unwrap(),26);
+        assert_eq!(c.query_row("SELECT marker FROM theme_projects",[],|r|r.get::<_,String>(0)).unwrap(),"keep me");
+        assert_eq!(c.query_row("PRAGMA foreign_keys",[],|r|r.get::<_,i32>(0)).unwrap(),1);
     }
 
     #[test]
