@@ -136,7 +136,7 @@ pub fn list(connection: &Connection, presence: catalog::PresenceFn) -> Result<Ve
              FROM collections c
              LEFT JOIN collection_games cg ON cg.collection_id = c.id
              LEFT JOIN game_files gf ON gf.id = cg.game_file_id AND gf.excluded_at IS NULL
-             GROUP BY c.id ORDER BY c.kind <> 'favorites', c.name COLLATE NOCASE",
+             GROUP BY c.id ORDER BY c.kind <> 'favorites', c.position IS NULL, c.position, c.name COLLATE NOCASE",
         )
         .map_err(|e| e.to_string())?;
     let rows: Vec<(Collection, Option<String>)> = statement
@@ -188,6 +188,27 @@ pub fn rename(connection: &Connection, id: &str, name: &str) -> Result<(), Strin
         0 => Err("Collection not found".into()),
         _ => Ok(()),
     }
+}
+
+/// Move a collection one place up or down in the user's order (ADR-080). Favorites
+/// stays first; moving past either end does nothing.
+pub fn move_one(connection: &Connection, id: &str, up: bool) -> Result<(), String> {
+    if id == FAVORITES {
+        return Err("Favorites is always first.".into());
+    }
+    let mut statement = connection
+        .prepare("SELECT id FROM collections WHERE kind <> 'favorites' ORDER BY position IS NULL, position, name COLLATE NOCASE")
+        .map_err(|e| e.to_string())?;
+    let mut ids: Vec<String> = statement.query_map([], |r| r.get(0)).map_err(|e| e.to_string())?.collect::<Result<_, _>>().map_err(|e| e.to_string())?;
+    let at = ids.iter().position(|x| x == id).ok_or("Collection not found")?;
+    let other = if up { at.checked_sub(1) } else { Some(at + 1).filter(|n| *n < ids.len()) };
+    let Some(other) = other else { return Ok(()) };
+    ids.swap(at, other);
+    let tx = connection.unchecked_transaction().map_err(|e| e.to_string())?;
+    for (n, cid) in ids.iter().enumerate() {
+        tx.execute("UPDATE collections SET position = ?2 WHERE id = ?1", params![cid, n as i64]).map_err(|e| e.to_string())?;
+    }
+    tx.commit().map_err(|e| e.to_string())
 }
 
 /// Delete the list. Games and files are untouched.
@@ -341,5 +362,26 @@ mod tests {
         assert_eq!(member_file_ids(&c, &id, &connected).unwrap().len(), 3);
         assert!(add(&c, &id, &["x".to_string()]).is_err() && remove(&c, &id, &["x".to_string()]).is_err(), "no hand edits");
     }
+
+    #[test]
+    fn collections_keep_the_users_order_with_favorites_first() {
+        let mut c = Connection::open_in_memory().unwrap();
+        db::migrate(&mut c, None).unwrap();
+        for name in ["Alpha", "Bravo", "Charlie"] {
+            create(&c, name).unwrap();
+        }
+        let names = |c: &Connection| list(c, &connected).unwrap().into_iter().map(|x| x.name).collect::<Vec<_>>();
+        assert_eq!(names(&c), vec!["Favorites", "Alpha", "Bravo", "Charlie"], "by name until moved");
+        let charlie = list(&c, &connected).unwrap().into_iter().find(|x| x.name == "Charlie").unwrap().id;
+        move_one(&c, &charlie, true).unwrap();
+        move_one(&c, &charlie, true).unwrap();
+        assert_eq!(names(&c), vec!["Favorites", "Charlie", "Alpha", "Bravo"]);
+        move_one(&c, &charlie, true).unwrap();
+        assert_eq!(names(&c), vec!["Favorites", "Charlie", "Alpha", "Bravo"], "can't pass the top (Favorites stays first)");
+        assert!(move_one(&c, FAVORITES, false).is_err());
+        create(&c, "Delta").unwrap();
+        assert_eq!(names(&c).last().map(String::as_str), Some("Delta"), "new collections go at the end");
+    }
 }
+
 
