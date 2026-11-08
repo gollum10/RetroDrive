@@ -162,6 +162,8 @@ struct Details {
     genre: Option<String>,
     developer: Option<String>,
     publisher: Option<String>,
+    /// Starred in RetroDrive (Favorites, ADR-074).
+    favorite: bool,
 }
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
@@ -174,6 +176,8 @@ pub struct SystemArt {
     pub images: usize,
     /// Games whose art RetroBat already shows (kept).
     pub kept: usize,
+    /// Favorites marked as favorites in the list (ADR-074).
+    pub favorites: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -343,7 +347,7 @@ fn details_for(connection: &Connection, file_id: &str) -> Result<Details, String
     let mut rows = statement.query([file_id]).map_err(|e| e.to_string())?;
     let Some(r) = rows.next().map_err(|e| e.to_string())? else { return Ok(Details::default()) };
     let clean = |v: Option<String>| v.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
-    Ok(Details { title: clean(r.get(0).ok()), year: r.get(1).ok().flatten(), genre: clean(r.get(2).ok()), developer: clean(r.get(3).ok()), publisher: clean(r.get(4).ok()) })
+    Ok(Details { title: clean(r.get(0).ok()), year: r.get(1).ok().flatten(), genre: clean(r.get(2).ok()), developer: clean(r.get(3).ok()), publisher: clean(r.get(4).ok()), favorite: false })
 }
 
 /// A game found in the catalog, before its files are checked.
@@ -378,6 +382,7 @@ fn targets(connection: &Connection, install: &customizer::Install, deployment: O
     // 1. The catalog (fast): one entry per game on the drive; a later copy of the same file wins.
     let mut seen: BTreeMap<String, Pending> = BTreeMap::new();
     let mut online = HashMap::new();
+    let favorites = crate::collections::favorite_file_ids(connection)?;
     for (destination, file_id) in rows {
         let d = destination.replace('/', "\\");
         if d.len() <= roms.len() || !d[..roms.len()].eq_ignore_ascii_case(&roms) {
@@ -386,7 +391,8 @@ fn targets(connection: &Connection, install: &customizer::Install, deployment: O
         let inside = d[roms.len()..].replace('\\', "/");
         let Some((system, rel)) = inside.split_once('/') else { continue };
         let (media, any_media) = media_for(connection, &file_id, presence, &mut online)?;
-        let details = details_for(connection, &file_id)?;
+        let mut details = details_for(connection, &file_id)?;
+        details.favorite = favorites.contains(&file_id);
         seen.insert(format!("{system}/{}", rel.to_lowercase()), Pending { system: system.to_string(), rel: rel.to_string(), destination: PathBuf::from(&destination), media, any_media, details });
     }
     // 2. The files (slow on a network share): checked in parallel.
@@ -448,7 +454,7 @@ fn plan_system(games: &Path, layout: &Layout, system: &str, targets: &[&Target],
     let newline = if base.contains("\r\n") { "\r\n" } else { "\n" };
     let by_key: HashMap<&str, &Entry> = entries.iter().map(|e| (e.key.as_str(), e)).collect();
     let images_dir = games.join(system).join("images");
-    let mut summary = SystemArt { system: system.to_string(), games_updated: 0, games_added: 0, images: 0, kept: 0 };
+    let mut summary = SystemArt { system: system.to_string(), games_updated: 0, games_added: 0, images: 0, kept: 0, favorites: 0 };
     let mut copies = Vec::new();
     // (position, replace_end, text) edits; applied from the end.
     let mut edits: Vec<(usize, usize, String)> = Vec::new();
@@ -527,6 +533,12 @@ fn plan_system(games: &Path, layout: &Layout, system: &str, targets: &[&Target],
             if !entry.is_some_and(|e| has(e, "releasedate")) {
                 lines.push(format!("<releasedate>{year}0101T000000</releasedate>"));
             }
+        }
+        // A starred game becomes a favorite, unless the list already says either way
+        // (someone may have un-favorited it in the system's own menu).
+        if d.favorite && !entry.is_some_and(|e| has(e, "favorite")) {
+            lines.push("<favorite>true</favorite>".to_string());
+            summary.favorites += 1;
         }
         let file = t.rel.rsplit('/').next().unwrap_or(&t.rel);
         let stem = file.rsplit_once('.').map(|(s, _)| s).unwrap_or(file);
@@ -713,7 +725,7 @@ pub fn apply(connection: &Connection, installation_id: &str, deployment: Option<
         _ => customizer::Install { id: install.id.clone(), root: install.root.clone(), root_text: install.root_text.clone(), stable: install.stable.clone() },
     };
     if edits.is_empty() {
-        return Err("There's no art or detail to add: the games RetroDrive copied already have them, or their images aren't available.".into());
+        return Err("There's no art or detail to add: the games RetroDrive copied already have them (and your favorites are marked), or their images aren't available.".into());
     }
     if let Some(expected) = expected {
         let now: BTreeMap<String, String> = edits.iter().map(|e| (e.system.clone(), sha_or_none(e))).collect();
@@ -740,7 +752,7 @@ pub fn apply(connection: &Connection, installation_id: &str, deployment: Option<
             copier::ensure_folders(&list_install.root, &relative).map_err(|e| format!("{e} No game list was changed."))?;
         }
         let s = &e.summary;
-        let rows = vec![ChangeRow { system: e.system.clone(), key: "gamelist".into(), before: None, after: Some(format!("{} game(s) updated, {} added, {} image(s)", s.games_updated, s.games_added, s.images)) }];
+        let rows = vec![ChangeRow { system: e.system.clone(), key: "gamelist".into(), before: None, after: Some(format!("{} game(s) updated, {} added, {} image(s), {} favorite(s)", s.games_updated, s.games_added, s.images, s.favorites)) }];
         match customizer::write_file(connection, &list_install, &relative, &e.list_path, &e.old_text, &e.new_text, rows) {
             Ok((_, id)) => ids.push(id),
             Err(err) => {
@@ -756,7 +768,9 @@ pub fn apply(connection: &Connection, installation_id: &str, deployment: Option<
             params![installation_id, serde_json::to_string(&ids).unwrap_or_default(), serde_json::to_string(&added).unwrap_or_default()],
         )
         .map_err(|e| e.to_string())?;
-    Ok(format!("Art and details added for {games} game(s) in {} system(s) ({total} image(s) copied). Undo it under Applied designs.", edits.len()))
+    let favorites: usize = edits.iter().map(|e| e.summary.favorites).sum();
+    let starred = if favorites > 0 { format!(", {favorites} favorite(s) marked") } else { String::new() };
+    Ok(format!("Art and details added for {games} game(s) in {} system(s) ({total} image(s) copied{starred}). Undo it under Applied designs.", edits.len()))
 }
 
 #[cfg(test)]
@@ -891,6 +905,28 @@ mod tests {
 
     fn list(s: &Setup) -> String {
         fs::read_to_string(games_dir(&s.root).0.join("nes/gamelist.xml")).unwrap()
+    }
+
+    #[test]
+    fn starred_games_become_favorites_unless_the_list_already_says() {
+        let s = setup();
+        // Kid and Scraped are starred in RetroDrive; Scraped was un-favorited in the system's menu.
+        for name in ["Kid.zip", "Scraped.zip"] {
+            let id: String = s.catalog.query_row("SELECT game_file_id FROM deployment_items WHERE destination_path LIKE '%' || ?1 LIMIT 1", [name], |r| r.get(0)).unwrap();
+            crate::collections::set_favorite(&s.catalog, &id, true).unwrap();
+        }
+        fs::write(games_dir(&s.root).0.join("nes/gamelist.xml"), LIST.replace("<name>Scraped Game</name>", "<name>Scraped Game</name>
+		<favorite>false</favorite>")).unwrap();
+        let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
+        assert_eq!(p.systems[0].favorites, 1, "only Kid: Scraped's own choice is kept");
+        let message = apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &closed, &quiet).unwrap();
+        assert!(message.contains("1 favorite(s) marked"), "{message}");
+        let after = list(&s);
+        let kid = &after[after.find("<path>./Kid.zip</path>").unwrap()..];
+        assert!(kid[..kid.find("</game>").unwrap()].contains("<favorite>true</favorite>"), "{after}");
+        assert!(after.contains("<favorite>false</favorite>") && after.matches("<favorite>true</favorite>").count() == 1);
+        // Nothing left to do the second time.
+        assert!(preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap().systems.iter().all(|x| x.favorites == 0));
     }
 
     #[test]

@@ -537,3 +537,11 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** not tried on a real RetroPie (Pi path and share) or a real ES-DE install.
 
+## 44. Addendum: favorites on the systems (2026-11-07)
+**Scope and authorization:** owner ("1. I love this idea": show RetroDrive's Favorites as favorites on the systems). Adds one tag to game list entries within the existing art and details step (§24 and later addenda).
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| A user's own favorite choice overwritten | Only entries without a `<favorite>` tag get one; an existing `true` or `false` is kept; nothing is removed when a game is unstarred | `starred_games_become_favorites_unless_the_list_already_says` |
+| Broken game list | Same checked edit as art: the list is re-parsed and every entry must still be there before saving; journal, backup, undo | existing art tests |
+
