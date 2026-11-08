@@ -1,5 +1,7 @@
 # RetroDrive — Features
 
+**Theme Studio (2026-11-08, Sprint 1 PR 1): partial foundation only.** Portable source types, validation and fixtures exist: no-target projects, scene/node graphs, typed bindings, asset declarations and future-field preservation. [Contract](docs/theme-studio/project-format.md) and [delivery tracking](docs/theme-studio/requirements.md). Workspace, SQLite project storage, visual editor, compiler, packages and deployment remain planned. Customize is unchanged.
+
 The single list of what the app **does today** and what is **planned**. Update this file in the same change as the code. A feature is only listed as Shipped once it exists in source, has automated tests where it can, and has been run on Windows.
 
 **Status key:** ✅ Shipped · 🟡 Partial (works, with limits noted) · 📋 Planned · ⛔ Out of scope until a safety review

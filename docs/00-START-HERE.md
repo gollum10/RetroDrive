@@ -1,5 +1,7 @@
 # RetroDrive | Documentation Index
 
+**Theme Studio:** [master specification](RetroDrive_Theme_Studio_Master_Design_v1.md), [Sprint 1 plan](theme-studio-sprint-1-plan.md), [source contract](theme-studio/project-format.md), [delivery tracking](theme-studio/requirements.md) and [security](theme-studio/security.md). PR 1 adds pure source types/validation only.
+
 **Design baseline:** v1.0, 2026-11-04  
 **Status:** Product concept approved; starter application scaffold exists; full suite is not implemented.  
 **Product:** A Windows-first desktop application to create, catalog, manage, maintain, back up, and troubleshoot retro gaming environments.  

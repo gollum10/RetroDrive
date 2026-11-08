@@ -1,5 +1,9 @@
 # 15 | Quality Assurance, Threat Scenarios and Test Matrix
 
+PR 1 local Windows verification (2026-11-08): `cargo test --locked --quiet` in `src-tauri` — 257 passed, 7 ignored (13 new Theme Studio tests); `cargo clippy --locked --all-targets -- -D warnings` passed; `npm.cmd run build` passed; `npm.cmd run test:theme-contract` passed (blank and starter wire fixtures plus positive/negative types); `python scripts/check-licenses.py` passed (298 shipped dependencies, 0 denied). The existing ignored real-installation/benchmark tests were not enabled; no GUI/native export/deployment test was performed. Early test runs caught integer/float JSON comparison and a boundary-test expectation; both were corrected before this final successful run.
+
+**Theme Studio PR 1:** `theme_studio::tests` covers universal/no-target and starter fixtures, future-field round-trip, incompatible/corrupt JSON, duplicate keys, graph/ID/reference errors, dimensions/bindings, portable paths, content-addressed asset declarations, numeric/size/depth limits and reserved-field collisions. `npm.cmd run test:theme-contract` checks TypeScript authoring types and shared Rust JSON fixture; Windows CI runs it. Run full Rust tests, Clippy, build and license gate. This does not exercise a GUI, real target export or installation. See [contract](theme-studio/project-format.md).
+
 ## Phase 1 test matrix
 | Test ID | Scenario | Expected outcome |
 |---|---|---|
