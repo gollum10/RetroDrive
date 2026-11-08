@@ -1,5 +1,7 @@
 # Theme Studio security boundaries
 
+Native close fix grants core:window:allow-destroy to the existing main-window capability because the SDK's awaited close handler needs that command after persistence succeeds. It adds no arbitrary filesystem, shell or installation access. The handler never re-requests close; failed saves still cancel. The permission change requires a native restart. Regression tests stub native IPC and never destroy the user's running window or access their catalog.
+
 PR 4 adds pure capability analysis and read-only detection. Callers cannot supply a verified engine profile or writable path through IPC. No production adapter is enabled; reports always disable export/deploy, including truncated/unknown/unsupported cases. Detection reuses presence/layout reads and never claims a share ID or updates installation records. Exact-profile fixtures are synthetic only. [Evidence](target-matrix.md).
 
 PR 3 adds only the separate UI and a read-only validation command; source is validated before editable rendering. Overview renders labels, not arbitrary styles, scripts, SVG or external media. App/native leave guards retain pending edits on persistence failure; no target-write authority is added. [Workspace](workspace.md).

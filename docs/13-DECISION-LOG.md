@@ -1,5 +1,7 @@
 # 13 | Product Decisions and Open Questions
 
+**Native close regression (2026-11-08):** use Tauri's awaited original close handler and explicit main-window allow-destroy capability. Do not recursively request close or add broad window/default permissions. Persistence failure continues to cancel closing. Scope is window lifecycle only; no storage permission expansion or target mutation.
+
 **Theme capability evidence (2026-11-08):** app release and engine compatibility are separate. Only an evidenced exact family/fork/engine/OS/architecture/format rule may claim an outcome. Unknown or ambiguous matches fail closed; conversion/degradation needs fallback/consent. No real adapters are registered yet. Synthetic tests never become shipped native support. [Matrix](theme-studio/target-matrix.md).
 
 **Theme Studio editor lifecycle (2026-11-08):** one serialized session owns revisions and local edits. Native/app navigation flushes before leaving; failures retain the session. Recovery/discard is explicit. Save As copies the current local source via create rather than silently using a stored checkpoint. Native rendering/support remains unverified. No new framework or dependencies.

@@ -3,6 +3,7 @@ import * as api from './theme-studio/api';
 import type { ThemeProject } from './theme-studio/types';
 import { ProjectSession } from './theme-studio/session';
 import { errorText } from './theme-studio/document';
+import { guardedWindowClose } from './theme-studio/window-close';
 import NewProjectWizard from './theme-studio/NewProjectWizard';
 import ProjectBrowser from './theme-studio/ProjectBrowser';
 import ProjectOverview from './theme-studio/ProjectOverview';
@@ -37,14 +38,9 @@ export default function ThemeStudio({ native, leaveGuard }: { native: boolean; l
     window.addEventListener('beforeunload', unload);
     let disposed = false;
     let unlisten: (() => void) | undefined;
-    let allowClose = false;
     if (native) void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
       const appWindow = getCurrentWindow();
-      const stop = await appWindow.onCloseRequested(async event => {
-        if (allowClose) return;
-        event.preventDefault();
-        if (await flush()) { try { allowClose = true; await appWindow.close(); } catch (e) { allowClose = false; setError(errorText(e)); } }
-      });
+      const stop = await appWindow.onCloseRequested(guardedWindowClose(flush, e => setError(errorText(e))));
       if (disposed) stop(); else unlisten = stop;
     }).catch(e => { if (!disposed) setError(`Window close protection could not start: ${errorText(e)}`); });
     return () => { disposed = true; leaveGuard.current = null; unlisten?.(); window.removeEventListener('beforeunload', unload); };
