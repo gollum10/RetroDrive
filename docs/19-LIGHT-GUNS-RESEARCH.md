@@ -64,7 +64,7 @@ It also includes a **"How far to sit" helper**: type your screen size (e.g. 55")
 **Not proposed:**
 - Writing emulator gun settings or calibration. RetroBat and Batocera generate these themselves, and calibration lives in the gun.
 - Downloading gun software.
-- RetroPie, ES-DE and Recalbox gun setup. Their support is per emulator and less consistent; researching them can come later.
+- RetroPie, ES-DE and Recalbox gun setup. Their support is per emulator and less consistent; researching them can come later. *(Done 2026-11-07, ADR-075: guidance for RetroPie and ES-DE, Recalbox's supported guns and its light gun group.)*
 
 ## 4. Open points to check before building
 

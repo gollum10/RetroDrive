@@ -12,12 +12,14 @@ import ControllerOutline from './ControllerOutline';
 
 type Gun = { id: string; name: string; tracking: string; distance: [number, number]|null; setup: string[]; retrobat: string[]; batocera: string[]; detectable: boolean };
 type ConnectedGun = { vid: string; pid: string; product: string|null; gun: Gun|null; remembered: boolean };
-type State = { connected: ConnectedGun[]; chosen: Gun|null; guns: Gun[]; gun_games: number; systems: string[] };
+type State = { connected: ConnectedGun[]; chosen: Gun|null; guns: Gun[]; gun_games: number; systems: string[]; other_steps: Record<string, Record<string, string[]>> };
 
 const SYSTEM: Record<string, string> = { retrobat: 'RetroBat', batocera: 'Batocera', retropie: 'RetroPie', esde: 'ES-DE', recalbox: 'Recalbox' };
 const COLLECTION: Record<string, string> = {
   retrobat: 'To see your light gun games together in RetroBat, turn on the light gun collection: MAIN MENU > GAME COLLECTION SETTINGS > AUTOMATIC GAME COLLECTIONS. Per game, the GUNS options include ENABLE GUN, USE ONE GUN ONLY and RELOAD WITH BUTTON.',
   batocera: 'Batocera puts light gun games in the light gun genre, and can show it as its own system.',
+  retropie: 'RetroDrive can make a Light Gun Games collection on RetroPie with the light gun games it copied there: Customize → Game groups.',
+  esde: 'RetroDrive can make a Light Gun Games collection in ES-DE with the light gun games it copied there: Customize → Game groups.',
 };
 
 const fmt = (n: number) => n.toFixed(1);
@@ -66,16 +68,16 @@ function Distance({ gun }: { gun: Gun }) {
   return <p className="gun-distance">How far to sit from a <input type="number" min={10} max={150} value={inches} onChange={e => setInches(Math.max(10, Math.min(150, Number(e.target.value) || 55)))}/>-inch screen: <b>about {range(m, 'm')}</b> ({range(x => m(x) / 0.3048, 'ft')}). <small className="plan-notes">From Batocera's light gun guide.</small></p>;
 }
 
-function Guide({ gun, systems, gunGames, onShowGunGames, notify }: { gun: Gun; systems: string[]; gunGames: number; onShowGunGames: () => void; notify: (t: string, e?: boolean) => void }) {
+function Guide({ gun, systems, gunGames, onShowGunGames, notify, other }: { gun: Gun; systems: string[]; gunGames: number; onShowGunGames: () => void; notify: (t: string, e?: boolean) => void; other: Record<string, string[]> }) {
   const known = systems.filter(s => s === 'retrobat' || s === 'batocera');
-  const others = systems.filter(s => s !== 'retrobat' && s !== 'batocera');
+  const others = systems.filter(s => s !== 'retrobat' && s !== 'batocera' && other[s]);
   return <div className="gun-guide">
     <h4>Setting up your {gun.name}</h4>
     <Distance gun={gun}/>
     <ol>{gun.setup.map(s => <li key={s}>{s}</li>)}</ol>
     {known.map(s => <div key={s}><b>On {SYSTEM[s]}</b><ul>{(s === 'retrobat' ? gun.retrobat : gun.batocera).map(x => <li key={x}>{x}</li>)}<li>{COLLECTION[s]}</li></ul>{s === 'retrobat' && gun.id === 'sinden' && <SindenStep notify={notify}/>}</div>)}
-    {known.length === 0 && <p className="plan-notes">Add RetroBat or Batocera under Emulation Systems to see the steps for them. Both find most light guns by themselves.</p>}
-    {others.length > 0 && <p className="plan-notes">RetroDrive doesn't have light gun steps for {others.map(s => SYSTEM[s] ?? s).join(', ')} yet; check that system's own guide.</p>}
+    {others.map(s => <div key={s}><b>On {SYSTEM[s] ?? s}</b><ul>{other[s].map(x => <li key={x}>{x}</li>)}{COLLECTION[s] && <li>{COLLECTION[s]}</li>}</ul></div>)}
+    {known.length === 0 && others.length === 0 && <p className="plan-notes">Add a system under Emulation Systems to see the steps for it. RetroBat and Batocera find most light guns by themselves.</p>}
     <p><button className="link" onClick={onShowGunGames}><Crosshair size={14}/> See the light gun games in your library</button> <small className="plan-notes">RetroDrive knows {gunGames.toLocaleString()} light gun games (from Batocera's game list). Pick them in the Game Library, add them to a collection, and copy that collection with Plan.</small></p>
   </div>;
 }
@@ -114,7 +116,7 @@ export default function LightGuns({ notify, onShowGunGames }: { notify: (t: stri
     : state.chosen && changing !== 'manual' ? <p><Check size={15}/> Your light gun: <b>{state.chosen.name}</b> (not plugged in right now). <button className="link" onClick={() => setChanging('manual')}>Change</button> <button className="link" onClick={() => void remember('manual', null)}>I don't have one</button></p>
     : <><p className="plan-notes">No light gun plugged in. Have one? Plug it in and choose <b>Look again</b>, or choose it here to see how to set it up.</p>
       <GunPicker guns={state.guns} initial={state.chosen?.id ?? ''} busy={busy} onPick={id => void remember('manual', id)} onCancel={state.chosen ? () => setChanging(null) : undefined}/></>}
-    {confirmed && <Guide gun={confirmed} systems={state.systems} gunGames={state.gun_games} onShowGunGames={onShowGunGames} notify={notify}/>}
+    {confirmed && <Guide gun={confirmed} systems={state.systems} gunGames={state.gun_games} onShowGunGames={onShowGunGames} notify={notify} other={state.other_steps[confirmed.id] ?? {}}/>}
     {!confirmed && <p><button className="link" onClick={onShowGunGames}><Crosshair size={14}/> See the light gun games in your library</button></p>}
   </div>;
 }

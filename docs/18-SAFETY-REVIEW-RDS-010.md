@@ -545,3 +545,6 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 | A user's own favorite choice overwritten | Only entries without a `<favorite>` tag get one; an existing `true` or `false` is kept; nothing is removed when a game is unstarred | `starred_games_become_favorites_unless_the_list_already_says` |
 | Broken game list | Same checked edit as art: the list is re-parsed and every entry must still be there before saving; journal, backup, undo | existing art tests |
 
+## 45. Addendum: light gun steps for RetroPie, ES-DE and Recalbox (2026-11-07)
+**Scope and authorization:** owner ("Light gun steps is next"). The guide reads only. The one write is Recalbox's light gun group: `emulationstation.collection.lightgun=1` (or 0) in `system\recalbox.conf`, edited like Recalbox's own menu (the `;`-disabled line reactivated in place, every other line unchanged), reviewed, refused if the file changed since the review, journaled and undoable (`recalboxs_light_gun_group_is_switched_in_recalbox_conf`). RetroArch settings are not written.
+
