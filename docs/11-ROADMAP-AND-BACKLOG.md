@@ -1,5 +1,7 @@
 # 11 | Development Roadmap and Backlog
 
+**Theme Studio PR 3 implemented for review:** workspace, browser/wizard, metadata/scene overview and persistence lifecycle. Browser/native interaction smoke checks remain outstanding. PR 4 capability/adapter foundation follows; all advanced editor/export/media/sharing scope remains planned.
+
 **Theme Studio PR 2:** backend SQLite project/checkpoint/draft persistence, conflict protection, recovery/discard, rename/duplicate and typed IPC implemented. Next is PR 3 workspace/browser, explicit no-target wizard, save/recovery/error UI and leaving-workspace flush behavior. PR 4 adapter/capability foundation follows. [Persistence contract](theme-studio/persistence.md).
 
 **Theme Studio Sprint 1 (approved 2026-11-08):** PR 1 source types/validation/fixtures implemented; PR 2 SQLite persistence/recovery next; PR 3 workspace and explicit no-target wizard/browser; PR 4 capability/adapter foundation. Full visual/media/animation/template/sharing scope stays in [delivery tracking](theme-studio/requirements.md). RetroBat export first, Batocera next, ES-DE later. No main merge without owner authorization.

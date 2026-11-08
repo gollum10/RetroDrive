@@ -1,5 +1,7 @@
 # 17 | Third-Party Component Manifest (LEGAL-001)
 
+**Theme Studio PR 3:** no new dependencies/assets; workspace/lifecycle tests reuse TypeScript, Node assertions and React DOM server rendering. No copied theme, game art or media is included.
+
 **Theme Studio PR 2 (2026-11-08):** no new dependencies or assets. Persistence reuses rusqlite/SQLite JSON functions, serde/serde_json, UUID and existing Tauri background tasks; tests reuse tempfile.
 
 **Theme Studio PR 1 (2026-11-08):** no new dependencies, copied third-party themes, game art, fonts or media assets. Blank/starter/future JSON fixtures are original structural test data. Contract tests use existing TypeScript and Node built-ins; Rust reuses serde/serde_json. No FFmpeg/ZIP/canvas package is introduced.

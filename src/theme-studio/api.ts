@@ -1,4 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
+import type { ThemeProject } from './types';
+
+export const inspectProject = (documentJson: string) => invoke<ThemeProject>('validate_theme_document', { documentJson });
 
 /** Raw source is returned intact, including a schema this build cannot edit. */
 export type ProjectRecord = {

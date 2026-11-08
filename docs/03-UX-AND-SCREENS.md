@@ -1,5 +1,7 @@
 # 03 | Information Architecture and UX Specification
 
+**Theme Studio PR 3:** sidebar below Customize; paged projects and original/blank wizard with explicit Universal / No Target Yet. Editor separates scenes/layers, central overview, project inspector and timeline region. Draft recovery/discard and save errors are explicit; failed persistence prevents leaving. [Workspace](theme-studio/workspace.md). Graphical manipulation/timeline editing are future increments.
+
 **Theme Studio (approved design, 2026-11-08):** separate workspace directly below Customize. New-project wizard explicitly offers **Universal / No Target Yet**, requiring no emulator. Future editor regions are scene/layer navigation, central canvas, properties inspector and collapsible animation timeline. PR 1 adds the underlying source contract only; workspace/editor behavior is not implemented yet.
 
 ## Navigation

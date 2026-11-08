@@ -27,6 +27,8 @@ jobs:
         run: npm run build
       - name: Theme Studio source contract
         run: npm run test:theme-contract
+      - name: Theme Studio workspace lifecycle
+        run: npm run test:theme-workspace
       - name: Rust tests
         working-directory: src-tauri
         run: cargo test --locked

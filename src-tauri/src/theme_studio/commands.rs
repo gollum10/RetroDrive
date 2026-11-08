@@ -6,6 +6,21 @@ use crate::{db, Catalog};
 use rusqlite::Connection;
 use tauri::State;
 
+#[tauri::command]
+pub(crate) async fn validate_theme_document(
+    document_json: String,
+) -> Result<super::model::ThemeProject, Vec<super::validation::Issue>> {
+    tauri::async_runtime::spawn_blocking(move || super::validation::parse_project(&document_json))
+        .await
+        .map_err(|e| {
+            vec![super::validation::Issue {
+                code: "worker".into(),
+                path: "$".into(),
+                message: e.to_string(),
+            }]
+        })?
+}
+
 async fn run<T: Send + 'static>(
     catalog: State<'_, Catalog>,
     operation: impl FnOnce(&Connection) -> projects::Result<T> + Send + 'static,

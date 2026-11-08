@@ -1,6 +1,8 @@
 # Theme Studio: technical gap analysis and Sprint 1 proposal
 
-Date: 2026-11-08. Status: **architecture and four-PR approach approved; PR 1 merged by owner; PR 2 prepared for review against main**.
+Date: 2026-11-08. Status: **PRs 1 and 2 merged by owner; PR 3 workspace prepared for review; PR 4 follows autonomously**.
+
+PR 3 implements workspace/wizard/browser and session lifecycle; [behavior and test limits](theme-studio/workspace.md). The owner authorized continuing the four-PR sequence without separate start prompts. Review, approval and merges remain the owner's responsibility.
 
 PR 2 implementation: additive SQLite v27, separate saved/draft source, revision-checked writes, recovery/discard, rename/Save As and background IPC in the isolated worktree on `feature/theme-studio-persistence`. [Storage contract](theme-studio/persistence.md). PR 1 (#81) was merged by the owner during this work, so PR 2 targets main directly. No workspace UI or target writes are introduced. Owner handles PR review/approval and merges.
 
