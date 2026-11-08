@@ -1,6 +1,8 @@
 # Theme Studio: technical gap analysis and Sprint 1 proposal
 
-Date: 2026-11-08. Status: **architecture and four-PR approach approved; PR 1 implementation under review**.
+Date: 2026-11-08. Status: **architecture and four-PR approach approved; PR 1 merged by owner; PR 2 prepared for review against main**.
+
+PR 2 implementation: additive SQLite v27, separate saved/draft source, revision-checked writes, recovery/discard, rename/Save As and background IPC in the isolated worktree on `feature/theme-studio-persistence`. [Storage contract](theme-studio/persistence.md). PR 1 (#81) was merged by the owner during this work, so PR 2 targets main directly. No workspace UI or target writes are introduced. Owner handles PR review/approval and merges.
 
 Owner amendments: SQLite stays the authoritative local working store; portable JSON excludes machine paths. The wizard explicitly offers Universal / No Target Yet. Future UI separates scene/layers, canvas, inspector and timeline. Implementation is isolated in `.worktrees/theme-studio` on `feature/theme-studio-schema`, preserving both prior checkouts. PR 1 adds source contract/validation only; see [contract](theme-studio/project-format.md) and [tracking](theme-studio/requirements.md). No merge to main without authorization.
 

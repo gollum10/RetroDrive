@@ -1,5 +1,7 @@
 # 04 | Technical Architecture
 
+**Theme Studio PR 2:** `theme_studio::{projects, commands}` provides transactional SQLite storage with optimistic revision checks and structured errors. Eight background commands operate only on the managed catalog; frontend wrappers are `src/theme-studio/api.ts`. Source/checkpoint/draft are independent of target files. See [persistence](theme-studio/persistence.md). Existing Customize and deployment services are unchanged.
+
 **Theme Studio PR 1 (2026-11-08):** `theme_studio::{model, validation}` is a pure Rust universal-document boundary with matching `src/theme-studio/types.ts`. Option B keeps source independent of target compilation. SQLite working-state persistence is PR 2; future React editor separates scenes/layers, canvas, inspector and timeline. No new IPC/storage/target writes or changes to Customize/game adapters. See [contract](theme-studio/project-format.md).
 
 ## Baseline stack

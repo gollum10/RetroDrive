@@ -1,5 +1,7 @@
 # Universal theme source contract v1
 
+PR 2 now implements the authoritative SQLite working store and background project IPC; see [persistence](persistence.md). Source schema/portability are unchanged. References below to PR 1's lack of storage describe that increment only.
+
 Sprint 1 PR 1 adds Rust models and pure validation in `src-tauri/src/theme_studio/`, matching frontend types in `src/theme-studio/types.ts`. This is a JSON source contract, not an implemented ZIP format or target exporter. The [master design](../RetroDrive_Theme_Studio_Master_Design_v1.md) remains the full specification.
 
 ## Portable source and local working state

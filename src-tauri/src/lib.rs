@@ -1449,6 +1449,14 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            theme_studio::commands::list_theme_projects,
+            theme_studio::commands::open_theme_project,
+            theme_studio::commands::create_theme_project,
+            theme_studio::commands::write_theme_project,
+            theme_studio::commands::rename_theme_project,
+            theme_studio::commands::duplicate_theme_project,
+            theme_studio::commands::recover_theme_project,
+            theme_studio::commands::discard_theme_project_draft,
             query_games,
             library_stats,
             list_adapters,
