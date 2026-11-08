@@ -1,5 +1,7 @@
 # Theme Studio delivery tracking
 
+PR 4 update: DEPLOY-001/PREV-003 foundation now includes exact theme-adapter contracts, read-only local profile discovery and source-preserving capability diagnostics. Production export/deploy are always disabled; real engine-version/native fixtures remain outstanding. [Matrix and provenance](target-matrix.md). Four PRs prepared is not completion of every P0 or the native acceptance gates.
+
 PR 3 update: independent workspace, no-target wizard/browser and scene overview with metadata editing are implemented. PROJ-001/002 UI now uses serialized autosave, explicit checkpoints/recovery/discard and leave guards. Scene/layer/canvas/inspector/timeline composition is ready for further authoring, but visual manipulation and animation are not implemented. See [workspace](workspace.md) for verification gaps.
 
 PR 2 update: backend storage for PROJ-001/002/004 and NFR-002 is implemented in [projects/IPC](persistence.md), including checkpoint/draft separation, revision conflicts, recovery/discard, rename and Save As. UI autosave/recovery/navigation flushing remains PR 3. The table below records PR 1 evidence and later scope; it does not imply PR 2 UI completion.

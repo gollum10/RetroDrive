@@ -1,6 +1,12 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { ThemeProject } from './types';
 
+export type ThemeTargetProfile = { installationId: string | null; frontendFamily: string | null; applicationVersion: string | null; observation: string; engine: { frontendFamily: string; frontendFork: string; frontendVersion: string; os: string; architecture: string; themeFormatVersion: string } | null };
+export type CapabilityIssue = { id: string; sceneId: string | null; nodeId: string | null; feature: string; target: string | null; outcome: 'native' | 'convert' | 'degraded' | 'unsupported' | 'unknown'; severity: string; reason: string; fallback: string | null; evidence: string | null; requiresConsent: boolean; userAction: string };
+export type CompatibilityReport = { profile: ThemeTargetProfile; adapterMatched: boolean; canExport: boolean; canDeploy: boolean; issues: CapabilityIssue[]; omittedIssues: number };
+export const targetProfiles = () => invoke<ThemeTargetProfile[]>('theme_target_profiles');
+export const compatibility = (documentJson: string, installationId: string | null) => invoke<CompatibilityReport>('theme_compatibility', { documentJson, installationId });
+
 export const inspectProject = (documentJson: string) => invoke<ThemeProject>('validate_theme_document', { documentJson });
 
 /** Raw source is returned intact, including a schema this build cannot edit. */

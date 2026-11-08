@@ -1,5 +1,7 @@
 # 13 | Product Decisions and Open Questions
 
+**Theme capability evidence (2026-11-08):** app release and engine compatibility are separate. Only an evidenced exact family/fork/engine/OS/architecture/format rule may claim an outcome. Unknown or ambiguous matches fail closed; conversion/degradation needs fallback/consent. No real adapters are registered yet. Synthetic tests never become shipped native support. [Matrix](theme-studio/target-matrix.md).
+
 **Theme Studio editor lifecycle (2026-11-08):** one serialized session owns revisions and local edits. Native/app navigation flushes before leaving; failures retain the session. Recovery/discard is explicit. Save As copies the current local source via create rather than silently using a stored checkpoint. Native rendering/support remains unverified. No new framework or dependencies.
 
 **Theme Studio working-state decision (2026-11-08, PR 2):** SQLite v27 holds separate checkpoints/drafts and monotonic revision tokens. Recovery reads a draft without promoting it; explicit save checkpoints it, discard restores the saved name, and rename changes metadata in both sources while retaining unfinished content. Save As explicitly selects checkpoint or draft and creates an independent identity. Raw source is returned unchanged on open, even when its schema is not editable. No retries overwrite concurrent edits. See [contract](theme-studio/persistence.md).

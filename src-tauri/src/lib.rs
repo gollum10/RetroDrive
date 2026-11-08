@@ -1449,6 +1449,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            theme_studio::commands::theme_target_profiles,
+            theme_studio::commands::theme_compatibility,
             theme_studio::commands::validate_theme_document,
             theme_studio::commands::list_theme_projects,
             theme_studio::commands::open_theme_project,
