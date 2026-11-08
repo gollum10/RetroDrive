@@ -278,6 +278,7 @@ fn plan_for(connection: &Connection, located: &installations::Located, vid: &str
         },
         "batocera" => Plan::Manual("Batocera knows most controllers and sets them up when you plug them in. If yours doesn't work there: press Start → Controller & Bluetooth settings → Controller mapping, and follow the prompts.".into()),
         "recalbox" => Plan::Manual("Recalbox sets most controllers up by itself. If yours doesn't work there: press Start → Controllers settings → Configure a controller, and follow the prompts.".into()),
+        "rocknix" => Plan::Manual("ROCKNIX sets most controllers up by itself. If yours doesn't work there, set it up in ROCKNIX's own controller settings menu.".into()),
         other => Plan::Manual(format!("RetroDrive can't set controllers up on {other} yet.")),
     }
 }
@@ -394,6 +395,7 @@ fn label(adapter: &str) -> &'static str {
         "esde" => "ES-DE",
         "batocera" => "Batocera",
         "recalbox" => "Recalbox",
+        "rocknix" => "ROCKNIX",
         _ => "System",
     }
 }

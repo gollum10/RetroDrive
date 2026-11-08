@@ -89,7 +89,7 @@ function summary(spec:DesignSpec|null):string[] {
 
 export default function Customize({ installs, native, busy, notify }: { installs: CustomizeInstall[]; native: boolean; busy: boolean; notify: (text:string, error?:boolean)=>void }) {
   // Designs, themes and settings are RetroBat's; Batocera gets game art and details (settings and themes are next).
-  const targets=installs.filter(i=>i.adapter_id==='retrobat'||i.adapter_id==='batocera'||i.adapter_id==='retropie'||i.adapter_id==='esde'||i.adapter_id==='recalbox');
+  const targets=installs.filter(i=>i.adapter_id==='retrobat'||i.adapter_id==='batocera'||i.adapter_id==='retropie'||i.adapter_id==='esde'||i.adapter_id==='recalbox'||i.adapter_id==='rocknix');
   const [targetId,setTargetId]=useState(''); const target=targets.find(i=>i.id===targetId)??targets[0];
   const [designs,setDesigns]=useState<Design[]>([]);
   const [themes,setThemes]=useState<ThemeList|null>(null); const [look,setLook]=useState<LookOptions|null>(null); const [emu,setEmu]=useState<SettingsOptions|null>(null); const [music,setMusic]=useState<MusicSetting[]|null>(null);
@@ -252,7 +252,7 @@ export default function Customize({ installs, native, busy, notify }: { installs
   // ================= designs and applying =================
   const lastApplied=apps.find(a=>a.state!=='undone');
   return <section className="panel customize">
-    <div className="section-heading"><div><h2>Customize</h2><p>{isRetroBat?'Design how RetroBat looks and behaves (theme, boot video, music, behavior, emulators), then apply a finished design. Designs are kept in RetroDrive, so you can reuse them on other drives.':target.adapter_id==='batocera'?`Batocera's settings and theme, and your box art and catalog details in its menus.`:target.adapter_id==='recalbox'?`Recalbox's settings and theme, and your box art and catalog details in its menus.`:target.adapter_id==='esde'?`Your box art and catalog details in ${sysName}.`:`${sysName}'s emulator choices, and your box art and catalog details in its menus.`}</p></div>
+    <div className="section-heading"><div><h2>Customize</h2><p>{isRetroBat?'Design how RetroBat looks and behaves (theme, boot video, music, behavior, emulators), then apply a finished design. Designs are kept in RetroDrive, so you can reuse them on other drives.':target.adapter_id==='batocera'?`Batocera's settings and theme, and your box art and catalog details in its menus.`:target.adapter_id==='recalbox'?`Recalbox's settings and theme, and your box art and catalog details in its menus.`:target.adapter_id==='esde'||target.adapter_id==='rocknix'?`Your box art and catalog details in ${sysName}.`:`${sysName}'s emulator choices, and your box art and catalog details in its menus.`}</p></div>
       {targets.length>1&&<label className="cust-pick">Apply to <select value={target.id} onChange={e=>setTargetId(e.target.value)}>{targets.map(i=><option key={i.id} value={i.id}>{i.adapter_name} · {i.path}</option>)}</select></label>}</div>
     <p className="mono cust-target">{target.adapter_name} · {target.path}{lastApplied?` · last applied: "${lastApplied.design_name}"`:''}</p>
     {!connected&&<p className="warn-text">{isRetroBat?"This RetroBat's drive isn't connected. You can still design; applying needs the drive.":`This ${sysName} isn't connected. Plug in its game drive, or start it so its network share is reachable.`}</p>}

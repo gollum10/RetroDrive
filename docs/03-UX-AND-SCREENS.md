@@ -85,6 +85,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-08 (copying to ROCKNIX, ADR-077; owner: "switch on copying to Rocknix"):** ROCKNIX installations get *Sync* and a working *Copy* in Plan (no preview note); the Copying check explains network copies; the Dashboard says "Plan & copy games (network or SD card)".
 
+**Implemented 2026-11-08 (ROCKNIX art, ADR-078):** Customize for a ROCKNIX shows **Game art and details** (box art, logos, details, ★ favorites); the copy confirm list offers the art tick box ("…restart ROCKNIX to see them…"). Fixed on the way: the art tick box was missing from the copy confirm list for ES-DE and Recalbox (the screen's list of art-capable systems was out of date).
+
 **Implemented 2026-11-07 (RetroPie and ES-DE collections, ADR-072; owner: "in RetroPie … I then have to select which games go in there … we should be able to add them from the library"):** the **Game groups** box also appears for ES-DE and for a RetroPie added by its network share. Each group shows how many matching games are on that system and in the library; ticking one → *Review* ("Light Gun Games: 0 → 1 games", "Collections shown: … → …", and a warning if the Pi's ROM folder is assumed) → *Save*. When groups are already on, *Add newly copied games* tops them up after later copies.
 
 ## Drives

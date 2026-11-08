@@ -45,7 +45,9 @@
 use crate::copier::{self, TEMP_MARKER};
 
 /// Platforms whose game lists RetroDrive fills in (same format).
-pub const GAMELIST_PLATFORMS: &[&str] = &["retrobat", "batocera", "retropie", "esde", "recalbox"];
+/// ROCKNIX (ADR-078) reads `<system>/gamelist.xml` first, like Batocera (ROCKNIX/emulationstation,
+/// `SystemData::getGamelistPath`).
+pub const GAMELIST_PLATFORMS: &[&str] = &["retrobat", "batocera", "retropie", "esde", "recalbox", "rocknix"];
 
 /// Where a platform keeps its game lists and pictures.
 enum Layout {
@@ -622,7 +624,7 @@ type Planned = (customizer::Install, Vec<SystemEdit>, usize, Sizes, Vec<String>)
 
 /// `create_lists`: on RetroPie, also create lists for systems without one (opt-in).
 fn plan(connection: &Connection, installation_id: &str, deployment: Option<&str>, create_lists: bool, presence: PresenceFn, progress: ProgressFn) -> Result<Planned, String> {
-    let install = customizer::install_for(connection, installation_id, presence, GAMELIST_PLATFORMS, "Game art and details are available for RetroBat, Batocera, RetroPie, ES-DE and Recalbox.")?;
+    let install = customizer::install_for(connection, installation_id, presence, GAMELIST_PLATFORMS, "Game art and details are available for RetroBat, Batocera, RetroPie, ES-DE, Recalbox and ROCKNIX.")?;
     let adapter: String = connection.query_row("SELECT adapter_id FROM installations WHERE id = ?1", [installation_id], |r| r.get(0)).map_err(|e| e.to_string())?;
     let (games, _) = games_dir(&install.root);
     let layout = if adapter == "esde" {
@@ -855,6 +857,12 @@ mod tests {
             fs::write(program.join("ES-DE.exe"), b"").unwrap();
             fs::write(program.join("ROMs/systems.txt"), b"nes: Nintendo Entertainment System\n").unwrap();
             program.join("ROMs")
+        } else if adapter == "rocknix" {
+            let roms = dir.path().join("games-roms");
+            for d in ["nes", "snes", "fbn", "bios", "bezels", "savestates"] {
+                fs::create_dir_all(roms.join(d)).unwrap();
+            }
+            roms
         } else if adapter == "retropie" {
             // RetroPie's roms share: the system folders are at the top.
             let roms = dir.path().join("roms");
@@ -1042,6 +1050,16 @@ mod tests {
         let app = crate::designs::applications(&s.catalog, &s.install).unwrap()[0].id;
         crate::designs::undo(&s.catalog, app, &connected, &closed).unwrap();
         assert_eq!(list(&s), LIST);
+    }
+
+    #[test]
+    fn rocknix_game_lists_get_the_same_art_and_details() {
+        let s = setup_for("rocknix");
+        let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
+        assert_eq!((p.systems[0].games_updated, p.systems[0].games_added, p.images), (1, 1, 3));
+        apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &closed, &quiet).unwrap();
+        assert!(list(&s).contains("<name>Kid Icarus</name>") && list(&s).contains("<image>./images/Kid-image.png</image>"));
+        assert!(s.root.join("nes/images/Kid-image.png").exists(), "images in the system folder at the share root");
     }
 
     #[test]

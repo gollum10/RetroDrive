@@ -914,6 +914,8 @@ fn batocera_note(connection: &rusqlite::Connection, installation_id: &str) -> &'
         " Restart RetroPie (or EmulationStation) to see them."
     } else if adapter == "recalbox" {
         " If Recalbox is running, update the game lists from its menu (or restart it) to see them."
+    } else if adapter == "rocknix" {
+        " Restart ROCKNIX (or its EmulationStation) to see them."
     } else {
         ""
     }
