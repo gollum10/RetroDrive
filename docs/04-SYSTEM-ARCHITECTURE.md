@@ -1,5 +1,9 @@
 # 04 | Technical Architecture
 
+**Transform controls:** NodeInspector uses guarded transformNode updates for finite rotation and numeric opacity, preserving layout/style extensions. Existing updateNode eligibility, session history and serialized persistence are reused; SVG already renders these fields. No backend/schema/dependency change.
+
+**Layer ordering:** immutable orderLayer operations rearrange existing node references in the scene array; SVG and layer navigation consume that same back-to-front order. LayerOrderControls blocks unsupported/nested scenes and busy/copy states. History/persistence are reused, without new schema or backend behavior.
+
 **Canvas authoring:** scene-edit.ts provides immutable unit-aware graph operations; SceneCanvas renders an allowlisted SVG subset with local pointer previews; NodeInspector edits recognized properties only. ProjectSession owns bounded EditHistory and sends undo/redo through the same serialized persistence queue. No compiler, schema migration, media execution or new dependency. [Details](theme-studio/canvas.md).
 
 **Theme Studio close protection fix:** async close handler waits for persistence and cancels only unsuccessful/duplicate requests. The installed Tauri SDK then invokes window.destroy; main capability explicitly permits it. No recursive window.close invocation or new filesystem/installation authority. Logic is isolated in theme-studio/window-close.ts and tested against the real SDK wrapper using stubbed IPC.

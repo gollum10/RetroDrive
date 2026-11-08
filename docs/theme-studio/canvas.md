@@ -19,7 +19,7 @@ SVG positions/sizes use the existing layout dimensions. Pointer coordinates are 
 
 Supported style fields are text (string), color/fill (RRGGBB or RRGGBBAA), and fontSize ({value, unit: px}); additional properties are preserved. Preview uses safe literal text, strict hex colors and system sans-serif, bounded font sizes and bounded rendered text. Unknown color/font/text expressions and static text longer than 500 characters are preserved read-only in the inspector. Renaming a legacy text layer without an explicit text field initializes its prior caption so its visible text does not unexpectedly change.
 
-Existing rotation/opacity are approximated safely in preview; new rotation/opacity authoring is not claimed. Nested transforms, anchors, variants, rich typography and animations are not resolved. The renderer is an editor approximation, not a native frontend or a compatibility guarantee. Existing compatibility reports continue to flag unsupported/unknown features; all exports remain disabled.
+Existing rotation/opacity are approximated safely in preview; numeric rotation/opacity authoring is described below. Nested transforms, anchors, variants, rich typography and animations are not resolved. The renderer is an editor approximation, not a native frontend or a compatibility guarantee. Existing compatibility reports continue to flag unsupported/unknown features; all exports remain disabled.
 
 ## History and persistence
 
@@ -44,3 +44,21 @@ These checks do not simulate actual native pointer capture, DPI scaling or keybo
 7. Resize the app and check pointer scaling and keyboard focus. Native frontend export remains unavailable.
 
 Snapping/guides, resize handles, layer grouping/reordering/lock/hide, image assets, advanced scene inheritance, library sample data, media/timeline/navigation editing, templates and actual native compilation remain later increments.
+
+## Layer ordering
+
+The Layer order controls move the selected layer one step backward/forward, or directly to the back/front. The layer list and SVG both use scene.nodes order from back to front. Boundary actions are disabled and produce no history entry. Selection stays attached to the same node ID after a move.
+
+This increment permits ordering only when every layer in the scene is a leaf text/panel node. Nested or unknown types keep ordering read-only because their stacking semantics are unresolved. Controls also block edits during copy/transition operations. Node payloads, IDs, bindings, geometry, opaque extensions and other scenes stay unchanged. No schema migration, dependency, target writer or native export behavior is added.
+
+Each order change is a separate undoable operation, autosaved through ProjectSession. Automated workspace checks cover source preservation, one-step and endpoint moves, no-op boundaries, missing selections/scenes, nested/unknown guards, actual rendered SVG order, callback guards and undo/redo through draft/checkpoint persistence. Contract checks and the production build also pass. Rust production code is unchanged and the Rust suite was not rerun for this increment.
+
+Manual QA still required: overlap a panel and text, select text in the layer list, send it behind the panel, then bring it forward. Check the list/canvas agree, selection stays on text, Undo/Redo restores each order, Save checkpoint/reopen retains the order, and Save As keeps the original independent. Verify keyboard focus and disabled controls in the native app. Native compiler ordering remains unverified.
+
+## Rotation and opacity
+
+The inspector now edits rotation in degrees (-36,000..36,000, matching the existing document limit) and opacity (0..1). Rotation is about the top-left corner, matching the current SVG transform. Layer geometry units, style/layout extensions and other source fields are preserved. Missing opacity previews as 1 without materializing an edit when unchanged. Unknown opacity expressions or out-of-range stored opacity remain read-only. Nonfinite and out-of-range inputs do not commit. Existing leaf-layer restrictions and copy/transition disabled states still apply.
+
+Changes use grouped field history and existing draft/checkpoint persistence. A fully transparent layer remains selectable from Layers. This is a numeric-property increment, without rotation handles, pivot/anchor controls or native export promises.
+
+Executed checks: test:theme-workspace, test:theme-contract, production build and diff check. Tests include value boundaries, no-op/invalid rejection, extension preservation, opaque opacity read-only, actual inspector callbacks/disabled guards, undo/redo and SVG attributes. Rust is unchanged and was not rerun. Native QA remains: rotate overlapping text/panel layers, test opacity 0/0.5/1, select transparent layers from the list, undo/redo, checkpoint/reopen and verify a copy is independent. Check rotated hit testing and appearance at different window sizes; those interactions are not covered by server-render tests.

@@ -5,7 +5,8 @@ import CompatibilityPanel from './CompatibilityPanel';
 import SaveCopyForm from './SaveCopyForm';
 import SceneCanvas from './SceneCanvas';
 import NodeInspector from './NodeInspector';
-import { addNode, moveNode, updateNode } from './scene-edit';
+import LayerOrderControls from './LayerOrderControls';
+import { addNode, moveNode, updateNode, orderLayer } from './scene-edit';
 
 export default function ProjectOverview({ session, onClose, onCopy, onReload, blocked = false }: { session: ProjectSession; onClose: () => void; onCopy: (name: string) => void; onReload: () => void; blocked?: boolean }) {
   const change = useSyncExternalStore(session.subscribe, session.snapshot, session.snapshot);
@@ -42,6 +43,7 @@ export default function ProjectOverview({ session, onClose, onCopy, onReload, bl
       <aside className="panel ts-scenes" aria-label="Scenes and layers"><h3>Scenes</h3><nav aria-label="Select scene">{document.scenes.map(s => <button key={s.id} aria-pressed={scene.id === s.id} onClick={() => { setSceneId(s.id); setSelectedId(null); session.endEditGroup(); }}>{s.name}</button>)}</nav><h3>Layers</h3><small>Back to front · nested layers are read-only</small>{scene.nodes.length ? <nav aria-label="Select layer">{scene.nodes.map(node => <button key={node.id} aria-pressed={selectedId === node.id} onClick={() => { setSelectedId(node.id); session.endEditGroup(); }}>{node.name || node.type} <small>({node.type})</small></button>)}</nav> : <p>No layers in this scene.</p>}</aside>
       <SceneCanvas scene={scene} selected={selectedId} disabled={editorDisabled} onSelect={setSelectedId} onMove={(id, x, y, group) => session.edit(moveNode(session.document, scene.id, id, x, y), 'Move layer', group)} onEndGroup={() => session.endEditGroup()}/>
       <aside className="panel ts-inspector" aria-label="Properties inspector"><h3>Properties</h3>
+        <LayerOrderControls scene={scene} selected={selectedId} disabled={editorDisabled} onOrder={order => { if (selectedId) session.edit(orderLayer(session.document, scene.id, selectedId, order), 'Change layer order'); }}/>
         <NodeInspector scene={scene} node={selected} disabled={editorDisabled} onChange={(node, label, group) => session.edit(updateNode(session.document, scene.id, node.id, () => node), label, group)} onEnd={() => session.endEditGroup()}/>
         <h3>Project properties</h3>
         <fieldset className="ts-property-fields" disabled={editorDisabled} onBlur={() => session.endEditGroup()}><legend className="ts-sr-only">Edit current project</legend>

@@ -11,4 +11,7 @@ export { ProjectSession, newDocument, suggestCopyName };
 export { guardedWindowClose } from '../../src/theme-studio/window-close';
 export type { Writer };
 export { EditHistory } from '../../src/theme-studio/history';
+export { canOrderLayers, orderLayer } from '../../src/theme-studio/scene-edit';
 export { addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor } from '../../src/theme-studio/scene-edit';
+
+export { transformNode } from '../../src/theme-studio/scene-edit';
