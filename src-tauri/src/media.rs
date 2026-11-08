@@ -53,25 +53,13 @@ pub struct GamelistEntry {
 
 /// The most players a gamelist `players` value allows (`1-2` → 2, `4` → 4, `2+` → 2).
 pub fn players_max(players: &str) -> Option<i64> {
-    players
-        .split(|c: char| !c.is_ascii_digit())
-        .filter_map(|n| n.parse::<i64>().ok())
-        .filter(|n| (1..=64).contains(n))
-        .max()
+    players.split(|c: char| !c.is_ascii_digit()).filter_map(|n| n.parse::<i64>().ok()).filter(|n| (1..=64).contains(n)).max()
 }
 
 /// A rating as 0–1 (EmulationStation writes 0–1; some tools write 0–5 or 0–10).
 pub fn rating_0_to_1(rating: &str) -> Option<f64> {
     let v: f64 = rating.trim().parse().ok()?;
-    let v = if v <= 1.0 {
-        v
-    } else if v <= 5.0 {
-        v / 5.0
-    } else if v <= 10.0 {
-        v / 10.0
-    } else {
-        return None;
-    };
+    let v = if v <= 1.0 { v } else if v <= 5.0 { v / 5.0 } else if v <= 10.0 { v / 10.0 } else { return None };
     (v >= 0.0).then_some(v)
 }
 
@@ -80,10 +68,7 @@ pub fn rating_0_to_1(rating: &str) -> Option<f64> {
 pub fn parse_gamelist(path: &Path) -> Result<Vec<GamelistEntry>, String> {
     let size = std::fs::metadata(path).map_err(|e| e.to_string())?.len();
     if size > MAX_GAMELIST_BYTES {
-        return Err(format!(
-            "{} is too large to read ({size} bytes)",
-            path.display()
-        ));
+        return Err(format!("{} is too large to read ({size} bytes)", path.display()));
     }
     let text = std::fs::read(path).map_err(|e| e.to_string())?;
     let mut reader = Reader::from_reader(text.as_slice());
@@ -137,9 +122,7 @@ pub fn parse_gamelist(path: &Path) -> Result<Vec<GamelistEntry>, String> {
                             entries.push(entry);
                         }
                     }
-                } else if let (Some(entry), Some((field_name, value))) =
-                    (current.as_mut(), field.take())
-                {
+                } else if let (Some(entry), Some((field_name, value))) = (current.as_mut(), field.take()) {
                     let value = value.trim().to_string();
                     if !value.is_empty() && field_name == name {
                         match name.as_str() {
@@ -213,11 +196,7 @@ pub fn best_media_sql(file_column: &str) -> String {
 
 /// The image to show for a game file: its full path and MIME type, if the image's
 /// drive is connected, the file is an image within the size limit.
-pub fn resolve(
-    connection: &Connection,
-    game_file_id: &str,
-    presence: PresenceFn,
-) -> Result<Option<(PathBuf, &'static str)>, String> {
+pub fn resolve(connection: &Connection, game_file_id: &str, presence: PresenceFn) -> Result<Option<(PathBuf, &'static str)>, String> {
     let row: Option<(String, Option<String>, String)> = connection
         .query_row(
             &format!(
@@ -230,18 +209,12 @@ pub fn resolve(
         )
         .optional()
         .map_err(|e| e.to_string())?;
-    let Some((root, stable, relative)) = row else {
-        return Ok(None);
-    };
+    let Some((root, stable, relative)) = row else { return Ok(None) };
     if presence(&root, stable.as_deref()) != Presence::Connected {
         return Ok(None);
     }
     let path = paths::join(&root, &relative);
-    let extension = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_ascii_lowercase();
+    let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
     if !is_image(&extension) {
         return Ok(None);
     }
@@ -252,41 +225,23 @@ pub fn resolve(
 }
 
 /// Use an image the user picked as a game's box art (replaces their previous pick).
-pub fn set_user_art(
-    connection: &Connection,
-    game_file_id: &str,
-    image: &Path,
-    probe: &dyn Fn(&str) -> crate::volumes::VolumeProbe,
-) -> Result<(), String> {
-    let path =
-        paths::normalize(image).map_err(|e| format!("Cannot open {}: {e}", image.display()))?;
-    let extension = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_ascii_lowercase();
+pub fn set_user_art(connection: &Connection, game_file_id: &str, image: &Path, probe: &dyn Fn(&str) -> crate::volumes::VolumeProbe) -> Result<(), String> {
+    let path = paths::normalize(image).map_err(|e| format!("Cannot open {}: {e}", image.display()))?;
+    let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
     if !is_image(&extension) {
-        return Err(format!(
-            "Choose an image file ({}).",
-            IMAGE_EXTENSIONS.join(", ")
-        ));
+        return Err(format!("Choose an image file ({}).", IMAGE_EXTENSIONS.join(", ")));
     }
     let metadata = std::fs::metadata(&path).map_err(|e| e.to_string())?;
     if !metadata.is_file() || metadata.len() > MAX_IMAGE_BYTES {
         return Err("That image is too large (25 MB at most).".into());
     }
     let exists: bool = connection
-        .query_row(
-            "SELECT EXISTS (SELECT 1 FROM game_files WHERE id = ?1)",
-            [game_file_id],
-            |r| r.get(0),
-        )
+        .query_row("SELECT EXISTS (SELECT 1 FROM game_files WHERE id = ?1)", [game_file_id], |r| r.get(0))
         .map_err(|e| e.to_string())?;
     if !exists {
         return Err("Game not found".into());
     }
-    let (volume_root, relative) = paths::split_volume(&path)
-        .ok_or_else(|| format!("Unsupported path: {}", path.display()))?;
+    let (volume_root, relative) = paths::split_volume(&path).ok_or_else(|| format!("Unsupported path: {}", path.display()))?;
     let location = db::resolve_storage_location(connection, &volume_root, &probe(&volume_root))?;
     connection
         .execute(
@@ -302,10 +257,7 @@ pub fn set_user_art(
 /// Forget the user's own pick for a game (the image file itself is untouched).
 pub fn remove_user_art(connection: &Connection, game_file_id: &str) -> Result<bool, String> {
     connection
-        .execute(
-            "DELETE FROM game_media WHERE game_file_id = ?1 AND source = 'user'",
-            [game_file_id],
-        )
+        .execute("DELETE FROM game_media WHERE game_file_id = ?1 AND source = 'user'", [game_file_id])
         .map(|n| n > 0)
         .map_err(|e| e.to_string())
 }
@@ -342,39 +294,20 @@ mod tests {
         assert_eq!(
             games[0].images,
             [
-                (
-                    "image",
-                    "./media/screenshot/Tom & Jerry (USA).png".to_string()
-                ),
-                (
-                    "thumbnail",
-                    "./media/box2dfront/Tom & Jerry (USA).png".to_string()
-                ),
+                ("image", "./media/screenshot/Tom & Jerry (USA).png".to_string()),
+                ("thumbnail", "./media/box2dfront/Tom & Jerry (USA).png".to_string()),
                 ("marquee", "./media/wheel/x.png".to_string())
             ]
         );
         std::fs::write(&file, "<gameList><game><path>x</gameList>").unwrap();
-        assert!(
-            parse_gamelist(&file).is_err(),
-            "broken XML is reported, not guessed at"
-        );
+        assert!(parse_gamelist(&file).is_err(), "broken XML is reported, not guessed at");
     }
 
     #[test]
     fn relative_paths_stay_on_their_volume() {
-        assert_eq!(
-            resolve_relative("roms II/nes", "./media/screenshot/a.png").as_deref(),
-            Some("roms II/nes/media/screenshot/a.png")
-        );
-        assert_eq!(
-            resolve_relative("roms II/nes", "..\\shared\\a.png").as_deref(),
-            Some("roms II/shared/a.png")
-        );
-        assert_eq!(
-            resolve_relative("nes", "../../a.png"),
-            None,
-            "can't climb above the volume"
-        );
+        assert_eq!(resolve_relative("roms II/nes", "./media/screenshot/a.png").as_deref(), Some("roms II/nes/media/screenshot/a.png"));
+        assert_eq!(resolve_relative("roms II/nes", "..\\shared\\a.png").as_deref(), Some("roms II/shared/a.png"));
+        assert_eq!(resolve_relative("nes", "../../a.png"), None, "can't climb above the volume");
         assert_eq!(resolve_relative("nes", "C:/a.png"), None);
         assert_eq!(resolve_relative("nes", "/a.png"), None);
     }

@@ -47,9 +47,7 @@ use crate::copier::{self, TEMP_MARKER};
 /// Platforms whose game lists RetroDrive fills in (same format).
 /// ROCKNIX (ADR-078) reads `<system>/gamelist.xml` first, like Batocera (ROCKNIX/emulationstation,
 /// `SystemData::getGamelistPath`).
-pub const GAMELIST_PLATFORMS: &[&str] = &[
-    "retrobat", "batocera", "retropie", "esde", "recalbox", "rocknix",
-];
+pub const GAMELIST_PLATFORMS: &[&str] = &["retrobat", "batocera", "retropie", "esde", "recalbox", "rocknix"];
 
 /// Where a platform keeps its game lists and pictures.
 enum Layout {
@@ -68,17 +66,8 @@ pub(crate) fn esde_data_dir(roms: &Path) -> Option<PathBuf> {
     let home = PathBuf::from(std::env::var_os("USERPROFILE")?);
     let data = home.join("ES-DE");
     let setting = esde_setting(&data, "ROMDirectory").unwrap_or_default();
-    let target = if setting.is_empty() {
-        home.join("ROMs")
-    } else {
-        PathBuf::from(setting.replace("~", &home.display().to_string()))
-    };
-    let same = |a: &Path, b: &Path| {
-        a.display()
-            .to_string()
-            .trim_end_matches(['\\', '/'])
-            .eq_ignore_ascii_case(b.display().to_string().trim_end_matches(['\\', '/']))
-    };
+    let target = if setting.is_empty() { home.join("ROMs") } else { PathBuf::from(setting.replace("~", &home.display().to_string())) };
+    let same = |a: &Path, b: &Path| a.display().to_string().trim_end_matches(['\\', '/']).eq_ignore_ascii_case(b.display().to_string().trim_end_matches(['\\', '/']));
     (data.is_dir() && same(&target, roms)).then_some(data)
 }
 
@@ -91,17 +80,12 @@ fn esde_setting(data: &Path, key: &str) -> Option<String> {
 
 /// ES-DE's media folder: the `MediaDirectory` setting, or `<data>\downloaded_media`.
 fn esde_media_dir(data: &Path) -> PathBuf {
-    esde_setting(data, "MediaDirectory")
-        .filter(|v| !v.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or_else(|| data.join("downloaded_media"))
+    esde_setting(data, "MediaDirectory").filter(|v| !v.is_empty()).map(PathBuf::from).unwrap_or_else(|| data.join("downloaded_media"))
 }
 
 /// Whether ES-DE already has a picture of this type for a game (`.png`, `.jpg` or `.jpeg`).
 fn esde_has_media(dir: &Path, stem: &str) -> bool {
-    ["png", "jpg", "jpeg"]
-        .iter()
-        .any(|ext| dir.join(format!("{stem}.{ext}")).is_file())
+    ["png", "jpg", "jpeg"].iter().any(|ext| dir.join(format!("{stem}.{ext}")).is_file())
 }
 
 /// Where the system folders are: `<root>\roms`, or the root itself (RetroPie's roms share).
@@ -131,12 +115,7 @@ pub type ProgressFn<'a> = &'a (dyn Fn(&str, usize, usize) + Sync);
 const CHECK_THREADS: usize = 16;
 
 /// Runs `work` on every item, `CHECK_THREADS` at a time, keeping the order.
-pub(crate) fn parallel_map<T: Sync, R: Send>(
-    items: &[T],
-    phase: &str,
-    work: impl Fn(&T) -> R + Sync,
-    progress: ProgressFn,
-) -> Vec<R> {
+pub(crate) fn parallel_map<T: Sync, R: Send>(items: &[T], phase: &str, work: impl Fn(&T) -> R + Sync, progress: ProgressFn) -> Vec<R> {
     let total = items.len();
     let next = AtomicUsize::new(0);
     let done = AtomicUsize::new(0);
@@ -160,10 +139,7 @@ pub(crate) fn parallel_map<T: Sync, R: Send>(
                 })
             })
             .collect();
-        handles
-            .into_iter()
-            .flat_map(|h| h.join().unwrap_or_else(|p| std::panic::resume_unwind(p)))
-            .collect()
+        handles.into_iter().flat_map(|h| h.join().unwrap_or_else(|p| std::panic::resume_unwind(p))).collect()
     });
     results.sort_by_key(|r| r.0);
     results.into_iter().map(|r| r.1).collect()
@@ -243,10 +219,7 @@ struct Entry {
 }
 
 fn norm(path: &str) -> String {
-    path.trim()
-        .trim_start_matches("./")
-        .replace('\\', "/")
-        .to_lowercase()
+    path.trim().trim_start_matches("./").replace('\\', "/").to_lowercase()
 }
 
 /// `<game>` entries with their children, from a gamelist's text.
@@ -257,23 +230,16 @@ fn parse(text: &str) -> Result<Vec<Entry>, String> {
     while let Some(off) = text[i..].find("<game") {
         let start = i + off;
         let after = text.as_bytes().get(start + 5).copied();
-        if !matches!(
-            after,
-            Some(b'>') | Some(b' ') | Some(b'\t') | Some(b'\r') | Some(b'\n')
-        ) {
+        if !matches!(after, Some(b'>') | Some(b' ') | Some(b'\t') | Some(b'\r') | Some(b'\n')) {
             i = start + 5;
             continue;
         }
-        let Some(open_end) = text[start..].find('>').map(|p| start + p + 1) else {
-            break;
-        };
+        let Some(open_end) = text[start..].find('>').map(|p| start + p + 1) else { break };
         if text[start..open_end].ends_with("/>") {
             i = open_end;
             continue;
         }
-        let Some(close) = text[open_end..].find("</game>").map(|p| open_end + p) else {
-            break;
-        };
+        let Some(close) = text[open_end..].find("</game>").map(|p| open_end + p) else { break };
         let body = &text[open_end..close];
         let mut tags = Vec::new();
         let mut path = None;
@@ -283,20 +249,11 @@ fn parse(text: &str) -> Result<Vec<Entry>, String> {
         while let Some(o) = body[j..].find('<') {
             let t = j + o;
             if body[t..].starts_with("<!--") {
-                j = body[t..]
-                    .find("-->")
-                    .map(|p| t + p + 3)
-                    .unwrap_or(body.len());
+                j = body[t..].find("-->").map(|p| t + p + 3).unwrap_or(body.len());
                 continue;
             }
-            let Some(gt) = body[t..].find('>').map(|p| t + p) else {
-                break;
-            };
-            let tag: String = body[t + 1..gt]
-                .split(|c: char| c.is_whitespace() || c == '/')
-                .next()
-                .unwrap_or("")
-                .to_string();
+            let Some(gt) = body[t..].find('>').map(|p| t + p) else { break };
+            let tag: String = body[t + 1..gt].split(|c: char| c.is_whitespace() || c == '/').next().unwrap_or("").to_string();
             if tag.is_empty() || tag.starts_with('/') {
                 j = gt + 1;
                 continue;
@@ -320,23 +277,13 @@ fn parse(text: &str) -> Result<Vec<Entry>, String> {
                 path = Some(customizer::unescape(value.trim()));
             }
             if tag == "name" {
-                name = Some((
-                    customizer::unescape(value.trim()),
-                    open_end + gt + 1,
-                    open_end + gt + 1 + value.len(),
-                ));
+                name = Some((customizer::unescape(value.trim()), open_end + gt + 1, open_end + gt + 1 + value.len()));
             }
             tags.push(tag);
             j = end;
         }
         if let Some(path) = path {
-            out.push(Entry {
-                key: norm(&path),
-                tags,
-                name,
-                close,
-                indent: indent.unwrap_or_else(|| "\t\t".into()),
-            });
+            out.push(Entry { key: norm(&path), tags, name, close, indent: indent.unwrap_or_else(|| "\t\t".into()) });
         }
         i = close + 7;
     }
@@ -350,21 +297,8 @@ fn has(entry: &Entry, tag: &str) -> bool {
 fn image_name(rel: &str, suffix: &str, source: &Path) -> String {
     let file = rel.rsplit('/').next().unwrap_or(rel);
     let stem = file.rsplit_once('.').map(|(s, _)| s).unwrap_or(file);
-    let ext = source
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("png")
-        .to_lowercase();
-    let safe: String = stem
-        .chars()
-        .map(|c| {
-            if c.is_control() || r#"<>:"/\|?*"#.contains(c) {
-                '_'
-            } else {
-                c
-            }
-        })
-        .collect();
+    let ext = source.extension().and_then(|e| e.to_str()).unwrap_or("png").to_lowercase();
+    let safe: String = stem.chars().map(|c| if c.is_control() || r#"<>:"/\|?*"#.contains(c) { '_' } else { c }).collect();
     format!("{safe}-{suffix}.{ext}")
 }
 
@@ -374,12 +308,7 @@ fn image_name(rel: &str, suffix: &str, source: &Path) -> String {
 type Candidates = (Vec<(i32, String, PathBuf)>, bool);
 
 /// From the catalog only (no file checks): art recorded for a game file on drives that are connected.
-fn media_for(
-    connection: &Connection,
-    file_id: &str,
-    presence: PresenceFn,
-    online: &mut HashMap<String, bool>,
-) -> Result<Candidates, String> {
+fn media_for(connection: &Connection, file_id: &str, presence: PresenceFn, online: &mut HashMap<String, bool>) -> Result<Candidates, String> {
     let mut statement = connection
         .prepare_cached(
             "SELECT gm.kind, gm.source, s.id, s.root_path, s.stable_id, gm.relative_path
@@ -387,25 +316,14 @@ fn media_for(
         )
         .map_err(|e| e.to_string())?;
     let rows: Vec<(String, String, String, String, Option<String>, String)> = statement
-        .query_map([file_id], |r| {
-            Ok((
-                r.get(0)?,
-                r.get(1)?,
-                r.get(2)?,
-                r.get(3)?,
-                r.get(4)?,
-                r.get(5)?,
-            ))
-        })
+        .query_map([file_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)))
         .map_err(|e| e.to_string())?
         .collect::<Result<_, _>>()
         .map_err(|e| e.to_string())?;
     let any = !rows.is_empty();
     let mut found: Vec<(i32, String, PathBuf)> = Vec::new();
     for (kind, source, storage, root, stable, relative) in rows {
-        let up = *online
-            .entry(storage)
-            .or_insert_with(|| presence(&root, stable.as_deref()) == Presence::Connected);
+        let up = *online.entry(storage).or_insert_with(|| presence(&root, stable.as_deref()) == Presence::Connected);
         if !up {
             continue;
         }
@@ -433,21 +351,9 @@ fn details_for(connection: &Connection, file_id: &str) -> Result<Details, String
         )
         .map_err(|e| e.to_string())?;
     let mut rows = statement.query([file_id]).map_err(|e| e.to_string())?;
-    let Some(r) = rows.next().map_err(|e| e.to_string())? else {
-        return Ok(Details::default());
-    };
+    let Some(r) = rows.next().map_err(|e| e.to_string())? else { return Ok(Details::default()) };
     let clean = |v: Option<String>| v.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
-    Ok(Details {
-        title: clean(r.get(0).ok()),
-        year: r.get(1).ok().flatten(),
-        genre: clean(r.get(2).ok()),
-        developer: clean(r.get(3).ok()),
-        publisher: clean(r.get(4).ok()),
-        favorite: false,
-        description: None,
-        players: None,
-        rating: None,
-    })
+    Ok(Details { title: clean(r.get(0).ok()), year: r.get(1).ok().flatten(), genre: clean(r.get(2).ok()), developer: clean(r.get(3).ok()), publisher: clean(r.get(4).ok()), favorite: false, description: None, players: None, rating: None })
 }
 
 /// A game found in the catalog, before its files are checked.
@@ -464,13 +370,7 @@ struct Pending {
 type Sizes = HashMap<PathBuf, u64>;
 
 /// Games RetroDrive copied (verified, identical or replaced primary files still on the drive).
-fn targets(
-    connection: &Connection,
-    install: &customizer::Install,
-    deployment: Option<&str>,
-    presence: PresenceFn,
-    progress: ProgressFn,
-) -> Result<(Vec<Target>, usize, Sizes), String> {
+fn targets(connection: &Connection, install: &customizer::Install, deployment: Option<&str>, presence: PresenceFn, progress: ProgressFn) -> Result<(Vec<Target>, usize, Sizes), String> {
     let mut statement = connection
         .prepare(
             "SELECT i.destination_path, i.game_file_id FROM deployment_items i
@@ -480,20 +380,11 @@ fn targets(
         )
         .map_err(|e| e.to_string())?;
     let rows: Vec<(String, String)> = statement
-        .query_map(params![install.id, deployment], |r| {
-            Ok((r.get(0)?, r.get(1)?))
-        })
+        .query_map(params![install.id, deployment], |r| Ok((r.get(0)?, r.get(1)?)))
         .map_err(|e| e.to_string())?
         .collect::<Result<_, _>>()
         .map_err(|e| e.to_string())?;
-    let roms = format!(
-        "{}\\",
-        games_dir(&install.root)
-            .0
-            .display()
-            .to_string()
-            .trim_end_matches(['\\', '/'])
-    );
+    let roms = format!("{}\\", games_dir(&install.root).0.display().to_string().trim_end_matches(['\\', '/']));
     // 1. The catalog (fast): one entry per game on the drive; a later copy of the same file wins.
     let mut seen: BTreeMap<String, Pending> = BTreeMap::new();
     let mut online = HashMap::new();
@@ -504,18 +395,12 @@ fn targets(
             continue;
         }
         let inside = d[roms.len()..].replace('\\', "/");
-        let Some((system, rel)) = inside.split_once('/') else {
-            continue;
-        };
+        let Some((system, rel)) = inside.split_once('/') else { continue };
         let (media, any_media) = media_for(connection, &file_id, presence, &mut online)?;
         let mut details = details_for(connection, &file_id)?;
         details.favorite = favorites.contains(&file_id);
         let extra: Option<(Option<String>, Option<String>, Option<f64>)> = connection
-            .query_row(
-                "SELECT description, players, rating FROM game_details WHERE game_file_id = ?1",
-                [&file_id],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-            )
+            .query_row("SELECT description, players, rating FROM game_details WHERE game_file_id = ?1", [&file_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
             .optional()
             .map_err(|e| e.to_string())?;
         if let Some((description, players, rating)) = extra {
@@ -523,17 +408,7 @@ fn targets(
             details.players = players;
             details.rating = rating;
         }
-        seen.insert(
-            format!("{system}/{}", rel.to_lowercase()),
-            Pending {
-                system: system.to_string(),
-                rel: rel.to_string(),
-                destination: PathBuf::from(&destination),
-                media,
-                any_media,
-                details,
-            },
-        );
+        seen.insert(format!("{system}/{}", rel.to_lowercase()), Pending { system: system.to_string(), rel: rel.to_string(), destination: PathBuf::from(&destination), media, any_media, details });
     }
     // 2. The files (slow on a network share): checked in parallel.
     let pending: Vec<Pending> = seen.into_values().collect();
@@ -544,17 +419,7 @@ fn targets(
             if !p.destination.is_file() {
                 return None;
             }
-            Some(
-                p.media
-                    .iter()
-                    .filter_map(|(rank, kind, path)| {
-                        fs::metadata(path)
-                            .ok()
-                            .filter(|m| m.is_file())
-                            .map(|m| (*rank, kind.clone(), path.clone(), m.len()))
-                    })
-                    .collect::<Vec<_>>(),
-            )
+            Some(p.media.iter().filter_map(|(rank, kind, path)| fs::metadata(path).ok().filter(|m| m.is_file()).map(|m| (*rank, kind.clone(), path.clone(), m.len()))).collect::<Vec<_>>())
         },
         progress,
     );
@@ -567,23 +432,12 @@ fn targets(
             sizes.insert(path.clone(), *size);
         }
         let image = found.iter().find(|f| f.0 <= 3).map(|f| f.2.clone());
-        let thumbnail = found
-            .iter()
-            .find(|f| f.1 == "thumbnail")
-            .map(|f| f.2.clone())
-            .filter(|t| Some(t) != image.as_ref());
+        let thumbnail = found.iter().find(|f| f.1 == "thumbnail").map(|f| f.2.clone()).filter(|t| Some(t) != image.as_ref());
         let marquee = found.iter().find(|f| f.1 == "marquee").map(|f| f.2.clone());
         if p.any_media && image.is_none() && thumbnail.is_none() && marquee.is_none() {
             unavailable += 1;
         }
-        out.push(Target {
-            system: p.system,
-            rel: p.rel,
-            image,
-            thumbnail,
-            marquee,
-            details: p.details,
-        });
+        out.push(Target { system: p.system, rel: p.rel, image, thumbnail, marquee, details: p.details });
     }
     Ok((out, unavailable, sizes))
 }
@@ -600,45 +454,22 @@ struct SystemEdit {
 }
 
 fn xml(v: &str) -> String {
-    v.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
+    v.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
-fn plan_system(
-    games: &Path,
-    layout: &Layout,
-    system: &str,
-    targets: &[&Target],
-    sizes: &Sizes,
-) -> Result<Option<SystemEdit>, String> {
+fn plan_system(games: &Path, layout: &Layout, system: &str, targets: &[&Target], sizes: &Sizes) -> Result<Option<SystemEdit>, String> {
     let list_path = match layout {
         Layout::InFolder => games.join(system).join("gamelist.xml"),
         Layout::EsDe { data, .. } => data.join("gamelists").join(system).join("gamelist.xml"),
     };
     let exists = list_path.is_file();
-    let old_text = if exists {
-        customizer::read_text(&list_path)?
-    } else {
-        String::new()
-    };
-    let base = if exists {
-        old_text.clone()
-    } else {
-        "<?xml version=\"1.0\"?>\n<gameList>\n</gameList>\n".to_string()
-    };
+    let old_text = if exists { customizer::read_text(&list_path)? } else { String::new() };
+    let base = if exists { old_text.clone() } else { "<?xml version=\"1.0\"?>\n<gameList>\n</gameList>\n".to_string() };
     let entries = parse(&base)?;
     let newline = if base.contains("\r\n") { "\r\n" } else { "\n" };
     let by_key: HashMap<&str, &Entry> = entries.iter().map(|e| (e.key.as_str(), e)).collect();
     let images_dir = games.join(system).join("images");
-    let mut summary = SystemArt {
-        system: system.to_string(),
-        games_updated: 0,
-        games_added: 0,
-        images: 0,
-        kept: 0,
-        favorites: 0,
-    };
+    let mut summary = SystemArt { system: system.to_string(), games_updated: 0, games_added: 0, images: 0, kept: 0, favorites: 0 };
     let mut copies = Vec::new();
     // (position, replace_end, text) edits; applied from the end.
     let mut edits: Vec<(usize, usize, String)> = Vec::new();
@@ -647,12 +478,7 @@ fn plan_system(
     for t in targets {
         let entry = by_key.get(norm(&t.rel).as_str()).copied();
         let mut lines: Vec<String> = Vec::new();
-        let art_field = |tag: &str,
-                         suffix: &str,
-                         source: &Option<PathBuf>,
-                         lines: &mut Vec<String>,
-                         copies: &mut Vec<(PathBuf, PathBuf)>|
-         -> bool {
+        let art_field = |tag: &str, suffix: &str, source: &Option<PathBuf>, lines: &mut Vec<String>, copies: &mut Vec<(PathBuf, PathBuf)>| -> bool {
             let Some(src) = source else { return false };
             if entry.is_some_and(|e| has(e, tag)) {
                 return false;
@@ -662,9 +488,7 @@ fn plan_system(
             match fs::symlink_metadata(&target) {
                 // A file is already there: use it only if it's the same image (sizes first, then contents); otherwise it's someone else's: leave it.
                 Ok(m) => {
-                    if sizes.get(src) != Some(&m.len())
-                        || copier::sha256_of(&target).ok() != copier::sha256_of(src).ok()
-                    {
+                    if sizes.get(src) != Some(&m.len()) || copier::sha256_of(&target).ok() != copier::sha256_of(src).ok() {
                         return false;
                     }
                 }
@@ -677,12 +501,9 @@ fn plan_system(
         match layout {
             Layout::InFolder => {
                 let had_art = entry.is_some_and(|e| has(e, "image"));
-                added_images +=
-                    art_field("image", "image", &t.image, &mut lines, &mut copies) as usize;
-                added_images +=
-                    art_field("thumbnail", "thumb", &t.thumbnail, &mut lines, &mut copies) as usize;
-                added_images +=
-                    art_field("marquee", "marquee", &t.marquee, &mut lines, &mut copies) as usize;
+                added_images += art_field("image", "image", &t.image, &mut lines, &mut copies) as usize;
+                added_images += art_field("thumbnail", "thumb", &t.thumbnail, &mut lines, &mut copies) as usize;
+                added_images += art_field("marquee", "marquee", &t.marquee, &mut lines, &mut copies) as usize;
                 if had_art && t.image.is_some() {
                     summary.kept += 1;
                 }
@@ -694,26 +515,16 @@ fn plan_system(
                     continue;
                 }
                 let mut had = false;
-                for (kind, source) in [
-                    ("covers", t.image.as_ref().or(t.thumbnail.as_ref())),
-                    ("marquees", t.marquee.as_ref()),
-                ] {
+                for (kind, source) in [("covers", t.image.as_ref().or(t.thumbnail.as_ref())), ("marquees", t.marquee.as_ref())] {
                     let Some(src) = source else { continue };
                     let dir = media.join(system).join(kind);
-                    let (sub, stem) = stem_path
-                        .rsplit_once('/')
-                        .map(|(d, s)| (Some(d), s))
-                        .unwrap_or((None, stem_path));
+                    let (sub, stem) = stem_path.rsplit_once('/').map(|(d, s)| (Some(d), s)).unwrap_or((None, stem_path));
                     let dir = sub.map(|d| dir.join(d)).unwrap_or(dir);
                     if esde_has_media(&dir, stem) {
                         had = true;
                         continue;
                     }
-                    let ext = src
-                        .extension()
-                        .and_then(|e| e.to_str())
-                        .unwrap_or("png")
-                        .to_lowercase();
+                    let ext = src.extension().and_then(|e| e.to_str()).unwrap_or("png").to_lowercase();
                     copies.push((src.clone(), dir.join(format!("{stem}.{ext}"))));
                     added_images += 1;
                 }
@@ -734,12 +545,7 @@ fn plan_system(
         add_text("players", &d.players, &mut lines);
         if let Some(r) = d.rating.filter(|r| (0.0..=1.0).contains(r)) {
             if !entry.is_some_and(|e| has(e, "rating")) {
-                lines.push(format!(
-                    "<rating>{}</rating>",
-                    format!("{r:.2}")
-                        .trim_end_matches('0')
-                        .trim_end_matches('.')
-                ));
+                lines.push(format!("<rating>{}</rating>", format!("{r:.2}").trim_end_matches('0').trim_end_matches('.')));
             }
         }
         add_text("genre", &d.genre, &mut lines);
@@ -799,11 +605,7 @@ fn plan_system(
                     }
                     continue;
                 }
-                new_entries.push_str(&format!(
-                    "\t<game>{newline}\t\t<path>./{}</path>{newline}\t\t<name>{}</name>{newline}",
-                    xml(&t.rel),
-                    xml(d.title.as_deref().unwrap_or(stem))
-                ));
+                new_entries.push_str(&format!("\t<game>{newline}\t\t<path>./{}</path>{newline}\t\t<name>{}</name>{newline}", xml(&t.rel), xml(d.title.as_deref().unwrap_or(stem))));
                 for l in &lines {
                     new_entries.push_str(&format!("\t\t{l}{newline}"));
                 }
@@ -817,21 +619,11 @@ fn plan_system(
         return Ok(None);
     }
     if !new_entries.is_empty() {
-        let close = base
-            .rfind("</gameList>")
-            .ok_or("gamelist.xml has no </gameList>, so RetroDrive won't edit it.")?;
+        let close = base.rfind("</gameList>").ok_or("gamelist.xml has no </gameList>, so RetroDrive won't edit it.")?;
         let line_start = base[..close].rfind('\n').map(|p| p + 1).unwrap_or(0);
         let own_line = base[line_start..close].trim().is_empty();
         let at = if own_line { line_start } else { close };
-        edits.push((
-            at,
-            at,
-            if own_line {
-                new_entries
-            } else {
-                format!("{newline}{new_entries}")
-            },
-        ));
+        edits.push((at, at, if own_line { new_entries } else { format!("{newline}{new_entries}") }));
     }
     edits.sort_by_key(|e| std::cmp::Reverse((e.0, e.1)));
     let mut new_text = base.clone();
@@ -839,55 +631,21 @@ fn plan_system(
         new_text.replace_range(start..end, &text);
     }
     // Check: still valid, every old entry still there, the right number of new ones.
-    let after = parse(&new_text).map_err(|e| {
-        format!("Editing {system}'s game list would make it invalid ({e}); nothing was changed.")
-    })?;
-    if after.len() != entries.len() + summary.games_added
-        || entries
-            .iter()
-            .any(|e| !after.iter().any(|a| a.key == e.key))
-    {
-        return Err(format!(
-            "Editing {system}'s game list would have lost entries; nothing was changed."
-        ));
+    let after = parse(&new_text).map_err(|e| format!("Editing {system}'s game list would make it invalid ({e}); nothing was changed."))?;
+    if after.len() != entries.len() + summary.games_added || entries.iter().any(|e| !after.iter().any(|a| a.key == e.key)) {
+        return Err(format!("Editing {system}'s game list would have lost entries; nothing was changed."));
     }
     copies.sort();
     copies.dedup();
-    Ok(Some(SystemEdit {
-        system: system.to_string(),
-        list_path,
-        old_text,
-        new_text,
-        copies,
-        summary,
-    }))
+    Ok(Some(SystemEdit { system: system.to_string(), list_path, old_text, new_text, copies, summary }))
 }
 
-type Planned = (
-    customizer::Install,
-    Vec<SystemEdit>,
-    usize,
-    Sizes,
-    Vec<String>,
-);
+type Planned = (customizer::Install, Vec<SystemEdit>, usize, Sizes, Vec<String>);
 
 /// `create_lists`: on RetroPie, also create lists for systems without one (opt-in).
-fn plan(
-    connection: &Connection,
-    installation_id: &str,
-    deployment: Option<&str>,
-    create_lists: bool,
-    presence: PresenceFn,
-    progress: ProgressFn,
-) -> Result<Planned, String> {
+fn plan(connection: &Connection, installation_id: &str, deployment: Option<&str>, create_lists: bool, presence: PresenceFn, progress: ProgressFn) -> Result<Planned, String> {
     let install = customizer::install_for(connection, installation_id, presence, GAMELIST_PLATFORMS, "Game art and details are available for RetroBat, Batocera, RetroPie, ES-DE, Recalbox and ROCKNIX.")?;
-    let adapter: String = connection
-        .query_row(
-            "SELECT adapter_id FROM installations WHERE id = ?1",
-            [installation_id],
-            |r| r.get(0),
-        )
-        .map_err(|e| e.to_string())?;
+    let adapter: String = connection.query_row("SELECT adapter_id FROM installations WHERE id = ?1", [installation_id], |r| r.get(0)).map_err(|e| e.to_string())?;
     let (games, _) = games_dir(&install.root);
     let layout = if adapter == "esde" {
         let data = esde_data_dir(&install.root).ok_or("RetroDrive couldn't find ES-DE's settings folder for this ROMs folder (ES-DE next to its ES-DE.exe, or in your user folder), so it can't add art for ES-DE.")?;
@@ -907,10 +665,7 @@ fn plan(
         if system.contains(['.', '\\', ':']) {
             continue;
         }
-        if adapter == "retropie"
-            && !create_lists
-            && !games.join(&system).join("gamelist.xml").is_file()
-        {
+        if adapter == "retropie" && !create_lists && !games.join(&system).join("gamelist.xml").is_file() {
             not_created.push(system);
             continue;
         }
@@ -930,37 +685,13 @@ fn sha_or_none(edit: &SystemEdit) -> String {
 }
 
 /// What adding art and details would do (reads only). `deployment`: only games from that copy.
-pub fn preview(
-    connection: &Connection,
-    installation_id: &str,
-    deployment: Option<&str>,
-    create_lists: bool,
-    presence: PresenceFn,
-    progress: ProgressFn,
-) -> Result<ArtPreview, String> {
-    let (_, edits, unavailable, sizes, lists_not_created) = plan(
-        connection,
-        installation_id,
-        deployment,
-        create_lists,
-        presence,
-        progress,
-    )?;
+pub fn preview(connection: &Connection, installation_id: &str, deployment: Option<&str>, create_lists: bool, presence: PresenceFn, progress: ProgressFn) -> Result<ArtPreview, String> {
+    let (_, edits, unavailable, sizes, lists_not_created) = plan(connection, installation_id, deployment, create_lists, presence, progress)?;
     let images = edits.iter().map(|e| e.copies.len()).sum();
-    let image_bytes = edits
-        .iter()
-        .flat_map(|e| e.copies.iter())
-        .filter_map(|(s, _)| sizes.get(s))
-        .sum();
+    let image_bytes = edits.iter().flat_map(|e| e.copies.iter()).filter_map(|(s, _)| sizes.get(s)).sum();
     Ok(ArtPreview {
-        games_updated: edits
-            .iter()
-            .map(|e| e.summary.games_updated + e.summary.games_added)
-            .sum(),
-        list_shas: edits
-            .iter()
-            .map(|e| (e.system.clone(), sha_or_none(e)))
-            .collect(),
+        games_updated: edits.iter().map(|e| e.summary.games_updated + e.summary.games_added).sum(),
+        list_shas: edits.iter().map(|e| (e.system.clone(), sha_or_none(e))).collect(),
         systems: edits.into_iter().map(|e| e.summary).collect(),
         images,
         image_bytes,
@@ -977,17 +708,13 @@ pub fn preview(
 /// Copy one image to a new file (temporary name, checked, renamed without replacing).
 pub(crate) fn copy_image(source: &Path, target: &Path) -> Result<(), String> {
     if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("Couldn't create {}: {e}", parent.display()))?;
+        fs::create_dir_all(parent).map_err(|e| format!("Couldn't create {}: {e}", parent.display()))?;
     }
     let marker = format!("{TEMP_MARKER}{}", &db::new_id()[..8]);
     let temp = PathBuf::from(format!("{}{marker}", target.display()));
     let copied = (|| -> std::io::Result<()> {
         let mut input = fs::File::open(source)?;
-        let mut out = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temp)?;
+        let mut out = OpenOptions::new().write(true).create_new(true).open(&temp)?;
         std::io::copy(&mut input, &mut out)?;
         out.flush()?;
         out.sync_all()
@@ -1000,69 +727,30 @@ pub(crate) fn copy_image(source: &Path, target: &Path) -> Result<(), String> {
         return fail(format!("Couldn't copy {}: {e}", source.display()));
     }
     if copier::sha256_of(&temp).ok() != copier::sha256_of(source).ok() {
-        return fail(format!(
-            "The copy of {} didn't match, so it wasn't used.",
-            source.display()
-        ));
+        return fail(format!("The copy of {} didn't match, so it wasn't used.", source.display()));
     }
-    copier::rename_no_replace(&temp, target)
-        .or_else(|e| fail(format!("Couldn't name {}: {e}", target.display())).map(|_| ()))
+    copier::rename_no_replace(&temp, target).or_else(|e| fail(format!("Couldn't name {}: {e}", target.display())).map(|_| ()))
 }
 
 /// Add art and details. `expected`: the list checksums from the preview (`None`: no review, e.g. right after a copy).
 #[allow(clippy::too_many_arguments)]
-pub fn apply(
-    connection: &Connection,
-    installation_id: &str,
-    deployment: Option<&str>,
-    expected: Option<&BTreeMap<String, String>>,
-    create_lists: bool,
-    presence: PresenceFn,
-    running: RunningFn,
-    progress: ProgressFn,
-) -> Result<String, String> {
+pub fn apply(connection: &Connection, installation_id: &str, deployment: Option<&str>, expected: Option<&BTreeMap<String, String>>, create_lists: bool, presence: PresenceFn, running: RunningFn, progress: ProgressFn) -> Result<String, String> {
     if let Some(reason) = customizer::running_message(running) {
         return Err(format!("{reason} Nothing was changed."));
     }
-    let (install, edits, _, _, _) = plan(
-        connection,
-        installation_id,
-        deployment,
-        create_lists,
-        presence,
-        progress,
-    )?;
+    let (install, edits, _, _, _) = plan(connection, installation_id, deployment, create_lists, presence, progress)?;
     let (_, prefix) = games_dir(&install.root);
     // ES-DE's lists live in its data folder: journal and back them up there.
-    let esde = connection
-        .query_row(
-            "SELECT adapter_id = 'esde' FROM installations WHERE id = ?1",
-            [installation_id],
-            |r| r.get::<_, bool>(0),
-        )
-        .unwrap_or(false);
+    let esde = connection.query_row("SELECT adapter_id = 'esde' FROM installations WHERE id = ?1", [installation_id], |r| r.get::<_, bool>(0)).unwrap_or(false);
     let list_install = match (esde, esde_data_dir(&install.root)) {
-        (true, Some(data)) => customizer::Install {
-            id: install.id.clone(),
-            root_text: data.display().to_string(),
-            root: data,
-            stable: None,
-        },
-        _ => customizer::Install {
-            id: install.id.clone(),
-            root: install.root.clone(),
-            root_text: install.root_text.clone(),
-            stable: install.stable.clone(),
-        },
+        (true, Some(data)) => customizer::Install { id: install.id.clone(), root_text: data.display().to_string(), root: data, stable: None },
+        _ => customizer::Install { id: install.id.clone(), root: install.root.clone(), root_text: install.root_text.clone(), stable: install.stable.clone() },
     };
     if edits.is_empty() {
         return Err("There's no art or detail to add: the games RetroDrive copied already have them (and your favorites are marked), or their images aren't available.".into());
     }
     if let Some(expected) = expected {
-        let now: BTreeMap<String, String> = edits
-            .iter()
-            .map(|e| (e.system.clone(), sha_or_none(e)))
-            .collect();
+        let now: BTreeMap<String, String> = edits.iter().map(|e| (e.system.clone(), sha_or_none(e))).collect();
         if &now != expected {
             return Err("The game lists changed since you reviewed this, so nothing was changed. Review it again.".into());
         }
@@ -1070,93 +758,32 @@ pub fn apply(
     // 1. Images (new files only), several at a time; any failure stops before the lists are touched.
     let all_copies: Vec<&(PathBuf, PathBuf)> = edits.iter().flat_map(|e| e.copies.iter()).collect();
     let total = all_copies.len();
-    let results = parallel_map(
-        &all_copies,
-        "copying",
-        |(src, dst)| {
-            if fs::symlink_metadata(dst).is_err() {
-                copy_image(src, dst)
-            } else {
-                Ok(())
-            }
-        },
-        progress,
-    );
+    let results = parallel_map(&all_copies, "copying", |(src, dst)| if fs::symlink_metadata(dst).is_err() { copy_image(src, dst) } else { Ok(()) }, progress);
     if let Some(Err(e)) = results.into_iter().find(Result::is_err) {
-        return Err(format!(
-            "{e} No game list was changed; images already copied are new files nothing uses yet."
-        ));
+        return Err(format!("{e} No game list was changed; images already copied are new files nothing uses yet."));
     }
-    let added: Vec<String> = edits
-        .iter()
-        .filter(|e| !e.copies.is_empty())
-        .map(|e| {
-            if esde {
-                format!(
-                    "{} image(s) in ES-DE's downloaded_media/{}",
-                    e.copies.len(),
-                    e.system
-                )
-            } else {
-                format!("{} image(s) in {prefix}{}/images", e.copies.len(), e.system)
-            }
-        })
-        .collect();
+    let added: Vec<String> = edits.iter().filter(|e| !e.copies.is_empty()).map(|e| if esde { format!("{} image(s) in ES-DE's downloaded_media/{}", e.copies.len(), e.system) } else { format!("{} image(s) in {prefix}{}/images", e.copies.len(), e.system) }).collect();
     // 2. Game lists, journaled; if one fails, the ones already written are undone.
     let mut ids = Vec::new();
     for e in &edits {
         if e.new_text == e.old_text {
             continue; // ES-DE: pictures only, the list already had everything.
         }
-        let relative = if esde {
-            format!("gamelists/{}/gamelist.xml", e.system)
-        } else {
-            format!("{prefix}{}/gamelist.xml", e.system)
-        };
+        let relative = if esde { format!("gamelists/{}/gamelist.xml", e.system) } else { format!("{prefix}{}/gamelist.xml", e.system) };
         if esde {
-            copier::ensure_folders(&list_install.root, &relative)
-                .map_err(|e| format!("{e} No game list was changed."))?;
+            copier::ensure_folders(&list_install.root, &relative).map_err(|e| format!("{e} No game list was changed."))?;
         }
         let s = &e.summary;
-        let rows = vec![ChangeRow {
-            system: e.system.clone(),
-            key: "gamelist".into(),
-            before: None,
-            after: Some(format!(
-                "{} game(s) updated, {} added, {} image(s), {} favorite(s)",
-                s.games_updated, s.games_added, s.images, s.favorites
-            )),
-        }];
-        match customizer::write_file(
-            connection,
-            &list_install,
-            &relative,
-            &e.list_path,
-            &e.old_text,
-            &e.new_text,
-            rows,
-        ) {
+        let rows = vec![ChangeRow { system: e.system.clone(), key: "gamelist".into(), before: None, after: Some(format!("{} game(s) updated, {} added, {} image(s), {} favorite(s)", s.games_updated, s.games_added, s.images, s.favorites)) }];
+        match customizer::write_file(connection, &list_install, &relative, &e.list_path, &e.old_text, &e.new_text, rows) {
             Ok((_, id)) => ids.push(id),
             Err(err) => {
-                let all = ids
-                    .iter()
-                    .rev()
-                    .all(|id| customizer::undo(connection, *id, presence, running).is_ok());
-                return Err(format!(
-                    "{err} {}",
-                    if all {
-                        "The game lists already changed were put back."
-                    } else {
-                        "Some game lists were changed; undo them from Changes made."
-                    }
-                ));
+                let all = ids.iter().rev().all(|id| customizer::undo(connection, *id, presence, running).is_ok());
+                return Err(format!("{err} {}", if all { "The game lists already changed were put back." } else { "Some game lists were changed; undo them from Changes made." }));
             }
         }
     }
-    let games: usize = edits
-        .iter()
-        .map(|e| e.summary.games_updated + e.summary.games_added)
-        .sum();
+    let games: usize = edits.iter().map(|e| e.summary.games_updated + e.summary.games_added).sum();
     connection
         .execute(
             "INSERT INTO design_applications (design_id, design_name, installation_id, settings_change_ids, added_json, state) VALUES (NULL, 'Game art and details', ?1, ?2, ?3, 'applied')",
@@ -1164,11 +791,7 @@ pub fn apply(
         )
         .map_err(|e| e.to_string())?;
     let favorites: usize = edits.iter().map(|e| e.summary.favorites).sum();
-    let starred = if favorites > 0 {
-        format!(", {favorites} favorite(s) marked")
-    } else {
-        String::new()
-    };
+    let starred = if favorites > 0 { format!(", {favorites} favorite(s) marked") } else { String::new() };
     Ok(format!("Art and details added for {games} game(s) in {} system(s) ({total} image(s) copied{starred}). Undo it under Applied designs.", edits.len()))
 }
 
@@ -1194,31 +817,17 @@ mod tests {
         let items: Vec<usize> = (0..1000).collect();
         let last = std::sync::Mutex::new((String::new(), 0, 0));
         let threads = std::sync::Mutex::new(std::collections::HashSet::new());
-        let out = parallel_map(
-            &items,
-            "checking",
-            |i| {
-                threads.lock().unwrap().insert(std::thread::current().id());
-                std::thread::sleep(std::time::Duration::from_micros(200));
-                i * 2
-            },
-            &|phase, done, total| {
-                let mut l = last.lock().unwrap();
-                if done >= l.1 {
-                    *l = (phase.to_string(), done, total);
-                }
-            },
-        );
-        assert_eq!(
-            out,
-            items.iter().map(|i| i * 2).collect::<Vec<_>>(),
-            "results keep the input order"
-        );
+        let out = parallel_map(&items, "checking", |i| {
+            threads.lock().unwrap().insert(std::thread::current().id());
+            std::thread::sleep(std::time::Duration::from_micros(200));
+            i * 2
+        }, &|phase, done, total| {
+            let mut l = last.lock().unwrap();
+            if done >= l.1 { *l = (phase.to_string(), done, total); }
+        });
+        assert_eq!(out, items.iter().map(|i| i * 2).collect::<Vec<_>>(), "results keep the input order");
         assert_eq!(*last.lock().unwrap(), ("checking".to_string(), 1000, 1000));
-        assert!(
-            threads.lock().unwrap().len() > 1,
-            "work is spread over several threads"
-        );
+        assert!(threads.lock().unwrap().len() > 1, "work is spread over several threads");
         assert!(parallel_map(&Vec::<usize>::new(), "checking", |i| *i, &quiet).is_empty());
     }
 
@@ -1244,11 +853,7 @@ mod tests {
         fs::create_dir_all(lib.join("media/wheel")).unwrap();
         for g in ["Kid", "Scraped", "New Game"] {
             fs::write(lib.join(format!("{g}.zip")), g.as_bytes()).unwrap();
-            fs::write(
-                lib.join(format!("media/images/{g}.png")),
-                format!("art of {g}"),
-            )
-            .unwrap();
+            fs::write(lib.join(format!("media/images/{g}.png")), format!("art of {g}")).unwrap();
         }
         fs::write(lib.join("media/wheel/Kid.png"), b"kid logo").unwrap();
         fs::write(
@@ -1266,20 +871,11 @@ mod tests {
         } else if adapter == "esde" {
             // A portable ES-DE like the owner's: ES-DE.exe, ES-DE\ (data), ROMs\.
             let program = dir.path().join("ES-DE");
-            for d in [
-                "ROMs/nes",
-                "ES-DE/gamelists",
-                "ES-DE/downloaded_media",
-                "ES-DE/settings",
-            ] {
+            for d in ["ROMs/nes", "ES-DE/gamelists", "ES-DE/downloaded_media", "ES-DE/settings"] {
                 fs::create_dir_all(program.join(d)).unwrap();
             }
             fs::write(program.join("ES-DE.exe"), b"").unwrap();
-            fs::write(
-                program.join("ROMs/systems.txt"),
-                b"nes: Nintendo Entertainment System\n",
-            )
-            .unwrap();
+            fs::write(program.join("ROMs/systems.txt"), b"nes: Nintendo Entertainment System\n").unwrap();
             program.join("ROMs")
         } else if adapter == "rocknix" {
             let roms = dir.path().join("games-roms");
@@ -1307,57 +903,23 @@ mod tests {
                 fs::create_dir_all(root.join(d)).unwrap();
             }
             fs::write(root.join("RetroBat.exe"), b"").unwrap();
-            fs::write(
-                root.join("emulationstation/.emulationstation/es_settings.cfg"),
-                "<config></config>",
-            )
-            .unwrap();
+            fs::write(root.join("emulationstation/.emulationstation/es_settings.cfg"), "<config></config>").unwrap();
             root
         };
         let mut catalog = Connection::open_in_memory().unwrap();
         db::migrate(&mut catalog, None).unwrap();
-        scanner::scan(&mut catalog, &dir.path().join("library"), &|_: &str| {
-            VolumeProbe::unknown()
-        })
-        .unwrap();
-        let install =
-            installations::add(&catalog, &root, adapter, &|_: &str| VolumeProbe::unknown())
-                .unwrap();
-        let roomy = |_: &Path| {
-            Some(crate::volumes::VolumeSpace {
-                free_bytes: 500 << 30,
-                total_bytes: 1 << 40,
-                filesystem: Some("NTFS".into()),
-                cluster_bytes: 4096,
-            })
-        };
+        scanner::scan(&mut catalog, &dir.path().join("library"), &|_: &str| VolumeProbe::unknown()).unwrap();
+        let install = installations::add(&catalog, &root, adapter, &|_: &str| VolumeProbe::unknown()).unwrap();
+        let roomy = |_: &Path| Some(crate::volumes::VolumeSpace { free_bytes: 500 << 30, total_bytes: 1 << 40, filesystem: Some("NTFS".into()), cluster_bytes: 4096 });
         let choices = crate::deployment::Choices::new();
-        let plan = crate::deployment::plan_with(
-            &catalog, &install, None, None, &choices, &connected, &roomy,
-        )
-        .unwrap();
+        let plan = crate::deployment::plan_with(&catalog, &install, None, None, &choices, &connected, &roomy).unwrap();
         struct Quiet;
         impl copier::DeployObserver for Quiet {
             fn workers(&self) -> usize {
                 1
             }
         }
-        copier::deploy(
-            &catalog,
-            None,
-            &copier::DeployRequest {
-                installation_id: &install,
-                systems: None,
-                fingerprint: &plan.fingerprint,
-                choices: &choices,
-                collection: None,
-                sync: false,
-            },
-            &connected,
-            &roomy,
-            &mut Quiet,
-        )
-        .unwrap();
+        copier::deploy(&catalog, None, &copier::DeployRequest { installation_id: &install, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None, sync: false }, &connected, &roomy, &mut Quiet).unwrap();
         // The catalog knows Kid's proper title and details.
         catalog.execute("INSERT INTO reference_catalogs (id, name, file_name, entries, genres_added) VALUES ('c', 'test', 't.csv', 1, 0)", []).unwrap();
         catalog
@@ -1366,12 +928,7 @@ mod tests {
         catalog.execute("INSERT INTO game_reference (game_id, entry_id, method) SELECT g.id, 1, 'name' FROM games g WHERE g.canonical_title = 'Kid'", []).unwrap();
         let root = crate::paths::normalize(&root).unwrap();
         fs::write(games_dir(&root).0.join("nes/gamelist.xml"), LIST).unwrap();
-        Setup {
-            _dir: dir,
-            root,
-            catalog,
-            install,
-        }
+        Setup { _dir: dir, root, catalog, install }
     }
 
     fn list(s: &Setup) -> String {
@@ -1386,50 +943,18 @@ mod tests {
             let id: String = s.catalog.query_row("SELECT game_file_id FROM deployment_items WHERE destination_path LIKE '%' || ?1 LIMIT 1", [name], |r| r.get(0)).unwrap();
             crate::collections::set_favorite(&s.catalog, &id, true).unwrap();
         }
-        fs::write(
-            games_dir(&s.root).0.join("nes/gamelist.xml"),
-            LIST.replace(
-                "<name>Scraped Game</name>",
-                "<name>Scraped Game</name>
-		<favorite>false</favorite>",
-            ),
-        )
-        .unwrap();
+        fs::write(games_dir(&s.root).0.join("nes/gamelist.xml"), LIST.replace("<name>Scraped Game</name>", "<name>Scraped Game</name>
+		<favorite>false</favorite>")).unwrap();
         let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
-        assert_eq!(
-            p.systems[0].favorites, 1,
-            "only Kid: Scraped's own choice is kept"
-        );
-        let message = apply(
-            &s.catalog,
-            &s.install,
-            None,
-            Some(&p.list_shas),
-            false,
-            &connected,
-            &closed,
-            &quiet,
-        )
-        .unwrap();
+        assert_eq!(p.systems[0].favorites, 1, "only Kid: Scraped's own choice is kept");
+        let message = apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &closed, &quiet).unwrap();
         assert!(message.contains("1 favorite(s) marked"), "{message}");
         let after = list(&s);
         let kid = &after[after.find("<path>./Kid.zip</path>").unwrap()..];
-        assert!(
-            kid[..kid.find("</game>").unwrap()].contains("<favorite>true</favorite>"),
-            "{after}"
-        );
-        assert!(
-            after.contains("<favorite>false</favorite>")
-                && after.matches("<favorite>true</favorite>").count() == 1
-        );
+        assert!(kid[..kid.find("</game>").unwrap()].contains("<favorite>true</favorite>"), "{after}");
+        assert!(after.contains("<favorite>false</favorite>") && after.matches("<favorite>true</favorite>").count() == 1);
         // Nothing left to do the second time.
-        assert!(
-            preview(&s.catalog, &s.install, None, false, &connected, &quiet)
-                .unwrap()
-                .systems
-                .iter()
-                .all(|x| x.favorites == 0)
-        );
+        assert!(preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap().systems.iter().all(|x| x.favorites == 0));
     }
 
     #[test]
@@ -1440,41 +965,13 @@ mod tests {
         s.catalog.execute("INSERT INTO game_details (game_file_id, description, players, players_max, rating) VALUES (?1, 'A <winged> hero.', '1', 1, 0.75)", [&kid]).unwrap();
         s.catalog.execute("INSERT INTO game_details (game_file_id, description, players, players_max, rating) VALUES (?1, 'Ours.', '2', 2, 0.5)", [&other]).unwrap();
         // The system's list already has Scraped's description: kept.
-        fs::write(
-            games_dir(&s.root).0.join("nes/gamelist.xml"),
-            LIST.replace(
-                "<name>Scraped Game</name>",
-                "<name>Scraped Game</name>\r\n\t\t<desc>Theirs.</desc>",
-            ),
-        )
-        .unwrap();
+        fs::write(games_dir(&s.root).0.join("nes/gamelist.xml"), LIST.replace("<name>Scraped Game</name>", "<name>Scraped Game</name>\r\n\t\t<desc>Theirs.</desc>")).unwrap();
         let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
-        apply(
-            &s.catalog,
-            &s.install,
-            None,
-            Some(&p.list_shas),
-            false,
-            &connected,
-            &closed,
-            &quiet,
-        )
-        .unwrap();
+        apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &closed, &quiet).unwrap();
         let after = list(&s);
-        assert!(
-            after.contains("<desc>A &lt;winged&gt; hero.</desc>")
-                && after.contains("<players>1</players>")
-                && after.contains("<rating>0.75</rating>"),
-            "{after}"
-        );
-        assert!(
-            after.contains("<desc>Theirs.</desc>") && !after.contains("Ours."),
-            "the system's own description is kept"
-        );
-        assert!(
-            after.contains("<players>2</players>"),
-            "but missing fields are still added"
-        );
+        assert!(after.contains("<desc>A &lt;winged&gt; hero.</desc>") && after.contains("<players>1</players>") && after.contains("<rating>0.75</rating>"), "{after}");
+        assert!(after.contains("<desc>Theirs.</desc>") && !after.contains("Ours."), "the system's own description is kept");
+        assert!(after.contains("<players>2</players>"), "but missing fields are still added");
     }
 
     #[test]
@@ -1483,88 +980,30 @@ mod tests {
         let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
         assert_eq!(p.systems.len(), 1);
         let nes = &p.systems[0];
-        assert_eq!(
-            (nes.games_updated, nes.games_added, nes.kept),
-            (1, 1, 1),
-            "Kid updated, New Game added, Scraped kept"
-        );
+        assert_eq!((nes.games_updated, nes.games_added, nes.kept), (1, 1, 1), "Kid updated, New Game added, Scraped kept");
         assert_eq!(p.images, 3, "Kid's image and logo, New Game's image");
         assert_eq!(list(&s), LIST, "previewing changes nothing");
 
-        assert!(apply(
-            &s.catalog,
-            &s.install,
-            None,
-            Some(&p.list_shas),
-            false,
-            &connected,
-            &open,
-            &quiet
-        )
-        .unwrap_err()
-        .contains("running"));
-        apply(
-            &s.catalog,
-            &s.install,
-            None,
-            Some(&p.list_shas),
-            false,
-            &connected,
-            &closed,
-            &quiet,
-        )
-        .unwrap();
+        assert!(apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &open, &quiet).unwrap_err().contains("running"));
+        apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &closed, &quiet).unwrap();
         let after = list(&s);
-        assert!(
-            after.contains("\t\t<name>Kid Icarus</name>\r\n"),
-            "a file-name title becomes the catalog title"
-        );
+        assert!(after.contains("\t\t<name>Kid Icarus</name>\r\n"), "a file-name title becomes the catalog title");
         assert!(after.contains("\t\t<image>./images/Kid-image.png</image>\r\n\t\t<marquee>./images/Kid-marquee.png</marquee>\r\n"));
-        assert!(
-            after.contains("<genre>Platform</genre>")
-                && after.contains("<developer>Nintendo R&amp;D1</developer>")
-                && after.contains("<releasedate>19860101T000000</releasedate>")
-        );
-        assert!(
-            after.contains("<image>./images/theirs.png</image>")
-                && !after.contains("Scraped-image"),
-            "RetroBat's own art is kept"
-        );
-        assert!(
-            after.contains("<path>./New Game.zip</path>")
-                && after.contains("./images/New Game-image.png")
-        );
-        assert!(
-            after.contains("\t</game>\r\n\t<game>\r\n\t\t<path>./New Game.zip</path>"),
-            "new entries follow without blank lines"
-        );
+        assert!(after.contains("<genre>Platform</genre>") && after.contains("<developer>Nintendo R&amp;D1</developer>") && after.contains("<releasedate>19860101T000000</releasedate>"));
+        assert!(after.contains("<image>./images/theirs.png</image>") && !after.contains("Scraped-image"), "RetroBat's own art is kept");
+        assert!(after.contains("<path>./New Game.zip</path>") && after.contains("./images/New Game-image.png"));
+        assert!(after.contains("\t</game>\r\n\t<game>\r\n\t\t<path>./New Game.zip</path>"), "new entries follow without blank lines");
         assert!(after.ends_with("\t</game>\r\n</gameList>\r\n"));
-        assert!(
-            after.contains("<path>./Other.zip</path>\r\n\t\t<name>Other</name>\r\n\t</game>"),
-            "unrelated entries untouched"
-        );
-        assert_eq!(
-            fs::read(s.root.join("roms/nes/images/Kid-image.png")).unwrap(),
-            b"art of Kid"
-        );
-        assert_eq!(
-            fs::read(s.root.join("roms/nes/images/Kid-marquee.png")).unwrap(),
-            b"kid logo"
-        );
+        assert!(after.contains("<path>./Other.zip</path>\r\n\t\t<name>Other</name>\r\n\t</game>"), "unrelated entries untouched");
+        assert_eq!(fs::read(s.root.join("roms/nes/images/Kid-image.png")).unwrap(), b"art of Kid");
+        assert_eq!(fs::read(s.root.join("roms/nes/images/Kid-marquee.png")).unwrap(), b"kid logo");
 
         // Nothing left to add; undo restores the list exactly (images stay).
-        assert!(
-            preview(&s.catalog, &s.install, None, false, &connected, &quiet)
-                .unwrap()
-                .nothing
-        );
+        assert!(preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap().nothing);
         let app = crate::designs::applications(&s.catalog, &s.install).unwrap()[0].id;
         crate::designs::undo(&s.catalog, app, &connected, &closed).unwrap();
         assert_eq!(list(&s), LIST);
-        assert!(
-            s.root.join("roms/nes/images/Kid-image.png").exists(),
-            "copied images are kept"
-        );
+        assert!(s.root.join("roms/nes/images/Kid-image.png").exists(), "copied images are kept");
     }
 
     #[test]
@@ -1572,38 +1011,12 @@ mod tests {
         // Batocera uses the same gamelist.xml and ./images/ convention (2026-11-07).
         let s = setup_for("batocera");
         let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
-        assert_eq!(
-            (
-                p.systems[0].games_updated,
-                p.systems[0].games_added,
-                p.images
-            ),
-            (1, 1, 3)
-        );
-        apply(
-            &s.catalog,
-            &s.install,
-            None,
-            Some(&p.list_shas),
-            false,
-            &connected,
-            &closed,
-            &quiet,
-        )
-        .unwrap();
+        assert_eq!((p.systems[0].games_updated, p.systems[0].games_added, p.images), (1, 1, 3));
+        apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &closed, &quiet).unwrap();
         let after = list(&s);
-        assert!(
-            after.contains("<name>Kid Icarus</name>")
-                && after.contains("<image>./images/Kid-image.png</image>")
-        );
-        assert!(
-            after.contains("<image>./images/theirs.png</image>"),
-            "art Batocera already shows is kept"
-        );
-        assert_eq!(
-            fs::read(s.root.join("roms/nes/images/Kid-image.png")).unwrap(),
-            b"art of Kid"
-        );
+        assert!(after.contains("<name>Kid Icarus</name>") && after.contains("<image>./images/Kid-image.png</image>"));
+        assert!(after.contains("<image>./images/theirs.png</image>"), "art Batocera already shows is kept");
+        assert_eq!(fs::read(s.root.join("roms/nes/images/Kid-image.png")).unwrap(), b"art of Kid");
         let app = crate::designs::applications(&s.catalog, &s.install).unwrap()[0].id;
         crate::designs::undo(&s.catalog, app, &connected, &closed).unwrap();
         assert_eq!(list(&s), LIST, "undo restores Batocera's list exactly");
@@ -1617,66 +1030,20 @@ mod tests {
         // missing one is only created on request (docs/18 §27).
         let s = setup_for("retropie");
         let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
-        assert_eq!(
-            (
-                p.systems[0].games_updated,
-                p.systems[0].games_added,
-                p.images
-            ),
-            (1, 1, 3),
-            "an existing list is filled in"
-        );
-        apply(
-            &s.catalog,
-            &s.install,
-            None,
-            Some(&p.list_shas),
-            false,
-            &connected,
-            &closed,
-            &quiet,
-        )
-        .unwrap();
-        assert!(
-            list(&s).contains("<name>Kid Icarus</name>")
-                && list(&s).contains("<image>./images/Kid-image.png</image>")
-        );
-        assert!(
-            s.root.join("nes/images/Kid-image.png").exists(),
-            "images next to the list, no roms level"
-        );
+        assert_eq!((p.systems[0].games_updated, p.systems[0].games_added, p.images), (1, 1, 3), "an existing list is filled in");
+        apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &closed, &quiet).unwrap();
+        assert!(list(&s).contains("<name>Kid Icarus</name>") && list(&s).contains("<image>./images/Kid-image.png</image>"));
+        assert!(s.root.join("nes/images/Kid-image.png").exists(), "images next to the list, no roms level");
         // Without a list: nothing is created unless asked.
         let s = setup_for("retropie");
         fs::remove_file(s.root.join("nes/gamelist.xml")).unwrap();
         let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
-        assert!(
-            p.nothing && p.lists_not_created == ["nes"],
-            "{:?}",
-            p.lists_not_created
-        );
-        assert!(
-            apply(&s.catalog, &s.install, None, None, false, &connected, &closed, &quiet).is_err()
-        );
-        assert!(
-            !s.root.join("nes/gamelist.xml").exists(),
-            "never created without asking"
-        );
+        assert!(p.nothing && p.lists_not_created == ["nes"], "{:?}", p.lists_not_created);
+        assert!(apply(&s.catalog, &s.install, None, None, false, &connected, &closed, &quiet).is_err());
+        assert!(!s.root.join("nes/gamelist.xml").exists(), "never created without asking");
         let asked = preview(&s.catalog, &s.install, None, true, &connected, &quiet).unwrap();
-        assert_eq!(
-            (asked.systems[0].games_added, asked.lists_not_created.len()),
-            (3, 0)
-        );
-        apply(
-            &s.catalog,
-            &s.install,
-            None,
-            Some(&asked.list_shas),
-            true,
-            &connected,
-            &closed,
-            &quiet,
-        )
-        .unwrap();
+        assert_eq!((asked.systems[0].games_added, asked.lists_not_created.len()), (3, 0));
+        apply(&s.catalog, &s.install, None, Some(&asked.list_shas), true, &connected, &closed, &quiet).unwrap();
         assert!(list(&s).contains("<path>./Kid.zip</path>"));
     }
 
@@ -1687,76 +1054,21 @@ mod tests {
         assert_eq!(esde_data_dir(&s.root).as_deref(), Some(data.as_path()));
         // ES-DE already has a cover for Scraped (as .jpg): it's kept.
         fs::create_dir_all(data.join("downloaded_media/nes/covers")).unwrap();
-        fs::write(
-            data.join("downloaded_media/nes/covers/Scraped.jpg"),
-            b"theirs",
-        )
-        .unwrap();
+        fs::write(data.join("downloaded_media/nes/covers/Scraped.jpg"), b"theirs").unwrap();
         let rom_list = fs::read_to_string(s.root.join("nes/gamelist.xml")).unwrap();
         let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
         let nes = &p.systems[0];
-        assert_eq!(
-            (nes.games_added, nes.games_updated, nes.images, nes.kept),
-            (1, 1, 3, 1),
-            "Kid listed with details; New Game's cover only; Scraped's cover kept"
-        );
-        assert!(
-            apply(
-                &s.catalog,
-                &s.install,
-                None,
-                Some(&p.list_shas),
-                false,
-                &connected,
-                &open,
-                &quiet
-            )
-            .unwrap_err()
-            .contains("running"),
-            "not while ES-DE runs"
-        );
-        apply(
-            &s.catalog,
-            &s.install,
-            None,
-            Some(&p.list_shas),
-            false,
-            &connected,
-            &closed,
-            &quiet,
-        )
-        .unwrap();
+        assert_eq!((nes.games_added, nes.games_updated, nes.images, nes.kept), (1, 1, 3, 1), "Kid listed with details; New Game's cover only; Scraped's cover kept");
+        assert!(apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &open, &quiet).unwrap_err().contains("running"), "not while ES-DE runs");
+        apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &closed, &quiet).unwrap();
         let list = fs::read_to_string(data.join("gamelists/nes/gamelist.xml")).unwrap();
-        assert!(
-            list.contains("<path>./Kid.zip</path>")
-                && list.contains("<name>Kid Icarus</name>")
-                && list.contains("<genre>Platform</genre>")
-        );
-        assert!(
-            !list.contains("<image>"),
-            "ES-DE finds pictures by name, not by tags"
-        );
-        assert_eq!(
-            fs::read(data.join("downloaded_media/nes/covers/Kid.png")).unwrap(),
-            b"art of Kid"
-        );
-        assert_eq!(
-            fs::read(data.join("downloaded_media/nes/marquees/Kid.png")).unwrap(),
-            b"kid logo"
-        );
-        assert_eq!(
-            fs::read(data.join("downloaded_media/nes/covers/New Game.png")).unwrap(),
-            b"art of New Game"
-        );
-        assert_eq!(
-            fs::read(data.join("downloaded_media/nes/covers/Scraped.jpg")).unwrap(),
-            b"theirs"
-        );
-        assert_eq!(
-            fs::read_to_string(s.root.join("nes/gamelist.xml")).unwrap(),
-            rom_list,
-            "nothing written in the ROMs folder"
-        );
+        assert!(list.contains("<path>./Kid.zip</path>") && list.contains("<name>Kid Icarus</name>") && list.contains("<genre>Platform</genre>"));
+        assert!(!list.contains("<image>"), "ES-DE finds pictures by name, not by tags");
+        assert_eq!(fs::read(data.join("downloaded_media/nes/covers/Kid.png")).unwrap(), b"art of Kid");
+        assert_eq!(fs::read(data.join("downloaded_media/nes/marquees/Kid.png")).unwrap(), b"kid logo");
+        assert_eq!(fs::read(data.join("downloaded_media/nes/covers/New Game.png")).unwrap(), b"art of New Game");
+        assert_eq!(fs::read(data.join("downloaded_media/nes/covers/Scraped.jpg")).unwrap(), b"theirs");
+        assert_eq!(fs::read_to_string(s.root.join("nes/gamelist.xml")).unwrap(), rom_list, "nothing written in the ROMs folder");
         // Undo puts ES-DE's list back (it didn't exist); pictures stay.
         let app = crate::designs::applications(&s.catalog, &s.install).unwrap()[0].id;
         crate::designs::undo(&s.catalog, app, &connected, &closed).unwrap();
@@ -1768,29 +1080,9 @@ mod tests {
     fn recalbox_game_lists_get_the_same_art_and_details() {
         let s = setup_for("recalbox");
         let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
-        assert_eq!(
-            (
-                p.systems[0].games_updated,
-                p.systems[0].games_added,
-                p.images
-            ),
-            (1, 1, 3)
-        );
-        apply(
-            &s.catalog,
-            &s.install,
-            None,
-            Some(&p.list_shas),
-            false,
-            &connected,
-            &closed,
-            &quiet,
-        )
-        .unwrap();
-        assert!(
-            list(&s).contains("<name>Kid Icarus</name>")
-                && list(&s).contains("<image>./images/Kid-image.png</image>")
-        );
+        assert_eq!((p.systems[0].games_updated, p.systems[0].games_added, p.images), (1, 1, 3));
+        apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &closed, &quiet).unwrap();
+        assert!(list(&s).contains("<name>Kid Icarus</name>") && list(&s).contains("<image>./images/Kid-image.png</image>"));
         assert!(s.root.join("roms/nes/images/Kid-image.png").exists());
         let app = crate::designs::applications(&s.catalog, &s.install).unwrap()[0].id;
         crate::designs::undo(&s.catalog, app, &connected, &closed).unwrap();
@@ -1801,33 +1093,10 @@ mod tests {
     fn rocknix_game_lists_get_the_same_art_and_details() {
         let s = setup_for("rocknix");
         let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
-        assert_eq!(
-            (
-                p.systems[0].games_updated,
-                p.systems[0].games_added,
-                p.images
-            ),
-            (1, 1, 3)
-        );
-        apply(
-            &s.catalog,
-            &s.install,
-            None,
-            Some(&p.list_shas),
-            false,
-            &connected,
-            &closed,
-            &quiet,
-        )
-        .unwrap();
-        assert!(
-            list(&s).contains("<name>Kid Icarus</name>")
-                && list(&s).contains("<image>./images/Kid-image.png</image>")
-        );
-        assert!(
-            s.root.join("nes/images/Kid-image.png").exists(),
-            "images in the system folder at the share root"
-        );
+        assert_eq!((p.systems[0].games_updated, p.systems[0].games_added, p.images), (1, 1, 3));
+        apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &closed, &quiet).unwrap();
+        assert!(list(&s).contains("<name>Kid Icarus</name>") && list(&s).contains("<image>./images/Kid-image.png</image>"));
+        assert!(s.root.join("nes/images/Kid-image.png").exists(), "images in the system folder at the share root");
     }
 
     #[test]
@@ -1839,54 +1108,16 @@ mod tests {
         assert_eq!(p.systems[0].games_added, 3);
         let mut stale = p.list_shas.clone();
         stale.insert("nes".into(), "different".into());
-        assert!(apply(
-            &s.catalog,
-            &s.install,
-            None,
-            Some(&stale),
-            false,
-            &connected,
-            &closed,
-            &quiet
-        )
-        .unwrap_err()
-        .contains("changed since"));
-        apply(
-            &s.catalog,
-            &s.install,
-            None,
-            Some(&p.list_shas),
-            false,
-            &connected,
-            &closed,
-            &quiet,
-        )
-        .unwrap();
+        assert!(apply(&s.catalog, &s.install, None, Some(&stale), false, &connected, &closed, &quiet).unwrap_err().contains("changed since"));
+        apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &closed, &quiet).unwrap();
         let created = list(&s);
         assert!(created.starts_with("<?xml") && created.matches("<game>").count() == 3);
         // An image name taken by someone else's different file is left alone.
         let s2 = setup();
         fs::create_dir_all(s2.root.join("roms/nes/images")).unwrap();
-        fs::write(
-            s2.root.join("roms/nes/images/Kid-image.png"),
-            b"someone else's",
-        )
-        .unwrap();
-        apply(
-            &s2.catalog,
-            &s2.install,
-            None,
-            None,
-            false,
-            &connected,
-            &closed,
-            &quiet,
-        )
-        .unwrap();
-        assert_eq!(
-            fs::read(s2.root.join("roms/nes/images/Kid-image.png")).unwrap(),
-            b"someone else's"
-        );
+        fs::write(s2.root.join("roms/nes/images/Kid-image.png"), b"someone else's").unwrap();
+        apply(&s2.catalog, &s2.install, None, None, false, &connected, &closed, &quiet).unwrap();
+        assert_eq!(fs::read(s2.root.join("roms/nes/images/Kid-image.png")).unwrap(), b"someone else's");
         assert!(!list(&s2).contains("Kid-image.png"));
     }
 
@@ -1898,9 +1129,6 @@ mod tests {
         assert!(has(&e[1], "image") && !has(&e[0], "image"));
         assert_eq!(e[0].indent, "\t\t");
         assert!(parse("<gameList><game><path>x</gameList>").is_err());
-        assert_eq!(
-            image_name("Saga/Saga.m3u", "image", Path::new("a.JPG")),
-            "Saga-image.jpg"
-        );
+        assert_eq!(image_name("Saga/Saga.m3u", "image", Path::new("a.JPG")), "Saga-image.jpg");
     }
 }

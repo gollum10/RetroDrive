@@ -1,4 +1,2 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-fn main() {
-    retrodrive_studio_lib::run();
-}
+fn main() { retrodrive_studio_lib::run(); }

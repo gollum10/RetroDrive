@@ -41,50 +41,28 @@ pub struct InstallationRow {
 }
 
 pub fn inspect(folder: &Path) -> Result<Inspection, String> {
-    let root =
-        paths::normalize(folder).map_err(|e| format!("Cannot open {}: {e}", folder.display()))?;
+    let root = paths::normalize(folder).map_err(|e| format!("Cannot open {}: {e}", folder.display()))?;
     if !root.is_dir() {
         return Err("The selected location is not a folder".into());
     }
     let detections = adapters::detect_all(&root);
-    let best = detections
-        .iter()
-        .find(|d| d.confidence == Confidence::Detected)
-        .cloned();
+    let best = detections.iter().find(|d| d.confidence == Confidence::Detected).cloned();
     let checks = match &best {
-        Some(d) => adapters::find(d.adapter_id)
-            .map(|a| a.validate_layout(&root))
-            .unwrap_or_default(),
+        Some(d) => adapters::find(d.adapter_id).map(|a| a.validate_layout(&root)).unwrap_or_default(),
         None => Vec::new(),
     };
-    Ok(Inspection {
-        path: root.display().to_string(),
-        detections,
-        best,
-        checks,
-    })
+    Ok(Inspection { path: root.display().to_string(), detections, best, checks })
 }
 
 /// Save a recognized installation. Refuses folders the adapter doesn't detect.
-pub fn add(
-    connection: &Connection,
-    folder: &Path,
-    adapter_id: &str,
-    probe: ProbeFn,
-) -> Result<String, String> {
-    let adapter = adapters::find(adapter_id)
-        .ok_or_else(|| format!("Unknown platform adapter: {adapter_id}"))?;
-    let root =
-        paths::normalize(folder).map_err(|e| format!("Cannot open {}: {e}", folder.display()))?;
+pub fn add(connection: &Connection, folder: &Path, adapter_id: &str, probe: ProbeFn) -> Result<String, String> {
+    let adapter = adapters::find(adapter_id).ok_or_else(|| format!("Unknown platform adapter: {adapter_id}"))?;
+    let root = paths::normalize(folder).map_err(|e| format!("Cannot open {}: {e}", folder.display()))?;
     let detection = adapter.detect(&root);
     if detection.confidence != Confidence::Detected {
-        return Err(format!(
-            "{} wasn't recognized in this folder, so it was not added.",
-            adapter.display_name()
-        ));
+        return Err(format!("{} wasn't recognized in this folder, so it was not added.", adapter.display_name()));
     }
-    let (volume_root, relative) = paths::split_volume(&root)
-        .ok_or_else(|| format!("Unsupported folder path: {}", root.display()))?;
+    let (volume_root, relative) = paths::split_volume(&root).ok_or_else(|| format!("Unsupported folder path: {}", root.display()))?;
     let location = db::resolve_storage_location(connection, &volume_root, &probe(&volume_root))?;
     if let Some(existing) = connection
         .query_row(
@@ -113,10 +91,7 @@ pub fn add(
 
 /// Forget a saved installation (catalog record only; no files are touched).
 pub fn remove(connection: &Connection, id: &str) -> Result<bool, String> {
-    connection
-        .execute("DELETE FROM installations WHERE id = ?1", [id])
-        .map(|n| n > 0)
-        .map_err(|e| e.to_string())
+    connection.execute("DELETE FROM installations WHERE id = ?1", [id]).map(|n| n > 0).map_err(|e| e.to_string())
 }
 
 pub(crate) struct Located {
@@ -129,11 +104,7 @@ pub(crate) struct Located {
     pub options: PlacementOptions,
 }
 
-pub(crate) fn located(
-    connection: &Connection,
-    presence: PresenceFn,
-    only: Option<&str>,
-) -> Result<Vec<Located>, String> {
+pub(crate) fn located(connection: &Connection, presence: PresenceFn, only: Option<&str>) -> Result<Vec<Located>, String> {
     let mut statement = connection
         .prepare(
             "SELECT i.id, i.adapter_id, s.root_path, s.stable_id, i.relative_path, i.version_string, i.added_at, i.arcade_system
@@ -156,28 +127,12 @@ pub(crate) fn located(
         })
         .map_err(|e| e.to_string())?;
     rows.map(|row| {
-        let (id, adapter_id, root, stable, relative, version, added_at, arcade) =
-            row.map_err(|e| e.to_string())?;
+        let (id, adapter_id, root, stable, relative, version, added_at, arcade) = row.map_err(|e| e.to_string())?;
         let volume = presence(&root, stable.as_deref());
         let path = paths::join(&root, &relative);
-        let presence = if volume == Presence::Connected && !path.is_dir() {
-            Presence::NotConnected
-        } else {
-            volume
-        };
-        let options = PlacementOptions {
-            arcade: arcade.as_deref().and_then(ArcadeSystem::parse),
-            has_roms_folder: path.join("roms").is_dir(),
-        };
-        Ok(Located {
-            id,
-            adapter_id,
-            root: path,
-            version,
-            presence,
-            added_at,
-            options,
-        })
+        let presence = if volume == Presence::Connected && !path.is_dir() { Presence::NotConnected } else { volume };
+        let options = PlacementOptions { arcade: arcade.as_deref().and_then(ArcadeSystem::parse), has_roms_folder: path.join("roms").is_dir() };
+        Ok(Located { id, adapter_id, root: path, version, presence, added_at, options })
     })
     .collect()
 }
@@ -188,15 +143,11 @@ pub fn list(connection: &Connection, presence: PresenceFn) -> Result<Vec<Install
         .map(|i| {
             let adapter = adapters::find(&i.adapter_id);
             let (checks, live_version) = match (&adapter, i.presence) {
-                (Some(a), Presence::Connected) => {
-                    (a.validate_layout(&i.root), a.detect(&i.root).version)
-                }
+                (Some(a), Presence::Connected) => (a.validate_layout(&i.root), a.detect(&i.root).version),
                 _ => (Vec::new(), None),
             };
             InstallationRow {
-                adapter_name: adapter
-                    .map(|a| a.display_name().to_string())
-                    .unwrap_or_else(|| i.adapter_id.clone()),
+                adapter_name: adapter.map(|a| a.display_name().to_string()).unwrap_or_else(|| i.adapter_id.clone()),
                 id: i.id,
                 adapter_id: i.adapter_id,
                 path: i.root.display().to_string(),
@@ -234,25 +185,14 @@ impl SyncScope {
 
 /// The recorded Sync scope, if one was saved.
 pub fn saved_sync_scope(connection: &Connection, id: &str) -> Result<Option<SyncScope>, String> {
-    let json: Option<String> = connection
-        .query_row(
-            "SELECT sync_scope_json FROM installations WHERE id = ?1",
-            [id],
-            |r| r.get(0),
-        )
-        .map_err(|e| e.to_string())?;
+    let json: Option<String> = connection.query_row("SELECT sync_scope_json FROM installations WHERE id = ?1", [id], |r| r.get(0)).map_err(|e| e.to_string())?;
     Ok(json.and_then(|j| serde_json::from_str(&j).ok()))
 }
 
 /// Saves the Sync scope (catalog only).
 pub fn set_sync_scope(connection: &Connection, id: &str, scope: &SyncScope) -> Result<(), String> {
     let json = serde_json::to_string(&scope.clone().tidy()).map_err(|e| e.to_string())?;
-    let changed = connection
-        .execute(
-            "UPDATE installations SET sync_scope_json = ?2 WHERE id = ?1",
-            params![id, json],
-        )
-        .map_err(|e| e.to_string())?;
+    let changed = connection.execute("UPDATE installations SET sync_scope_json = ?2 WHERE id = ?1", params![id, json]).map_err(|e| e.to_string())?;
     if changed == 0 {
         return Err("Installation not found".into());
     }
@@ -260,42 +200,19 @@ pub fn set_sync_scope(connection: &Connection, id: &str, scope: &SyncScope) -> R
 }
 
 /// The user's saved decisions for this installation (ADR-044). Unreadable data counts as none.
-pub fn saved_choices(
-    connection: &Connection,
-    id: &str,
-) -> Result<crate::deployment::Choices, String> {
-    let json: Option<String> = connection
-        .query_row(
-            "SELECT choices_json FROM installations WHERE id = ?1",
-            [id],
-            |r| r.get(0),
-        )
-        .map_err(|e| e.to_string())?;
-    Ok(json
-        .and_then(|j| serde_json::from_str(&j).ok())
-        .unwrap_or_default())
+pub fn saved_choices(connection: &Connection, id: &str) -> Result<crate::deployment::Choices, String> {
+    let json: Option<String> = connection.query_row("SELECT choices_json FROM installations WHERE id = ?1", [id], |r| r.get(0)).map_err(|e| e.to_string())?;
+    Ok(json.and_then(|j| serde_json::from_str(&j).ok()).unwrap_or_default())
 }
 
 /// Saves the user's decisions. Only "copy this version" and "copy both" are kept:
 /// "keep" is the default anyway, and "replace" is never remembered, so a later Sync
 /// can't replace a file on the drive without the user choosing it again that time.
-pub fn set_saved_choices(
-    connection: &Connection,
-    id: &str,
-    choices: &crate::deployment::Choices,
-) -> Result<(), String> {
+pub fn set_saved_choices(connection: &Connection, id: &str, choices: &crate::deployment::Choices) -> Result<(), String> {
     use crate::deployment::Choice;
-    let kept: std::collections::BTreeMap<&String, &Choice> = choices
-        .iter()
-        .filter(|(_, c)| matches!(c, Choice::Use { .. } | Choice::KeepBoth))
-        .collect();
+    let kept: std::collections::BTreeMap<&String, &Choice> = choices.iter().filter(|(_, c)| matches!(c, Choice::Use { .. } | Choice::KeepBoth)).collect();
     let json = (!kept.is_empty()).then(|| serde_json::to_string(&kept).unwrap_or_default());
-    let changed = connection
-        .execute(
-            "UPDATE installations SET choices_json = ?2 WHERE id = ?1",
-            params![id, json],
-        )
-        .map_err(|e| e.to_string())?;
+    let changed = connection.execute("UPDATE installations SET choices_json = ?2 WHERE id = ?1", params![id, json]).map_err(|e| e.to_string())?;
     if changed == 0 {
         return Err("Installation not found".into());
     }
@@ -304,65 +221,34 @@ pub fn set_saved_choices(
 
 /// Games the user removed from the drive and chose to keep off it, by destination key
 /// (the destination path, lower-case, backslashes).
-pub fn kept_off(
-    connection: &Connection,
-    id: &str,
-) -> Result<std::collections::HashSet<String>, String> {
-    let mut statement = connection
-        .prepare("SELECT destination_key FROM sync_kept_off WHERE installation_id = ?1")
-        .map_err(|e| e.to_string())?;
-    let keys = statement
-        .query_map([id], |r| r.get::<_, String>(0))
-        .map_err(|e| e.to_string())?
-        .collect::<Result<_, _>>()
-        .map_err(|e| e.to_string())?;
+pub fn kept_off(connection: &Connection, id: &str) -> Result<std::collections::HashSet<String>, String> {
+    let mut statement = connection.prepare("SELECT destination_key FROM sync_kept_off WHERE installation_id = ?1").map_err(|e| e.to_string())?;
+    let keys = statement.query_map([id], |r| r.get::<_, String>(0)).map_err(|e| e.to_string())?.collect::<Result<_, _>>().map_err(|e| e.to_string())?;
     Ok(keys)
 }
 
 /// Remember (or forget) that a game stays off the drive. Nothing on the drive changes.
-pub fn set_kept_off(
-    connection: &Connection,
-    id: &str,
-    key: &str,
-    title: Option<&str>,
-    kept: bool,
-) -> Result<(), String> {
+pub fn set_kept_off(connection: &Connection, id: &str, key: &str, title: Option<&str>, kept: bool) -> Result<(), String> {
     let key = key.replace('/', "\\").to_lowercase();
     if kept {
         connection
             .execute("INSERT INTO sync_kept_off (installation_id, destination_key, title) VALUES (?1, ?2, ?3) ON CONFLICT DO UPDATE SET title = excluded.title", params![id, key, title])
             .map_err(|e| e.to_string())?;
     } else {
-        connection
-            .execute(
-                "DELETE FROM sync_kept_off WHERE installation_id = ?1 AND destination_key = ?2",
-                params![id, key],
-            )
-            .map_err(|e| e.to_string())?;
+        connection.execute("DELETE FROM sync_kept_off WHERE installation_id = ?1 AND destination_key = ?2", params![id, key]).map_err(|e| e.to_string())?;
     }
     Ok(())
 }
 
 /// Choose which arcade emulator family's romset this installation uses
 /// (`"mame"`, `"fbneo"`, or `None` to stop placing arcade games). Catalog only.
-pub fn set_arcade_system(
-    connection: &Connection,
-    id: &str,
-    system: Option<&str>,
-) -> Result<(), String> {
+pub fn set_arcade_system(connection: &Connection, id: &str, system: Option<&str>) -> Result<(), String> {
     let value = match system {
         None => None,
-        Some(s) => Some(
-            ArcadeSystem::parse(s)
-                .ok_or_else(|| format!("Unknown arcade emulator: {s}"))?
-                .as_str(),
-        ),
+        Some(s) => Some(ArcadeSystem::parse(s).ok_or_else(|| format!("Unknown arcade emulator: {s}"))?.as_str()),
     };
     let changed = connection
-        .execute(
-            "UPDATE installations SET arcade_system = ?2 WHERE id = ?1",
-            params![id, value],
-        )
+        .execute("UPDATE installations SET arcade_system = ?2 WHERE id = ?1", params![id, value])
         .map_err(|e| e.to_string())?;
     if changed == 0 {
         return Err("Installation not found".into());
@@ -404,14 +290,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let root = retrobat(dir.path());
         let inspection = inspect(&root).unwrap();
-        assert_eq!(
-            inspection.best.as_ref().map(|d| d.adapter_id),
-            Some("retrobat")
-        );
-        assert!(inspection
-            .checks
-            .iter()
-            .any(|c| c.id == "roms" && c.status == CheckStatus::Ok));
+        assert_eq!(inspection.best.as_ref().map(|d| d.adapter_id), Some("retrobat"));
+        assert!(inspection.checks.iter().any(|c| c.id == "roms" && c.status == CheckStatus::Ok));
         let plain = inspect(dir.path()).unwrap();
         assert!(plain.best.is_none());
         assert!(plain.checks.is_empty());
@@ -423,11 +303,7 @@ mod tests {
         let root = retrobat(dir.path());
         let c = catalog();
         let id = add(&c, &root, "retrobat", &unknown).unwrap();
-        assert_eq!(
-            add(&c, &root, "retrobat", &unknown).unwrap(),
-            id,
-            "adding twice keeps one record"
-        );
+        assert_eq!(add(&c, &root, "retrobat", &unknown).unwrap(), id, "adding twice keeps one record");
         let rows = list(&c, &connected).unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].adapter_name, "RetroBat");
@@ -436,27 +312,18 @@ mod tests {
         assert!(Path::new(&rows[0].path).ends_with("RetroBat"));
 
         let offline = list(&c, &|_, _| Presence::NotConnected).unwrap();
-        assert!(
-            offline[0].checks.is_empty(),
-            "no live checks for an unplugged drive"
-        );
+        assert!(offline[0].checks.is_empty(), "no live checks for an unplugged drive");
 
         assert_eq!(rows[0].arcade_system, None, "arcade isn't guessed");
         set_arcade_system(&c, &id, Some("fbneo")).unwrap();
-        assert_eq!(
-            list(&c, &connected).unwrap()[0].arcade_system,
-            Some(ArcadeSystem::Fbneo)
-        );
+        assert_eq!(list(&c, &connected).unwrap()[0].arcade_system, Some(ArcadeSystem::Fbneo));
         assert!(set_arcade_system(&c, &id, Some("neogeo")).is_err());
         assert!(set_arcade_system(&c, "missing", Some("mame")).is_err());
         set_arcade_system(&c, &id, None).unwrap();
         assert_eq!(list(&c, &connected).unwrap()[0].arcade_system, None);
 
         assert!(remove(&c, &id).unwrap());
-        assert!(
-            root.join("RetroBat.exe").exists(),
-            "forgetting never touches files"
-        );
+        assert!(root.join("RetroBat.exe").exists(), "forgetting never touches files");
         assert!(list(&c, &connected).unwrap().is_empty());
     }
 
@@ -464,9 +331,7 @@ mod tests {
     fn unrecognized_folders_are_refused() {
         let dir = tempfile::tempdir().unwrap();
         let c = catalog();
-        assert!(add(&c, dir.path(), "retrobat", &unknown)
-            .unwrap_err()
-            .contains("wasn't recognized"));
+        assert!(add(&c, dir.path(), "retrobat", &unknown).unwrap_err().contains("wasn't recognized"));
         assert!(add(&c, dir.path(), "nope", &unknown).is_err());
     }
 }

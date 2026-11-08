@@ -33,8 +33,7 @@ pub fn new_id() -> String {
 
 /// Open a catalog connection with the pragmas every connection needs.
 pub fn open(path: &Path) -> Result<Connection, String> {
-    let connection = Connection::open(path)
-        .map_err(|e| format!("Cannot open catalog {}: {e}", path.display()))?;
+    let connection = Connection::open(path).map_err(|e| format!("Cannot open catalog {}: {e}", path.display()))?;
     configure(&connection)?;
     Ok(connection)
 }
@@ -88,10 +87,7 @@ fn has_user_tables(connection: &Connection) -> Result<bool, String> {
 /// Bring the catalog to `SCHEMA_VERSION`. `db_path` is used to place a backup copy
 /// next to the database before an existing catalog is upgraded; pass `None` for
 /// in-memory databases (tests).
-pub fn migrate(
-    connection: &mut Connection,
-    db_path: Option<&Path>,
-) -> Result<MigrationReport, String> {
+pub fn migrate(connection: &mut Connection, db_path: Option<&Path>) -> Result<MigrationReport, String> {
     let from_version = user_version(connection)?;
     if from_version > SCHEMA_VERSION {
         return Err(format!(
@@ -99,12 +95,7 @@ pub fn migrate(
              It was not modified. Update the application to open it."
         ));
     }
-    let mut report = MigrationReport {
-        from_version,
-        to_version: from_version,
-        legacy_rows_migrated: 0,
-        backup_path: None,
-    };
+    let mut report = MigrationReport { from_version, to_version: from_version, legacy_rows_migrated: 0, backup_path: None };
     if from_version == SCHEMA_VERSION {
         return Ok(report);
     }
@@ -117,24 +108,16 @@ pub fn migrate(
 
     // Table rebuilds need foreign-key enforcement off, and that pragma only takes
     // effect outside a transaction. Integrity is re-checked before commit.
-    connection
-        .execute_batch("PRAGMA foreign_keys = OFF;")
-        .map_err(|e| e.to_string())?;
+    connection.execute_batch("PRAGMA foreign_keys = OFF;").map_err(|e| e.to_string())?;
     let result = run_steps(connection, from_version, &mut report);
-    let restored = connection
-        .execute_batch("PRAGMA foreign_keys = ON;")
-        .map_err(|e| e.to_string());
+    let restored = connection.execute_batch("PRAGMA foreign_keys = ON;").map_err(|e| e.to_string());
     result?;
     restored?;
     report.to_version = SCHEMA_VERSION;
     Ok(report)
 }
 
-fn run_steps(
-    connection: &mut Connection,
-    from_version: i32,
-    report: &mut MigrationReport,
-) -> Result<(), String> {
+fn run_steps(connection: &mut Connection, from_version: i32, report: &mut MigrationReport) -> Result<(), String> {
     let tx = connection.transaction().map_err(|e| e.to_string())?;
     if from_version < 1 {
         let legacy = table_exists(&tx, "game_files")? && !table_exists(&tx, "file_locations")?;
@@ -148,8 +131,7 @@ fn run_steps(
         tx.execute_batch(SCHEMA_V1).map_err(|e| e.to_string())?;
         if legacy {
             report.legacy_rows_migrated = migrate_v0_rows(&tx)?;
-            tx.execute_batch("DROP TABLE legacy_v0_game_files;")
-                .map_err(|e| e.to_string())?;
+            tx.execute_batch("DROP TABLE legacy_v0_game_files;").map_err(|e| e.to_string())?;
         }
     }
     if from_version < 2 {
@@ -228,14 +210,10 @@ fn run_steps(
         tx.execute_batch(SCHEMA_V26).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
-        .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| {
-            r.get(0)
-        })
+        .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
         .map_err(|e| e.to_string())?;
     if violations > 0 {
-        return Err(format!(
-            "Migration aborted and rolled back: {violations} broken references found."
-        ));
+        return Err(format!("Migration aborted and rolled back: {violations} broken references found."));
     }
     tx.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION};"))
         .map_err(|e| e.to_string())?;
@@ -248,19 +226,12 @@ fn backup(connection: &Connection, db_path: &Path, from_version: i32) -> Result<
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    let file_name = db_path
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or("retrodrive.sqlite");
+    let file_name = db_path.file_name().and_then(|s| s.to_str()).unwrap_or("retrodrive.sqlite");
     let backup_path = db_path.with_file_name(format!("{file_name}.v{from_version}-backup-{stamp}"));
-    let target = backup_path
-        .to_str()
-        .ok_or("Backup path is not valid Unicode")?;
+    let target = backup_path.to_str().ok_or("Backup path is not valid Unicode")?;
     connection
         .execute("VACUUM INTO ?1", [target])
-        .map_err(|e| {
-            format!("Could not back up the catalog before migrating; nothing was changed: {e}")
-        })?;
+        .map_err(|e| format!("Could not back up the catalog before migrating; nothing was changed: {e}"))?;
     Ok(backup_path)
 }
 
@@ -268,43 +239,31 @@ fn backup(connection: &Connection, db_path: &Path, from_version: i32) -> Result<
 /// game/release/file/location: rows are never merged by title (docs/05).
 fn migrate_v0_rows(tx: &Connection) -> Result<usize, String> {
     let legacy_count: i64 = tx
-        .query_row("SELECT COUNT(*) FROM legacy_v0_game_files", [], |r| {
-            r.get(0)
-        })
+        .query_row("SELECT COUNT(*) FROM legacy_v0_game_files", [], |r| r.get(0))
         .map_err(|e| e.to_string())?;
     let rows: Vec<(String, String, String, i64, String)> = {
         let mut statement = tx
             .prepare("SELECT path, title, platform, file_size, last_seen FROM legacy_v0_game_files ORDER BY id")
             .map_err(|e| e.to_string())?;
         let mapped = statement
-            .query_map([], |r| {
-                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
-            })
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))
             .map_err(|e| e.to_string())?;
-        mapped
-            .collect::<Result<_, _>>()
-            .map_err(|e| e.to_string())?
+        mapped.collect::<Result<_, _>>().map_err(|e| e.to_string())?
     };
 
     let mut migrated = 0;
     for (raw_path, title, platform, size, last_seen) in rows {
         let clean = paths::strip_verbatim(&raw_path);
-        let (volume_root, relative) = paths::split_volume(Path::new(&clean)).ok_or_else(|| {
-            format!("Migration aborted: cannot interpret stored path {raw_path:?}")
-        })?;
+        let (volume_root, relative) = paths::split_volume(Path::new(&clean))
+            .ok_or_else(|| format!("Migration aborted: cannot interpret stored path {raw_path:?}"))?;
         let storage_id = upsert_storage_location(tx, &volume_root, "unknown")?;
-        let filename = Path::new(&clean)
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or(&title)
-            .to_string();
+        let filename = Path::new(&clean).file_name().and_then(|s| s.to_str()).unwrap_or(&title).to_string();
         let extension = Path::new(&clean)
             .extension()
             .and_then(|s| s.to_str())
             .unwrap_or("")
             .to_lowercase();
-        let file_id =
-            insert_game_file_v1(tx, &title, &platform, &filename, &extension, size, "legacy")?;
+        let file_id = insert_game_file_v1(tx, &title, &platform, &filename, &extension, size, "legacy")?;
         tx.execute(
             "INSERT INTO file_locations (id, game_file_id, storage_location_id, relative_path, first_seen_at, last_seen_at, present_status)
              VALUES (?1, ?2, ?3, ?4, ?5, ?5, 'present')
@@ -340,11 +299,7 @@ pub struct ResolvedLocation {
 ///    → claim it by recording the fingerprint;
 /// 3. otherwise a new location. A different volume using a known letter therefore
 ///    never inherits another drive's files.
-pub fn resolve_storage_location(
-    connection: &Connection,
-    root: &str,
-    probe: &VolumeProbe,
-) -> Result<ResolvedLocation, String> {
+pub fn resolve_storage_location(connection: &Connection, root: &str, probe: &VolumeProbe) -> Result<ResolvedLocation, String> {
     let Some(identity) = &probe.identity else {
         let existing = connection
             .query_row(
@@ -358,10 +313,7 @@ pub fn resolve_storage_location(
             Some(id) => id,
             None => insert_location(connection, root, probe.kind, None)?,
         };
-        return Ok(ResolvedLocation {
-            id,
-            previous_root: None,
-        });
+        return Ok(ResolvedLocation { id, previous_root: None });
     };
 
     let by_fingerprint = connection
@@ -375,35 +327,24 @@ pub fn resolve_storage_location(
     if let Some((id, old_root)) = by_fingerprint {
         update_identity(connection, &id, root, probe.kind, identity)?;
         let moved = !old_root.eq_ignore_ascii_case(root);
-        return Ok(ResolvedLocation {
-            id,
-            previous_root: moved.then_some(old_root),
-        });
+        return Ok(ResolvedLocation { id, previous_root: moved.then_some(old_root) });
     }
 
     let unidentified: Vec<String> = {
         let mut statement = connection
             .prepare("SELECT id FROM storage_locations WHERE root_path = ?1 AND stable_id IS NULL ORDER BY created_at")
             .map_err(|e| e.to_string())?;
-        let rows = statement
-            .query_map([root], |r| r.get(0))
-            .map_err(|e| e.to_string())?;
+        let rows = statement.query_map([root], |r| r.get(0)).map_err(|e| e.to_string())?;
         rows.collect::<Result<_, _>>().map_err(|e| e.to_string())?
     };
     for id in unidentified {
         if files_found_on_volume(connection, &id, root)? {
             update_identity(connection, &id, root, probe.kind, identity)?;
-            return Ok(ResolvedLocation {
-                id,
-                previous_root: None,
-            });
+            return Ok(ResolvedLocation { id, previous_root: None });
         }
     }
     let id = insert_location(connection, root, probe.kind, Some(identity))?;
-    Ok(ResolvedLocation {
-        id,
-        previous_root: None,
-    })
+    Ok(ResolvedLocation { id, previous_root: None })
 }
 
 fn display_name(root: &str, identity: Option<&VolumeIdentity>) -> String {
@@ -413,12 +354,7 @@ fn display_name(root: &str, identity: Option<&VolumeIdentity>) -> String {
     }
 }
 
-fn insert_location(
-    connection: &Connection,
-    root: &str,
-    kind: &str,
-    identity: Option<&VolumeIdentity>,
-) -> Result<String, String> {
+fn insert_location(connection: &Connection, root: &str, kind: &str, identity: Option<&VolumeIdentity>) -> Result<String, String> {
     let id = new_id();
     connection
         .execute(
@@ -441,13 +377,7 @@ fn insert_location(
     Ok(id)
 }
 
-fn update_identity(
-    connection: &Connection,
-    id: &str,
-    root: &str,
-    kind: &str,
-    identity: &VolumeIdentity,
-) -> Result<(), String> {
+fn update_identity(connection: &Connection, id: &str, root: &str, kind: &str, identity: &VolumeIdentity) -> Result<(), String> {
     connection
         .execute(
             "UPDATE storage_locations SET root_path = ?2, stable_id = ?3, display_name = ?4, volume_label = ?5, filesystem = ?6,
@@ -477,30 +407,17 @@ fn files_found_on_volume(connection: &Connection, id: &str, root: &str) -> Resul
         let mut statement = connection
             .prepare("SELECT relative_path FROM file_locations WHERE storage_location_id = ?1 ORDER BY present_status DESC LIMIT 25")
             .map_err(|e| e.to_string())?;
-        let rows = statement
-            .query_map([id], |r| r.get(0))
-            .map_err(|e| e.to_string())?;
+        let rows = statement.query_map([id], |r| r.get(0)).map_err(|e| e.to_string())?;
         rows.collect::<Result<_, _>>().map_err(|e| e.to_string())?
     };
-    Ok(sample.is_empty()
-        || sample
-            .iter()
-            .any(|relative| paths::join(root, relative).exists()))
+    Ok(sample.is_empty() || sample.iter().any(|relative| paths::join(root, relative).exists()))
 }
 
 /// Find a storage location by its root path, creating it when absent. Used for
 /// migrated v0.1 data, which has no volume fingerprint.
-pub fn upsert_storage_location(
-    tx: &Connection,
-    root_path: &str,
-    kind: &str,
-) -> Result<String, String> {
+pub fn upsert_storage_location(tx: &Connection, root_path: &str, kind: &str) -> Result<String, String> {
     if let Some(id) = tx
-        .query_row(
-            "SELECT id FROM storage_locations WHERE root_path = ?1 ORDER BY created_at LIMIT 1",
-            [root_path],
-            |r| r.get::<_, String>(0),
-        )
+        .query_row("SELECT id FROM storage_locations WHERE root_path = ?1 ORDER BY created_at LIMIT 1", [root_path], |r| r.get::<_, String>(0))
         .optional()
         .map_err(|e| e.to_string())?
     {
@@ -542,11 +459,8 @@ pub fn insert_game_file(
         params![game_id, title, platform],
     )
     .map_err(|e| e.to_string())?;
-    tx.execute(
-        "INSERT INTO game_releases (id, game_id) VALUES (?1, ?2)",
-        params![release_id, game_id],
-    )
-    .map_err(|e| e.to_string())?;
+    tx.execute("INSERT INTO game_releases (id, game_id) VALUES (?1, ?2)", params![release_id, game_id])
+        .map_err(|e| e.to_string())?;
     tx.execute(
         "INSERT INTO game_files (id, release_id, filename, extension, size_bytes, payload_bytes, modified_at, platform_hint, platform_hint_source)
          VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6, ?7, ?8)",
@@ -558,28 +472,14 @@ pub fn insert_game_file(
 
 /// `insert_game_file` limited to the v1 columns, for migration steps that run
 /// before later columns exist (and for tests that build old-schema catalogs).
-fn insert_game_file_v1(
-    tx: &Connection,
-    title: &str,
-    platform: &str,
-    filename: &str,
-    extension: &str,
-    size: i64,
-    hint_source: &str,
-) -> Result<String, String> {
+fn insert_game_file_v1(tx: &Connection, title: &str, platform: &str, filename: &str, extension: &str, size: i64, hint_source: &str) -> Result<String, String> {
     let game_id = new_id();
     let release_id = new_id();
     let file_id = new_id();
-    tx.execute(
-        "INSERT INTO games (id, canonical_title, platform) VALUES (?1, ?2, ?3)",
-        params![game_id, title, platform],
-    )
-    .map_err(|e| e.to_string())?;
-    tx.execute(
-        "INSERT INTO game_releases (id, game_id) VALUES (?1, ?2)",
-        params![release_id, game_id],
-    )
-    .map_err(|e| e.to_string())?;
+    tx.execute("INSERT INTO games (id, canonical_title, platform) VALUES (?1, ?2, ?3)", params![game_id, title, platform])
+        .map_err(|e| e.to_string())?;
+    tx.execute("INSERT INTO game_releases (id, game_id) VALUES (?1, ?2)", params![release_id, game_id])
+        .map_err(|e| e.to_string())?;
     tx.execute(
         "INSERT INTO game_files (id, release_id, filename, extension, size_bytes, platform_hint, platform_hint_source)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
@@ -621,21 +521,13 @@ pub fn merge_release(tx: &Connection, from: &str, into: &str) -> Result<(), Stri
     if from == into {
         return Ok(());
     }
-    tx.execute(
-        "UPDATE game_files SET release_id = ?2 WHERE release_id = ?1",
-        params![from, into],
-    )
-    .map_err(|e| e.to_string())?;
+    tx.execute("UPDATE game_files SET release_id = ?2 WHERE release_id = ?1", params![from, into])
+        .map_err(|e| e.to_string())?;
     let game: Option<String> = tx
-        .query_row(
-            "SELECT game_id FROM game_releases WHERE id = ?1",
-            [from],
-            |r| r.get(0),
-        )
+        .query_row("SELECT game_id FROM game_releases WHERE id = ?1", [from], |r| r.get(0))
         .optional()
         .map_err(|e| e.to_string())?;
-    tx.execute("DELETE FROM game_releases WHERE id = ?1", [from])
-        .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM game_releases WHERE id = ?1", [from]).map_err(|e| e.to_string())?;
     if let Some(game) = game {
         tx.execute(
             "DELETE FROM games WHERE id = ?1 AND NOT EXISTS (SELECT 1 FROM game_releases WHERE game_id = ?1)",
@@ -1168,22 +1060,13 @@ mod tests {
     ); CREATE INDEX IF NOT EXISTS idx_game_files_platform ON game_files(platform);";
 
     fn count(c: &Connection, table: &str) -> i64 {
-        c.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
-            .unwrap()
+        c.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0)).unwrap()
     }
 
     #[cfg(windows)]
-    const SAMPLE_PATHS: [&str; 3] = [
-        r"\\?\C:\Roms\snes\Super Game.sfc",
-        r"D:\Roms\nes\Ünïcode Quest.nes",
-        r"\\?\UNC\nas\games\gba\Pocket.gba",
-    ];
+    const SAMPLE_PATHS: [&str; 3] = [r"\\?\C:\Roms\snes\Super Game.sfc", r"D:\Roms\nes\Ünïcode Quest.nes", r"\\?\UNC\nas\games\gba\Pocket.gba"];
     #[cfg(not(windows))]
-    const SAMPLE_PATHS: [&str; 3] = [
-        "/roms/snes/Super Game.sfc",
-        "/media/usb/nes/Ünïcode Quest.nes",
-        "/mnt/nas/gba/Pocket.gba",
-    ];
+    const SAMPLE_PATHS: [&str; 3] = ["/roms/snes/Super Game.sfc", "/media/usb/nes/Ünïcode Quest.nes", "/mnt/nas/gba/Pocket.gba"];
 
     #[test]
     fn fresh_database_gets_current_schema() {
@@ -1192,18 +1075,7 @@ mod tests {
         assert_eq!(report.from_version, 0);
         assert_eq!(report.to_version, SCHEMA_VERSION);
         assert_eq!(user_version(&c).unwrap(), SCHEMA_VERSION);
-        for table in [
-            "storage_locations",
-            "indexed_roots",
-            "games",
-            "game_releases",
-            "game_files",
-            "file_locations",
-            "jobs",
-            "job_events",
-            "games_fts",
-            "installations",
-        ] {
+        for table in ["storage_locations", "indexed_roots", "games", "game_releases", "game_files", "file_locations", "jobs", "job_events", "games_fts", "installations"] {
             assert!(table_exists(&c, table).unwrap(), "{table} missing");
         }
     }
@@ -1220,8 +1092,7 @@ mod tests {
     #[test]
     fn newer_schema_is_refused_untouched() {
         let mut c = Connection::open_in_memory().unwrap();
-        c.execute_batch("PRAGMA user_version = 99; CREATE TABLE marker(x);")
-            .unwrap();
+        c.execute_batch("PRAGMA user_version = 99; CREATE TABLE marker(x);").unwrap();
         let err = migrate(&mut c, None).unwrap_err();
         assert!(err.contains("newer"));
         assert!(table_exists(&c, "marker").unwrap());
@@ -1232,62 +1103,17 @@ mod tests {
     fn merging_releases_moves_files_and_removes_empty_games() {
         let mut c = Connection::open_in_memory().unwrap();
         migrate(&mut c, None).unwrap();
-        let cue = insert_game_file(
-            &c,
-            "Game (Disc 1)",
-            "PlayStation",
-            "Game (Disc 1).cue",
-            "cue",
-            100,
-            None,
-            "folder",
-        )
-        .unwrap();
-        let m3u = insert_game_file(
-            &c,
-            "Game",
-            "PlayStation",
-            "Game.m3u",
-            "m3u",
-            50,
-            None,
-            "folder",
-        )
-        .unwrap();
-        let release = |file: &str| -> String {
-            c.query_row(
-                "SELECT release_id FROM game_files WHERE id = ?1",
-                [file],
-                |r| r.get(0),
-            )
-            .unwrap()
-        };
+        let cue = insert_game_file(&c, "Game (Disc 1)", "PlayStation", "Game (Disc 1).cue", "cue", 100, None, "folder").unwrap();
+        let m3u = insert_game_file(&c, "Game", "PlayStation", "Game.m3u", "m3u", 50, None, "folder").unwrap();
+        let release = |file: &str| -> String { c.query_row("SELECT release_id FROM game_files WHERE id = ?1", [file], |r| r.get(0)).unwrap() };
         let (from, into) = (release(&cue), release(&m3u));
-        let track = insert_member_file(
-            &c,
-            &from,
-            &cue,
-            "track",
-            None,
-            "Game (Disc 1).bin",
-            "bin",
-            9000,
-            None,
-            "PlayStation",
-        )
-        .unwrap();
+        let track = insert_member_file(&c, &from, &cue, "track", None, "Game (Disc 1).bin", "bin", 9000, None, "PlayStation").unwrap();
         merge_release(&c, &from, &into).unwrap();
         assert_eq!(release(&cue), into);
         assert_eq!(release(&track), into, "the cue's tracks move with it");
-        assert_eq!(
-            count(&c, "games"),
-            1,
-            "the disc's own game record is removed"
-        );
+        assert_eq!(count(&c, "games"), 1, "the disc's own game record is removed");
         assert_eq!(count(&c, "game_releases"), 1);
-        let fts: i64 = c
-            .query_row("SELECT COUNT(*) FROM games_fts", [], |r| r.get(0))
-            .unwrap();
+        let fts: i64 = c.query_row("SELECT COUNT(*) FROM games_fts", [], |r| r.get(0)).unwrap();
         assert_eq!(fts, 1, "search index follows the delete");
         merge_release(&c, &into, &into).unwrap();
     }
@@ -1296,33 +1122,13 @@ mod tests {
     fn title_search_index_follows_games() {
         let mut c = Connection::open_in_memory().unwrap();
         migrate(&mut c, None).unwrap();
-        insert_game_file(
-            &c,
-            "Super Puzzle Quest",
-            "SNES",
-            "a.sfc",
-            "sfc",
-            1,
-            None,
-            "folder",
-        )
-        .unwrap();
+        insert_game_file(&c, "Super Puzzle Quest", "SNES", "a.sfc", "sfc", 1, None, "folder").unwrap();
         let hits = |q: &str| -> i64 {
-            c.query_row(
-                "SELECT COUNT(*) FROM games_fts WHERE games_fts MATCH ?1",
-                [q],
-                |r| r.get(0),
-            )
-            .unwrap()
+            c.query_row("SELECT COUNT(*) FROM games_fts WHERE games_fts MATCH ?1", [q], |r| r.get(0)).unwrap()
         };
-        assert_eq!(
-            hits("\"puzzle\""),
-            1,
-            "trigram matches inside words, case-insensitively"
-        );
+        assert_eq!(hits("\"puzzle\""), 1, "trigram matches inside words, case-insensitively");
         assert_eq!(hits("\"zzle q\""), 1);
-        c.execute("UPDATE games SET canonical_title = 'Renamed Title'", [])
-            .unwrap();
+        c.execute("UPDATE games SET canonical_title = 'Renamed Title'", []).unwrap();
         assert_eq!(hits("\"puzzle\""), 0);
         assert_eq!(hits("\"renamed\""), 1);
     }
@@ -1337,13 +1143,7 @@ mod tests {
         insert_game_file_v1(&c, "Existing Adventure", "NES", "e.nes", "nes", 1, "folder").unwrap();
         let report = migrate(&mut c, None).unwrap();
         assert_eq!(report.to_version, SCHEMA_VERSION);
-        let n: i64 = c
-            .query_row(
-                "SELECT COUNT(*) FROM games_fts WHERE games_fts MATCH '\"adventure\"'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
+        let n: i64 = c.query_row("SELECT COUNT(*) FROM games_fts WHERE games_fts MATCH '\"adventure\"'", [], |r| r.get(0)).unwrap();
         assert_eq!(n, 1, "existing titles are back-filled");
     }
 
@@ -1357,22 +1157,12 @@ mod tests {
         let again = resolve_storage_location(&c, r"F:\", &usb).unwrap();
         assert_eq!(again.id, first.id, "same fingerprint → same location");
         assert_eq!(again.previous_root.as_deref(), Some(r"E:\"));
-        let (root, name): (String, String) = c
-            .query_row(
-                "SELECT root_path, display_name FROM storage_locations",
-                [],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .unwrap();
+        let (root, name): (String, String) =
+            c.query_row("SELECT root_path, display_name FROM storage_locations", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
         assert_eq!(root, r"F:\");
         assert_eq!(name, r"GAMES (F:\)");
         // Rescanning at the same letter is not reported as a move.
-        assert_eq!(
-            resolve_storage_location(&c, r"F:\", &usb)
-                .unwrap()
-                .previous_root,
-            None
-        );
+        assert_eq!(resolve_storage_location(&c, r"F:\", &usb).unwrap().previous_root, None);
     }
 
     #[test]
@@ -1395,30 +1185,26 @@ mod tests {
 
         // Legacy row whose file exists under `root` → claimed.
         let legacy = upsert_storage_location(&c, &root, "unknown").unwrap();
-        let file =
-            insert_game_file(&c, "Game", "SNES", "Game.sfc", "sfc", 1, None, "legacy").unwrap();
+        let file = insert_game_file(&c, "Game", "SNES", "Game.sfc", "sfc", 1, None, "legacy").unwrap();
         c.execute(
             "INSERT INTO file_locations (id, game_file_id, storage_location_id, relative_path) VALUES (?1, ?2, ?3, 'Game.sfc')",
             params![new_id(), file, legacy],
         )
         .unwrap();
-        let resolved =
-            resolve_storage_location(&c, &root, &identity("vol:1111-1111:1", "X")).unwrap();
+        let resolved = resolve_storage_location(&c, &root, &identity("vol:1111-1111:1", "X")).unwrap();
         assert_eq!(resolved.id, legacy);
 
         // Another legacy row at the same root whose files are absent → not claimed.
         let mut c2 = Connection::open_in_memory().unwrap();
         migrate(&mut c2, None).unwrap();
         let other = upsert_storage_location(&c2, &root, "unknown").unwrap();
-        let file =
-            insert_game_file(&c2, "Gone", "SNES", "Gone.sfc", "sfc", 1, None, "legacy").unwrap();
+        let file = insert_game_file(&c2, "Gone", "SNES", "Gone.sfc", "sfc", 1, None, "legacy").unwrap();
         c2.execute(
             "INSERT INTO file_locations (id, game_file_id, storage_location_id, relative_path) VALUES (?1, ?2, ?3, 'Gone.sfc')",
             params![new_id(), file, other],
         )
         .unwrap();
-        let resolved =
-            resolve_storage_location(&c2, &root, &identity("vol:2222-2222:1", "Y")).unwrap();
+        let resolved = resolve_storage_location(&c2, &root, &identity("vol:2222-2222:1", "Y")).unwrap();
         assert_ne!(resolved.id, other);
     }
 
@@ -1432,8 +1218,7 @@ mod tests {
             c.execute_batch(SCHEMA_V2).unwrap();
             c.execute_batch("PRAGMA user_version = 2;").unwrap();
             c.execute("INSERT INTO storage_locations (id, display_name, root_path) VALUES ('s1', 'E:', 'E:/')", []).unwrap();
-            let file =
-                insert_game_file_v1(&c, "Kept", "NES", "Kept.nes", "nes", 1, "folder").unwrap();
+            let file = insert_game_file_v1(&c, "Kept", "NES", "Kept.nes", "nes", 1, "folder").unwrap();
             c.execute(
                 "INSERT INTO file_locations (id, game_file_id, storage_location_id, relative_path) VALUES ('l1', ?1, 's1', 'Kept.nes')",
                 [file],
@@ -1443,24 +1228,15 @@ mod tests {
         }
         let mut c = open(&db_path).unwrap();
         let report = migrate(&mut c, Some(&db_path)).unwrap();
-        assert_eq!(
-            (report.from_version, report.to_version),
-            (2, SCHEMA_VERSION)
-        );
+        assert_eq!((report.from_version, report.to_version), (2, SCHEMA_VERSION));
         assert!(report.backup_path.is_some());
         assert_eq!(count(&c, "storage_locations"), 1);
         assert_eq!(count(&c, "file_locations"), 1);
         assert_eq!(count(&c, "indexed_roots"), 1);
         // Foreign keys are enforced again and still point at the rebuilt table.
-        let fk: i64 = c
-            .query_row("PRAGMA foreign_keys", [], |r| r.get(0))
-            .unwrap();
+        let fk: i64 = c.query_row("PRAGMA foreign_keys", [], |r| r.get(0)).unwrap();
         assert_eq!(fk, 1);
-        assert!(
-            c.execute("DELETE FROM storage_locations WHERE id = 's1'", [])
-                .is_err(),
-            "RESTRICT still protects files"
-        );
+        assert!(c.execute("DELETE FROM storage_locations WHERE id = 's1'", []).is_err(), "RESTRICT still protects files");
         // root_path is no longer unique.
         c.execute("INSERT INTO storage_locations (id, display_name, root_path) VALUES ('s2', 'E:', 'E:/')", []).unwrap();
     }
@@ -1474,8 +1250,7 @@ mod tests {
             c.execute_batch(SCHEMA_V1).unwrap();
             c.execute_batch("PRAGMA user_version = 1;").unwrap();
             let storage = upsert_storage_location(&c, SAMPLE_PATHS[1], "local").unwrap();
-            let file =
-                insert_game_file_v1(&c, "Kept", "NES", "Kept.nes", "nes", 1, "folder").unwrap();
+            let file = insert_game_file_v1(&c, "Kept", "NES", "Kept.nes", "nes", 1, "folder").unwrap();
             c.execute(
                 "INSERT INTO file_locations (id, game_file_id, storage_location_id, relative_path) VALUES (?1, ?2, ?3, 'Kept.nes')",
                 params![new_id(), file, storage],
@@ -1484,10 +1259,7 @@ mod tests {
         }
         let mut c = open(&db_path).unwrap();
         let report = migrate(&mut c, Some(&db_path)).unwrap();
-        assert_eq!(
-            (report.from_version, report.to_version),
-            (1, SCHEMA_VERSION)
-        );
+        assert_eq!((report.from_version, report.to_version), (1, SCHEMA_VERSION));
         assert!(report.backup_path.is_some());
         assert_eq!(count(&c, "games"), 1);
         assert_eq!(count(&c, "file_locations"), 1);
@@ -1529,12 +1301,7 @@ mod tests {
             .prepare("SELECT s.root_path, fl.relative_path FROM file_locations fl JOIN storage_locations s ON s.id = fl.storage_location_id")
             .unwrap();
         let rebuilt: Vec<String> = s
-            .query_map([], |r| {
-                Ok(paths::join(
-                    &r.get::<_, String>(0)?,
-                    &r.get::<_, String>(1)?,
-                ))
-            })
+            .query_map([], |r| Ok(paths::join(&r.get::<_, String>(0)?, &r.get::<_, String>(1)?)))
             .unwrap()
             .map(|p| p.unwrap().to_string_lossy().into_owned())
             .collect();

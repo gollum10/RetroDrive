@@ -26,10 +26,7 @@
 //!   folder named exactly like its game zip (`roms\mame\kinst\kinst.chd`); non-merged sets
 //!   are recommended, split sets need their parent zips, merged sets aren't supported.
 
-use super::{
-    has_entry, plan_in_roms, AdapterKind, ArcadeSystem, Capabilities, CheckStatus, Confidence,
-    Detection, LayoutCheck, Placement, PlacementOptions, PlacementRequest, PlatformAdapter,
-};
+use super::{has_entry, plan_in_roms, AdapterKind, ArcadeSystem, Capabilities, CheckStatus, Confidence, Detection, LayoutCheck, Placement, PlacementOptions, PlacementRequest, PlatformAdapter};
 use std::path::Path;
 
 pub struct RetroBat;
@@ -40,12 +37,7 @@ const NAME: &str = "RetroBat";
 /// `roms\` folder for a catalog platform; `Err` explains why a game can't be placed.
 /// Shared with Batocera, whose folder names are the same (checked 2026-11-06);
 /// `target` names the platform in messages.
-pub(super) fn system_folder(
-    platform: &str,
-    extension: &str,
-    options: PlacementOptions,
-    target: &str,
-) -> Result<&'static str, String> {
+pub(super) fn system_folder(platform: &str, extension: &str, options: PlacementOptions, target: &str) -> Result<&'static str, String> {
     Ok(match platform {
         "NES" if extension == "fds" => "fds",
         "NES" => "nes",
@@ -117,10 +109,7 @@ pub(super) fn system_folder(
 
 /// Arcade games go to the folder of the emulator family the user chose. Only the
 /// game archives themselves are placed, unchanged (their names are the romset names).
-pub(super) fn arcade_folder(
-    extension: &str,
-    options: PlacementOptions,
-) -> Result<&'static str, String> {
+pub(super) fn arcade_folder(extension: &str, options: PlacementOptions) -> Result<&'static str, String> {
     let Some(system) = options.arcade else {
         return Err("Choose MAME or FinalBurn Neo for this installation to place arcade games (they use different ROM sets, so RetroDrive doesn't guess).".into());
     };
@@ -140,9 +129,7 @@ pub(super) fn arcade_folder(
 fn read_version(root: &Path) -> Option<String> {
     use std::io::Read;
     for relative in ["system/version.info", "emulationstation/version.info"] {
-        let Ok(file) = std::fs::File::open(root.join(relative)) else {
-            continue;
-        };
+        let Ok(file) = std::fs::File::open(root.join(relative)) else { continue };
         let mut text = String::new();
         if file.take(128).read_to_string(&mut text).is_err() {
             continue;
@@ -151,9 +138,7 @@ fn read_version(root: &Path) -> Option<String> {
         let valid = !version.is_empty()
             && version.len() <= 64
             && version.starts_with(|c: char| c.is_ascii_digit())
-            && version
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'));
+            && version.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'));
         if valid {
             return Some(version.to_string());
         }
@@ -165,18 +150,14 @@ fn read_version(root: &Path) -> Option<String> {
 fn path_warnings(path: &str) -> Vec<String> {
     let mut warnings = Vec::new();
     if path.contains(' ') {
-        warnings
-            .push("The path contains spaces, which the RetroBat wiki advises against.".to_string());
+        warnings.push("The path contains spaces, which the RetroBat wiki advises against.".to_string());
     }
     if !path.is_ascii() {
         warnings.push("The path contains accented or special characters, which the RetroBat wiki advises against.".to_string());
     }
     let trimmed = path.trim_end_matches(['\\', '/']);
     if trimmed.len() <= 2 && trimmed.ends_with(':') {
-        warnings.push(
-            "RetroBat is at the root of a drive; the RetroBat wiki recommends a subfolder."
-                .to_string(),
-        );
+        warnings.push("RetroBat is at the root of a drive; the RetroBat wiki recommends a subfolder.".to_string());
     }
     warnings
 }
@@ -192,14 +173,7 @@ impl PlatformAdapter for RetroBat {
         AdapterKind::PortableApp
     }
     fn capabilities(&self) -> Capabilities {
-        Capabilities {
-            detect: true,
-            validate_layout: true,
-            plan_placement: true,
-            copy_games: true,
-            install: false,
-            write_files: false,
-        }
+        Capabilities { detect: true, validate_layout: true, plan_placement: true, copy_games: true, install: false, write_files: false }
     }
 
     fn detect(&self, root: &Path) -> Detection {
@@ -221,22 +195,9 @@ impl PlatformAdapter for RetroBat {
             (true, _) => Confidence::Possible,
             _ => Confidence::NotDetected,
         };
-        let version = if confidence == Confidence::NotDetected {
-            None
-        } else {
-            read_version(root)
-        };
-        let hint = (confidence == Confidence::Possible)
-            .then(|| "Choose the folder that contains RetroBat.exe.".to_string());
-        Detection {
-            adapter_id: ID,
-            display_name: NAME,
-            kind: AdapterKind::PortableApp,
-            confidence,
-            evidence,
-            version,
-            hint,
-        }
+        let version = if confidence == Confidence::NotDetected { None } else { read_version(root) };
+        let hint = (confidence == Confidence::Possible).then(|| "Choose the folder that contains RetroBat.exe.".to_string());
+        Detection { adapter_id: ID, display_name: NAME, kind: AdapterKind::PortableApp, confidence, evidence, version, hint }
     }
 
     fn validate_layout(&self, root: &Path) -> Vec<LayoutCheck> {
@@ -246,54 +207,22 @@ impl PlatformAdapter for RetroBat {
                 id,
                 label: format!("{name} folder"),
                 status: if present { CheckStatus::Ok } else { missing },
-                detail: if present {
-                    format!("Found {name}\\")
-                } else {
-                    format!("{name}\\ is missing. {why}")
-                },
+                detail: if present { format!("Found {name}\\") } else { format!("{name}\\ is missing. {why}") },
             }
         };
         let mut checks = vec![
-            folder(
-                "roms",
-                "roms",
-                CheckStatus::Problem,
-                "Games go in roms\\<system>; start RetroBat once so it creates the folders.",
-            ),
-            folder(
-                "bios",
-                "bios",
-                CheckStatus::Warning,
-                "Some systems need BIOS files you supply here.",
-            ),
-            folder(
-                "emulators",
-                "emulators",
-                CheckStatus::Warning,
-                "RetroBat downloads most emulators on first use.",
-            ),
-            folder(
-                "emulationstation",
-                "emulationstation",
-                CheckStatus::Problem,
-                "This holds RetroBat's interface and settings.",
-            ),
+            folder("roms", "roms", CheckStatus::Problem, "Games go in roms\\<system>; start RetroBat once so it creates the folders."),
+            folder("bios", "bios", CheckStatus::Warning, "Some systems need BIOS files you supply here."),
+            folder("emulators", "emulators", CheckStatus::Warning, "RetroBat downloads most emulators on first use."),
+            folder("emulationstation", "emulationstation", CheckStatus::Problem, "This holds RetroBat's interface and settings."),
         ];
         let path = root.display().to_string();
         let warnings = path_warnings(&path);
         checks.push(LayoutCheck {
             id: "install_path",
             label: "Install location".into(),
-            status: if warnings.is_empty() {
-                CheckStatus::Ok
-            } else {
-                CheckStatus::Warning
-            },
-            detail: if warnings.is_empty() {
-                "The path follows the RetroBat wiki's advice.".into()
-            } else {
-                warnings.join(" ")
-            },
+            status: if warnings.is_empty() { CheckStatus::Ok } else { CheckStatus::Warning },
+            detail: if warnings.is_empty() { "The path follows the RetroBat wiki's advice.".into() } else { warnings.join(" ") },
         });
         checks.push(match read_version(root) {
             Some(version) => LayoutCheck {
@@ -352,23 +281,11 @@ mod tests {
     fn bios_files_keep_their_subfolders_in_the_bios_folder() {
         let mut r = request("BIOS", "bin", &["dc_boot.bin"]);
         r.bios_path = Some("dc/dc_boot.bin".into());
-        assert_eq!(
-            RetroBat.plan_placement(&r),
-            Placement::Planned {
-                system_folder: "bios".into(),
-                destinations: vec!["bios/dc/dc_boot.bin".into()]
-            }
-        );
+        assert_eq!(RetroBat.plan_placement(&r), Placement::Planned { system_folder: "bios".into(), destinations: vec!["bios/dc/dc_boot.bin".into()] });
         r.bios_path = Some("dc/.gitkeep".into());
-        assert!(
-            matches!(RetroBat.plan_placement(&r), Placement::Unsupported { .. }),
-            "housekeeping files stay behind"
-        );
+        assert!(matches!(RetroBat.plan_placement(&r), Placement::Unsupported { .. }), "housekeeping files stay behind");
         r.bios_path = Some("../evil.bin".into());
-        assert!(
-            matches!(RetroBat.plan_placement(&r), Placement::Unsupported { .. }),
-            "no path tricks"
-        );
+        assert!(matches!(RetroBat.plan_placement(&r), Placement::Unsupported { .. }), "no path tricks");
         r.bios_path = None;
         match RetroBat.plan_placement(&r) {
             Placement::Unsupported { reason } => assert!(reason.contains("[BIOS]"), "{reason}"),
@@ -376,35 +293,11 @@ mod tests {
         }
         // RetroPie: BIOS beside roms on a USB folder; not over the network. ES-DE: not yet.
         r.bios_path = Some("scph1001.bin".into());
-        let usb = PlacementRequest {
-            options: PlacementOptions {
-                has_roms_folder: true,
-                ..PlacementOptions::default()
-            },
-            ..r.clone()
-        };
-        assert_eq!(
-            crate::adapters::retropie::RetroPie.plan_placement(&usb),
-            Placement::Planned {
-                system_folder: "bios".into(),
-                destinations: vec!["BIOS/scph1001.bin".into()]
-            }
-        );
-        assert!(matches!(
-            crate::adapters::retropie::RetroPie.plan_placement(&r),
-            Placement::Unsupported { .. }
-        ));
-        assert!(matches!(
-            crate::adapters::esde::EsDe.plan_placement(&r),
-            Placement::Unsupported { .. }
-        ));
-        assert_eq!(
-            crate::adapters::batocera::Batocera.plan_placement(&r),
-            Placement::Planned {
-                system_folder: "bios".into(),
-                destinations: vec!["bios/scph1001.bin".into()]
-            }
-        );
+        let usb = PlacementRequest { options: PlacementOptions { has_roms_folder: true, ..PlacementOptions::default() }, ..r.clone() };
+        assert_eq!(crate::adapters::retropie::RetroPie.plan_placement(&usb), Placement::Planned { system_folder: "bios".into(), destinations: vec!["BIOS/scph1001.bin".into()] });
+        assert!(matches!(crate::adapters::retropie::RetroPie.plan_placement(&r), Placement::Unsupported { .. }));
+        assert!(matches!(crate::adapters::esde::EsDe.plan_placement(&r), Placement::Unsupported { .. }));
+        assert_eq!(crate::adapters::batocera::Batocera.plan_placement(&r), Placement::Planned { system_folder: "bios".into(), destinations: vec!["bios/scph1001.bin".into()] });
     }
 
     fn request(platform: &str, ext: &str, files: &[&str]) -> PlacementRequest {
@@ -412,13 +305,7 @@ mod tests {
             title: "Saga: Part 2 (USA)".into(),
             platform: platform.into(),
             extension: ext.into(),
-            files: files
-                .iter()
-                .map(|f| PlacementFile {
-                    relative_to_primary: f.to_string(),
-                    size: 1,
-                })
-                .collect(),
+            files: files.iter().map(|f| PlacementFile { relative_to_primary: f.to_string(), size: 1 }).collect(),
             options: PlacementOptions::default(),
             bios_path: None,
         }
@@ -427,14 +314,7 @@ mod tests {
     #[test]
     fn detects_a_full_installation_case_insensitively() {
         let dir = tempfile::tempdir().unwrap();
-        install(
-            dir.path(),
-            &[
-                ("retrobat.EXE", false),
-                ("EmulationStation", true),
-                ("roms", true),
-            ],
-        );
+        install(dir.path(), &[("retrobat.EXE", false), ("EmulationStation", true), ("roms", true)]);
         let d = RetroBat.detect(dir.path());
         assert_eq!(d.confidence, Confidence::Detected);
         assert_eq!(d.evidence.len(), 3, "{:?}", d.evidence);
@@ -445,48 +325,19 @@ mod tests {
     fn a_fresh_install_reports_its_version() {
         // Layout of a real 8.3.1.1 install before first launch: no retrobat.ini.
         let dir = tempfile::tempdir().unwrap();
-        install(
-            dir.path(),
-            &[
-                ("RetroBat.exe", false),
-                ("emulationstation", true),
-                ("roms", true),
-                ("bios", true),
-                ("emulators", true),
-                ("system", true),
-            ],
-        );
-        fs::write(
-            dir.path().join("system/version.info"),
-            b"8.3.1.1-stable-win64",
-        )
-        .unwrap();
+        install(dir.path(), &[("RetroBat.exe", false), ("emulationstation", true), ("roms", true), ("bios", true), ("emulators", true), ("system", true)]);
+        fs::write(dir.path().join("system/version.info"), b"8.3.1.1-stable-win64").unwrap();
         let d = RetroBat.detect(dir.path());
         assert_eq!(d.confidence, Confidence::Detected);
         assert_eq!(d.version.as_deref(), Some("8.3.1.1-stable-win64"));
-        let version = RetroBat
-            .validate_layout(dir.path())
-            .into_iter()
-            .find(|c| c.id == "version")
-            .unwrap();
+        let version = RetroBat.validate_layout(dir.path()).into_iter().find(|c| c.id == "version").unwrap();
         assert_eq!(version.status, CheckStatus::Ok);
         assert!(version.detail.contains("8.3.1.1"));
 
         // Falls back to emulationstation\version.info; ignores junk.
-        fs::write(
-            dir.path().join("system/version.info"),
-            b"<script>alert(1)</script>",
-        )
-        .unwrap();
-        fs::write(
-            dir.path().join("emulationstation/version.info"),
-            b"8.3.1.1-stable-win64\r\n",
-        )
-        .unwrap();
-        assert_eq!(
-            RetroBat.detect(dir.path()).version.as_deref(),
-            Some("8.3.1.1-stable-win64")
-        );
+        fs::write(dir.path().join("system/version.info"), b"<script>alert(1)</script>").unwrap();
+        fs::write(dir.path().join("emulationstation/version.info"), b"8.3.1.1-stable-win64\r\n").unwrap();
+        assert_eq!(RetroBat.detect(dir.path()).version.as_deref(), Some("8.3.1.1-stable-win64"));
         fs::remove_file(dir.path().join("emulationstation/version.info")).unwrap();
         assert_eq!(RetroBat.detect(dir.path()).version, None);
     }
@@ -494,26 +345,13 @@ mod tests {
     #[test]
     fn partial_or_unrelated_folders_are_not_detected() {
         let empty = tempfile::tempdir().unwrap();
-        assert_eq!(
-            RetroBat.detect(empty.path()).confidence,
-            Confidence::NotDetected
-        );
+        assert_eq!(RetroBat.detect(empty.path()).confidence, Confidence::NotDetected);
         let roms_only = tempfile::tempdir().unwrap();
         install(roms_only.path(), &[("roms", true)]);
-        assert_eq!(
-            RetroBat.detect(roms_only.path()).confidence,
-            Confidence::NotDetected
-        );
+        assert_eq!(RetroBat.detect(roms_only.path()).confidence, Confidence::NotDetected);
         let looks_like = tempfile::tempdir().unwrap();
-        install(
-            looks_like.path(),
-            &[("roms", true), ("emulationstation", true)],
-        );
-        assert_eq!(
-            RetroBat.detect(looks_like.path()).confidence,
-            Confidence::Possible,
-            "no RetroBat.exe"
-        );
+        install(looks_like.path(), &[("roms", true), ("emulationstation", true)]);
+        assert_eq!(RetroBat.detect(looks_like.path()).confidence, Confidence::Possible, "no RetroBat.exe");
     }
 
     #[test]
@@ -543,38 +381,10 @@ mod tests {
     #[test]
     fn single_files_go_into_their_system_folder() {
         let plan = |p: &str, e: &str, f: &str| RetroBat.plan_placement(&request(p, e, &[f]));
-        assert_eq!(
-            plan("NES", "nes", "Kid.nes"),
-            Placement::Planned {
-                system_folder: "nes".into(),
-                destinations: vec!["roms/nes/Kid.nes".into()]
-            }
-        );
-        assert_eq!(
-            plan("NES", "fds", "Disk.fds"),
-            Placement::Planned {
-                system_folder: "fds".into(),
-                destinations: vec!["roms/fds/Disk.fds".into()]
-            }
-        );
-        assert_eq!(
-            plan("Genesis", "md", "S.md"),
-            Placement::Planned {
-                system_folder: "megadrive".into(),
-                destinations: vec!["roms/megadrive/S.md".into()]
-            }
-        );
-        for (platform, folder) in [
-            ("SNES", "snes"),
-            ("Master System", "mastersystem"),
-            ("Game Gear", "gamegear"),
-            ("PlayStation 2", "ps2"),
-            ("PSP", "psp"),
-            ("Game Boy", "gb"),
-            ("Game Boy Color", "gbc"),
-            ("GBA", "gba"),
-            ("N64", "n64"),
-        ] {
+        assert_eq!(plan("NES", "nes", "Kid.nes"), Placement::Planned { system_folder: "nes".into(), destinations: vec!["roms/nes/Kid.nes".into()] });
+        assert_eq!(plan("NES", "fds", "Disk.fds"), Placement::Planned { system_folder: "fds".into(), destinations: vec!["roms/fds/Disk.fds".into()] });
+        assert_eq!(plan("Genesis", "md", "S.md"), Placement::Planned { system_folder: "megadrive".into(), destinations: vec!["roms/megadrive/S.md".into()] });
+        for (platform, folder) in [("SNES", "snes"), ("Master System", "mastersystem"), ("Game Gear", "gamegear"), ("PlayStation 2", "ps2"), ("PSP", "psp"), ("Game Boy", "gb"), ("Game Boy Color", "gbc"), ("GBA", "gba"), ("N64", "n64")] {
             match plan(platform, "x", "a.x") {
                 Placement::Planned { system_folder, .. } => assert_eq!(system_folder, folder),
                 other => panic!("{platform}: {other:?}"),
@@ -585,19 +395,9 @@ mod tests {
     #[test]
     fn new_systems_map_to_retrobat_folders_and_bios_is_never_placed() {
         let plan = |p: &str| RetroBat.plan_placement(&request(p, "zip", &["a.zip"]));
-        for (platform, folder) in [
-            ("Commodore 64", "c64"),
-            ("Amiga", "amiga500"),
-            ("MSX", "msx1"),
-            ("Atari Lynx", "lynx"),
-            ("Sega CD", "megacd"),
-            ("WonderSwan Color", "wswanc"),
-            ("Famicom Disk System", "fds"),
-        ] {
+        for (platform, folder) in [("Commodore 64", "c64"), ("Amiga", "amiga500"), ("MSX", "msx1"), ("Atari Lynx", "lynx"), ("Sega CD", "megacd"), ("WonderSwan Color", "wswanc"), ("Famicom Disk System", "fds")] {
             match plan(platform) {
-                Placement::Planned { system_folder, .. } => {
-                    assert_eq!(system_folder, folder, "{platform}")
-                }
+                Placement::Planned { system_folder, .. } => assert_eq!(system_folder, folder, "{platform}"),
                 other => panic!("{platform}: {other:?}"),
             }
         }
@@ -607,13 +407,7 @@ mod tests {
     #[test]
     fn arcade_and_unknown_platforms_are_not_guessed() {
         for platform in ["Arcade", "Unclassified", "Nintendo Switch"] {
-            assert!(
-                matches!(
-                    RetroBat.plan_placement(&request(platform, "zip", &["a.zip"])),
-                    Placement::Unsupported { .. }
-                ),
-                "{platform}"
-            );
+            assert!(matches!(RetroBat.plan_placement(&request(platform, "zip", &["a.zip"])), Placement::Unsupported { .. }), "{platform}");
         }
     }
 
@@ -624,24 +418,10 @@ mod tests {
             r.options.arcade = system;
             RetroBat.plan_placement(&r)
         };
-        assert_eq!(
-            with(Some(ArcadeSystem::Mame), "zip", "sf2.zip"),
-            Placement::Planned {
-                system_folder: "mame".into(),
-                destinations: vec!["roms/mame/sf2.zip".into()]
-            }
-        );
-        assert_eq!(
-            with(Some(ArcadeSystem::Fbneo), "7z", "mslug.7z"),
-            Placement::Planned {
-                system_folder: "fbneo".into(),
-                destinations: vec!["roms/fbneo/mslug.7z".into()]
-            }
-        );
+        assert_eq!(with(Some(ArcadeSystem::Mame), "zip", "sf2.zip"), Placement::Planned { system_folder: "mame".into(), destinations: vec!["roms/mame/sf2.zip".into()] });
+        assert_eq!(with(Some(ArcadeSystem::Fbneo), "7z", "mslug.7z"), Placement::Planned { system_folder: "fbneo".into(), destinations: vec!["roms/fbneo/mslug.7z".into()] });
         match with(None, "zip", "sf2.zip") {
-            Placement::Unsupported { reason } => {
-                assert!(reason.contains("Choose MAME or FinalBurn Neo"), "{reason}")
-            }
+            Placement::Unsupported { reason } => assert!(reason.contains("Choose MAME or FinalBurn Neo"), "{reason}"),
             other => panic!("{other:?}"),
         }
         match with(Some(ArcadeSystem::Mame), "chd", "kinst.chd") {
@@ -651,22 +431,12 @@ mod tests {
         // Other platforms ignore the arcade choice.
         let mut nes = request("NES", "nes", &["Kid.nes"]);
         nes.options.arcade = Some(ArcadeSystem::Fbneo);
-        assert_eq!(
-            RetroBat.plan_placement(&nes),
-            Placement::Planned {
-                system_folder: "nes".into(),
-                destinations: vec!["roms/nes/Kid.nes".into()]
-            }
-        );
+        assert_eq!(RetroBat.plan_placement(&nes), Placement::Planned { system_folder: "nes".into(), destinations: vec!["roms/nes/Kid.nes".into()] });
     }
 
     #[test]
     fn multi_file_games_get_their_own_folder_keeping_relative_paths() {
-        let plan = RetroBat.plan_placement(&request(
-            "PlayStation",
-            "m3u",
-            &["Saga.m3u", "Saga (Disc 1).cue", "CD2/Saga (Disc 2).cue"],
-        ));
+        let plan = RetroBat.plan_placement(&request("PlayStation", "m3u", &["Saga.m3u", "Saga (Disc 1).cue", "CD2/Saga (Disc 2).cue"]));
         assert_eq!(
             plan,
             Placement::Planned {
@@ -678,11 +448,7 @@ mod tests {
                 ]
             }
         );
-        let escaping = RetroBat.plan_placement(&request(
-            "PlayStation",
-            "m3u",
-            &["Saga.m3u", "../elsewhere/d1.cue"],
-        ));
+        let escaping = RetroBat.plan_placement(&request("PlayStation", "m3u", &["Saga.m3u", "../elsewhere/d1.cue"]));
         assert!(matches!(escaping, Placement::Unsupported { .. }));
     }
 }

@@ -61,12 +61,7 @@ pub struct ConfChange {
 }
 
 fn choices(list: &[(&str, &str)]) -> Vec<Choice> {
-    list.iter()
-        .map(|(label, value)| Choice {
-            label: label.to_string(),
-            value: value.to_string(),
-        })
-        .collect()
+    list.iter().map(|(label, value)| Choice { label: label.to_string(), value: value.to_string() }).collect()
 }
 
 const ON_OFF: &[(&str, &str)] = &[("On", "1"), ("Off", "0")];
@@ -121,18 +116,8 @@ fn conf_edit(text: &str, wanted: &BTreeMap<String, Option<String>>) -> Result<St
     edit_conf(text, wanted, &[';'], "recalbox.conf")
 }
 
-fn install(
-    connection: &Connection,
-    installation_id: &str,
-    presence: PresenceFn,
-) -> Result<customizer::Install, String> {
-    customizer::install_for(
-        connection,
-        installation_id,
-        presence,
-        &["recalbox"],
-        "These settings are for Recalbox installations.",
-    )
+fn install(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<customizer::Install, String> {
+    customizer::install_for(connection, installation_id, presence, &["recalbox"], "These settings are for Recalbox installations.")
 }
 
 const NO_CONF: &str = "system\\recalbox.conf is missing. Start Recalbox once with this drive or share so it creates it.";
@@ -147,31 +132,19 @@ fn read(root: &Path) -> Result<String, String> {
 
 fn themes(root: &Path) -> Vec<String> {
     let mut list = vec![BUILTIN_THEME.to_string()];
-    list.extend(
-        folders(&root.join("themes"))
-            .into_iter()
-            .filter(|t| t != BUILTIN_THEME),
-    );
+    list.extend(folders(&root.join("themes")).into_iter().filter(|t| t != BUILTIN_THEME));
     list
 }
 
 /// What can be set, with the current values (reads only).
-pub fn options(
-    connection: &Connection,
-    installation_id: &str,
-    presence: PresenceFn,
-) -> Result<RecalboxOptions, String> {
+pub fn options(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<RecalboxOptions, String> {
     let install = install(connection, installation_id, presence)?;
     let text = read(&install.root)?;
     let values = crate::batocera_settings::conf_values(&text);
     Ok(RecalboxOptions {
         settings: settings(),
         systems: systems(&install.root),
-        theme: values
-            .get(THEME_KEY)
-            .cloned()
-            .filter(|t| !t.is_empty())
-            .unwrap_or_else(|| BUILTIN_THEME.into()),
+        theme: values.get(THEME_KEY).cloned().filter(|t| !t.is_empty()).unwrap_or_else(|| BUILTIN_THEME.into()),
         themes: themes(&install.root),
         conf_sha: customizer::hex_sha(text.as_bytes()),
         values,
@@ -179,10 +152,7 @@ pub fn options(
 }
 
 /// Checked changes: known settings and scopes, Recalbox's values, installed themes.
-fn validate(
-    root: &Path,
-    changes: &[ConfChange],
-) -> Result<BTreeMap<String, Option<String>>, String> {
+fn validate(root: &Path, changes: &[ConfChange]) -> Result<BTreeMap<String, Option<String>>, String> {
     if changes.is_empty() {
         return Err("Nothing to change.".into());
     }
@@ -197,31 +167,15 @@ fn validate(
                 None => return Err("Choose a theme.".into()),
             }
         } else {
-            let (scope, key) = c
-                .key
-                .split_once('.')
-                .ok_or_else(|| format!("Unknown setting {}.", c.key))?;
-            let setting = offered
-                .iter()
-                .find(|s| s.key == key)
-                .ok_or_else(|| format!("RetroDrive doesn't change {key} on Recalbox."))?;
+            let (scope, key) = c.key.split_once('.').ok_or_else(|| format!("Unknown setting {}.", c.key))?;
+            let setting = offered.iter().find(|s| s.key == key).ok_or_else(|| format!("RetroDrive doesn't change {key} on Recalbox."))?;
             let system_scope = scope != "global";
             if system_scope && (!setting.per_system || !systems.iter().any(|s| s == scope)) {
                 return Err(format!("{} can't be set for {scope}.", setting.label));
             }
             match &c.value {
-                Some(v) if !setting.choices.iter().any(|ch| &ch.value == v) => {
-                    return Err(format!(
-                        "{v} isn't one of Recalbox's choices for {}.",
-                        setting.label
-                    ))
-                }
-                None if !system_scope => {
-                    return Err(format!(
-                        "Choose a value for {} for all systems.",
-                        setting.label
-                    ))
-                }
+                Some(v) if !setting.choices.iter().any(|ch| &ch.value == v) => return Err(format!("{v} isn't one of Recalbox's choices for {}.", setting.label)),
+                None if !system_scope => return Err(format!("Choose a value for {} for all systems.", setting.label)),
                 _ => {}
             }
         }
@@ -230,62 +184,31 @@ fn validate(
     Ok(wanted)
 }
 
-fn rows(
-    wanted: &BTreeMap<String, Option<String>>,
-    current: &BTreeMap<String, String>,
-) -> Vec<ChangeRow> {
+fn rows(wanted: &BTreeMap<String, Option<String>>, current: &BTreeMap<String, String>) -> Vec<ChangeRow> {
     wanted
         .iter()
         .map(|(key, value)| {
             if key == THEME_KEY {
-                return ChangeRow {
-                    system: "interface".into(),
-                    key: "theme".into(),
-                    before: current.get(key).cloned(),
-                    after: value.clone(),
-                };
+                return ChangeRow { system: "interface".into(), key: "theme".into(), before: current.get(key).cloned(), after: value.clone() };
             }
             let (scope, name) = key.split_once('.').unwrap_or(("global", key));
-            ChangeRow {
-                system: if scope == "global" {
-                    "all systems".into()
-                } else {
-                    scope.into()
-                },
-                key: name.into(),
-                before: current.get(key).cloned(),
-                after: value.clone(),
-            }
+            ChangeRow { system: if scope == "global" { "all systems".into() } else { scope.into() }, key: name.into(), before: current.get(key).cloned(), after: value.clone() }
         })
         .collect()
 }
 
 /// What the changes would do (reads only).
-pub fn preview(
-    connection: &Connection,
-    installation_id: &str,
-    changes: &[ConfChange],
-    presence: PresenceFn,
-) -> Result<Preview, String> {
+pub fn preview(connection: &Connection, installation_id: &str, changes: &[ConfChange], presence: PresenceFn) -> Result<Preview, String> {
     let install = install(connection, installation_id, presence)?;
     let text = read(&install.root)?;
     let wanted = validate(&install.root, changes)?;
     conf_edit(&text, &wanted)?;
-    Ok(Preview {
-        changes: rows(&wanted, &crate::batocera_settings::conf_values(&text)),
-        file_sha: customizer::hex_sha(text.as_bytes()),
-    })
+    Ok(Preview { changes: rows(&wanted, &crate::batocera_settings::conf_values(&text)), file_sha: customizer::hex_sha(text.as_bytes()) })
 }
 
 /// Save reviewed changes: only if recalbox.conf is unchanged since the review;
 /// journaled, backed up and undoable (`customizer::write_file`).
-pub fn apply(
-    connection: &Connection,
-    installation_id: &str,
-    changes: &[ConfChange],
-    expected_sha: &str,
-    presence: PresenceFn,
-) -> Result<String, String> {
+pub fn apply(connection: &Connection, installation_id: &str, changes: &[ConfChange], expected_sha: &str, presence: PresenceFn) -> Result<String, String> {
     let install = install(connection, installation_id, presence)?;
     let text = read(&install.root)?;
     if customizer::hex_sha(text.as_bytes()) != expected_sha {
@@ -294,20 +217,8 @@ pub fn apply(
     let wanted = validate(&install.root, changes)?;
     let new_text = conf_edit(&text, &wanted)?;
     let path = install.root.join("system").join("recalbox.conf");
-    customizer::write_file(
-        connection,
-        &install,
-        CONF,
-        &path,
-        &text,
-        &new_text,
-        rows(&wanted, &crate::batocera_settings::conf_values(&text)),
-    )?;
-    let theme = if wanted.contains_key(THEME_KEY) {
-        " The theme shows the next time Recalbox starts."
-    } else {
-        ""
-    };
+    customizer::write_file(connection, &install, CONF, &path, &text, &new_text, rows(&wanted, &crate::batocera_settings::conf_values(&text)))?;
+    let theme = if wanted.contains_key(THEME_KEY) { " The theme shows the next time Recalbox starts." } else { "" };
     Ok(format!("Saved to recalbox.conf. Recalbox uses these settings the next time a game starts.{theme} Undo is under \"Show every settings change\"."))
 }
 
@@ -326,21 +237,8 @@ mod tests {
 
     #[test]
     fn edits_change_only_the_wanted_keys_like_recalboxs_menu() {
-        let w = |pairs: &[(&str, Option<&str>)]| {
-            pairs
-                .iter()
-                .map(|(k, v)| (k.to_string(), v.map(str::to_string)))
-                .collect::<BTreeMap<_, _>>()
-        };
-        let out = conf_edit(
-            CONF_TEXT,
-            &w(&[
-                ("global.ratio", Some("4/3")),
-                ("global.shaderset", Some("scanlines")),
-                ("snes.ratio", Some("16/9")),
-            ]),
-        )
-        .unwrap();
+        let w = |pairs: &[(&str, Option<&str>)]| pairs.iter().map(|(k, v)| (k.to_string(), v.map(str::to_string))).collect::<BTreeMap<_, _>>();
+        let out = conf_edit(CONF_TEXT, &w(&[("global.ratio", Some("4/3")), ("global.shaderset", Some("scanlines")), ("snes.ratio", Some("16/9"))])).unwrap();
         assert_eq!(
             out,
             "# ------------ Global options ------------\n## Set ratio for all emulators\nglobal.ratio=4/3\nglobal.shaderset=scanlines\nglobal.smooth=1\n# snes.ratio=4/3\nemulationstation.theme.folder=recalbox-next\nsnes.ratio=16/9\n",
@@ -361,22 +259,11 @@ mod tests {
         fs::write(share.join("system/recalbox.conf"), CONF_TEXT).unwrap();
         let mut c = Connection::open_in_memory().unwrap();
         db::migrate(&mut c, None).unwrap();
-        let id =
-            installations::add(&c, &share, "recalbox", &|_: &str| VolumeProbe::unknown()).unwrap();
+        let id = installations::add(&c, &share, "recalbox", &|_: &str| VolumeProbe::unknown()).unwrap();
 
         let o = options(&c, &id, &connected).unwrap();
-        assert_eq!(
-            (o.systems.clone(), o.theme.clone(), o.themes.clone()),
-            (
-                vec!["snes".to_string()],
-                "recalbox-next".to_string(),
-                vec!["recalbox-next".to_string(), "my-theme".to_string()]
-            )
-        );
-        let ch = |k: &str, v: Option<&str>| ConfChange {
-            key: k.into(),
-            value: v.map(str::to_string),
-        };
+        assert_eq!((o.systems.clone(), o.theme.clone(), o.themes.clone()), (vec!["snes".to_string()], "recalbox-next".to_string(), vec!["recalbox-next".to_string(), "my-theme".to_string()]));
+        let ch = |k: &str, v: Option<&str>| ConfChange { key: k.into(), value: v.map(str::to_string) };
         // Refused: unknown values, global-only setting per system, unknown system or theme, "same as all systems" for all systems.
         assert!(preview(&c, &id, &[ch("global.ratio", Some("99/1"))], &connected).is_err());
         assert!(preview(&c, &id, &[ch("snes.integerscale", Some("1"))], &connected).is_err());
@@ -384,39 +271,19 @@ mod tests {
         assert!(preview(&c, &id, &[ch(THEME_KEY, Some("nope"))], &connected).is_err());
         assert!(preview(&c, &id, &[ch("global.ratio", None)], &connected).is_err());
 
-        let changes = [
-            ch("snes.ratio", Some("4/3")),
-            ch("global.integerscale", Some("1")),
-            ch(THEME_KEY, Some("my-theme")),
-        ];
+        let changes = [ch("snes.ratio", Some("4/3")), ch("global.integerscale", Some("1")), ch(THEME_KEY, Some("my-theme"))];
         let p = preview(&c, &id, &changes, &connected).unwrap();
         assert_eq!(p.changes.len(), 3);
-        assert!(apply(&c, &id, &changes, "stale", &connected)
-            .unwrap_err()
-            .contains("changed since"));
+        assert!(apply(&c, &id, &changes, "stale", &connected).unwrap_err().contains("changed since"));
         let message = apply(&c, &id, &changes, &p.file_sha, &connected).unwrap();
         assert!(message.contains("theme"), "{message}");
         let text = fs::read_to_string(share.join("system/recalbox.conf")).unwrap();
-        assert!(
-            text.contains("snes.ratio=4/3\n")
-                && text.contains("global.integerscale=1\n")
-                && text.contains("emulationstation.theme.folder=my-theme\n"),
-            "{text}"
-        );
+        assert!(text.contains("snes.ratio=4/3\n") && text.contains("global.integerscale=1\n") && text.contains("emulationstation.theme.folder=my-theme\n"), "{text}");
         assert!(text.starts_with("# ------------ Global options ------------\n## Set ratio for all emulators\nglobal.ratio=auto\n;global.shaderset=none\n"), "other lines untouched");
 
-        let change: i64 = c
-            .query_row(
-                "SELECT id FROM settings_changes ORDER BY id DESC LIMIT 1",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
+        let change: i64 = c.query_row("SELECT id FROM settings_changes ORDER BY id DESC LIMIT 1", [], |r| r.get(0)).unwrap();
         customizer::undo(&c, change, &connected, &customizer::never_running).unwrap();
-        assert_eq!(
-            fs::read_to_string(share.join("system/recalbox.conf")).unwrap(),
-            CONF_TEXT,
-            "undo puts the file back"
-        );
+        assert_eq!(fs::read_to_string(share.join("system/recalbox.conf")).unwrap(), CONF_TEXT, "undo puts the file back");
     }
 }
+

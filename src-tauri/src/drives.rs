@@ -37,12 +37,6 @@ pub fn volume_kind(root: &str) -> &'static str {
         .list()
         .iter()
         .find(|d| d.mount_point().to_string_lossy().eq_ignore_ascii_case(root))
-        .map(|d| {
-            if d.is_removable() {
-                "removable"
-            } else {
-                "local"
-            }
-        })
+        .map(|d| if d.is_removable() { "removable" } else { "local" })
         .unwrap_or("unknown")
 }

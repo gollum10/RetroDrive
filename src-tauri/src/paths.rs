@@ -67,10 +67,7 @@ mod tests {
     #[test]
     fn strips_verbatim_prefixes() {
         assert_eq!(strip_verbatim(r"\\?\C:\Roms\a.nes"), r"C:\Roms\a.nes");
-        assert_eq!(
-            strip_verbatim(r"\\?\UNC\nas\share\a.nes"),
-            r"\\nas\share\a.nes"
-        );
+        assert_eq!(strip_verbatim(r"\\?\UNC\nas\share\a.nes"), r"\\nas\share\a.nes");
         assert_eq!(strip_verbatim(r"C:\Roms\a.nes"), r"C:\Roms\a.nes");
     }
 
@@ -94,14 +91,8 @@ mod tests {
             split_volume(Path::new(r"\\nas\games\gba\x.gba")),
             Some((r"\\nas\games\".into(), "gba/x.gba".into()))
         );
-        assert_eq!(
-            join(r"C:\", "Roms/snes/Super Game.sfc"),
-            PathBuf::from(r"C:\Roms\snes\Super Game.sfc")
-        );
-        assert_eq!(
-            split_volume(Path::new(r"D:\")),
-            Some((r"D:\".into(), String::new()))
-        );
+        assert_eq!(join(r"C:\", "Roms/snes/Super Game.sfc"), PathBuf::from(r"C:\Roms\snes\Super Game.sfc"));
+        assert_eq!(split_volume(Path::new(r"D:\")), Some((r"D:\".into(), String::new())));
     }
 
     #[cfg(windows)]

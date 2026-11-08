@@ -85,11 +85,7 @@ impl ScanSummary {
     fn push(&mut self, path: &Path, message: String, severity: &'static str) {
         self.issue_count += 1;
         if self.issues.len() < MAX_REPORTED_ISSUES {
-            self.issues.push(ScanIssue {
-                path: path.display().to_string(),
-                message,
-                severity,
-            });
+            self.issues.push(ScanIssue { path: path.display().to_string(), message, severity });
         }
     }
 }
@@ -135,11 +131,7 @@ pub struct ScanOptions {
 
 impl Default for ScanOptions {
     fn default() -> Self {
-        Self {
-            batch_size: 500,
-            max_batch_time: Duration::from_secs(1),
-            progress_interval: Duration::from_millis(200),
-        }
+        Self { batch_size: 500, max_batch_time: Duration::from_secs(1), progress_interval: Duration::from_millis(200) }
     }
 }
 
@@ -151,26 +143,17 @@ struct Batch<'c> {
 
 impl<'c> Batch<'c> {
     fn begin(connection: &'c Connection) -> Result<Self, String> {
-        connection
-            .execute_batch("BEGIN IMMEDIATE")
-            .map_err(|e| e.to_string())?;
-        Ok(Self {
-            connection,
-            open: true,
-        })
+        connection.execute_batch("BEGIN IMMEDIATE").map_err(|e| e.to_string())?;
+        Ok(Self { connection, open: true })
     }
     fn commit(&mut self) -> Result<(), String> {
-        self.connection
-            .execute_batch("COMMIT")
-            .map_err(|e| e.to_string())?;
+        self.connection.execute_batch("COMMIT").map_err(|e| e.to_string())?;
         self.open = false;
         Ok(())
     }
     fn restart(&mut self) -> Result<(), String> {
         self.commit()?;
-        self.connection
-            .execute_batch("BEGIN IMMEDIATE")
-            .map_err(|e| e.to_string())?;
+        self.connection.execute_batch("BEGIN IMMEDIATE").map_err(|e| e.to_string())?;
         self.open = true;
         Ok(())
     }
@@ -186,18 +169,8 @@ impl Drop for Batch<'_> {
 
 /// Scan `folder` into the catalog with default options and no observer.
 #[cfg(test)]
-pub fn scan(
-    connection: &mut Connection,
-    folder: &Path,
-    volume_probe: &dyn Fn(&str) -> VolumeProbe,
-) -> Result<ScanSummary, String> {
-    scan_with(
-        connection,
-        folder,
-        volume_probe,
-        &mut Unobserved,
-        ScanOptions::default(),
-    )
+pub fn scan(connection: &mut Connection, folder: &Path, volume_probe: &dyn Fn(&str) -> VolumeProbe) -> Result<ScanSummary, String> {
+    scan_with(connection, folder, volume_probe, &mut Unobserved, ScanOptions::default())
 }
 
 /// Scan `folder` into the catalog. `volume_probe` reports the kind and fingerprint
@@ -213,18 +186,13 @@ pub fn scan_with(
     observer: &mut dyn ScanObserver,
     options: ScanOptions,
 ) -> Result<ScanSummary, String> {
-    let root =
-        paths::normalize(folder).map_err(|e| format!("Cannot open {}: {e}", folder.display()))?;
+    let root = paths::normalize(folder).map_err(|e| format!("Cannot open {}: {e}", folder.display()))?;
     if !root.is_dir() {
         return Err("The selected location is not a directory".into());
     }
     let (volume_root, root_relative) = paths::split_volume(&root)
         .ok_or_else(|| format!("Unsupported folder path: {}", root.display()))?;
-    let root_name = root
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or("")
-        .to_string();
+    let root_name = root.file_name().and_then(|s| s.to_str()).unwrap_or("").to_string();
 
     let probe = volume_probe(&volume_root);
     let mut batch = Batch::begin(connection)?;
@@ -234,10 +202,7 @@ pub fn scan_with(
     let scan_id = db::new_id();
     batch.restart()?;
 
-    let mut summary = ScanSummary {
-        remounted_from: location.previous_root,
-        ..ScanSummary::default()
-    };
+    let mut summary = ScanSummary { remounted_from: location.previous_root, ..ScanSummary::default() };
     let mut recorded: HashMap<String, Recorded> = HashMap::new();
     let mut cue_sheets: Vec<ReferenceList> = Vec::new();
     let mut playlists: Vec<ReferenceList> = Vec::new();
@@ -261,10 +226,7 @@ pub fn scan_with(
             progress.issue_count = summary.issue_count;
             progress.current_path = match &entry {
                 Ok(e) => e.path().display().to_string(),
-                Err(e) => e
-                    .path()
-                    .map(|p| p.display().to_string())
-                    .unwrap_or_default(),
+                Err(e) => e.path().map(|p| p.display().to_string()).unwrap_or_default(),
             };
             observer.progress(&progress);
             last_progress = Some(Instant::now());
@@ -273,10 +235,7 @@ pub fn scan_with(
         let entry = match entry {
             Ok(entry) => entry,
             Err(error) => {
-                let path = error
-                    .path()
-                    .map(Path::to_path_buf)
-                    .unwrap_or_else(|| root.clone());
+                let path = error.path().map(Path::to_path_buf).unwrap_or_else(|| root.clone());
                 summary.issue(&path, error.to_string());
                 continue;
             }
@@ -300,11 +259,7 @@ pub fn scan_with(
             continue;
         };
 
-        let extension = path
-            .extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("")
-            .to_lowercase();
+        let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
         let mut folders: Vec<&str> = vec![root_name.as_str()];
         if let Some(parent) = relative_to_root.parent() {
             folders.extend(parent.components().filter_map(|c| c.as_os_str().to_str()));
@@ -316,14 +271,8 @@ pub fn scan_with(
                 summary.images_found += 1;
                 images.insert(relative_path.to_lowercase(), relative_path);
             } else {
-                if path
-                    .file_name()
-                    .is_some_and(|n| n.eq_ignore_ascii_case("gamelist.xml"))
-                {
-                    let folder = relative_path
-                        .rsplit_once('/')
-                        .map(|(d, _)| d.to_string())
-                        .unwrap_or_default();
+                if path.file_name().is_some_and(|n| n.eq_ignore_ascii_case("gamelist.xml")) {
+                    let folder = relative_path.rsplit_once('/').map(|(d, _)| d.to_string()).unwrap_or_default();
                     gamelists.push((path.to_path_buf(), folder));
                 }
                 summary.skipped_unsupported += 1;
@@ -331,15 +280,8 @@ pub fn scan_with(
             continue;
         };
 
-        let classification = if path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .is_some_and(classify::looks_like_bios)
-        {
-            classify::Classification {
-                platform: classify::BIOS,
-                source: classify::HintSource::Folder,
-            }
+        let classification = if path.file_name().and_then(|n| n.to_str()).is_some_and(classify::looks_like_bios) {
+            classify::Classification { platform: classify::BIOS, source: classify::HintSource::Folder }
         } else {
             classification
         };
@@ -351,51 +293,26 @@ pub fn scan_with(
             }
         };
         let size = i64::try_from(metadata.len()).unwrap_or(i64::MAX);
-        let modified = metadata
-            .modified()
-            .ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|d| d.as_secs().to_string());
+        let modified = metadata.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs().to_string());
 
         let relative_path = join_relative(&root_relative, &relative_str.replace('\\', "/"));
-        let filename = path
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or(relative_str)
-            .to_string();
-        let title = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("Untitled")
-            .replace('_', " ");
+        let filename = path.file_name().and_then(|s| s.to_str()).unwrap_or(relative_str).to_string();
+        let title = path.file_stem().and_then(|s| s.to_str()).unwrap_or("Untitled").replace('_', " ");
 
         let outcome = record_file(
             connection,
             &storage_id,
             &relative_path,
             &scan_id,
-            &FileFacts {
-                title: &title,
-                filename: &filename,
-                extension: &extension,
-                size,
-                modified: modified.as_deref(),
-                classification,
-            },
+            &FileFacts { title: &title, filename: &filename, extension: &extension, size, modified: modified.as_deref(), classification },
         )?;
         summary.indexed += 1;
         if outcome.is_new {
             summary.new_files += 1;
         }
         match extension.as_str() {
-            "cue" => cue_sheets.push(ReferenceList {
-                path: path.to_path_buf(),
-                relative_path: relative_path.clone(),
-            }),
-            "m3u" => playlists.push(ReferenceList {
-                path: path.to_path_buf(),
-                relative_path: relative_path.clone(),
-            }),
+            "cue" => cue_sheets.push(ReferenceList { path: path.to_path_buf(), relative_path: relative_path.clone() }),
+            "m3u" => playlists.push(ReferenceList { path: path.to_path_buf(), relative_path: relative_path.clone() }),
             _ => {}
         }
         recorded.insert(
@@ -439,23 +356,11 @@ pub fn scan_with(
         grouping.detach_orphans()?;
     }
     grouping.update_payloads()?;
-    let walked_and_linked = grouping
-        .recorded
-        .values()
-        .filter(|r| r.walked && grouping.linked.contains(&r.file_id))
-        .count();
+    let walked_and_linked = grouping.recorded.values().filter(|r| r.walked && grouping.linked.contains(&r.file_id)).count();
     summary.games = summary.indexed.saturating_sub(walked_and_linked);
 
     if !summary.cancelled {
-        summary.images_linked = link_media(
-            connection,
-            &storage_id,
-            &grouping.recorded,
-            &grouping.linked,
-            &gamelists,
-            &images,
-            &mut summary,
-        )?;
+        summary.images_linked = link_media(connection, &storage_id, &grouping.recorded, &grouping.linked, &gamelists, &images, &mut summary)?;
     }
 
     summary.complete = !summary.cancelled && summary.error_count == 0;
@@ -476,10 +381,7 @@ pub fn scan_with(
         )
         .map_err(|e| e.to_string())?;
     connection
-        .execute(
-            "UPDATE storage_locations SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?1",
-            [&storage_id],
-        )
+        .execute("UPDATE storage_locations SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?1", [&storage_id])
         .map_err(|e| e.to_string())?;
     batch.commit()?;
 
@@ -514,57 +416,31 @@ fn link_media(
         let entries = match media::parse_gamelist(file) {
             Ok(entries) => entries,
             Err(error) => {
-                summary.warn(
-                    file,
-                    format!("Couldn't read this gamelist, so its images weren't linked: {error}"),
-                );
+                summary.warn(file, format!("Couldn't read this gamelist, so its images weren't linked: {error}"));
                 continue;
             }
         };
         for entry in entries {
-            let Some(rom) = media::resolve_relative(folder, &entry.path) else {
-                continue;
-            };
-            let Some(record) = recorded.get(&rom.to_lowercase()) else {
-                continue;
-            };
+            let Some(rom) = media::resolve_relative(folder, &entry.path) else { continue };
+            let Some(record) = recorded.get(&rom.to_lowercase()) else { continue };
             if !record.walked || members.contains(&record.file_id) {
                 continue;
             }
-            let clip = |s: &Option<String>, max: usize| {
-                s.as_ref()
-                    .map(|v| v.chars().take(max).collect::<String>())
-                    .filter(|v| !v.trim().is_empty())
-            };
+            let clip = |s: &Option<String>, max: usize| s.as_ref().map(|v| v.chars().take(max).collect::<String>()).filter(|v| !v.trim().is_empty());
             let rating = entry.rating.as_deref().and_then(media::rating_0_to_1);
             if entry.description.is_some() || entry.players.is_some() || rating.is_some() {
-                details.insert(
-                    record.file_id.as_str(),
-                    (
-                        clip(&entry.description, 4000),
-                        clip(&entry.players, 16),
-                        rating,
-                    ),
-                );
+                details.insert(record.file_id.as_str(), (clip(&entry.description, 4000), clip(&entry.players, 16), rating));
             }
             for (kind, image) in &entry.images {
-                let found = media::resolve_relative(folder, image)
-                    .and_then(|r| images.get(&r.to_lowercase()));
+                let found = media::resolve_relative(folder, image).and_then(|r| images.get(&r.to_lowercase()));
                 if let Some(actual) = found {
-                    chosen.entry(record.file_id.as_str()).or_default().push((
-                        kind,
-                        "gamelist",
-                        actual.clone(),
-                    ));
+                    chosen.entry(record.file_id.as_str()).or_default().push((kind, "gamelist", actual.clone()));
                 }
             }
         }
     }
     for (key, record) in recorded {
-        if !record.walked
-            || members.contains(&record.file_id)
-            || chosen.contains_key(record.file_id.as_str())
-        {
+        if !record.walked || members.contains(&record.file_id) || chosen.contains_key(record.file_id.as_str()) {
             continue;
         }
         let (folder, name) = key.rsplit_once('/').unwrap_or(("", key.as_str()));
@@ -572,26 +448,16 @@ fn link_media(
         'conventions: for (kind, pattern) in media::CONVENTIONS {
             let base = pattern.replace("{stem}", stem);
             for extension in media::IMAGE_EXTENSIONS {
-                let candidate = if folder.is_empty() {
-                    format!("{base}.{extension}")
-                } else {
-                    format!("{folder}/{base}.{extension}")
-                };
+                let candidate = if folder.is_empty() { format!("{base}.{extension}") } else { format!("{folder}/{base}.{extension}") };
                 if let Some(actual) = images.get(&candidate) {
-                    chosen.entry(record.file_id.as_str()).or_default().push((
-                        kind,
-                        "folder",
-                        actual.clone(),
-                    ));
+                    chosen.entry(record.file_id.as_str()).or_default().push((kind, "folder", actual.clone()));
                     break 'conventions;
                 }
             }
         }
     }
     let mut clear = connection
-        .prepare_cached(
-            "DELETE FROM game_media WHERE game_file_id = ?1 AND source IN ('gamelist', 'folder')",
-        )
+        .prepare_cached("DELETE FROM game_media WHERE game_file_id = ?1 AND source IN ('gamelist', 'folder')")
         .map_err(|e| e.to_string())?;
     let mut insert = connection
         .prepare_cached(
@@ -599,41 +465,25 @@ fn link_media(
              ON CONFLICT (game_file_id, source, kind) DO UPDATE SET relative_path = excluded.relative_path, storage_location_id = excluded.storage_location_id",
         )
         .map_err(|e| e.to_string())?;
-    for record in recorded
-        .values()
-        .filter(|r| r.walked && !members.contains(&r.file_id))
-    {
-        clear
-            .execute([&record.file_id])
-            .map_err(|e| e.to_string())?;
+    for record in recorded.values().filter(|r| r.walked && !members.contains(&r.file_id)) {
+        clear.execute([&record.file_id]).map_err(|e| e.to_string())?;
     }
     for (file_id, found) in &chosen {
         for (kind, source, relative) in found {
-            insert
-                .execute(params![file_id, kind, source, storage_id, relative])
-                .map_err(|e| e.to_string())?;
+            insert.execute(params![file_id, kind, source, storage_id, relative]).map_err(|e| e.to_string())?;
         }
     }
     // Details are refreshed for every game this scan reached.
-    let mut clear_details = connection
-        .prepare_cached("DELETE FROM game_details WHERE game_file_id = ?1")
-        .map_err(|e| e.to_string())?;
-    for record in recorded
-        .values()
-        .filter(|r| r.walked && !members.contains(&r.file_id))
-    {
-        clear_details
-            .execute([&record.file_id])
-            .map_err(|e| e.to_string())?;
+    let mut clear_details = connection.prepare_cached("DELETE FROM game_details WHERE game_file_id = ?1").map_err(|e| e.to_string())?;
+    for record in recorded.values().filter(|r| r.walked && !members.contains(&r.file_id)) {
+        clear_details.execute([&record.file_id]).map_err(|e| e.to_string())?;
     }
     let mut insert_details = connection
         .prepare_cached("INSERT INTO game_details (game_file_id, description, players, players_max, rating) VALUES (?1, ?2, ?3, ?4, ?5)")
         .map_err(|e| e.to_string())?;
     for (file_id, (description, players, rating)) in &details {
         let max = players.as_deref().and_then(media::players_max);
-        insert_details
-            .execute(params![file_id, description, players, max, rating])
-            .map_err(|e| e.to_string())?;
+        insert_details.execute(params![file_id, description, players, max, rating]).map_err(|e| e.to_string())?;
     }
     Ok(chosen.len())
 }
@@ -655,11 +505,7 @@ fn join_relative(root_relative: &str, below_root: &str) -> String {
     }
 }
 
-fn upsert_indexed_root(
-    tx: &Connection,
-    storage_id: &str,
-    relative: &str,
-) -> Result<String, String> {
+fn upsert_indexed_root(tx: &Connection, storage_id: &str, relative: &str) -> Result<String, String> {
     let existing = tx
         .query_row(
             "SELECT id FROM indexed_roots WHERE storage_location_id = ?1 AND relative_path = ?2",
@@ -697,13 +543,7 @@ struct RecordOutcome {
     role: String,
 }
 
-fn record_file(
-    tx: &Connection,
-    storage_id: &str,
-    relative_path: &str,
-    scan_id: &str,
-    facts: &FileFacts,
-) -> Result<RecordOutcome, String> {
+fn record_file(tx: &Connection, storage_id: &str, relative_path: &str, scan_id: &str, facts: &FileFacts) -> Result<RecordOutcome, String> {
     let existing = tx
         .query_row(
             "SELECT fl.id, fl.game_file_id, gf.release_id, gf.file_role FROM file_locations fl JOIN game_files gf ON gf.id = fl.game_file_id
@@ -741,12 +581,7 @@ fn record_file(
                 .map_err(|e| e.to_string())?;
             }
         }
-        return Ok(RecordOutcome {
-            is_new: false,
-            file_id,
-            release_id: release_id.unwrap_or_default(),
-            role,
-        });
+        return Ok(RecordOutcome { is_new: false, file_id, release_id: release_id.unwrap_or_default(), role });
     }
     let file_id = db::insert_game_file(
         tx,
@@ -764,18 +599,9 @@ fn record_file(
     )
     .map_err(|e| e.to_string())?;
     let release_id = tx
-        .query_row(
-            "SELECT release_id FROM game_files WHERE id = ?1",
-            [&file_id],
-            |r| r.get::<_, String>(0),
-        )
+        .query_row("SELECT release_id FROM game_files WHERE id = ?1", [&file_id], |r| r.get::<_, String>(0))
         .map_err(|e| e.to_string())?;
-    Ok(RecordOutcome {
-        is_new: true,
-        file_id,
-        release_id,
-        role: "primary".into(),
-    })
+    Ok(RecordOutcome { is_new: true, file_id, release_id, role: "primary".into() })
 }
 
 /// A file recorded during this scan.
@@ -803,13 +629,9 @@ const MAX_REFERENCE_FILE_BYTES: u64 = 1024 * 1024;
 /// File names referenced by a cue sheet (`FILE "Track 01.bin" BINARY`) or listed
 /// in an `.m3u` playlist (one path per line, `#` comments).
 fn read_references(path: &Path, playlist: bool) -> Result<Vec<String>, String> {
-    let size = std::fs::metadata(path)
-        .map_err(|e| format!("Cannot read: {e}"))?
-        .len();
+    let size = std::fs::metadata(path).map_err(|e| format!("Cannot read: {e}"))?.len();
     if size > MAX_REFERENCE_FILE_BYTES {
-        return Err(format!(
-            "Too large ({size} bytes) to be a cue sheet or playlist"
-        ));
+        return Err(format!("Too large ({size} bytes) to be a cue sheet or playlist"));
     }
     let bytes = std::fs::read(path).map_err(|e| format!("Cannot read: {e}"))?;
     let text = String::from_utf8_lossy(&bytes);
@@ -867,17 +689,8 @@ impl Grouping<'_> {
     }
 
     /// Process one cue sheet or playlist.
-    fn process(
-        &mut self,
-        summary: &mut ScanSummary,
-        list: &ReferenceList,
-        playlist: bool,
-    ) -> Result<(), String> {
-        let Some(parent) = self
-            .recorded
-            .get(&list.relative_path.to_lowercase())
-            .cloned()
-        else {
+    fn process(&mut self, summary: &mut ScanSummary, list: &ReferenceList, playlist: bool) -> Result<(), String> {
+        let Some(parent) = self.recorded.get(&list.relative_path.to_lowercase()).cloned() else {
             return Ok(());
         };
         let references = match read_references(&list.path, playlist) {
@@ -889,11 +702,7 @@ impl Grouping<'_> {
             }
         };
         let mut missing_parts = 0i64;
-        let (role, mut disc) = if playlist {
-            ("disc", Some(0i64))
-        } else {
-            ("track", None)
-        };
+        let (role, mut disc) = if playlist { ("disc", Some(0i64)) } else { ("track", None) };
         for reference in references {
             if let Some(n) = disc.as_mut() {
                 *n += 1;
@@ -903,10 +712,7 @@ impl Grouping<'_> {
             }
         }
         self.connection
-            .execute(
-                "UPDATE game_files SET missing_parts = ?2 WHERE id = ?1",
-                params![parent.file_id, missing_parts],
-            )
+            .execute("UPDATE game_files SET missing_parts = ?2 WHERE id = ?1", params![parent.file_id, missing_parts])
             .map_err(|e| e.to_string())?;
         self.touched.insert(self.release_of(&parent.release_id));
         Ok(())
@@ -935,33 +741,19 @@ impl Grouping<'_> {
             .filter(|candidate| candidate.is_file())
             .unwrap_or_else(|| parent_dir.join(reference));
         let Ok(target) = paths::normalize(&joined) else {
-            summary.warn(
-                &list.path,
-                format!("References \"{reference}\", which was not found"),
-            );
+            summary.warn(&list.path, format!("References \"{reference}\", which was not found"));
             return Ok(false);
         };
         let Ok(below_root) = target.strip_prefix(self.root) else {
-            summary.warn(
-                &list.path,
-                format!(
-                    "References \"{reference}\" outside the scanned folder; ignored for safety"
-                ),
-            );
+            summary.warn(&list.path, format!("References \"{reference}\" outside the scanned folder; ignored for safety"));
             return Ok(true);
         };
         let Some(below_root) = below_root.to_str() else {
-            summary.warn(
-                &list.path,
-                format!("References \"{reference}\", whose name is not valid Unicode"),
-            );
+            summary.warn(&list.path, format!("References \"{reference}\", whose name is not valid Unicode"));
             return Ok(true);
         };
         if !target.is_file() {
-            summary.warn(
-                &list.path,
-                format!("References \"{reference}\", which is not a file"),
-            );
+            summary.warn(&list.path, format!("References \"{reference}\", which is not a file"));
             return Ok(false);
         }
         let relative_path = join_relative(self.root_relative, &below_root.replace('\\', "/"));
@@ -975,8 +767,7 @@ impl Grouping<'_> {
                 let child_release = self.release_of(&child.release_id);
                 if child_release != parent_release {
                     db::merge_release(self.connection, &child_release, &parent_release)?;
-                    self.merged_into
-                        .insert(child_release, parent_release.clone());
+                    self.merged_into.insert(child_release, parent_release.clone());
                 }
                 child.file_id
             }
@@ -988,15 +779,7 @@ impl Grouping<'_> {
                         return Ok(true);
                     }
                 };
-                let file_id = self.record_member(
-                    &relative_path,
-                    &target,
-                    &metadata,
-                    &parent_release,
-                    parent,
-                    role,
-                    disc_index,
-                )?;
+                let file_id = self.record_member(&relative_path, &target, &metadata, &parent_release, parent, role, disc_index)?;
                 // The walk skipped this file as unrecognized (e.g. a .bin track); it is part of a game after all.
                 summary.skipped_unsupported = summary.skipped_unsupported.saturating_sub(1);
                 self.recorded.insert(
@@ -1037,11 +820,7 @@ impl Grouping<'_> {
         disc_index: Option<i64>,
     ) -> Result<String, String> {
         let size = i64::try_from(metadata.len()).unwrap_or(i64::MAX);
-        let modified = metadata
-            .modified()
-            .ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|d| d.as_secs().to_string());
+        let modified = metadata.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs().to_string());
         let existing = self
             .connection
             .query_row(
@@ -1060,25 +839,15 @@ impl Grouping<'_> {
                 )
                 .map_err(|e| e.to_string())?;
             self.connection
-                .execute(
-                    "UPDATE game_files SET size_bytes = ?2, modified_at = ?3 WHERE id = ?1",
-                    params![file_id, size, modified],
-                )
+                .execute("UPDATE game_files SET size_bytes = ?2, modified_at = ?3 WHERE id = ?1", params![file_id, size, modified])
                 .map_err(|e| e.to_string())?;
             if let Some(old) = old_release.filter(|old| old != release) {
                 db::merge_release(self.connection, &old, release)?;
             }
             return Ok(file_id);
         }
-        let filename = target
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or(relative_path);
-        let extension = target
-            .extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("")
-            .to_lowercase();
+        let filename = target.file_name().and_then(|s| s.to_str()).unwrap_or(relative_path);
+        let extension = target.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
         let file_id = db::insert_member_file(
             self.connection,
             release,
@@ -1113,16 +882,10 @@ impl Grouping<'_> {
             let game_id = db::new_id();
             let release_id = db::new_id();
             self.connection
-                .execute(
-                    "INSERT INTO games (id, canonical_title, platform) VALUES (?1, ?2, ?3)",
-                    params![game_id, orphan.title, orphan.platform],
-                )
+                .execute("INSERT INTO games (id, canonical_title, platform) VALUES (?1, ?2, ?3)", params![game_id, orphan.title, orphan.platform])
                 .map_err(|e| e.to_string())?;
             self.connection
-                .execute(
-                    "INSERT INTO game_releases (id, game_id) VALUES (?1, ?2)",
-                    params![release_id, game_id],
-                )
+                .execute("INSERT INTO game_releases (id, game_id) VALUES (?1, ?2)", params![release_id, game_id])
                 .map_err(|e| e.to_string())?;
             self.connection
                 .execute(
@@ -1131,10 +894,7 @@ impl Grouping<'_> {
                 )
                 .map_err(|e| e.to_string())?;
             self.connection
-                .execute(
-                    "UPDATE game_files SET release_id = ?2 WHERE parent_file_id = ?1",
-                    params![orphan.file_id, release_id],
-                )
+                .execute("UPDATE game_files SET release_id = ?2 WHERE parent_file_id = ?1", params![orphan.file_id, release_id])
                 .map_err(|e| e.to_string())?;
             self.touched.insert(release_id);
         }
@@ -1157,17 +917,8 @@ impl Grouping<'_> {
 }
 
 /// Mark present locations under the scanned folder that this scan did not see.
-fn mark_missing(
-    tx: &Connection,
-    storage_id: &str,
-    root_relative: &str,
-    scan_id: &str,
-) -> Result<usize, String> {
-    let prefix = if root_relative.is_empty() {
-        String::new()
-    } else {
-        format!("{root_relative}/")
-    };
+fn mark_missing(tx: &Connection, storage_id: &str, root_relative: &str, scan_id: &str) -> Result<usize, String> {
+    let prefix = if root_relative.is_empty() { String::new() } else { format!("{root_relative}/") };
     tx.execute(
         "UPDATE file_locations SET present_status = 'missing'
          WHERE storage_location_id = ?1
@@ -1192,10 +943,7 @@ mod tests {
     }
 
     fn local(_: &str) -> VolumeProbe {
-        VolumeProbe {
-            kind: "local",
-            identity: None,
-        }
+        VolumeProbe { kind: "local", identity: None }
     }
 
     fn fingerprint(id: &'static str) -> impl Fn(&str) -> VolumeProbe {
@@ -1230,15 +978,8 @@ mod tests {
     }
 
     fn statuses(c: &Connection) -> Vec<(String, String)> {
-        let mut s = c
-            .prepare(
-                "SELECT relative_path, present_status FROM file_locations ORDER BY relative_path",
-            )
-            .unwrap();
-        s.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
-            .unwrap()
-            .map(Result::unwrap)
-            .collect()
+        let mut s = c.prepare("SELECT relative_path, present_status FROM file_locations ORDER BY relative_path").unwrap();
+        s.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap().map(Result::unwrap).collect()
     }
 
     fn fixture() -> tempfile::TempDir {
@@ -1250,11 +991,7 @@ mod tests {
         write(root, "snes/gamelist.xml", b"<gameList/>");
         write(root, "nes/Ünïcode Quest – 日本.nes", b"nes");
         write(root, "psx/Disc Game (USA)/Disc Game (USA).cue", b"cue");
-        write(
-            root,
-            "psx/Disc Game (USA)/Disc Game (USA) (Track 1).bin",
-            b"bin",
-        );
+        write(root, "psx/Disc Game (USA)/Disc Game (USA) (Track 1).bin", b"bin");
         write(root, "loose/mystery.zip", b"zip");
         dir
     }
@@ -1270,11 +1007,7 @@ mod tests {
         assert_eq!(summary.skipped_unsupported, 4);
         assert!(summary.complete);
         assert_eq!(summary.issue_count, 0);
-        assert_eq!(
-            snapshot(dir.path()),
-            before,
-            "scan must not modify the source folder"
-        );
+        assert_eq!(snapshot(dir.path()), before, "scan must not modify the source folder");
 
         let platforms: Vec<(String, String)> = c
             .prepare("SELECT canonical_title, platform FROM games ORDER BY canonical_title")
@@ -1297,9 +1030,7 @@ mod tests {
         let second = scan(&mut c, dir.path(), &local).unwrap();
         assert_eq!(second.indexed, 4);
         assert_eq!(second.new_files, 0);
-        let games: i64 = c
-            .query_row("SELECT COUNT(*) FROM games", [], |r| r.get(0))
-            .unwrap();
+        let games: i64 = c.query_row("SELECT COUNT(*) FROM games", [], |r| r.get(0)).unwrap();
         assert_eq!(games, 4);
     }
 
@@ -1342,13 +1073,7 @@ mod tests {
         scan(&mut c, dir.path(), &local).unwrap();
         c.execute("UPDATE games SET canonical_title = 'Corrected Title' WHERE canonical_title = 'mystery'", []).unwrap();
         scan(&mut c, dir.path(), &local).unwrap();
-        let n: i64 = c
-            .query_row(
-                "SELECT COUNT(*) FROM games WHERE canonical_title = 'Corrected Title'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
+        let n: i64 = c.query_row("SELECT COUNT(*) FROM games WHERE canonical_title = 'Corrected Title'", [], |r| r.get(0)).unwrap();
         assert_eq!(n, 1);
     }
 
@@ -1365,9 +1090,7 @@ mod tests {
         let dir = fixture();
         let mut c = catalog();
         scan(&mut c, dir.path(), &local).unwrap();
-        let root: String = c
-            .query_row("SELECT root_path FROM storage_locations", [], |r| r.get(0))
-            .unwrap();
+        let root: String = c.query_row("SELECT root_path FROM storage_locations", [], |r| r.get(0)).unwrap();
         assert!(!root.starts_with(r"\\?\"), "{root}");
     }
 
@@ -1379,11 +1102,7 @@ mod tests {
 
     impl CancelAfter {
         fn new(n: usize) -> Self {
-            Self {
-                checks_left: std::cell::Cell::new(n),
-                progress_calls: 0,
-                last: ScanProgress::default(),
-            }
+            Self { checks_left: std::cell::Cell::new(n), progress_calls: 0, last: ScanProgress::default() }
         }
     }
 
@@ -1403,11 +1122,7 @@ mod tests {
     }
 
     fn eager() -> ScanOptions {
-        ScanOptions {
-            batch_size: 1,
-            max_batch_time: Duration::from_secs(60),
-            progress_interval: Duration::ZERO,
-        }
+        ScanOptions { batch_size: 1, max_batch_time: Duration::from_secs(60), progress_interval: Duration::ZERO }
     }
 
     #[test]
@@ -1422,15 +1137,8 @@ mod tests {
         assert!(summary.cancelled);
         assert!(!summary.complete);
         assert_eq!(summary.marked_missing, 0);
-        assert!(
-            statuses(&c).iter().all(|(_, s)| s == "present"),
-            "QA-002: no false missing after cancel"
-        );
-        let status: String = c
-            .query_row("SELECT last_scan_status FROM indexed_roots", [], |r| {
-                r.get(0)
-            })
-            .unwrap();
+        assert!(statuses(&c).iter().all(|(_, s)| s == "present"), "QA-002: no false missing after cancel");
+        let status: String = c.query_row("SELECT last_scan_status FROM indexed_roots", [], |r| r.get(0)).unwrap();
         assert_eq!(status, "cancelled");
     }
 
@@ -1442,14 +1150,9 @@ mod tests {
         let mut observer = CancelAfter::new(8);
         let summary = scan_with(&c, dir.path(), &local, &mut observer, eager()).unwrap();
         assert!(summary.cancelled);
-        let kept: i64 = c
-            .query_row("SELECT COUNT(*) FROM file_locations", [], |r| r.get(0))
-            .unwrap();
+        let kept: i64 = c.query_row("SELECT COUNT(*) FROM file_locations", [], |r| r.get(0)).unwrap();
         assert_eq!(kept as usize, summary.indexed);
-        assert!(
-            summary.indexed < 4,
-            "scan should have stopped early: {summary:?}"
-        );
+        assert!(summary.indexed < 4, "scan should have stopped early: {summary:?}");
     }
 
     #[test]
@@ -1463,10 +1166,7 @@ mod tests {
         assert_eq!(observer.last.indexed, 4);
         assert_eq!(observer.last.new_files, 4);
         assert!(observer.last.entries_checked >= 8);
-        assert!(
-            observer.last.current_path.is_empty(),
-            "final progress clears the current path"
-        );
+        assert!(observer.last.current_path.is_empty(), "final progress clears the current path");
     }
 
     #[test]
@@ -1498,17 +1198,14 @@ mod tests {
         let first = scan(&mut c, dir.path(), &usb).unwrap();
         assert_eq!(first.remounted_from, None);
         // Pretend the drive was last seen under another letter.
-        c.execute("UPDATE storage_locations SET root_path = 'Q:\\'", [])
-            .unwrap();
+        c.execute("UPDATE storage_locations SET root_path = 'Q:\\'", []).unwrap();
 
         let second = scan(&mut c, dir.path(), &usb).unwrap();
         assert_eq!(second.remounted_from.as_deref(), Some("Q:\\"));
         assert_eq!(second.new_files, 0, "same files, so nothing is added twice");
         assert_eq!(statuses(&c).len(), 4);
         assert!(statuses(&c).iter().all(|(_, s)| s == "present"));
-        let locations: i64 = c
-            .query_row("SELECT COUNT(*) FROM storage_locations", [], |r| r.get(0))
-            .unwrap();
+        let locations: i64 = c.query_row("SELECT COUNT(*) FROM storage_locations", [], |r| r.get(0)).unwrap();
         assert_eq!(locations, 1);
     }
 
@@ -1518,17 +1215,9 @@ mod tests {
         let mut c = catalog();
         scan(&mut c, dir.path(), &fingerprint("vol:AAAA-AAAA:1")).unwrap();
         let other = scan(&mut c, dir.path(), &fingerprint("vol:BBBB-BBBB:1")).unwrap();
-        assert_eq!(
-            other.new_files, 4,
-            "files on the other volume are new records"
-        );
-        assert_eq!(
-            other.marked_missing, 0,
-            "the first drive's files are untouched"
-        );
-        let locations: i64 = c
-            .query_row("SELECT COUNT(*) FROM storage_locations", [], |r| r.get(0))
-            .unwrap();
+        assert_eq!(other.new_files, 4, "files on the other volume are new records");
+        assert_eq!(other.marked_missing, 0, "the first drive's files are untouched");
+        let locations: i64 = c.query_row("SELECT COUNT(*) FROM storage_locations", [], |r| r.get(0)).unwrap();
         assert_eq!(locations, 2);
     }
 
@@ -1552,17 +1241,12 @@ mod tests {
             .query_row("SELECT s.root_path, fl.relative_path FROM file_locations fl JOIN storage_locations s ON s.id = fl.storage_location_id", [], |r| Ok((r.get(0)?, r.get(1)?)))
             .unwrap();
         assert!(!root.starts_with(r"\\?\"), "{root}");
-        assert!(
-            paths::join(&root, &rel).exists(),
-            "stored long path must resolve"
-        );
+        assert!(paths::join(&root, &rel).exists(), "stored long path must resolve");
 
         // Scanning the deep folder itself (root path > 260 characters) also works.
         let summary = scan(&mut c, &deep, &local).unwrap();
         assert_eq!(summary.new_files, 0, "same file, same record");
-        let roots: i64 = c
-            .query_row("SELECT COUNT(*) FROM storage_locations", [], |r| r.get(0))
-            .unwrap();
+        let roots: i64 = c.query_row("SELECT COUNT(*) FROM storage_locations", [], |r| r.get(0)).unwrap();
         assert_eq!(roots, 1, r"no separate \\?\ volume created");
     }
 
@@ -1570,10 +1254,7 @@ mod tests {
 
     fn files_by_role(c: &Connection) -> Vec<(String, String, Option<i64>)> {
         let mut s = c.prepare("SELECT filename, file_role, disc_index FROM game_files ORDER BY file_role, filename").unwrap();
-        s.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
-            .unwrap()
-            .map(Result::unwrap)
-            .collect()
+        s.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap().map(Result::unwrap).collect()
     }
 
     fn count_rows(c: &Connection, sql: &str) -> i64 {
@@ -1582,34 +1263,14 @@ mod tests {
 
     fn disc_game(root: &Path) {
         write(root, "psx/Single (USA)/Single (USA).cue", b"FILE \"Single (USA) (Track 1).bin\" BINARY\n  TRACK 01 MODE2/2352\nFILE \"Single (USA) (Track 2).bin\" BINARY\n  TRACK 02 AUDIO\n");
-        write(
-            root,
-            "psx/Single (USA)/Single (USA) (Track 1).bin",
-            &[0u8; 1000],
-        );
-        write(
-            root,
-            "psx/Single (USA)/Single (USA) (Track 2).bin",
-            &[0u8; 500],
-        );
+        write(root, "psx/Single (USA)/Single (USA) (Track 1).bin", &[0u8; 1000]);
+        write(root, "psx/Single (USA)/Single (USA) (Track 2).bin", &[0u8; 500]);
     }
 
     fn multi_disc_game(root: &Path) {
-        write(
-            root,
-            "psx/Saga (USA)/Saga (USA).m3u",
-            b"# discs\nSaga (USA) (Disc 1).cue\nSaga (USA) (Disc 2).cue\n",
-        );
-        write(
-            root,
-            "psx/Saga (USA)/Saga (USA) (Disc 1).cue",
-            b"FILE Saga_D1.bin BINARY\n",
-        );
-        write(
-            root,
-            "psx/Saga (USA)/Saga (USA) (Disc 2).cue",
-            b"file \"Saga_D2.bin\" binary\n",
-        );
+        write(root, "psx/Saga (USA)/Saga (USA).m3u", b"# discs\nSaga (USA) (Disc 1).cue\nSaga (USA) (Disc 2).cue\n");
+        write(root, "psx/Saga (USA)/Saga (USA) (Disc 1).cue", b"FILE Saga_D1.bin BINARY\n");
+        write(root, "psx/Saga (USA)/Saga (USA) (Disc 2).cue", b"file \"Saga_D2.bin\" binary\n");
         write(root, "psx/Saga (USA)/Saga_D1.bin", &[0u8; 2000]);
         write(root, "psx/Saga (USA)/Saga_D2.bin", &[0u8; 3000]);
     }
@@ -1622,37 +1283,14 @@ mod tests {
         let summary = scan(&mut c, dir.path(), &local).unwrap();
         assert!(summary.complete, "{:?}", summary.issues);
         assert_eq!(summary.grouped_files, 2);
-        assert_eq!(
-            count_rows(&c, "SELECT COUNT(*) FROM games"),
-            1,
-            "one game, not three"
-        );
+        assert_eq!(count_rows(&c, "SELECT COUNT(*) FROM games"), 1, "one game, not three");
         let roles = files_by_role(&c);
         assert_eq!(roles.iter().filter(|r| r.1 == "track").count(), 2);
-        assert_eq!(
-            roles
-                .iter()
-                .filter(|r| r.1 == "primary")
-                .map(|r| r.0.as_str())
-                .collect::<Vec<_>>(),
-            ["Single (USA).cue"]
-        );
-        let payload: i64 = c
-            .query_row(
-                "SELECT payload_bytes FROM game_files WHERE file_role = 'primary'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        let cue_len = fs::metadata(dir.path().join("psx/Single (USA)/Single (USA).cue"))
-            .unwrap()
-            .len() as i64;
+        assert_eq!(roles.iter().filter(|r| r.1 == "primary").map(|r| r.0.as_str()).collect::<Vec<_>>(), ["Single (USA).cue"]);
+        let payload: i64 = c.query_row("SELECT payload_bytes FROM game_files WHERE file_role = 'primary'", [], |r| r.get(0)).unwrap();
+        let cue_len = fs::metadata(dir.path().join("psx/Single (USA)/Single (USA).cue")).unwrap().len() as i64;
         assert_eq!(payload, cue_len + 1500, "total size includes the tracks");
-        assert_eq!(
-            count_rows(&c, "SELECT COUNT(*) FROM file_locations"),
-            3,
-            "tracks have locations for presence checks"
-        );
+        assert_eq!(count_rows(&c, "SELECT COUNT(*) FROM file_locations"), 3, "tracks have locations for presence checks");
     }
 
     #[test]
@@ -1664,40 +1302,15 @@ mod tests {
         assert!(summary.complete, "{:?}", summary.issues);
         assert_eq!(count_rows(&c, "SELECT COUNT(*) FROM games"), 1);
         assert_eq!(summary.games, 1, "{summary:?}");
-        assert_eq!(
-            summary.skipped_unsupported, 0,
-            "grouped tracks are not reported as ignored"
-        );
-        let title: String = c
-            .query_row("SELECT canonical_title FROM games", [], |r| r.get(0))
-            .unwrap();
+        assert_eq!(summary.skipped_unsupported, 0, "grouped tracks are not reported as ignored");
+        let title: String = c.query_row("SELECT canonical_title FROM games", [], |r| r.get(0)).unwrap();
         assert_eq!(title, "Saga (USA)");
         let roles = files_by_role(&c);
-        let discs: Vec<(&str, Option<i64>)> = roles
-            .iter()
-            .filter(|r| r.1 == "disc")
-            .map(|r| (r.0.as_str(), r.2))
-            .collect();
-        assert_eq!(
-            discs,
-            [
-                ("Saga (USA) (Disc 1).cue", Some(1)),
-                ("Saga (USA) (Disc 2).cue", Some(2))
-            ]
-        );
-        assert_eq!(
-            roles.iter().filter(|r| r.1 == "track").count(),
-            2,
-            "unquoted and lower-case FILE lines both parsed"
-        );
+        let discs: Vec<(&str, Option<i64>)> = roles.iter().filter(|r| r.1 == "disc").map(|r| (r.0.as_str(), r.2)).collect();
+        assert_eq!(discs, [("Saga (USA) (Disc 1).cue", Some(1)), ("Saga (USA) (Disc 2).cue", Some(2))]);
+        assert_eq!(roles.iter().filter(|r| r.1 == "track").count(), 2, "unquoted and lower-case FILE lines both parsed");
         assert_eq!(roles.iter().filter(|r| r.1 == "primary").count(), 1);
-        let payload: i64 = c
-            .query_row(
-                "SELECT payload_bytes FROM game_files WHERE file_role = 'primary'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
+        let payload: i64 = c.query_row("SELECT payload_bytes FROM game_files WHERE file_role = 'primary'", [], |r| r.get(0)).unwrap();
         assert!(payload >= 5000, "{payload}");
     }
 
@@ -1711,10 +1324,7 @@ mod tests {
         let before = files_by_role(&c);
         let again = scan(&mut c, dir.path(), &local).unwrap();
         assert_eq!(again.new_files, 0);
-        assert_eq!(
-            again.marked_missing, 0,
-            "tracks reached through cue sheets are seen too"
-        );
+        assert_eq!(again.marked_missing, 0, "tracks reached through cue sheets are seen too");
         assert_eq!(files_by_role(&c), before);
         assert_eq!(count_rows(&c, "SELECT COUNT(*) FROM games"), 2);
     }
@@ -1725,61 +1335,28 @@ mod tests {
         disc_game(dir.path());
         let mut c = catalog();
         scan(&mut c, dir.path(), &local).unwrap();
-        fs::remove_file(
-            dir.path()
-                .join("psx/Single (USA)/Single (USA) (Track 2).bin"),
-        )
-        .unwrap();
+        fs::remove_file(dir.path().join("psx/Single (USA)/Single (USA) (Track 2).bin")).unwrap();
         let summary = scan(&mut c, dir.path(), &local).unwrap();
-        assert!(
-            summary.complete,
-            "a broken reference is a warning, not a read error"
-        );
+        assert!(summary.complete, "a broken reference is a warning, not a read error");
         assert_eq!(summary.warning_count, 1, "{:?}", summary.issues);
         assert_eq!(summary.issues[0].severity, "warning");
-        assert_eq!(
-            summary.marked_missing, 1,
-            "the vanished track's record is marked missing"
-        );
-        let missing_parts: i64 = c
-            .query_row(
-                "SELECT missing_parts FROM game_files WHERE file_role = 'primary'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
+        assert_eq!(summary.marked_missing, 1, "the vanished track's record is marked missing");
+        let missing_parts: i64 = c.query_row("SELECT missing_parts FROM game_files WHERE file_role = 'primary'", [], |r| r.get(0)).unwrap();
         assert_eq!(missing_parts, 1);
     }
 
     #[test]
     fn references_outside_the_scanned_folder_are_refused() {
         let outer = tempfile::tempdir().unwrap();
-        write(
-            outer.path(),
-            "outside/Secret.cue",
-            b"FILE \"Secret.bin\" BINARY\n",
-        );
+        write(outer.path(), "outside/Secret.cue", b"FILE \"Secret.bin\" BINARY\n");
         write(outer.path(), "outside/Secret.bin", b"x");
-        write(
-            outer.path(),
-            "lib/psx/Trap/Trap.m3u",
-            b"..\\..\\..\\outside\\Secret.cue\n../../../outside/Secret.bin\n",
-        );
+        write(outer.path(), "lib/psx/Trap/Trap.m3u", b"..\\..\\..\\outside\\Secret.cue\n../../../outside/Secret.bin\n");
         let mut c = catalog();
         let summary = scan(&mut c, &outer.path().join("lib"), &local).unwrap();
         assert_eq!(summary.warning_count, 2, "{:?}", summary.issues);
-        assert!(summary
-            .issues
-            .iter()
-            .all(|i| i.message.contains("outside the scanned folder")));
-        let outside: i64 = count_rows(
-            &c,
-            "SELECT COUNT(*) FROM file_locations WHERE relative_path LIKE '%outside%'",
-        );
-        assert_eq!(
-            outside, 0,
-            "nothing outside the authorized folder is recorded"
-        );
+        assert!(summary.issues.iter().all(|i| i.message.contains("outside the scanned folder")));
+        let outside: i64 = count_rows(&c, "SELECT COUNT(*) FROM file_locations WHERE relative_path LIKE '%outside%'");
+        assert_eq!(outside, 0, "nothing outside the authorized folder is recorded");
     }
 
     #[test]
@@ -1790,20 +1367,8 @@ mod tests {
         scan(&mut c, dir.path(), &local).unwrap();
         fs::remove_file(dir.path().join("psx/Saga (USA)/Saga (USA).m3u")).unwrap();
         scan(&mut c, dir.path(), &local).unwrap();
-        let primaries: Vec<String> = files_by_role(&c)
-            .into_iter()
-            .filter(|r| r.1 == "primary")
-            .map(|r| r.0)
-            .collect();
-        assert_eq!(
-            primaries,
-            [
-                "Saga (USA) (Disc 1).cue",
-                "Saga (USA) (Disc 2).cue",
-                "Saga (USA).m3u"
-            ],
-            "the deleted playlist's record stays, marked missing"
-        );
+        let primaries: Vec<String> = files_by_role(&c).into_iter().filter(|r| r.1 == "primary").map(|r| r.0).collect();
+        assert_eq!(primaries, ["Saga (USA) (Disc 1).cue", "Saga (USA) (Disc 2).cue", "Saga (USA).m3u"], "the deleted playlist's record stays, marked missing");
         let disc_games: i64 = count_rows(
             &c,
             "SELECT COUNT(DISTINCT gf.release_id) FROM game_files gf WHERE gf.file_role = 'primary' AND gf.extension = 'cue'",
@@ -1838,44 +1403,18 @@ mod tests {
         disc_game(dir.path());
         write(dir.path(), "snes/Locked Rom.sfc", b"rom");
         write(dir.path(), "snes/Other.sfc", b"rom");
-        let lock = |p: &str| {
-            fs::OpenOptions::new()
-                .read(true)
-                .share_mode(0)
-                .open(dir.path().join(p))
-                .unwrap()
-        };
+        let lock = |p: &str| fs::OpenOptions::new().read(true).share_mode(0).open(dir.path().join(p)).unwrap();
         let _cue_lock = lock("psx/Single (USA)/Single (USA).cue");
         let _rom_lock = lock("snes/Locked Rom.sfc");
 
         let mut c = catalog();
         let summary = scan(&mut c, dir.path(), &local).unwrap();
-        assert_eq!(
-            summary.error_count, 1,
-            "only the cue sheet's contents are unreadable: {:?}",
-            summary.issues
-        );
-        assert!(
-            summary.issues[0].message.starts_with("Cannot read"),
-            "{:?}",
-            summary.issues
-        );
-        assert!(
-            !summary.complete,
-            "unreadable entries make the scan incomplete"
-        );
-        let titles: Vec<String> = c
-            .prepare("SELECT canonical_title FROM games ORDER BY 1")
-            .unwrap()
-            .query_map([], |r| r.get(0))
-            .unwrap()
-            .map(Result::unwrap)
-            .collect();
-        assert_eq!(
-            titles,
-            ["Locked Rom", "Other", "Single (USA)"],
-            "locked files are still indexed from their directory entry"
-        );
+        assert_eq!(summary.error_count, 1, "only the cue sheet's contents are unreadable: {:?}", summary.issues);
+        assert!(summary.issues[0].message.starts_with("Cannot read"), "{:?}", summary.issues);
+        assert!(!summary.complete, "unreadable entries make the scan incomplete");
+        let titles: Vec<String> = c.prepare("SELECT canonical_title FROM games ORDER BY 1").unwrap()
+            .query_map([], |r| r.get(0)).unwrap().map(Result::unwrap).collect();
+        assert_eq!(titles, ["Locked Rom", "Other", "Single (USA)"], "locked files are still indexed from their directory entry");
     }
 
     #[test]
@@ -1900,23 +1439,13 @@ mod tests {
             br#"<gameList><game><path>./Tom &amp; Jerry (USA).zip</path><image>./media/screenshot/Tom &amp; Jerry (USA).png</image></game>
 <game><path>./No Art (USA).zip</path><image>../../outside.png</image><marquee>./media/screenshot/Orphan.png</marquee></game></gameList>"#,
         );
-        let before: Vec<_> = walkdir::WalkDir::new(&root)
-            .sort_by_file_name()
-            .into_iter()
-            .map(|e| e.unwrap().path().to_path_buf())
-            .collect();
+        let before: Vec<_> = walkdir::WalkDir::new(&root).sort_by_file_name().into_iter().map(|e| e.unwrap().path().to_path_buf()).collect();
         let mut c = catalog();
         let summary = scan(&mut c, &root, &unknown).unwrap();
         assert_eq!(summary.games, 3);
         assert_eq!(summary.images_found, 4);
-        assert_eq!(
-            summary.images_linked, 3,
-            "two covers, plus a marquee logo kept as its own kind"
-        );
-        assert_eq!(
-            summary.skipped_unsupported, 1,
-            "only gamelist.xml; images are counted separately"
-        );
+        assert_eq!(summary.images_linked, 3, "two covers, plus a marquee logo kept as its own kind");
+        assert_eq!(summary.skipped_unsupported, 1, "only gamelist.xml; images are counted separately");
         let art = |file: &str| -> Option<(String, String, String)> {
             c.query_row(
                 "SELECT m.kind, m.source, m.relative_path FROM game_media m JOIN game_files gf ON gf.id = m.game_file_id WHERE gf.filename = ?1",
@@ -1928,88 +1457,33 @@ mod tests {
         };
         let tom = art("Tom & Jerry (USA).zip").unwrap();
         assert_eq!((tom.0.as_str(), tom.1.as_str()), ("image", "gamelist"));
-        assert!(
-            tom.2
-                .ends_with("nes/media/screenshot/Tom & Jerry (USA).png"),
-            "{}",
-            tom.2
-        );
+        assert!(tom.2.ends_with("nes/media/screenshot/Tom & Jerry (USA).png"), "{}", tom.2);
         let kid = art("Kid Icarus (USA).zip").unwrap();
         assert_eq!((kid.0.as_str(), kid.1.as_str()), ("image", "folder"));
         // The image outside the scanned folder is ignored; the marquee is kept as a logo, never a cover.
         assert_eq!(art("No Art (USA).zip").map(|a| a.0), Some("marquee".into()));
-        let no_art: String = c
-            .query_row(
-                "SELECT id FROM game_files WHERE filename = 'No Art (USA).zip'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(
-            media::resolve(&c, &no_art, &|_: &str, _: Option<&str>| {
-                crate::volumes::Presence::Connected
-            })
-            .unwrap(),
-            None,
-            "a logo is never shown as the cover"
-        );
-        let after: Vec<_> = walkdir::WalkDir::new(&root)
-            .sort_by_file_name()
-            .into_iter()
-            .map(|e| e.unwrap().path().to_path_buf())
-            .collect();
+        let no_art: String = c.query_row("SELECT id FROM game_files WHERE filename = 'No Art (USA).zip'", [], |r| r.get(0)).unwrap();
+        assert_eq!(media::resolve(&c, &no_art, &|_: &str, _: Option<&str>| crate::volumes::Presence::Connected).unwrap(), None, "a logo is never shown as the cover");
+        let after: Vec<_> = walkdir::WalkDir::new(&root).sort_by_file_name().into_iter().map(|e| e.unwrap().path().to_path_buf()).collect();
         assert_eq!(before, after, "scanning never creates or copies files");
 
         // The user's own pick survives rescans; scanned links aren't duplicated.
-        let kid_id: String = c
-            .query_row(
-                "SELECT id FROM game_files WHERE filename = 'Kid Icarus (USA).zip'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
+        let kid_id: String = c.query_row("SELECT id FROM game_files WHERE filename = 'Kid Icarus (USA).zip'", [], |r| r.get(0)).unwrap();
         let picked = dir.path().join("my art.png");
         fs::write(&picked, b"png").unwrap();
         media::set_user_art(&c, &kid_id, &picked, &unknown).unwrap();
         scan(&mut c, &root, &unknown).unwrap();
-        let rows: i64 = c
-            .query_row("SELECT COUNT(*) FROM game_media", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(
-            rows, 4,
-            "two scanned covers, one marquee, plus the user's pick"
-        );
-        let best = media::resolve(&c, &kid_id, &|_, _| crate::volumes::Presence::Connected)
-            .unwrap()
-            .unwrap();
-        assert!(
-            best.0.ends_with("my art.png"),
-            "the user's pick wins: {:?}",
-            best.0
-        );
+        let rows: i64 = c.query_row("SELECT COUNT(*) FROM game_media", [], |r| r.get(0)).unwrap();
+        assert_eq!(rows, 4, "two scanned covers, one marquee, plus the user's pick");
+        let best = media::resolve(&c, &kid_id, &|_, _| crate::volumes::Presence::Connected).unwrap().unwrap();
+        assert!(best.0.ends_with("my art.png"), "the user's pick wins: {:?}", best.0);
         assert_eq!(best.1, "image/png");
         assert!(media::remove_user_art(&c, &kid_id).unwrap());
-        let best = media::resolve(&c, &kid_id, &|_, _| crate::volumes::Presence::Connected)
-            .unwrap()
-            .unwrap();
-        assert!(best
-            .0
-            .to_string_lossy()
-            .ends_with("Kid Icarus (USA)-image.jpg"));
+        let best = media::resolve(&c, &kid_id, &|_, _| crate::volumes::Presence::Connected).unwrap().unwrap();
+        assert!(best.0.to_string_lossy().ends_with("Kid Icarus (USA)-image.jpg"));
         assert!(picked.exists(), "removing art never deletes the image file");
-        assert_eq!(
-            media::resolve(&c, &kid_id, &|_, _| crate::volumes::Presence::NotConnected).unwrap(),
-            None,
-            "nothing is served from a drive that isn't connected"
-        );
-        assert!(media::set_user_art(
-            &c,
-            &kid_id,
-            &root.join("nes/Kid Icarus (USA).zip"),
-            &unknown
-        )
-        .unwrap_err()
-        .contains("image file"));
+        assert_eq!(media::resolve(&c, &kid_id, &|_, _| crate::volumes::Presence::NotConnected).unwrap(), None, "nothing is served from a drive that isn't connected");
+        assert!(media::set_user_art(&c, &kid_id, &root.join("nes/Kid Icarus (USA).zip"), &unknown).unwrap_err().contains("image file"));
     }
 
     #[test]
@@ -2020,11 +1494,7 @@ mod tests {
         fs::create_dir_all(root.join("c64")).unwrap();
         fs::create_dir_all(root.join("gba")).unwrap();
         fs::write(root.join("c64/Pyramid Quiz (USA).zip"), b"c64").unwrap();
-        fs::write(
-            root.join("gba/[BIOS] Game Boy Advance (World).zip"),
-            b"bios",
-        )
-        .unwrap();
+        fs::write(root.join("gba/[BIOS] Game Boy Advance (World).zip"), b"bios").unwrap();
         let mut c = catalog();
         scan(&mut c, &root, &unknown).unwrap();
         let platform = |c: &Connection, file: &str| -> String {
@@ -2036,67 +1506,29 @@ mod tests {
             .unwrap()
         };
         assert_eq!(platform(&c, "Pyramid Quiz (USA).zip"), "Commodore 64");
-        assert_eq!(
-            platform(&c, "[BIOS] Game Boy Advance (World).zip"),
-            "BIOS",
-            "BIOS files aren't listed as GBA games"
-        );
+        assert_eq!(platform(&c, "[BIOS] Game Boy Advance (World).zip"), "BIOS", "BIOS files aren't listed as GBA games");
 
         // Simulate a catalog from an older build that didn't know the c64 folder.
-        c.execute(
-            "UPDATE games SET platform = 'Unclassified' WHERE canonical_title LIKE 'Pyramid Quiz%'",
-            [],
-        )
-        .unwrap();
+        c.execute("UPDATE games SET platform = 'Unclassified' WHERE canonical_title LIKE 'Pyramid Quiz%'", []).unwrap();
         scan(&mut c, &root, &unknown).unwrap();
-        assert_eq!(
-            platform(&c, "Pyramid Quiz (USA).zip"),
-            "Commodore 64",
-            "a rescan moves the game to its system"
-        );
-        let found: i64 = c
-            .query_row(
-                "SELECT COUNT(*) FROM games_fts WHERE games_fts MATCH 'Commodore'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
+        assert_eq!(platform(&c, "Pyramid Quiz (USA).zip"), "Commodore 64", "a rescan moves the game to its system");
+        let found: i64 = c.query_row("SELECT COUNT(*) FROM games_fts WHERE games_fts MATCH 'Commodore'", [], |r| r.get(0)).unwrap();
         assert_eq!(found, 1, "search follows the new system");
     }
 
     #[test]
     fn playlists_with_a_leading_slash_mean_the_playlists_own_folder() {
         let dir = tempfile::tempdir().unwrap();
-        write(
-            dir.path(),
-            "x68000/Strider Hiryuu.m3u",
-            b"/Strider Hiryuu/Strider Hiryuu (Disk 1).dim
+        write(dir.path(), "x68000/Strider Hiryuu.m3u", b"/Strider Hiryuu/Strider Hiryuu (Disk 1).dim
 /Strider Hiryuu/Strider Hiryuu (Disk 2).dim
 /Nowhere/Missing.dim
-",
-        );
-        write(
-            dir.path(),
-            "x68000/Strider Hiryuu/Strider Hiryuu (Disk 1).dim",
-            b"d1",
-        );
-        write(
-            dir.path(),
-            "x68000/Strider Hiryuu/Strider Hiryuu (Disk 2).dim",
-            b"d2",
-        );
+");
+        write(dir.path(), "x68000/Strider Hiryuu/Strider Hiryuu (Disk 1).dim", b"d1");
+        write(dir.path(), "x68000/Strider Hiryuu/Strider Hiryuu (Disk 2).dim", b"d2");
         let mut c = catalog();
         let summary = scan(&mut c, dir.path(), &local).unwrap();
-        assert_eq!(
-            summary.games, 1,
-            "one game with two disks: {:?}",
-            summary.issues
-        );
+        assert_eq!(summary.games, 1, "one game with two disks: {:?}", summary.issues);
         assert_eq!(summary.grouped_files, 2);
-        assert_eq!(
-            summary.warning_count, 1,
-            "only the disk that doesn't exist is reported: {:?}",
-            summary.issues
-        );
+        assert_eq!(summary.warning_count, 1, "only the disk that doesn't exist is reported: {:?}", summary.issues);
     }
 }

@@ -138,11 +138,7 @@ pub struct DeploySummary {
 impl DeploySummary {
     fn issue(&mut self, game: &str, path: &Path, message: &str) {
         if self.issues.len() < ISSUE_LIMIT {
-            self.issues.push(DeployIssue {
-                game: game.to_string(),
-                path: path.display().to_string(),
-                message: message.to_string(),
-            });
+            self.issues.push(DeployIssue { game: game.to_string(), path: path.display().to_string(), message: message.to_string() });
         }
     }
 }
@@ -158,58 +154,21 @@ enum Outcome {
 
 /// Copy the plan for an installation. Returns `Err` (with nothing written) if any
 /// pre-check fails; otherwise a summary, even when some files failed.
-pub fn deploy(
-    connection: &Connection,
-    job_id: Option<&str>,
-    request: &DeployRequest,
-    presence: PresenceFn,
-    space: SpaceFn,
-    observer: &mut dyn DeployObserver,
-) -> Result<DeploySummary, String> {
+pub fn deploy(connection: &Connection, job_id: Option<&str>, request: &DeployRequest, presence: PresenceFn, space: SpaceFn, observer: &mut dyn DeployObserver) -> Result<DeploySummary, String> {
     // 1. Re-check everything. No writes before this passes.
-    let scope = if request.sync {
-        Some(deployment::sync_scope(
-            connection,
-            request.installation_id,
-            presence,
-        )?)
-    } else {
-        None
-    };
+    let scope = if request.sync { Some(deployment::sync_scope(connection, request.installation_id, presence)?) } else { None };
     let systems = if request.sync { None } else { request.systems };
-    let (plan, items) = deployment::build(
-        connection,
-        request.installation_id,
-        systems,
-        scope.as_ref(),
-        request.collection,
-        request.choices,
-        presence,
-        space,
-    )?;
+    let (plan, items) = deployment::build(connection, request.installation_id, systems, scope.as_ref(), request.collection, request.choices, presence, space)?;
     if !plan.copy_supported {
-        return Err(format!(
-            "RetroDrive doesn't copy to {} yet, so nothing was copied. The plan is a preview.",
-            plan.adapter_name
-        ));
+        return Err(format!("RetroDrive doesn't copy to {} yet, so nothing was copied. The plan is a preview.", plan.adapter_name));
     }
     if plan.fingerprint != request.fingerprint {
         return Err("The drive or your library changed since you reviewed the plan, so nothing was copied. Review the updated plan and try again.".into());
     }
     match plan.capacity.fits {
         Some(true) => {}
-        Some(false) => {
-            return Err(
-                "There isn't enough free space on the destination drive, so nothing was copied."
-                    .into(),
-            )
-        }
-        None => {
-            return Err(
-                "Free space on the destination drive couldn't be measured, so nothing was copied."
-                    .into(),
-            )
-        }
+        Some(false) => return Err("There isn't enough free space on the destination drive, so nothing was copied.".into()),
+        None => return Err("Free space on the destination drive couldn't be measured, so nothing was copied.".into()),
     }
     let (volume_root, stable_id): (String, Option<String>) = connection
         .query_row(
@@ -219,36 +178,16 @@ pub fn deploy(
         )
         .map_err(|e| e.to_string())?;
     let install_root = PathBuf::from(&plan.installation_path);
-    let work: Vec<&Item> = items
-        .iter()
-        .filter(|i| {
-            matches!(
-                i.action(),
-                Action::Copy | Action::AlreadyThere | Action::Replace
-            )
-        })
-        .collect();
+    let work: Vec<&Item> = items.iter().filter(|i| matches!(i.action(), Action::Copy | Action::AlreadyThere | Action::Replace)).collect();
     // A network share is known by the id RetroDrive leaves on it (RDS-022, ADR-046):
     // the first copy gives it one and records it, so a different machine answering to
     // the same name later shows as a different drive and is never copied to.
     let stable_id = match stable_id {
-        Some(id)
-            if id.starts_with("unc:")
-                && !id.contains('#')
-                && presence(&volume_root, Some(&id)) == Presence::Connected =>
-        {
-            let claimed = crate::volumes::share_stable_id(
-                &volume_root,
-                Some(&crate::volumes::claim_share(&volume_root)?),
-            );
+        Some(id) if id.starts_with("unc:") && !id.contains('#') && presence(&volume_root, Some(&id)) == Presence::Connected => {
+            let claimed = crate::volumes::share_stable_id(&volume_root, Some(&crate::volumes::claim_share(&volume_root)?));
             connection
-                .execute(
-                    "UPDATE storage_locations SET stable_id = ?2 WHERE stable_id = ?1",
-                    params![id, claimed],
-                )
-                .map_err(|e| {
-                    format!("Couldn't record the share's id, so nothing was copied: {e}")
-                })?;
+                .execute("UPDATE storage_locations SET stable_id = ?2 WHERE stable_id = ?1", params![id, claimed])
+                .map_err(|e| format!("Couldn't record the share's id, so nothing was copied: {e}"))?;
             Some(claimed)
         }
         other => other,
@@ -267,9 +206,7 @@ pub fn deploy(
     let marker = format!("{TEMP_MARKER}{}", &deployment_id[..8]);
     let mut item_ids: Vec<Vec<i64>> = Vec::with_capacity(work.len());
     {
-        let tx = connection
-            .unchecked_transaction()
-            .map_err(|e| e.to_string())?;
+        let tx = connection.unchecked_transaction().map_err(|e| e.to_string())?;
         tx.execute(
             "INSERT INTO deployments (id, job_id, installation_id, adapter_id, adapter_contract, destination_root, destination_stable_id, plan_fingerprint, systems_json, status)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'running')",
@@ -295,14 +232,7 @@ pub fn deploy(
         for (index, item) in work.iter().enumerate() {
             let mut ids = Vec::new();
             for file in &item.files {
-                let state = if matches!(
-                    file.action,
-                    Action::Copy | Action::AlreadyThere | Action::Replace
-                ) {
-                    "pending"
-                } else {
-                    "skipped"
-                };
+                let state = if matches!(file.action, Action::Copy | Action::AlreadyThere | Action::Replace) { "pending" } else { "skipped" };
                 insert
                     .execute(params![
                         deployment_id,
@@ -324,19 +254,7 @@ pub fn deploy(
         tx.commit().map_err(|e| e.to_string())?;
     }
 
-    let result = run_journaled(
-        connection,
-        &deployment_id,
-        &marker,
-        &plan.installation_path,
-        &install_root,
-        &work,
-        &item_ids,
-        &volume_root,
-        stable_id.as_deref(),
-        presence,
-        observer,
-    );
+    let result = run_journaled(connection, &deployment_id, &marker, &plan.installation_path, &install_root, &work, &item_ids, &volume_root, stable_id.as_deref(), presence, observer);
     match result {
         Ok(summary) => Ok(summary),
         Err(e) => {
@@ -359,14 +277,7 @@ pub const DEFAULT_WORKERS: usize = 4;
 /// send every journal write to the main thread and wait until it's recorded, so
 /// "journal before writing" holds exactly as in a sequential copy.
 trait Ctx {
-    fn set_item(
-        &mut self,
-        id: i64,
-        state: &str,
-        sha: Option<&str>,
-        temp: Temp,
-        message: Option<&str>,
-    ) -> Result<(), String>;
+    fn set_item(&mut self, id: i64, state: &str, sha: Option<&str>, temp: Temp, message: Option<&str>) -> Result<(), String>;
     fn set_backup(&mut self, id: i64, backup: Option<&str>, state: &str) -> Result<(), String>;
     fn record_hash(&mut self, game_file_id: &str, hash: &str) -> Result<(), String>;
     fn cancelled(&mut self) -> bool;
@@ -386,14 +297,7 @@ struct Direct<'a> {
 }
 
 impl Ctx for Direct<'_> {
-    fn set_item(
-        &mut self,
-        id: i64,
-        state: &str,
-        sha: Option<&str>,
-        temp: Temp,
-        message: Option<&str>,
-    ) -> Result<(), String> {
+    fn set_item(&mut self, id: i64, state: &str, sha: Option<&str>, temp: Temp, message: Option<&str>) -> Result<(), String> {
         set_item(self.connection, id, state, sha, temp, message)
     }
     fn set_backup(&mut self, id: i64, backup: Option<&str>, state: &str) -> Result<(), String> {
@@ -440,25 +344,9 @@ enum Hook {
 
 /// Requests from parallel workers to the main thread.
 enum Msg {
-    Item {
-        id: i64,
-        state: String,
-        sha: Option<String>,
-        temp: OwnedTemp,
-        message: Option<String>,
-        reply: mpsc::Sender<Result<(), String>>,
-    },
-    Backup {
-        id: i64,
-        backup: Option<String>,
-        state: String,
-        reply: mpsc::Sender<Result<(), String>>,
-    },
-    Hash {
-        game_file_id: String,
-        hash: String,
-        reply: mpsc::Sender<Result<(), String>>,
-    },
+    Item { id: i64, state: String, sha: Option<String>, temp: OwnedTemp, message: Option<String>, reply: mpsc::Sender<Result<(), String>> },
+    Backup { id: i64, backup: Option<String>, state: String, reply: mpsc::Sender<Result<(), String>> },
+    Hash { game_file_id: String, hash: String, reply: mpsc::Sender<Result<(), String>> },
     Hook(Hook, mpsc::Sender<()>),
     Bytes(i64),
     Started(String),
@@ -472,17 +360,10 @@ struct Remote<'a> {
 }
 
 impl Remote<'_> {
-    fn ask(
-        &self,
-        build: impl FnOnce(mpsc::Sender<Result<(), String>>) -> Msg,
-    ) -> Result<(), String> {
+    fn ask(&self, build: impl FnOnce(mpsc::Sender<Result<(), String>>) -> Msg) -> Result<(), String> {
         let (reply, answer) = mpsc::channel();
-        self.tx
-            .send(build(reply))
-            .map_err(|_| "The copy coordinator stopped.".to_string())?;
-        answer
-            .recv()
-            .map_err(|_| "The copy coordinator stopped.".to_string())?
+        self.tx.send(build(reply)).map_err(|_| "The copy coordinator stopped.".to_string())?;
+        answer.recv().map_err(|_| "The copy coordinator stopped.".to_string())?
     }
     fn hook(&self, hook: Hook) {
         let (reply, answer) = mpsc::channel();
@@ -493,49 +374,22 @@ impl Remote<'_> {
 }
 
 impl Ctx for Remote<'_> {
-    fn set_item(
-        &mut self,
-        id: i64,
-        state: &str,
-        sha: Option<&str>,
-        temp: Temp,
-        message: Option<&str>,
-    ) -> Result<(), String> {
+    fn set_item(&mut self, id: i64, state: &str, sha: Option<&str>, temp: Temp, message: Option<&str>) -> Result<(), String> {
         let temp = match temp {
             Temp::Keep => OwnedTemp::Keep,
             Temp::Set(path) => OwnedTemp::Set(path.to_string()),
             Temp::Clear => OwnedTemp::Clear,
         };
-        let (state, sha, message) = (
-            state.to_string(),
-            sha.map(str::to_string),
-            message.map(str::to_string),
-        );
-        self.ask(|reply| Msg::Item {
-            id,
-            state,
-            sha,
-            temp,
-            message,
-            reply,
-        })
+        let (state, sha, message) = (state.to_string(), sha.map(str::to_string), message.map(str::to_string));
+        self.ask(|reply| Msg::Item { id, state, sha, temp, message, reply })
     }
     fn set_backup(&mut self, id: i64, backup: Option<&str>, state: &str) -> Result<(), String> {
         let (backup, state) = (backup.map(str::to_string), state.to_string());
-        self.ask(|reply| Msg::Backup {
-            id,
-            backup,
-            state,
-            reply,
-        })
+        self.ask(|reply| Msg::Backup { id, backup, state, reply })
     }
     fn record_hash(&mut self, game_file_id: &str, hash: &str) -> Result<(), String> {
         let (game_file_id, hash) = (game_file_id.to_string(), hash.to_string());
-        self.ask(|reply| Msg::Hash {
-            game_file_id,
-            hash,
-            reply,
-        })
+        self.ask(|reply| Msg::Hash { game_file_id, hash, reply })
     }
     fn cancelled(&mut self) -> bool {
         self.cancel.load(Ordering::SeqCst)
@@ -631,24 +485,13 @@ fn confirmed_before(connection: &Connection, deployment_id: &str) -> Result<Conf
         )
         .map_err(|e| e.to_string())?;
     let rows = statement
-        .query_map([deployment_id], |r| {
-            Ok((
-                r.get::<_, String>(0)?,
-                r.get::<_, String>(1)?,
-                r.get::<_, i64>(2)?,
-                r.get::<_, String>(3)?,
-                r.get::<_, String>(4)?,
-            ))
-        })
+        .query_map([deployment_id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?, r.get::<_, String>(3)?, r.get::<_, String>(4)?)))
         .map_err(|e| e.to_string())?;
     let mut out = Confirmed::new();
     for row in rows {
         let (destination, source, size, sha, at) = row.map_err(|e| e.to_string())?;
         if let Some(at) = unix_seconds(&at) {
-            out.insert(
-                destination.replace('/', "\\").to_lowercase(),
-                (source.replace('/', "\\").to_lowercase(), size, sha, at),
-            );
+            out.insert(destination.replace('/', "\\").to_lowercase(), (source.replace('/', "\\").to_lowercase(), size, sha, at));
         }
     }
     Ok(out)
@@ -672,80 +515,30 @@ fn unix_seconds(text: &str) -> Option<i64> {
 /// The hash an earlier copy confirmed for this file, if nothing changed since: same
 /// source and size, and neither file modified or created at or after the confirmation (Sync, ADR-043).
 /// Anything else is compared by content as usual.
-fn still_confirmed(
-    confirmed: &Confirmed,
-    source: &Path,
-    destination: &Path,
-    size: i64,
-) -> Option<String> {
-    let key = destination
-        .display()
-        .to_string()
-        .replace('/', "\\")
-        .to_lowercase();
+fn still_confirmed(confirmed: &Confirmed, source: &Path, destination: &Path, size: i64) -> Option<String> {
+    let key = destination.display().to_string().replace('/', "\\").to_lowercase();
     let (was_source, was_size, sha, at) = confirmed.get(&key)?;
     // Both dates: copying a file in Explorer keeps its old modified date but sets a new
     // created date, so a file replaced that way is still noticed.
-    let secs = |t: std::io::Result<std::time::SystemTime>| {
-        t.ok()?
-            .duration_since(std::time::UNIX_EPOCH)
-            .ok()
-            .map(|d| d.as_secs() as i64)
-    };
-    let unchanged = |p: &Path| {
-        fs::metadata(p).ok().is_some_and(|m| {
-            secs(m.modified()).is_some_and(|t| t < *at) && secs(m.created()).is_none_or(|t| t < *at)
-        })
-    };
-    (*was_source
-        == source
-            .display()
-            .to_string()
-            .replace('/', "\\")
-            .to_lowercase()
-        && *was_size == size
-        && unchanged(source)
-        && unchanged(destination))
-    .then(|| sha.clone())
+    let secs = |t: std::io::Result<std::time::SystemTime>| t.ok()?.duration_since(std::time::UNIX_EPOCH).ok().map(|d| d.as_secs() as i64);
+    let unchanged = |p: &Path| fs::metadata(p).ok().is_some_and(|m| secs(m.modified()).is_some_and(|t| t < *at) && secs(m.created()).is_none_or(|t| t < *at));
+    (*was_source == source.display().to_string().replace('/', "\\").to_lowercase() && *was_size == size && unchanged(source) && unchanged(destination)).then(|| sha.clone())
 }
 
 /// Copy one game: check "already there" files by content, then copy or replace the
 /// rest. Large files take `big` (when given) so only one is written at a time.
 /// `confirmed`: files an earlier copy already confirmed (not read again if unchanged).
 #[allow(clippy::too_many_arguments)]
-fn copy_game(
-    ctx: &mut dyn Ctx,
-    item: &Item,
-    ids: &[i64],
-    install_root: &Path,
-    deployment_id: &str,
-    marker: &str,
-    big: Option<&Mutex<()>>,
-    confirmed: &Confirmed,
-) -> Result<GameReport, String> {
-    let mut report = GameReport {
-        title: item.title.clone(),
-        ..GameReport::default()
-    };
+fn copy_game(ctx: &mut dyn Ctx, item: &Item, ids: &[i64], install_root: &Path, deployment_id: &str, marker: &str, big: Option<&Mutex<()>>, confirmed: &Confirmed) -> Result<GameReport, String> {
+    let mut report = GameReport { title: item.title.clone(), ..GameReport::default() };
     ctx.started(&item.title);
 
     // Files reported "already there" must match by content before they count.
     let mut differs: Option<String> = None;
     let mut unreadable: Option<String> = None;
-    for (file, &id) in item
-        .files
-        .iter()
-        .zip(ids)
-        .filter(|(f, _)| f.action == Action::AlreadyThere)
-    {
+    for (file, &id) in item.files.iter().zip(ids).filter(|(f, _)| f.action == Action::AlreadyThere) {
         if let Some(hash) = still_confirmed(confirmed, &file.source, &file.destination, file.size) {
-            ctx.set_item(
-                id,
-                "identical",
-                Some(&hash),
-                Temp::Keep,
-                Some("Confirmed by an earlier copy and unchanged since."),
-            )?;
+            ctx.set_item(id, "identical", Some(&hash), Temp::Keep, Some("Confirmed by an earlier copy and unchanged since."))?;
             report.identical += 1;
             report.files_done += 1;
             ctx.add_bytes(file.size);
@@ -780,21 +573,8 @@ fn copy_game(
         ctx.add_bytes(file.size);
     }
     if let Some(path) = unreadable.filter(|_| differs.is_none()) {
-        for (file, &id) in item
-            .files
-            .iter()
-            .zip(ids)
-            .filter(|(f, _)| matches!(f.action, Action::Copy | Action::Replace))
-        {
-            ctx.set_item(
-                id,
-                "skipped",
-                None,
-                Temp::Keep,
-                Some(&format!(
-                    "Not copied because the existing file {path} couldn't be read; try again."
-                )),
-            )?;
+        for (file, &id) in item.files.iter().zip(ids).filter(|(f, _)| matches!(f.action, Action::Copy | Action::Replace)) {
+            ctx.set_item(id, "skipped", None, Temp::Keep, Some(&format!("Not copied because the existing file {path} couldn't be read; try again.")))?;
             report.files_done += 1;
             ctx.add_bytes(file.size);
         }
@@ -802,21 +582,8 @@ fn copy_game(
         return Ok(report);
     }
     if let Some(path) = differs {
-        for (file, &id) in item
-            .files
-            .iter()
-            .zip(ids)
-            .filter(|(f, _)| matches!(f.action, Action::Copy | Action::Replace))
-        {
-            ctx.set_item(
-                id,
-                "conflict",
-                None,
-                Temp::Keep,
-                Some(&format!(
-                    "Not copied because {path} differs; the game was left as it is."
-                )),
-            )?;
+        for (file, &id) in item.files.iter().zip(ids).filter(|(f, _)| matches!(f.action, Action::Copy | Action::Replace)) {
+            ctx.set_item(id, "conflict", None, Temp::Keep, Some(&format!("Not copied because {path} differs; the game was left as it is.")))?;
             report.files_done += 1;
             ctx.add_bytes(file.size);
         }
@@ -826,29 +593,14 @@ fn copy_game(
 
     let mut copied = 0;
     let mut problems = 0;
-    for (file, &id) in item
-        .files
-        .iter()
-        .zip(ids)
-        .filter(|(f, _)| matches!(f.action, Action::Copy | Action::Replace))
-    {
+    for (file, &id) in item.files.iter().zip(ids).filter(|(f, _)| matches!(f.action, Action::Copy | Action::Replace)) {
         let _one_big_file = match big {
-            Some(lock) if file.size >= BIG_FILE => {
-                Some(lock.lock().unwrap_or_else(|e| e.into_inner()))
-            }
+            Some(lock) if file.size >= BIG_FILE => Some(lock.lock().unwrap_or_else(|e| e.into_inner())),
             _ => None,
         };
         let mut reported = 0;
         let outcome = if file.action == Action::Replace {
-            replace_one(
-                ctx,
-                id,
-                file,
-                install_root,
-                deployment_id,
-                marker,
-                &mut reported,
-            )?
+            replace_one(ctx, id, file, install_root, deployment_id, marker, &mut reported)?
         } else {
             copy_one(ctx, id, file, install_root, marker, &mut reported)?
         };
@@ -886,19 +638,9 @@ fn copy_game(
                 }
             }
             Outcome::Cancelled => {
-                ctx.set_item(
-                    id,
-                    "cancelled",
-                    None,
-                    Temp::Keep,
-                    Some("Cancelled; the unfinished temporary file was removed."),
-                )?;
+                ctx.set_item(id, "cancelled", None, Temp::Keep, Some("Cancelled; the unfinished temporary file was removed."))?;
                 report.cancelled = true;
-                report.end = if copied > 0 {
-                    GameEnd::Incomplete
-                } else {
-                    GameEnd::Uncounted
-                };
+                report.end = if copied > 0 { GameEnd::Incomplete } else { GameEnd::Uncounted };
                 return Ok(report);
             }
         }
@@ -930,31 +672,17 @@ fn run_journaled(
 ) -> Result<DeploySummary, String> {
     let confirmed = confirmed_before(connection, deployment_id)?;
     let deployment_id = deployment_id.to_string();
-    let mut progress = DeployProgress {
-        deployment_id: deployment_id.clone(),
-        games_total: work.len() as i64,
-        ..DeployProgress::default()
-    };
+    let mut progress = DeployProgress { deployment_id: deployment_id.clone(), games_total: work.len() as i64, ..DeployProgress::default() };
     for item in work {
-        for file in item.files.iter().filter(|f| {
-            matches!(
-                f.action,
-                Action::Copy | Action::AlreadyThere | Action::Replace
-            )
-        }) {
+        for file in item.files.iter().filter(|f| matches!(f.action, Action::Copy | Action::AlreadyThere | Action::Replace)) {
             progress.files_total += 1;
             progress.bytes_total += file.size;
         }
     }
     observer.progress(&progress);
-    let mut summary = DeploySummary {
-        deployment_id: deployment_id.clone(),
-        destination: destination.to_string(),
-        ..DeploySummary::default()
-    };
+    let mut summary = DeploySummary { deployment_id: deployment_id.clone(), destination: destination.to_string(), ..DeploySummary::default() };
     let mut last_progress = Instant::now();
-    let drive_ok =
-        || presence(volume_root, stable_id) == Presence::Connected && install_root.is_dir();
+    let drive_ok = || presence(volume_root, stable_id) == Presence::Connected && install_root.is_dir();
 
     // 3. Copy: several games at once (each game's files in order), or one at a time.
     let workers = observer.workers().clamp(1, 8).min(work.len().max(1));
@@ -969,22 +697,8 @@ fn run_journaled(
                 break;
             }
             let report = {
-                let mut ctx = Direct {
-                    connection,
-                    observer: &mut *observer,
-                    progress: &mut progress,
-                    last_progress: &mut last_progress,
-                };
-                copy_game(
-                    &mut ctx,
-                    item,
-                    &item_ids[index],
-                    install_root,
-                    &deployment_id,
-                    marker,
-                    None,
-                    &confirmed,
-                )?
+                let mut ctx = Direct { connection, observer: &mut *observer, progress: &mut progress, last_progress: &mut last_progress };
+                copy_game(&mut ctx, item, &item_ids[index], install_root, &deployment_id, marker, None, &confirmed)?
             };
             let (cancelled, failure, gone) = (report.cancelled, report.failure, report.drive_gone);
             progress.files_done += report.files_done;
@@ -1012,19 +726,9 @@ fn run_journaled(
             let (tx, rx) = mpsc::channel::<Msg>();
             for _ in 0..workers {
                 let tx = tx.clone();
-                let (next, stop, cancel, big, deployment_id, confirmed) = (
-                    &next,
-                    &stop,
-                    &cancel,
-                    &big,
-                    deployment_id.as_str(),
-                    &confirmed,
-                );
+                let (next, stop, cancel, big, deployment_id, confirmed) = (&next, &stop, &cancel, &big, deployment_id.as_str(), &confirmed);
                 scope.spawn(move || {
-                    let mut ctx = Remote {
-                        tx: tx.clone(),
-                        cancel,
-                    };
+                    let mut ctx = Remote { tx: tx.clone(), cancel };
                     loop {
                         if stop.load(Ordering::SeqCst) || cancel.load(Ordering::SeqCst) {
                             break;
@@ -1033,16 +737,7 @@ fn run_journaled(
                         if index >= work.len() {
                             break;
                         }
-                        let result = copy_game(
-                            &mut ctx,
-                            work[index],
-                            &item_ids[index],
-                            install_root,
-                            deployment_id,
-                            marker,
-                            Some(big),
-                            confirmed,
-                        );
+                        let result = copy_game(&mut ctx, work[index], &item_ids[index], install_root, deployment_id, marker, Some(big), confirmed);
                         let broken = result.is_err();
                         if tx.send(Msg::Done(result)).is_err() || broken {
                             break;
@@ -1054,48 +749,23 @@ fn run_journaled(
             let mut last_drive_check = Instant::now();
             loop {
                 match rx.recv_timeout(Duration::from_millis(100)) {
-                    Ok(Msg::Item {
-                        id,
-                        state,
-                        sha,
-                        temp,
-                        message,
-                        reply,
-                    }) => {
+                    Ok(Msg::Item { id, state, sha, temp, message, reply }) => {
                         let temp = match &temp {
                             OwnedTemp::Keep => Temp::Keep,
                             OwnedTemp::Set(path) => Temp::Set(path),
                             OwnedTemp::Clear => Temp::Clear,
                         };
-                        let _ = reply.send(set_item(
-                            connection,
-                            id,
-                            &state,
-                            sha.as_deref(),
-                            temp,
-                            message.as_deref(),
-                        ));
+                        let _ = reply.send(set_item(connection, id, &state, sha.as_deref(), temp, message.as_deref()));
                     }
-                    Ok(Msg::Backup {
-                        id,
-                        backup,
-                        state,
-                        reply,
-                    }) => {
+                    Ok(Msg::Backup { id, backup, state, reply }) => {
                         let _ = reply.send(set_backup(connection, id, backup.as_deref(), &state));
                     }
-                    Ok(Msg::Hash {
-                        game_file_id,
-                        hash,
-                        reply,
-                    }) => {
+                    Ok(Msg::Hash { game_file_id, hash, reply }) => {
                         let _ = reply.send(record_hash(connection, &game_file_id, &hash));
                     }
                     Ok(Msg::Hook(hook, reply)) => {
                         match &hook {
-                            Hook::BeforeVerify(temp, source) => {
-                                observer.before_verify(temp, source)
-                            }
+                            Hook::BeforeVerify(temp, source) => observer.before_verify(temp, source),
                             Hook::BeforeRename(destination) => observer.before_rename(destination),
                             Hook::AfterBackup(destination) => observer.after_backup(destination),
                         }
@@ -1134,9 +804,7 @@ fn run_journaled(
                     stop.store(true, Ordering::SeqCst);
                     summary.cancelled = true;
                 }
-                if !stop.load(Ordering::SeqCst)
-                    && last_drive_check.elapsed() >= Duration::from_secs(1)
-                {
+                if !stop.load(Ordering::SeqCst) && last_drive_check.elapsed() >= Duration::from_secs(1) {
                     last_drive_check = Instant::now();
                     if !drive_ok() {
                         summary.drive_lost = true;
@@ -1190,37 +858,22 @@ fn run_journaled(
 /// Copy one file: temporary file (journaled first), SHA-256 while writing, sync,
 /// read back from the drive, then a no-replace rename. `reported` counts the bytes
 /// already reported as progress.
-fn copy_one(
-    ctx: &mut dyn Ctx,
-    id: i64,
-    file: &ItemFile,
-    install_root: &Path,
-    marker: &str,
-    reported: &mut i64,
-) -> Result<Outcome, String> {
+fn copy_one(ctx: &mut dyn Ctx, id: i64, file: &ItemFile, install_root: &Path, marker: &str, reported: &mut i64) -> Result<Outcome, String> {
     if ctx.cancelled() {
         return Ok(Outcome::Cancelled);
     }
     let started = match fs::metadata(&file.source) {
         Ok(m) => m,
-        Err(e) => {
-            return Ok(Outcome::Failed(format!(
-                "The source file can't be read: {e}"
-            )))
-        }
+        Err(e) => return Ok(Outcome::Failed(format!("The source file can't be read: {e}"))),
     };
     if started.len() != file.size as u64 {
-        return Ok(Outcome::Failed(
-            "The source file changed since the plan was made (its size is different).".into(),
-        ));
+        return Ok(Outcome::Failed("The source file changed since the plan was made (its size is different).".into()));
     }
     if let Err(message) = ensure_folders(install_root, &file.relative) {
         return Ok(Outcome::Failed(message));
     }
     if fs::symlink_metadata(&file.destination).is_ok() {
-        return Ok(Outcome::Conflict(
-            "A file appeared at this name after the plan was made. It was kept.".into(),
-        ));
+        return Ok(Outcome::Conflict("A file appeared at this name after the plan was made. It was kept.".into()));
     }
     let Some(name) = file.destination.file_name().and_then(|n| n.to_str()) else {
         return Ok(Outcome::Failed("The destination name isn't valid.".into()));
@@ -1228,21 +881,13 @@ fn copy_one(
     let temp = file.destination.with_file_name(format!("{name}{marker}"));
 
     // Journal the temporary path before creating it, so a crash can be cleaned up.
-    ctx.set_item(
-        id,
-        "copying",
-        None,
-        Temp::Set(&temp.display().to_string()),
-        None,
-    )?;
+    ctx.set_item(id, "copying", None, Temp::Set(&temp.display().to_string()), None)?;
     let mut out = match OpenOptions::new().write(true).create_new(true).open(&temp) {
         Ok(f) => f,
         Err(e) => {
             // Not ours (create_new failed), so never removed.
             ctx.set_item(id, "copying", None, Temp::Clear, None)?;
-            return Ok(Outcome::Failed(format!(
-                "Couldn't create the temporary file: {e}"
-            )));
+            return Ok(Outcome::Failed(format!("Couldn't create the temporary file: {e}")));
         }
     };
 
@@ -1270,26 +915,17 @@ fn copy_one(
         ctx.before_verify(&temp, &file.source);
 
         let after = fs::metadata(&file.source)?;
-        if written != started.len()
-            || after.len() != started.len()
-            || after.modified().ok() != started.modified().ok()
-        {
-            return Ok(Outcome::Failed(
-                "The source file changed while it was being copied.".into(),
-            ));
+        if written != started.len() || after.len() != started.len() || after.modified().ok() != started.modified().ok() {
+            return Ok(Outcome::Failed("The source file changed while it was being copied.".into()));
         }
         let actual = hash_file_from_disk(&temp, &mut || ctx.cancelled())?;
         if actual != expected {
-            return Ok(Outcome::Failed(
-                "The copy didn't match the original when read back, so it wasn't used.".into(),
-            ));
+            return Ok(Outcome::Failed("The copy didn't match the original when read back, so it wasn't used.".into()));
         }
         ctx.before_rename(&file.destination);
         match rename_no_replace(&temp, &file.destination) {
             Ok(()) => Ok(Outcome::Verified(expected)),
-            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Ok(Outcome::Conflict(
-                "A file appeared at this name during the copy. It was kept.".into(),
-            )),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Ok(Outcome::Conflict("A file appeared at this name during the copy. It was kept.".into())),
             Err(e) => Err(Halt::Io(e)),
         }
     })();
@@ -1314,47 +950,29 @@ fn copy_one(
 /// check it arrived, copy the new file the usual way, and put the original back if
 /// the copy doesn't complete.
 #[allow(clippy::too_many_arguments)]
-fn replace_one(
-    ctx: &mut dyn Ctx,
-    id: i64,
-    file: &ItemFile,
-    install_root: &Path,
-    deployment_id: &str,
-    marker: &str,
-    reported: &mut i64,
-) -> Result<Outcome, String> {
+fn replace_one(ctx: &mut dyn Ctx, id: i64, file: &ItemFile, install_root: &Path, deployment_id: &str, marker: &str, reported: &mut i64) -> Result<Outcome, String> {
     if ctx.cancelled() {
         return Ok(Outcome::Cancelled);
     }
     let existing = match fs::symlink_metadata(&file.destination) {
         Ok(m) if m.is_file() && !m.file_type().is_symlink() => m,
-        Ok(_) => {
-            return Ok(Outcome::Failed(
-                "What's at this name isn't a plain file, so it wasn't replaced.".into(),
-            ))
-        }
+        Ok(_) => return Ok(Outcome::Failed("What's at this name isn't a plain file, so it wasn't replaced.".into())),
         // The file went away since the plan: nothing to replace, so this is a plain copy.
         Err(_) => return copy_one(ctx, id, file, install_root, marker, reported),
     };
     let backup_relative = format!("{BACKUP_DIR}/{deployment_id}/{}", file.relative);
     if let Err(message) = ensure_folders(install_root, &backup_relative) {
-        return Ok(Outcome::Failed(format!(
-            "Couldn't prepare the backup folder, so nothing was changed: {message}"
-        )));
+        return Ok(Outcome::Failed(format!("Couldn't prepare the backup folder, so nothing was changed: {message}")));
     }
     let backup = paths::join(&install_root.display().to_string(), &backup_relative);
     // Journal first, then move (never delete) the original.
     ctx.set_backup(id, Some(&backup.display().to_string()), "replacing")?;
     if let Err(e) = rename_no_replace(&file.destination, &backup) {
         ctx.set_backup(id, None, "pending")?;
-        return Ok(Outcome::Failed(format!(
-            "Couldn't move the existing file to the backup folder, so nothing was changed: {e}"
-        )));
+        return Ok(Outcome::Failed(format!("Couldn't move the existing file to the backup folder, so nothing was changed: {e}")));
     }
     ctx.after_backup(&file.destination);
-    let arrived = fs::metadata(&backup)
-        .map(|m| m.len() == existing.len())
-        .unwrap_or(false);
+    let arrived = fs::metadata(&backup).map(|m| m.len() == existing.len()).unwrap_or(false);
     let outcome = if arrived {
         copy_one(ctx, id, file, install_root, marker, reported)?
     } else {
@@ -1364,24 +982,15 @@ fn replace_one(
         return Ok(Outcome::Replaced(hash));
     }
     // Put the original back, but only into a free name (never over anything).
-    let restored = fs::symlink_metadata(&file.destination).is_err()
-        && rename_no_replace(&backup, &file.destination).is_ok();
+    let restored = fs::symlink_metadata(&file.destination).is_err() && rename_no_replace(&backup, &file.destination).is_ok();
     if restored {
         ctx.set_backup(id, None, "copying")?;
     }
     Ok(match (restored, outcome) {
         (true, Outcome::Cancelled) => Outcome::Cancelled,
-        (true, Outcome::Failed(m) | Outcome::Conflict(m)) => {
-            Outcome::Failed(format!("{m} Your original file was put back."))
-        }
-        (false, Outcome::Failed(m) | Outcome::Conflict(m)) => Outcome::Failed(format!(
-            "{m} Your original file is safe in {}.",
-            backup.display()
-        )),
-        (false, _) => Outcome::Failed(format!(
-            "The replace didn't finish. Your original file is safe in {}.",
-            backup.display()
-        )),
+        (true, Outcome::Failed(m) | Outcome::Conflict(m)) => Outcome::Failed(format!("{m} Your original file was put back.")),
+        (false, Outcome::Failed(m) | Outcome::Conflict(m)) => Outcome::Failed(format!("{m} Your original file is safe in {}.", backup.display())),
+        (false, _) => Outcome::Failed(format!("The replace didn't finish. Your original file is safe in {}.", backup.display())),
         (true, other) => other,
     })
 }
@@ -1391,9 +1000,7 @@ struct JournalSync<'c>(&'c Connection);
 
 impl<'c> JournalSync<'c> {
     fn normal(connection: &'c Connection) -> Result<Self, String> {
-        connection
-            .execute_batch("PRAGMA synchronous = NORMAL;")
-            .map_err(|e| e.to_string())?;
+        connection.execute_batch("PRAGMA synchronous = NORMAL;").map_err(|e| e.to_string())?;
         Ok(Self(connection))
     }
 }
@@ -1404,12 +1011,7 @@ impl Drop for JournalSync<'_> {
     }
 }
 
-fn set_backup(
-    connection: &Connection,
-    id: i64,
-    backup: Option<&str>,
-    state: &str,
-) -> Result<(), String> {
+fn set_backup(connection: &Connection, id: i64, backup: Option<&str>, state: &str) -> Result<(), String> {
     connection
         .execute(
             "UPDATE deployment_items SET backup_path = ?2, state = ?3, updated_at = CURRENT_TIMESTAMP WHERE id = ?1",
@@ -1434,38 +1036,20 @@ impl From<io::Error> for Halt {
 /// time. Refuses links and files in the way.
 pub(crate) fn ensure_folders(install_root: &Path, relative: &str) -> Result<(), String> {
     let parts: Vec<&str> = relative.split(['/', '\\']).collect();
-    if parts
-        .iter()
-        .any(|p| p.is_empty() || *p == "." || *p == ".." || p.contains(':'))
-    {
+    if parts.iter().any(|p| p.is_empty() || *p == "." || *p == ".." || p.contains(':')) {
         return Err("The destination would be outside the installation folder.".into());
     }
     let mut current = install_root.to_path_buf();
     for part in &parts[..parts.len().saturating_sub(1)] {
         current.push(part);
         match fs::symlink_metadata(&current) {
-            Ok(m) if m.file_type().is_symlink() => {
-                return Err(format!(
-                    "{} is a link to another location; RetroDrive won't write through it.",
-                    current.display()
-                ))
-            }
+            Ok(m) if m.file_type().is_symlink() => return Err(format!("{} is a link to another location; RetroDrive won't write through it.", current.display())),
             Ok(m) if m.is_dir() => {}
-            Ok(_) => {
-                return Err(format!(
-                    "{} is a file where a folder is needed.",
-                    current.display()
-                ))
-            }
+            Ok(_) => return Err(format!("{} is a file where a folder is needed.", current.display())),
             Err(_) => match fs::create_dir(&current) {
                 Ok(()) => {}
                 Err(e) if e.kind() == io::ErrorKind::AlreadyExists && current.is_dir() => {}
-                Err(e) => {
-                    return Err(format!(
-                        "Couldn't create the folder {}: {e}",
-                        current.display()
-                    ))
-                }
+                Err(e) => return Err(format!("Couldn't create the folder {}: {e}", current.display())),
             },
         }
     }
@@ -1475,17 +1059,12 @@ pub(crate) fn ensure_folders(install_root: &Path, relative: &str) -> Result<(), 
 /// Remove a temporary file only if its name carries the expected marker and it is a
 /// plain file (never a link or folder).
 pub(crate) fn remove_own_temp(temp: &Path, marker: &str) -> bool {
-    let named = temp
-        .file_name()
-        .and_then(|n| n.to_str())
-        .is_some_and(|n| n.ends_with(marker) && n.len() > marker.len());
+    let named = temp.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.ends_with(marker) && n.len() > marker.len());
     match fs::symlink_metadata(temp) {
         Err(e) if e.kind() == io::ErrorKind::NotFound => true,
         // Can't check it (drive gone, access denied): keep tracking it.
         Err(_) => false,
-        Ok(m) if named && m.is_file() && !m.file_type().is_symlink() => {
-            fs::remove_file(temp).is_ok()
-        }
+        Ok(m) if named && m.is_file() && !m.file_type().is_symlink() => fs::remove_file(temp).is_ok(),
         Ok(_) => false,
     }
 }
@@ -1525,11 +1104,7 @@ fn hash_file_from_disk(path: &Path, cancelled: &mut dyn FnMut() -> bool) -> Resu
     use windows_sys::Win32::Storage::FileSystem::FILE_FLAG_NO_BUFFERING;
     // Unbuffered reads need sector-aligned buffers and sizes; 64 KiB covers every sector size.
     const ALIGN: usize = 64 * 1024;
-    let Ok(mut file) = OpenOptions::new()
-        .read(true)
-        .custom_flags(FILE_FLAG_NO_BUFFERING)
-        .open(path)
-    else {
+    let Ok(mut file) = OpenOptions::new().read(true).custom_flags(FILE_FLAG_NO_BUFFERING).open(path) else {
         return hash_file(path, cancelled);
     };
     let mut storage = vec![0u8; CHUNK + ALIGN];
@@ -1560,11 +1135,7 @@ fn hash_file_from_disk(path: &Path, cancelled: &mut dyn FnMut() -> bool) -> Resu
 
 /// `Some(source hash)` when both files have identical contents. Reads both side by
 /// side and stops at the first difference.
-fn same_contents(
-    source: &Path,
-    existing: &Path,
-    cancelled: &mut dyn FnMut() -> bool,
-) -> Result<Option<String>, Halt> {
+fn same_contents(source: &Path, existing: &Path, cancelled: &mut dyn FnMut() -> bool) -> Result<Option<String>, Halt> {
     if fs::metadata(source)?.len() != fs::metadata(existing)?.len() {
         return Ok(None);
     }
@@ -1609,13 +1180,7 @@ fn hex(bytes: &[u8]) -> String {
 pub(crate) fn rename_no_replace(from: &Path, to: &Path) -> io::Result<()> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Storage::FileSystem::{MoveFileExW, MOVEFILE_WRITE_THROUGH};
-    let wide = |p: &Path| -> Vec<u16> {
-        long_path(p)
-            .as_os_str()
-            .encode_wide()
-            .chain(std::iter::once(0))
-            .collect()
-    };
+    let wide = |p: &Path| -> Vec<u16> { long_path(p).as_os_str().encode_wide().chain(std::iter::once(0)).collect() };
     let (f, t) = (wide(from), wide(to));
     // SAFETY: both buffers are valid NUL-terminated UTF-16 strings. Without
     // MOVEFILE_REPLACE_EXISTING the call fails if `to` exists.
@@ -1653,14 +1218,7 @@ enum Temp<'a> {
     Clear,
 }
 
-fn set_item(
-    connection: &Connection,
-    id: i64,
-    state: &str,
-    sha: Option<&str>,
-    temp: Temp,
-    message: Option<&str>,
-) -> Result<(), String> {
+fn set_item(connection: &Connection, id: i64, state: &str, sha: Option<&str>, temp: Temp, message: Option<&str>) -> Result<(), String> {
     let (change, value) = match temp {
         Temp::Keep => (false, None),
         Temp::Set(path) => (true, Some(path)),
@@ -1679,23 +1237,14 @@ fn set_item(
 /// Remember a verified checksum on the catalog file (helps duplicate detection later).
 fn record_hash(connection: &Connection, game_file_id: &str, hash: &str) -> Result<(), String> {
     connection
-        .execute(
-            "UPDATE game_files SET sha256 = ?2 WHERE id = ?1 AND sha256 IS NULL",
-            params![game_file_id, hash],
-        )
+        .execute("UPDATE game_files SET sha256 = ?2 WHERE id = ?1 AND sha256 IS NULL", params![game_file_id, hash])
         .map(|_| ())
         .map_err(|e| e.to_string())
 }
 
 /// Write `<installation>/.retrodrive/deployments/<id>.json` the same safe way as
 /// game files: new temporary file, sync, no-replace rename.
-fn write_manifest(
-    connection: &Connection,
-    deployment_id: &str,
-    install_root: &Path,
-    marker: &str,
-    summary: &DeploySummary,
-) -> Result<PathBuf, String> {
+fn write_manifest(connection: &Connection, deployment_id: &str, install_root: &Path, marker: &str, summary: &DeploySummary) -> Result<PathBuf, String> {
     let mut statement = connection
         .prepare("SELECT game_title, destination_path, size_bytes, planned_action, state, sha256, message, backup_path FROM deployment_items WHERE deployment_id = ?1 ORDER BY id")
         .map_err(|e| e.to_string())?;
@@ -1719,11 +1268,7 @@ fn write_manifest(
         .collect::<Result<_, _>>()
         .map_err(|e| e.to_string())?;
     let created: Option<String> = connection
-        .query_row(
-            "SELECT created_at FROM deployments WHERE id = ?1",
-            [deployment_id],
-            |r| r.get(0),
-        )
+        .query_row("SELECT created_at FROM deployments WHERE id = ?1", [deployment_id], |r| r.get(0))
         .optional()
         .map_err(|e| e.to_string())?;
     let document = json!({
@@ -1745,10 +1290,7 @@ fn write_manifest(
     let temp = destination.with_file_name(format!("{deployment_id}.json{marker}"));
     let body = serde_json::to_vec_pretty(&document).map_err(|e| e.to_string())?;
     let written = (|| -> io::Result<()> {
-        let mut out = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temp)?;
+        let mut out = OpenOptions::new().write(true).create_new(true).open(&temp)?;
         out.write_all(&body)?;
         out.sync_all()?;
         drop(out);
@@ -1764,10 +1306,7 @@ fn write_manifest(
 /// Whether `path` is strictly inside `root`, compared by path components and
 /// without regard to case (works for drive roots like `E:\`).
 pub(crate) fn is_inside(path: &str, root: &str) -> bool {
-    let (path, root) = (
-        PathBuf::from(path.to_lowercase()),
-        PathBuf::from(root.to_lowercase()),
-    );
+    let (path, root) = (PathBuf::from(path.to_lowercase()), PathBuf::from(root.to_lowercase()));
     path != root && path.starts_with(&root)
 }
 
@@ -1800,20 +1339,12 @@ pub fn cleanup_leftovers(connection: &Connection, presence: PresenceFn) -> Resul
                  WHERE i.temp_path IS NOT NULL AND d.status <> 'running'",
             )
             .map_err(|e| e.to_string())?;
-        let mapped = statement
-            .query_map([], |r| {
-                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
-            })
-            .map_err(|e| e.to_string())?;
-        mapped
-            .collect::<Result<_, _>>()
-            .map_err(|e| e.to_string())?
+        let mapped = statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))).map_err(|e| e.to_string())?;
+        mapped.collect::<Result<_, _>>().map_err(|e| e.to_string())?
     };
     let mut removed = 0;
     for (id, temp, root, stable, deployment) in rows {
-        let Some((volume, _)) = paths::split_volume(Path::new(&root)) else {
-            continue;
-        };
+        let Some((volume, _)) = paths::split_volume(Path::new(&root)) else { continue };
         if presence(&volume, stable.as_deref()) != Presence::Connected {
             continue;
         }
@@ -1822,12 +1353,7 @@ pub fn cleanup_leftovers(connection: &Connection, presence: PresenceFn) -> Resul
         let marker = format!("{TEMP_MARKER}{}", &deployment[..8.min(deployment.len())]);
         if !inside || !temp.ends_with(&marker) {
             // Never touch a path that doesn't look like one of ours; just stop tracking it.
-            connection
-                .execute(
-                    "UPDATE deployment_items SET temp_path = NULL WHERE id = ?1",
-                    [id],
-                )
-                .map_err(|e| e.to_string())?;
+            connection.execute("UPDATE deployment_items SET temp_path = NULL WHERE id = ?1", [id]).map_err(|e| e.to_string())?;
             continue;
         }
         let existed = fs::symlink_metadata(&temp_path).is_ok();
@@ -1844,11 +1370,7 @@ pub fn cleanup_leftovers(connection: &Connection, presence: PresenceFn) -> Resul
                 .map_err(|e| e.to_string())?;
         }
     }
-    Ok(removed
-        + recover_by_name(connection, presence)?
-        + restore_interrupted_replaces(connection, presence)?
-        + crate::restore::recover_undo(connection, presence)?
-        + crate::customizer::recover(connection, presence)?)
+    Ok(removed + recover_by_name(connection, presence)? + restore_interrupted_replaces(connection, presence)? + crate::restore::recover_undo(connection, presence)? + crate::customizer::recover(connection, presence)?)
 }
 
 /// Recovery that doesn't rely on the last journal entries (which a power loss can
@@ -1865,31 +1387,14 @@ fn recover_by_name(connection: &Connection, presence: PresenceFn) -> Result<usiz
                    AND i.state NOT IN ('verified', 'identical', 'replaced', 'restored', 'skipped', 'conflict', 'undoing', 'undone')",
             )
             .map_err(|e| e.to_string())?;
-        let mapped = statement
-            .query_map([], |r| {
-                Ok((
-                    r.get(0)?,
-                    r.get(1)?,
-                    r.get(2)?,
-                    r.get(3)?,
-                    r.get(4)?,
-                    r.get(5)?,
-                ))
-            })
-            .map_err(|e| e.to_string())?;
-        mapped
-            .collect::<Result<_, _>>()
-            .map_err(|e| e.to_string())?
+        let mapped = statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?))).map_err(|e| e.to_string())?;
+        mapped.collect::<Result<_, _>>().map_err(|e| e.to_string())?
     };
     let mut fixed = 0;
     let mut confirmed: std::collections::HashMap<String, bool> = std::collections::HashMap::new();
     for (id, destination, root, stable, deployment, planned) in rows {
-        let Some((volume, _)) = paths::split_volume(Path::new(&root)) else {
-            continue;
-        };
-        let online = *confirmed
-            .entry(root.clone())
-            .or_insert_with(|| presence(&volume, stable.as_deref()) == Presence::Connected);
+        let Some((volume, _)) = paths::split_volume(Path::new(&root)) else { continue };
+        let online = *confirmed.entry(root.clone()).or_insert_with(|| presence(&volume, stable.as_deref()) == Presence::Connected);
         if !online || !is_inside(&destination, &root) {
             continue;
         }
@@ -1902,18 +1407,10 @@ fn recover_by_name(connection: &Connection, presence: PresenceFn) -> Result<usiz
                 .map_err(|e| e.to_string())?;
         }
         if planned == "replace" {
-            let relative = destination[root.len()..]
-                .trim_start_matches(['\\', '/'])
-                .to_string();
-            let backup = paths::join(
-                &root,
-                &format!("{BACKUP_DIR}/{deployment}/{}", relative.replace('\\', "/")),
-            );
+            let relative = destination[root.len()..].trim_start_matches(['\\', '/']).to_string();
+            let backup = paths::join(&root, &format!("{BACKUP_DIR}/{deployment}/{}", relative.replace('\\', "/")));
             let dest = PathBuf::from(&destination);
-            if fs::symlink_metadata(&dest).is_err()
-                && fs::metadata(&backup).is_ok_and(|m| m.is_file())
-                && rename_no_replace(&backup, &dest).is_ok()
-            {
+            if fs::symlink_metadata(&dest).is_err() && fs::metadata(&backup).is_ok_and(|m| m.is_file()) && rename_no_replace(&backup, &dest).is_ok() {
                 fixed += 1;
                 connection
                     .execute("UPDATE deployment_items SET state = 'restored', message = 'Interrupted during replace; the original file was put back.' WHERE id = ?1", [id])
@@ -1927,10 +1424,7 @@ fn recover_by_name(connection: &Connection, presence: PresenceFn) -> Result<usiz
 /// After a crash during Replace: if the new file never got its name, move the
 /// original back from the backup folder; if it did, the replace completed. Only on
 /// the confirmed drive, only for paths inside that installation's backup folder.
-fn restore_interrupted_replaces(
-    connection: &Connection,
-    presence: PresenceFn,
-) -> Result<usize, String> {
+fn restore_interrupted_replaces(connection: &Connection, presence: PresenceFn) -> Result<usize, String> {
     let rows: Vec<(i64, String, String, String, Option<String>)> = {
         let mut statement = connection
             .prepare(
@@ -1939,32 +1433,17 @@ fn restore_interrupted_replaces(
                  WHERE i.backup_path IS NOT NULL AND i.state NOT IN ('replaced', 'restored', 'undoing', 'undone') AND d.status <> 'running'",
             )
             .map_err(|e| e.to_string())?;
-        let mapped = statement
-            .query_map([], |r| {
-                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
-            })
-            .map_err(|e| e.to_string())?;
-        mapped
-            .collect::<Result<_, _>>()
-            .map_err(|e| e.to_string())?
+        let mapped = statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))).map_err(|e| e.to_string())?;
+        mapped.collect::<Result<_, _>>().map_err(|e| e.to_string())?
     };
     let mut restored = 0;
     for (id, backup, destination, root, stable) in rows {
-        let Some((volume, _)) = paths::split_volume(Path::new(&root)) else {
-            continue;
-        };
+        let Some((volume, _)) = paths::split_volume(Path::new(&root)) else { continue };
         if presence(&volume, stable.as_deref()) != Presence::Connected {
             continue;
         }
-        let backup_root = format!(
-            "{}\\{}",
-            root.trim_end_matches(['\\', '/']),
-            BACKUP_DIR.replace('/', "\\")
-        );
-        if !is_inside(&backup, &backup_root)
-            && !is_inside(&backup.replace('\\', "/"), &backup_root.replace('\\', "/"))
-            || !is_inside(&destination, &root)
-        {
+        let backup_root = format!("{}\\{}", root.trim_end_matches(['\\', '/']), BACKUP_DIR.replace('/', "\\"));
+        if !is_inside(&backup, &backup_root) && !is_inside(&backup.replace('\\', "/"), &backup_root.replace('\\', "/")) || !is_inside(&destination, &root) {
             continue; // never move anything that isn't ours
         }
         let (backup_path, destination_path) = (PathBuf::from(&backup), PathBuf::from(&destination));
@@ -1972,9 +1451,7 @@ fn restore_interrupted_replaces(
             connection
                 .execute("UPDATE deployment_items SET state = 'replaced', message = 'Replaced (finished before an interruption); the original is in the backup folder.' WHERE id = ?1", [id])
                 .map_err(|e| e.to_string())?;
-        } else if fs::metadata(&backup_path).is_ok_and(|m| m.is_file())
-            && rename_no_replace(&backup_path, &destination_path).is_ok()
-        {
+        } else if fs::metadata(&backup_path).is_ok_and(|m| m.is_file()) && rename_no_replace(&backup_path, &destination_path).is_ok() {
             restored += 1;
             connection
                 .execute(
@@ -2000,12 +1477,7 @@ mod tests {
         VolumeProbe::unknown()
     }
     fn roomy(_: &Path) -> Option<VolumeSpace> {
-        Some(VolumeSpace {
-            free_bytes: 500 << 30,
-            total_bytes: 1 << 40,
-            filesystem: Some("NTFS".into()),
-            cluster_bytes: 4096,
-        })
+        Some(VolumeSpace { free_bytes: 500 << 30, total_bytes: 1 << 40, filesystem: Some("NTFS".into()), cluster_bytes: 4096 })
     }
 
     #[derive(Default)]
@@ -2044,48 +1516,14 @@ mod tests {
             db::migrate(&mut catalog, None).unwrap();
             scanner::scan(&mut catalog, &library, &unknown).unwrap();
             let id = installations::add(&catalog, &root, "retrobat", &unknown).unwrap();
-            Fixture {
-                dir,
-                root,
-                library,
-                catalog,
-                id,
-                choices: deployment::Choices::new(),
-            }
+            Fixture { dir, root, library, catalog, id, choices: deployment::Choices::new() }
         }
         fn fingerprint(&self) -> String {
-            deployment::plan_with(
-                &self.catalog,
-                &self.id,
-                None,
-                None,
-                &self.choices,
-                &connected,
-                &roomy,
-            )
-            .unwrap()
-            .fingerprint
+            deployment::plan_with(&self.catalog, &self.id, None, None, &self.choices, &connected, &roomy).unwrap().fingerprint
         }
-        fn deploy_with(
-            &mut self,
-            observer: &mut dyn DeployObserver,
-        ) -> Result<DeploySummary, String> {
+        fn deploy_with(&mut self, observer: &mut dyn DeployObserver) -> Result<DeploySummary, String> {
             let fingerprint = self.fingerprint();
-            deploy(
-                &self.catalog,
-                None,
-                &DeployRequest {
-                    installation_id: &self.id,
-                    systems: None,
-                    fingerprint: &fingerprint,
-                    choices: &self.choices,
-                    collection: None,
-                    sync: false,
-                },
-                &connected,
-                &roomy,
-                observer,
-            )
+            deploy(&self.catalog, None, &DeployRequest { installation_id: &self.id, systems: None, fingerprint: &fingerprint, choices: &self.choices, collection: None, sync: false }, &connected, &roomy, observer)
         }
         fn deploy(&mut self) -> DeploySummary {
             self.deploy_with(&mut Quiet).unwrap()
@@ -2098,40 +1536,24 @@ mod tests {
             .into_iter()
             .map(|e| e.unwrap())
             .map(|e| {
-                let contents = if e.file_type().is_file() {
-                    fs::read(e.path()).unwrap()
-                } else {
-                    Vec::new()
-                };
+                let contents = if e.file_type().is_file() { fs::read(e.path()).unwrap() } else { Vec::new() };
                 (e.path().to_path_buf(), contents)
             })
             .collect()
     }
 
     fn temps_left(root: &Path) -> Vec<PathBuf> {
-        walkdir::WalkDir::new(root)
-            .into_iter()
-            .map(|e| e.unwrap().path().to_path_buf())
-            .filter(|p| p.display().to_string().contains(TEMP_MARKER))
-            .collect()
+        walkdir::WalkDir::new(root).into_iter().map(|e| e.unwrap().path().to_path_buf()).filter(|p| p.display().to_string().contains(TEMP_MARKER)).collect()
     }
 
     fn item_states(c: &Connection) -> Vec<String> {
-        let mut s = c
-            .prepare("SELECT state FROM deployment_items ORDER BY id")
-            .unwrap();
-        s.query_map([], |r| r.get(0))
-            .unwrap()
-            .map(|r| r.unwrap())
-            .collect()
+        let mut s = c.prepare("SELECT state FROM deployment_items ORDER BY id").unwrap();
+        s.query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect()
     }
 
     fn saga() -> Vec<(&'static str, &'static [u8])> {
         vec![
-            (
-                "psx/Saga/Saga.m3u",
-                b"Saga (Disc 1).cue\nSaga (Disc 2).cue\n",
-            ),
+            ("psx/Saga/Saga.m3u", b"Saga (Disc 1).cue\nSaga (Disc 2).cue\n"),
             ("psx/Saga/Saga (Disc 1).cue", b"FILE \"d1.bin\" BINARY\n"),
             ("psx/Saga/Saga (Disc 2).cue", b"FILE \"d2.bin\" BINARY\n"),
         ]
@@ -2159,30 +1581,13 @@ mod tests {
         scanner::scan(&mut catalog, &library, &unknown).unwrap();
         let id = installations::add(&catalog, &share, "batocera", &unknown).unwrap();
         let choices = deployment::Choices::new();
-        let plan =
-            deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap();
+        let plan = deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap();
         assert!(plan.copy_supported);
-        let request = DeployRequest {
-            installation_id: &id,
-            systems: None,
-            fingerprint: &plan.fingerprint,
-            choices: &choices,
-            collection: None,
-            sync: false,
-        };
+        let request = DeployRequest { installation_id: &id, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None, sync: false };
         let summary = deploy(&catalog, None, &request, &connected, &roomy, &mut Quiet).unwrap();
-        assert_eq!(
-            (summary.status.as_str(), summary.games_copied),
-            ("completed", 2)
-        );
-        assert_eq!(
-            fs::read(share.join("roms/snes/Mario.sfc")).unwrap(),
-            b"mario"
-        );
-        assert!(
-            !share.join(".retrodrive").join("share-id").exists(),
-            "a local drive needs no share id"
-        );
+        assert_eq!((summary.status.as_str(), summary.games_copied), ("completed", 2));
+        assert_eq!(fs::read(share.join("roms/snes/Mario.sfc")).unwrap(), b"mario");
+        assert!(!share.join(".retrodrive").join("share-id").exists(), "a local drive needs no share id");
     }
 
     #[test]
@@ -2190,11 +1595,7 @@ mod tests {
         // RDS-023 step 2: the roms share holds the system folders; a USB retropie folder has roms inside.
         for usb in [false, true] {
             let dir = tempfile::tempdir().unwrap();
-            let root = if usb {
-                dir.path().join("stick").join("retropie")
-            } else {
-                dir.path().join("share").join("roms")
-            };
+            let root = if usb { dir.path().join("stick").join("retropie") } else { dir.path().join("share").join("roms") };
             let games = if usb { root.join("roms") } else { root.clone() };
             for d in ["snes", "atarilynx", "ports", "coleco"] {
                 fs::create_dir_all(games.join(d)).unwrap();
@@ -2207,31 +1608,14 @@ mod tests {
             scanner::scan(&mut catalog, &library, &unknown).unwrap();
             let id = installations::add(&catalog, &root, "retropie", &unknown).unwrap();
             let choices = deployment::Choices::new();
-            let plan =
-                deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy)
-                    .unwrap();
+            let plan = deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap();
             assert!(plan.copy_supported);
             assert_eq!(plan.systems_prefix, if usb { "roms\\" } else { "" });
-            let request = DeployRequest {
-                installation_id: &id,
-                systems: None,
-                fingerprint: &plan.fingerprint,
-                choices: &choices,
-                collection: None,
-                sync: false,
-            };
+            let request = DeployRequest { installation_id: &id, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None, sync: false };
             let summary = deploy(&catalog, None, &request, &connected, &roomy, &mut Quiet).unwrap();
-            assert_eq!(
-                (summary.status.as_str(), summary.games_copied),
-                ("completed", 2),
-                "usb: {usb}"
-            );
+            assert_eq!((summary.status.as_str(), summary.games_copied), ("completed", 2), "usb: {usb}");
             assert_eq!(fs::read(games.join("snes/Mario.sfc")).unwrap(), b"mario");
-            assert_eq!(
-                fs::read(games.join("atarilynx/Racer.lnx")).unwrap(),
-                b"lynx!",
-                "RetroPie's folder name"
-            );
+            assert_eq!(fs::read(games.join("atarilynx/Racer.lnx")).unwrap(), b"lynx!", "RetroPie's folder name");
         }
     }
 
@@ -2253,34 +1637,13 @@ mod tests {
         scanner::scan(&mut catalog, &library, &unknown).unwrap();
         let id = installations::add(&catalog, &share, "recalbox", &unknown).unwrap();
         let choices = deployment::Choices::new();
-        let plan =
-            deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap();
+        let plan = deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap();
         assert!(plan.copy_supported);
-        let request = DeployRequest {
-            installation_id: &id,
-            systems: None,
-            fingerprint: &plan.fingerprint,
-            choices: &choices,
-            collection: None,
-            sync: false,
-        };
+        let request = DeployRequest { installation_id: &id, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None, sync: false };
         let summary = deploy(&catalog, None, &request, &connected, &roomy, &mut Quiet).unwrap();
-        assert_eq!(
-            (summary.status.as_str(), summary.games_copied),
-            ("completed", 3),
-            "{:?}",
-            summary.issues
-        );
-        assert_eq!(
-            fs::read(share.join("roms/o2em/Pickaxe.bin")).unwrap(),
-            b"o2!",
-            "Recalbox's folder name"
-        );
-        assert_eq!(
-            fs::read(share.join("bios/scph1001.bin")).unwrap(),
-            b"psx bios",
-            "BIOS too"
-        );
+        assert_eq!((summary.status.as_str(), summary.games_copied), ("completed", 3), "{:?}", summary.issues);
+        assert_eq!(fs::read(share.join("roms/o2em/Pickaxe.bin")).unwrap(), b"o2!", "Recalbox's folder name");
+        assert_eq!(fs::read(share.join("bios/scph1001.bin")).unwrap(), b"psx bios", "BIOS too");
     }
 
     #[test]
@@ -2301,37 +1664,15 @@ mod tests {
         scanner::scan(&mut catalog, &library, &unknown).unwrap();
         let id = installations::add(&catalog, &roms, "rocknix", &unknown).unwrap();
         let choices = deployment::Choices::new();
-        let plan =
-            deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap();
+        let plan = deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap();
         assert!(plan.copy_supported && plan.systems_prefix.is_empty());
-        let request = DeployRequest {
-            installation_id: &id,
-            systems: None,
-            fingerprint: &plan.fingerprint,
-            choices: &choices,
-            collection: None,
-            sync: false,
-        };
+        let request = DeployRequest { installation_id: &id, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None, sync: false };
         let summary = deploy(&catalog, None, &request, &connected, &roomy, &mut Quiet).unwrap();
-        assert_eq!(
-            (summary.status.as_str(), summary.games_copied),
-            ("completed", 3),
-            "{:?}",
-            summary.issues
-        );
-        assert_eq!(
-            fs::read(roms.join("atarilynx/Racer.lnx")).unwrap(),
-            b"lynx!",
-            "ROCKNIX's folder name"
-        );
-        assert_eq!(
-            fs::read(roms.join("bios/scph1001.bin")).unwrap(),
-            b"psx bios",
-            "BIOS in ROCKNIX's bios folder"
-        );
+        assert_eq!((summary.status.as_str(), summary.games_copied), ("completed", 3), "{:?}", summary.issues);
+        assert_eq!(fs::read(roms.join("atarilynx/Racer.lnx")).unwrap(), b"lynx!", "ROCKNIX's folder name");
+        assert_eq!(fs::read(roms.join("bios/scph1001.bin")).unwrap(), b"psx bios", "BIOS in ROCKNIX's bios folder");
         // A second copy finds everything already there.
-        let again =
-            deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap();
+        let again = deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap();
         assert_eq!(again.bytes_to_copy, 0);
     }
 
@@ -2344,12 +1685,8 @@ mod tests {
             fs::create_dir_all(roms.join(d)).unwrap();
             fs::write(roms.join(d).join("systeminfo.txt"), b"").unwrap();
         }
-        fs::write(
-            roms.join("systems.txt"),
-            b"snes: Nintendo SNES
-",
-        )
-        .unwrap();
+        fs::write(roms.join("systems.txt"), b"snes: Nintendo SNES
+").unwrap();
         let library = dir.path().join("library");
         write(&library, "snes/Mario.sfc", b"mario");
         write(&library, "lynx/Racer.lnx", b"lynx!");
@@ -2358,32 +1695,13 @@ mod tests {
         scanner::scan(&mut catalog, &library, &unknown).unwrap();
         let id = installations::add(&catalog, &roms, "esde", &unknown).unwrap();
         let choices = deployment::Choices::new();
-        let plan =
-            deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap();
+        let plan = deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap();
         assert!(plan.copy_supported && plan.systems_prefix.is_empty());
-        let request = DeployRequest {
-            installation_id: &id,
-            systems: None,
-            fingerprint: &plan.fingerprint,
-            choices: &choices,
-            collection: None,
-            sync: false,
-        };
+        let request = DeployRequest { installation_id: &id, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None, sync: false };
         let summary = deploy(&catalog, None, &request, &connected, &roomy, &mut Quiet).unwrap();
-        assert_eq!(
-            (summary.status.as_str(), summary.games_copied),
-            ("completed", 2)
-        );
-        assert_eq!(
-            fs::read(roms.join("atarilynx/Racer.lnx")).unwrap(),
-            b"lynx!",
-            "ES-DE's folder name"
-        );
-        assert_eq!(
-            fs::read(roms.join("snes/systeminfo.txt")).unwrap(),
-            b"",
-            "ES-DE's own files untouched"
-        );
+        assert_eq!((summary.status.as_str(), summary.games_copied), ("completed", 2));
+        assert_eq!(fs::read(roms.join("atarilynx/Racer.lnx")).unwrap(), b"lynx!", "ES-DE's folder name");
+        assert_eq!(fs::read(roms.join("snes/systeminfo.txt")).unwrap(), b"", "ES-DE's own files untouched");
     }
 
     /// The same over real SMB, the way RetroPie's roms share is reached (run by hand:
@@ -2400,78 +1718,24 @@ mod tests {
         }
         let library = dir.path().join("library");
         write(&library, "snes/Mario.sfc", b"mario");
-        let local = fs::canonicalize(&roms)
-            .unwrap()
-            .display()
-            .to_string()
-            .trim_start_matches(r"\\?\")
-            .to_string();
-        let unc = format!(
-            r"\\localhost\{}$\{}\",
-            &local[..1],
-            local[3..].trim_end_matches('\\')
-        );
+        let local = fs::canonicalize(&roms).unwrap().display().to_string().trim_start_matches(r"\\?\").to_string();
+        let unc = format!(r"\\localhost\{}$\{}\", &local[..1], local[3..].trim_end_matches('\\'));
         let mut catalog = Connection::open_in_memory().unwrap();
         db::migrate(&mut catalog, None).unwrap();
         scanner::scan(&mut catalog, &library, &unknown).unwrap();
         let id = installations::add(&catalog, &roms, "retropie", &unknown).unwrap();
-        let location: String = catalog
-            .query_row(
-                "SELECT storage_location_id FROM installations WHERE id = ?1",
-                [&id],
-                |r| r.get(0),
-            )
-            .unwrap();
+        let location: String = catalog.query_row("SELECT storage_location_id FROM installations WHERE id = ?1", [&id], |r| r.get(0)).unwrap();
         catalog.execute("INSERT INTO storage_locations (id, kind, stable_id, display_name, root_path) VALUES ('share', 'network', ?1, ?2, ?2)", params![volumes::share_stable_id(&unc, None), unc]).unwrap();
         catalog.execute("UPDATE installations SET storage_location_id = 'share', relative_path = '' WHERE storage_location_id = ?1", [&location]).unwrap();
         let choices = deployment::Choices::new();
-        let plan = deployment::plan_with(
-            &catalog,
-            &id,
-            None,
-            None,
-            &choices,
-            &volumes::presence,
-            &volumes::space,
-        )
-        .unwrap();
-        let request = DeployRequest {
-            installation_id: &id,
-            systems: None,
-            fingerprint: &plan.fingerprint,
-            choices: &choices,
-            collection: None,
-            sync: false,
-        };
-        let summary = deploy(
-            &catalog,
-            None,
-            &request,
-            &volumes::presence,
-            &volumes::space,
-            &mut Quiet,
-        )
-        .unwrap();
-        assert_eq!(
-            (summary.status.as_str(), summary.games_copied),
-            ("completed", 1),
-            "{:?}",
-            summary.issues
-        );
+        let plan = deployment::plan_with(&catalog, &id, None, None, &choices, &volumes::presence, &volumes::space).unwrap();
+        let request = DeployRequest { installation_id: &id, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None, sync: false };
+        let summary = deploy(&catalog, None, &request, &volumes::presence, &volumes::space, &mut Quiet).unwrap();
+        assert_eq!((summary.status.as_str(), summary.games_copied), ("completed", 1), "{:?}", summary.issues);
         assert_eq!(fs::read(roms.join("snes/Mario.sfc")).unwrap(), b"mario");
         assert!(volumes::share_id(&unc).is_some(), "the share got its id");
         fs::write(roms.join(".retrodrive").join("share-id"), "another-pi").unwrap();
-        assert!(deployment::plan_with(
-            &catalog,
-            &id,
-            None,
-            None,
-            &choices,
-            &volumes::presence,
-            &volumes::space
-        )
-        .unwrap_err()
-        .contains("isn't connected"));
+        assert!(deployment::plan_with(&catalog, &id, None, None, &choices, &volumes::presence, &volumes::space).unwrap_err().contains("isn't connected"));
     }
 
     /// Real SMB through this PC's own admin share (run by hand: `cargo test -- --ignored
@@ -2486,107 +1750,34 @@ mod tests {
         let (share, library) = batocera_share(dir.path());
         let long = fs::canonicalize(&share).unwrap().display().to_string();
         let local = long.trim_start_matches(r"\\?\").to_string();
-        let unc = format!(
-            r"\\localhost\{}$\{}\",
-            &local[..1],
-            local[3..].trim_end_matches('\\')
-        );
+        let unc = format!(r"\\localhost\{}$\{}\", &local[..1], local[3..].trim_end_matches('\\'));
         assert!(Path::new(&unc).is_dir(), "{unc} must be reachable");
         let mut catalog = Connection::open_in_memory().unwrap();
         db::migrate(&mut catalog, None).unwrap();
         scanner::scan(&mut catalog, &library, &unknown).unwrap();
         let id = installations::add(&catalog, &share, "batocera", &unknown).unwrap();
         // Point the record at the share, as adding \\BATOCERA\share does.
-        let location: String = catalog
-            .query_row(
-                "SELECT storage_location_id FROM installations WHERE id = ?1",
-                [&id],
-                |r| r.get(0),
-            )
-            .unwrap();
+        let location: String = catalog.query_row("SELECT storage_location_id FROM installations WHERE id = ?1", [&id], |r| r.get(0)).unwrap();
         catalog.execute("INSERT INTO storage_locations (id, kind, stable_id, display_name, root_path) VALUES ('share', 'network', ?1, ?2, ?2)", params![volumes::share_stable_id(&unc, None), unc]).unwrap();
         catalog.execute("UPDATE installations SET storage_location_id = 'share' WHERE storage_location_id = ?1", [&location]).unwrap();
-        catalog
-            .execute("UPDATE installations SET relative_path = ''", [])
-            .unwrap();
+        catalog.execute("UPDATE installations SET relative_path = ''", []).unwrap();
         let choices = deployment::Choices::new();
-        let plan = deployment::plan_with(
-            &catalog,
-            &id,
-            None,
-            None,
-            &choices,
-            &volumes::presence,
-            &volumes::space,
-        )
-        .unwrap();
-        assert!(
-            plan.installation_path.starts_with(r"\\localhost\"),
-            "{}",
-            plan.installation_path
-        );
-        let request = DeployRequest {
-            installation_id: &id,
-            systems: None,
-            fingerprint: &plan.fingerprint,
-            choices: &choices,
-            collection: None,
-            sync: false,
-        };
-        let summary = deploy(
-            &catalog,
-            None,
-            &request,
-            &volumes::presence,
-            &volumes::space,
-            &mut Quiet,
-        )
-        .unwrap();
-        assert_eq!(
-            (summary.status.as_str(), summary.games_copied),
-            ("completed", 2),
-            "{:?}",
-            summary.issues
-        );
-        assert_eq!(
-            fs::read(share.join("roms/snes/Zelda.sfc")).unwrap(),
-            b"zelda!"
-        );
+        let plan = deployment::plan_with(&catalog, &id, None, None, &choices, &volumes::presence, &volumes::space).unwrap();
+        assert!(plan.installation_path.starts_with(r"\\localhost\"), "{}", plan.installation_path);
+        let request = DeployRequest { installation_id: &id, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None, sync: false };
+        let summary = deploy(&catalog, None, &request, &volumes::presence, &volumes::space, &mut Quiet).unwrap();
+        assert_eq!((summary.status.as_str(), summary.games_copied), ("completed", 2), "{:?}", summary.issues);
+        assert_eq!(fs::read(share.join("roms/snes/Zelda.sfc")).unwrap(), b"zelda!");
         // The first copy gave the share an id and recorded it.
         let share_id = volumes::share_id(&unc).expect("share id written");
-        let recorded: String = catalog
-            .query_row(
-                "SELECT stable_id FROM storage_locations WHERE id = 'share'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
+        let recorded: String = catalog.query_row("SELECT stable_id FROM storage_locations WHERE id = 'share'", [], |r| r.get(0)).unwrap();
         assert_eq!(recorded, volumes::share_stable_id(&unc, Some(&share_id)));
-        assert_eq!(
-            volumes::presence(&unc, Some(&recorded)),
-            Presence::Connected
-        );
+        assert_eq!(volumes::presence(&unc, Some(&recorded)), Presence::Connected);
         // Another machine answering to the same name (a different id): never copied to.
-        fs::write(
-            share.join(".retrodrive").join("share-id"),
-            "another-batocera",
-        )
-        .unwrap();
-        assert_eq!(
-            volumes::presence(&unc, Some(&recorded)),
-            Presence::OtherVolume
-        );
+        fs::write(share.join(".retrodrive").join("share-id"), "another-batocera").unwrap();
+        assert_eq!(volumes::presence(&unc, Some(&recorded)), Presence::OtherVolume);
         let before = snapshot(&share);
-        let error = deployment::plan_with(
-            &catalog,
-            &id,
-            None,
-            None,
-            &choices,
-            &volumes::presence,
-            &volumes::space,
-        )
-        .unwrap_err();
+        let error = deployment::plan_with(&catalog, &id, None, None, &choices, &volumes::presence, &volumes::space).unwrap_err();
         assert!(error.contains("isn't connected"), "{error}");
         assert_eq!(snapshot(&share), before, "nothing was written");
     }
@@ -2608,47 +1799,21 @@ mod tests {
         assert_eq!(fs::read(f.root.join("roms/psx/Saga/d1.bin")).unwrap(), d1);
         assert_eq!(fs::read(f.root.join("roms/nes/Kid.nes")).unwrap(), b"kid");
         assert!(temps_left(&f.root).is_empty(), "no temporary files remain");
-        assert_eq!(
-            snapshot(&f.library),
-            library_before,
-            "sources are never changed"
-        );
+        assert_eq!(snapshot(&f.library), library_before, "sources are never changed");
         assert!(item_states(&f.catalog).iter().all(|s| s == "verified"));
-        let hashed: i64 = f
-            .catalog
-            .query_row(
-                "SELECT COUNT(*) FROM game_files WHERE sha256 IS NOT NULL",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
+        let hashed: i64 = f.catalog.query_row("SELECT COUNT(*) FROM game_files WHERE sha256 IS NOT NULL", [], |r| r.get(0)).unwrap();
         assert_eq!(hashed, 6, "verified checksums are kept in the catalog");
 
-        let manifest: serde_json::Value =
-            serde_json::from_slice(&fs::read(summary.manifest_path.as_ref().unwrap()).unwrap())
-                .unwrap();
+        let manifest: serde_json::Value = serde_json::from_slice(&fs::read(summary.manifest_path.as_ref().unwrap()).unwrap()).unwrap();
         assert_eq!(manifest["format"], "retrodrive-deployment-manifest");
         assert_eq!(manifest["items"].as_array().unwrap().len(), 6);
-        assert!(manifest["items"][0]["path"]
-            .as_str()
-            .unwrap()
-            .starts_with("roms/"));
-        let status: String = f
-            .catalog
-            .query_row("SELECT status FROM deployments", [], |r| r.get(0))
-            .unwrap();
+        assert!(manifest["items"][0]["path"].as_str().unwrap().starts_with("roms/"));
+        let status: String = f.catalog.query_row("SELECT status FROM deployments", [], |r| r.get(0)).unwrap();
         assert_eq!(status, "completed");
 
         // Running it again copies nothing: everything is verified as identical.
         let again = f.deploy();
-        assert_eq!(
-            (
-                again.games_copied,
-                again.games_already_there,
-                again.files_identical
-            ),
-            (0, 2, 6)
-        );
+        assert_eq!((again.games_copied, again.games_already_there, again.files_identical), (0, 2, 6));
     }
 
     #[test]
@@ -2659,93 +1824,20 @@ mod tests {
         write(&f.library, "nes/Late.nes", b"late");
         scanner::scan(&mut f.catalog, &f.library, &unknown).unwrap();
         let before = snapshot(&f.root);
-        let err = deploy(
-            &f.catalog,
-            None,
-            &DeployRequest {
-                installation_id: &f.id,
-                systems: None,
-                fingerprint: &stale,
-                choices: &deployment::Choices::new(),
-                collection: None,
-                sync: false,
-            },
-            &connected,
-            &roomy,
-            &mut Quiet,
-        )
-        .unwrap_err();
+        let err = deploy(&f.catalog, None, &DeployRequest { installation_id: &f.id, systems: None, fingerprint: &stale, choices: &deployment::Choices::new(), collection: None, sync: false }, &connected, &roomy, &mut Quiet).unwrap_err();
         assert!(err.contains("changed since you reviewed"), "{err}");
 
         let fresh = f.fingerprint();
-        let tiny = |_: &Path| {
-            Some(VolumeSpace {
-                free_bytes: 1 << 20,
-                total_bytes: 10 << 30,
-                filesystem: Some("NTFS".into()),
-                cluster_bytes: 4096,
-            })
-        };
-        let err = deploy(
-            &f.catalog,
-            None,
-            &DeployRequest {
-                installation_id: &f.id,
-                systems: None,
-                fingerprint: &fresh,
-                choices: &deployment::Choices::new(),
-                collection: None,
-                sync: false,
-            },
-            &connected,
-            &tiny,
-            &mut Quiet,
-        )
-        .unwrap_err();
+        let tiny = |_: &Path| Some(VolumeSpace { free_bytes: 1 << 20, total_bytes: 10 << 30, filesystem: Some("NTFS".into()), cluster_bytes: 4096 });
+        let err = deploy(&f.catalog, None, &DeployRequest { installation_id: &f.id, systems: None, fingerprint: &fresh, choices: &deployment::Choices::new(), collection: None, sync: false }, &connected, &tiny, &mut Quiet).unwrap_err();
         assert!(err.contains("enough free space"), "{err}");
-        let err = deploy(
-            &f.catalog,
-            None,
-            &DeployRequest {
-                installation_id: &f.id,
-                systems: None,
-                fingerprint: &fresh,
-                choices: &deployment::Choices::new(),
-                collection: None,
-                sync: false,
-            },
-            &connected,
-            &|_: &Path| None,
-            &mut Quiet,
-        )
-        .unwrap_err();
+        let err = deploy(&f.catalog, None, &DeployRequest { installation_id: &f.id, systems: None, fingerprint: &fresh, choices: &deployment::Choices::new(), collection: None, sync: false }, &connected, &|_: &Path| None, &mut Quiet).unwrap_err();
         assert!(err.contains("couldn't be measured"), "{err}");
-        let err = deploy(
-            &f.catalog,
-            None,
-            &DeployRequest {
-                installation_id: &f.id,
-                systems: None,
-                fingerprint: &fresh,
-                choices: &deployment::Choices::new(),
-                collection: None,
-                sync: false,
-            },
-            &|_, _| Presence::OtherVolume,
-            &roomy,
-            &mut Quiet,
-        )
-        .unwrap_err();
-        assert!(
-            err.contains("isn't connected"),
-            "a different drive at the same letter is refused: {err}"
-        );
+        let err = deploy(&f.catalog, None, &DeployRequest { installation_id: &f.id, systems: None, fingerprint: &fresh, choices: &deployment::Choices::new(), collection: None, sync: false }, &|_, _| Presence::OtherVolume, &roomy, &mut Quiet).unwrap_err();
+        assert!(err.contains("isn't connected"), "a different drive at the same letter is refused: {err}");
 
         assert_eq!(snapshot(&f.root), before, "refusals write nothing");
-        let deployments: i64 = f
-            .catalog
-            .query_row("SELECT COUNT(*) FROM deployments", [], |r| r.get(0))
-            .unwrap();
+        let deployments: i64 = f.catalog.query_row("SELECT COUNT(*) FROM deployments", [], |r| r.get(0)).unwrap();
         assert_eq!(deployments, 0);
     }
 
@@ -2753,23 +1845,11 @@ mod tests {
     fn many_games(n: usize) -> Vec<(String, Vec<u8>)> {
         let mut files = Vec::new();
         for i in 0..n {
-            files.push((
-                format!("nes/Game {i:03}.nes"),
-                format!("nes game {i} ").repeat(1 + i % 7).into_bytes(),
-            ));
+            files.push((format!("nes/Game {i:03}.nes"), format!("nes game {i} ").repeat(1 + i % 7).into_bytes()));
             if i % 10 == 0 {
-                files.push((
-                    format!("psx/Saga {i}/Saga {i}.m3u"),
-                    format!("Saga {i} (Disc 1).cue\nSaga {i} (Disc 2).cue\n").into_bytes(),
-                ));
-                files.push((
-                    format!("psx/Saga {i}/Saga {i} (Disc 1).cue"),
-                    format!("FILE \"a{i}.bin\" BINARY\n").into_bytes(),
-                ));
-                files.push((
-                    format!("psx/Saga {i}/Saga {i} (Disc 2).cue"),
-                    format!("FILE \"b{i}.bin\" BINARY\n").into_bytes(),
-                ));
+                files.push((format!("psx/Saga {i}/Saga {i}.m3u"), format!("Saga {i} (Disc 1).cue\nSaga {i} (Disc 2).cue\n").into_bytes()));
+                files.push((format!("psx/Saga {i}/Saga {i} (Disc 1).cue"), format!("FILE \"a{i}.bin\" BINARY\n").into_bytes()));
+                files.push((format!("psx/Saga {i}/Saga {i} (Disc 2).cue"), format!("FILE \"b{i}.bin\" BINARY\n").into_bytes()));
             }
         }
         files
@@ -2789,43 +1869,27 @@ mod tests {
             .into_iter()
             .map(|e| e.unwrap())
             .filter(|e| e.file_type().is_file())
-            .map(|e| {
-                (
-                    e.path().strip_prefix(&roms).unwrap().display().to_string(),
-                    fs::read(e.path()).unwrap(),
-                )
-            })
+            .map(|e| (e.path().strip_prefix(&roms).unwrap().display().to_string(), fs::read(e.path()).unwrap()))
             .collect()
     }
 
     #[test]
     fn parallel_and_one_at_a_time_copies_end_the_same() {
         let files = many_games(60);
-        let borrowed: Vec<(&str, &[u8])> = files
-            .iter()
-            .map(|(p, c)| (p.as_str(), c.as_slice()))
-            .collect();
+        let borrowed: Vec<(&str, &[u8])> = files.iter().map(|(p, c)| (p.as_str(), c.as_slice())).collect();
         let mut one = Fixture::new(&borrowed);
         let mut four = Fixture::new(&borrowed);
         let a = one.deploy_with(&mut Workers(1)).unwrap();
         let b = four.deploy_with(&mut Workers(4)).unwrap();
         for s in [&a, &b] {
             assert_eq!(s.status, "completed");
-            assert_eq!(
-                (s.games_copied, s.files_copied, s.files_failed),
-                (66, 78, 0)
-            );
+            assert_eq!((s.games_copied, s.files_copied, s.files_failed), (66, 78, 0));
         }
         assert_eq!(a.bytes_copied, b.bytes_copied);
-        assert_eq!(
-            destination_files(&one.root),
-            destination_files(&four.root),
-            "same files, same contents"
-        );
+        assert_eq!(destination_files(&one.root), destination_files(&four.root), "same files, same contents");
         assert!(temps_left(&four.root).is_empty());
         assert!(item_states(&four.catalog).iter().all(|s| s == "verified"));
-        let manifest: serde_json::Value =
-            serde_json::from_slice(&fs::read(b.manifest_path.as_ref().unwrap()).unwrap()).unwrap();
+        let manifest: serde_json::Value = serde_json::from_slice(&fs::read(b.manifest_path.as_ref().unwrap()).unwrap()).unwrap();
         assert_eq!(manifest["items"].as_array().unwrap().len(), 78);
     }
 
@@ -2846,44 +1910,20 @@ mod tests {
     #[test]
     fn cancelling_a_parallel_copy_leaves_only_verified_files() {
         let files = many_games(80);
-        let borrowed: Vec<(&str, &[u8])> = files
-            .iter()
-            .map(|(p, c)| (p.as_str(), c.as_slice()))
-            .collect();
+        let borrowed: Vec<(&str, &[u8])> = files.iter().map(|(p, c)| (p.as_str(), c.as_slice())).collect();
         let mut f = Fixture::new(&borrowed);
-        let summary = f
-            .deploy_with(&mut CancelLater {
-                after: 10,
-                renames: 0,
-            })
-            .unwrap();
+        let summary = f.deploy_with(&mut CancelLater { after: 10, renames: 0 }).unwrap();
         assert!(summary.cancelled);
         assert_eq!(summary.status, "cancelled");
-        assert!(
-            temps_left(&f.root).is_empty(),
-            "no unfinished temporary files"
-        );
+        assert!(temps_left(&f.root).is_empty(), "no unfinished temporary files");
         let states = item_states(&f.catalog);
-        assert!(
-            states
-                .iter()
-                .all(|s| ["verified", "cancelled", "not_attempted"].contains(&s.as_str())),
-            "{states:?}"
-        );
+        assert!(states.iter().all(|s| ["verified", "cancelled", "not_attempted"].contains(&s.as_str())), "{states:?}");
         let verified = states.iter().filter(|s| *s == "verified").count();
         assert!((10..80).contains(&verified), "stopped partway: {verified}");
         // Every file on the drive is a verified, complete copy.
         let mut s = f.catalog.prepare("SELECT destination_path, source_path FROM deployment_items WHERE state = 'verified'").unwrap();
-        let pairs: Vec<(String, String)> = s
-            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
-            .unwrap()
-            .map(|r| r.unwrap())
-            .collect();
-        assert_eq!(
-            destination_files(&f.root).len(),
-            pairs.len(),
-            "nothing else was left on the drive"
-        );
+        let pairs: Vec<(String, String)> = s.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap().map(|r| r.unwrap()).collect();
+        assert_eq!(destination_files(&f.root).len(), pairs.len(), "nothing else was left on the drive");
         for (destination, source) in pairs {
             assert_eq!(fs::read(&destination).unwrap(), fs::read(&source).unwrap());
         }
@@ -2902,16 +1942,10 @@ mod tests {
     #[test]
     fn a_parallel_copy_never_overwrites_a_file_that_appears() {
         let files = many_games(30);
-        let borrowed: Vec<(&str, &[u8])> = files
-            .iter()
-            .map(|(p, c)| (p.as_str(), c.as_slice()))
-            .collect();
+        let borrowed: Vec<(&str, &[u8])> = files.iter().map(|(p, c)| (p.as_str(), c.as_slice())).collect();
         let mut f = Fixture::new(&borrowed);
         let summary = f.deploy_with(&mut IntruderAt("Game 017.nes")).unwrap();
-        assert_eq!(
-            fs::read(f.root.join("roms/nes/Game 017.nes")).unwrap(),
-            b"theirs"
-        );
+        assert_eq!(fs::read(f.root.join("roms/nes/Game 017.nes")).unwrap(), b"theirs");
         assert_eq!((summary.games_incomplete, summary.games_copied), (1, 32));
         assert_eq!(summary.status, "completed_with_issues");
         assert!(temps_left(&f.root).is_empty());
@@ -2924,10 +1958,7 @@ mod tests {
     }
     impl DeployObserver for BigWatcher {
         fn before_verify(&mut self, temp: &Path, _source: &Path) {
-            if fs::metadata(temp)
-                .map(|m| m.len() as i64 >= BIG_FILE)
-                .unwrap_or(false)
-            {
+            if fs::metadata(temp).map(|m| m.len() as i64 >= BIG_FILE).unwrap_or(false) {
                 self.checks += 1;
                 // Other workers create and remove files meanwhile, so skip entries that vanish.
                 let others = walkdir::WalkDir::new(&self.root)
@@ -2935,16 +1966,9 @@ mod tests {
                     .filter_map(Result::ok)
                     .map(|e| e.file_name().to_string_lossy().into_owned())
                     // Compare names, not paths: temp folders can show up as 8.3 short paths (CI).
-                    .filter(|name| {
-                        Some(name.as_str()) != temp.file_name().and_then(|n| n.to_str())
-                            && name.contains(TEMP_MARKER)
-                            && name.contains("Big")
-                    })
+                    .filter(|name| Some(name.as_str()) != temp.file_name().and_then(|n| n.to_str()) && name.contains(TEMP_MARKER) && name.contains("Big"))
                     .count();
-                assert_eq!(
-                    others, 0,
-                    "another big file was being written at the same time"
-                );
+                assert_eq!(others, 0, "another big file was being written at the same time");
             }
         }
     }
@@ -2952,14 +1976,9 @@ mod tests {
     #[test]
     fn big_files_are_copied_one_at_a_time() {
         let big = vec![7u8; BIG_FILE as usize];
-        let mut files: Vec<(String, Vec<u8>)> = (0..3)
-            .map(|i| (format!("psx/Big {i}.iso"), big.clone()))
-            .collect();
+        let mut files: Vec<(String, Vec<u8>)> = (0..3).map(|i| (format!("psx/Big {i}.iso"), big.clone())).collect();
         files.extend(many_games(12));
-        let borrowed: Vec<(&str, &[u8])> = files
-            .iter()
-            .map(|(p, c)| (p.as_str(), c.as_slice()))
-            .collect();
+        let borrowed: Vec<(&str, &[u8])> = files.iter().map(|(p, c)| (p.as_str(), c.as_slice())).collect();
         let mut f = Fixture::new(&borrowed);
         let root = f.root.clone();
         let mut watcher = BigWatcher { root, checks: 0 };
@@ -2980,10 +1999,7 @@ mod tests {
     #[should_panic(expected = "observer failure")]
     fn a_coordinator_failure_stops_the_workers_instead_of_hanging() {
         let files = many_games(20);
-        let borrowed: Vec<(&str, &[u8])> = files
-            .iter()
-            .map(|(p, c)| (p.as_str(), c.as_slice()))
-            .collect();
+        let borrowed: Vec<(&str, &[u8])> = files.iter().map(|(p, c)| (p.as_str(), c.as_slice())).collect();
         let mut f = Fixture::new(&borrowed);
         let _ = f.deploy_with(&mut PanicsAtRename);
     }
@@ -2999,10 +2015,7 @@ mod tests {
     fn a_file_that_appears_before_the_rename_is_never_overwritten() {
         let mut f = Fixture::new(&[("nes/Kid.nes", b"mine")]);
         let summary = f.deploy_with(&mut Intruder).unwrap();
-        assert_eq!(
-            fs::read(f.root.join("roms/nes/Kid.nes")).unwrap(),
-            b"theirs"
-        );
+        assert_eq!(fs::read(f.root.join("roms/nes/Kid.nes")).unwrap(), b"theirs");
         assert_eq!(summary.games_incomplete, 1);
         assert_eq!(summary.status, "completed_with_issues");
         assert!(summary.issues[0].message.contains("It was kept"));
@@ -3015,10 +2028,7 @@ mod tests {
         let (a, b) = (dir.path().join("a"), dir.path().join("b"));
         fs::write(&a, b"new").unwrap();
         fs::write(&b, b"existing").unwrap();
-        assert_eq!(
-            rename_no_replace(&a, &b).unwrap_err().kind(),
-            io::ErrorKind::AlreadyExists
-        );
+        assert_eq!(rename_no_replace(&a, &b).unwrap_err().kind(), io::ErrorKind::AlreadyExists);
         assert_eq!(fs::read(&b).unwrap(), b"existing");
         assert!(a.exists());
     }
@@ -3036,10 +2046,7 @@ mod tests {
     fn a_copy_that_does_not_verify_is_discarded() {
         let mut f = Fixture::new(&[("nes/Kid.nes", b"kid")]);
         let summary = f.deploy_with(&mut Corrupter).unwrap();
-        assert!(
-            !f.root.join("roms/nes/Kid.nes").exists(),
-            "an unverified copy never gets the real name"
-        );
+        assert!(!f.root.join("roms/nes/Kid.nes").exists(), "an unverified copy never gets the real name");
         assert!(temps_left(&f.root).is_empty());
         assert_eq!(summary.files_failed, 1);
         assert!(summary.issues[0].message.contains("didn't match"));
@@ -3086,10 +2093,7 @@ mod tests {
         assert!(summary.cancelled);
         assert_eq!(summary.status, "cancelled");
         assert!(!f.root.join("roms/psx/Big.iso").exists());
-        assert!(
-            temps_left(&f.root).is_empty(),
-            "the unfinished temporary file was removed"
-        );
+        assert!(temps_left(&f.root).is_empty(), "the unfinished temporary file was removed");
         assert_eq!(item_states(&f.catalog), ["cancelled", "not_attempted"]);
         assert_eq!(summary.files_not_attempted, 1);
     }
@@ -3102,34 +2106,20 @@ mod tests {
         let summary = f.deploy();
         assert_eq!(summary.games_already_there, 1);
         assert_eq!(summary.games_conflict, 1);
-        assert_eq!(
-            fs::read(f.root.join("roms/nes/Looks.nes")).unwrap(),
-            b"MINE",
-            "the existing file is kept"
-        );
-        assert!(summary
-            .issues
-            .iter()
-            .any(|i| i.message.contains("contents differ")));
+        assert_eq!(fs::read(f.root.join("roms/nes/Looks.nes")).unwrap(), b"MINE", "the existing file is kept");
+        assert!(summary.issues.iter().any(|i| i.message.contains("contents differ")));
     }
 
     #[test]
     fn a_later_copy_trusts_earlier_checks_only_while_nothing_changed() {
         let mut f = Fixture::new(&[("nes/Kid.nes", b"kid"), ("nes/Zelda.nes", b"zelda")]);
         assert_eq!(f.deploy().files_copied, 2);
-        let reused = |c: &Connection| -> i64 {
-            c.query_row("SELECT COUNT(*) FROM deployment_items WHERE message LIKE 'Confirmed by an earlier copy%'", [], |r| r.get(0)).unwrap()
-        };
+        let reused = |c: &Connection| -> i64 { c.query_row("SELECT COUNT(*) FROM deployment_items WHERE message LIKE 'Confirmed by an earlier copy%'", [], |r| r.get(0)).unwrap() };
         // A confirmation in the same second as the files last changed isn't trusted: checked again by content.
         // (Pinned to the files' own latest time, so the result doesn't depend on the clock.)
         let latest = ["Kid.nes", "Zelda.nes"]
             .iter()
-            .flat_map(|n| {
-                [
-                    f.root.join("roms/nes").join(n),
-                    f.library.join("nes").join(n),
-                ]
-            })
+            .flat_map(|n| [f.root.join("roms/nes").join(n), f.library.join("nes").join(n)])
             .flat_map(|p| {
                 let m = fs::metadata(&p).unwrap();
                 [m.modified().ok(), m.created().ok()]
@@ -3138,46 +2128,19 @@ mod tests {
             .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64)
             .max()
             .unwrap();
-        f.catalog
-            .execute(
-                "UPDATE deployment_items SET updated_at = datetime(?1, 'unixepoch')",
-                [latest],
-            )
-            .unwrap();
+        f.catalog.execute("UPDATE deployment_items SET updated_at = datetime(?1, 'unixepoch')", [latest]).unwrap();
         assert_eq!(f.deploy().files_identical, 2);
-        assert_eq!(
-            reused(&f.catalog),
-            0,
-            "a confirmation isn't trusted for files modified in the same second"
-        );
+        assert_eq!(reused(&f.catalog), 0, "a confirmation isn't trusted for files modified in the same second");
         // Confirmations made after the files last changed are trusted (no reading).
-        f.catalog
-            .execute(
-                "UPDATE deployment_items SET updated_at = '2999-01-01 00:00:00'",
-                [],
-            )
-            .unwrap();
+        f.catalog.execute("UPDATE deployment_items SET updated_at = '2999-01-01 00:00:00'", []).unwrap();
         assert_eq!(f.deploy().files_identical, 2);
         assert_eq!(reused(&f.catalog), 2);
         // A file changed on the drive after its confirmation (same size) is compared again and kept.
-        f.catalog
-            .execute(
-                "UPDATE deployment_items SET updated_at = '2000-01-01 00:00:00'",
-                [],
-            )
-            .unwrap();
+        f.catalog.execute("UPDATE deployment_items SET updated_at = '2000-01-01 00:00:00'", []).unwrap();
         write(&f.root, "roms/nes/Zelda.nes", b"ZELDA");
         let after = f.deploy();
-        assert_eq!(
-            (after.files_identical, after.games_conflict),
-            (1, 1),
-            "the change is noticed"
-        );
-        assert_eq!(
-            fs::read(f.root.join("roms/nes/Zelda.nes")).unwrap(),
-            b"ZELDA",
-            "and the drive's file is kept"
-        );
+        assert_eq!((after.files_identical, after.games_conflict), (1, 1), "the change is noticed");
+        assert_eq!(fs::read(f.root.join("roms/nes/Zelda.nes")).unwrap(), b"ZELDA", "and the drive's file is kept");
         assert_eq!(unix_seconds("1970-01-02 00:00:01"), Some(86_401));
         assert_eq!(unix_seconds("2026-11-07 12:00:00"), Some(1_794_052_800));
     }
@@ -3198,10 +2161,7 @@ mod tests {
         }
         let first = f.deploy_with(&mut FailDiscTwo).unwrap();
         assert_eq!(first.games_incomplete, 1);
-        assert!(
-            f.root.join("roms/psx/Saga/d1.bin").exists(),
-            "verified discs are kept"
-        );
+        assert!(f.root.join("roms/psx/Saga/d1.bin").exists(), "verified discs are kept");
         assert!(!f.root.join("roms/psx/Saga/d2.bin").exists());
 
         let second = f.deploy();
@@ -3209,29 +2169,17 @@ mod tests {
         assert_eq!(second.games_copied, 1);
         assert_eq!(second.files_copied, 1, "only the missing disc is copied");
         assert_eq!(second.files_identical, 4, "the rest are checked by content");
-        assert_eq!(
-            fs::read(f.root.join("roms/psx/Saga/d2.bin")).unwrap(),
-            b"disc two"
-        );
+        assert_eq!(fs::read(f.root.join("roms/psx/Saga/d2.bin")).unwrap(), b"disc two");
     }
 
     #[test]
     fn a_hundred_unicode_names_with_spaces_copy_and_verify() {
-        let names: Vec<String> = (0..100)
-            .map(|i| format!("nes/Gämé Nº {i} – テスト.nes"))
-            .collect();
+        let names: Vec<String> = (0..100).map(|i| format!("nes/Gämé Nº {i} – テスト.nes")).collect();
         let contents: Vec<Vec<u8>> = (0..100).map(|i| format!("rom {i}").into_bytes()).collect();
-        let files: Vec<(&str, &[u8])> = names
-            .iter()
-            .zip(&contents)
-            .map(|(n, c)| (n.as_str(), c.as_slice()))
-            .collect();
+        let files: Vec<(&str, &[u8])> = names.iter().zip(&contents).map(|(n, c)| (n.as_str(), c.as_slice())).collect();
         let mut f = Fixture::new(&files);
         let summary = f.deploy();
-        assert_eq!(
-            (summary.status.as_str(), summary.files_copied),
-            ("completed", 100)
-        );
+        assert_eq!((summary.status.as_str(), summary.files_copied), ("completed", 100));
         for (name, c) in names.iter().zip(&contents) {
             assert_eq!(&fs::read(f.root.join("roms").join(name)).unwrap(), c);
         }
@@ -3252,10 +2200,7 @@ mod tests {
     fn interrupted_copies_are_cleaned_up_safely_on_the_next_start() {
         let mut f = Fixture::new(&[("nes/Kid.nes", b"kid")]);
         f.deploy();
-        let deployment: String = f
-            .catalog
-            .query_row("SELECT id FROM deployments", [], |r| r.get(0))
-            .unwrap();
+        let deployment: String = f.catalog.query_row("SELECT id FROM deployments", [], |r| r.get(0)).unwrap();
         let marker = format!("{TEMP_MARKER}{}", &deployment[..8]);
         // Simulate a crash mid-copy: a running deployment with a recorded temp file.
         // Use the canonical installation path, as RetroDrive records it (CI temp dirs use 8.3 short names).
@@ -3265,9 +2210,7 @@ mod tests {
         let precious = root.join("roms/nes/Kid.nes");
         let outside = f.dir.path().join(format!("outside.nes{marker}"));
         fs::write(&outside, b"not in the installation").unwrap();
-        f.catalog
-            .execute("UPDATE deployments SET status = 'running'", [])
-            .unwrap();
+        f.catalog.execute("UPDATE deployments SET status = 'running'", []).unwrap();
         for path in [&temp, &precious, &outside] {
             f.catalog
                 .execute(
@@ -3280,25 +2223,13 @@ mod tests {
 
         assert_eq!(recover(&f.catalog).unwrap(), 1);
         // Drive not confirmed: nothing is touched.
-        assert_eq!(
-            cleanup_leftovers(&f.catalog, &|_, _| Presence::OtherVolume).unwrap(),
-            0
-        );
+        assert_eq!(cleanup_leftovers(&f.catalog, &|_, _| Presence::OtherVolume).unwrap(), 0);
         assert!(temp.exists());
         assert_eq!(cleanup_leftovers(&f.catalog, &connected).unwrap(), 1);
         assert!(!temp.exists(), "our own leftover is removed");
-        assert!(
-            precious.exists(),
-            "a path without our marker is never removed"
-        );
-        assert!(
-            outside.exists(),
-            "a path outside the installation is never removed"
-        );
-        let status: String = f
-            .catalog
-            .query_row("SELECT status FROM deployments", [], |r| r.get(0))
-            .unwrap();
+        assert!(precious.exists(), "a path without our marker is never removed");
+        assert!(outside.exists(), "a path outside the installation is never removed");
+        let status: String = f.catalog.query_row("SELECT status FROM deployments", [], |r| r.get(0)).unwrap();
         assert_eq!(status, "interrupted");
     }
 
@@ -3307,10 +2238,7 @@ mod tests {
     fn inside_checks_work_for_drive_roots_and_folders() {
         assert!(is_inside(r"E:\roms\nes\Kid.nes.rdpart-1", r"E:\"));
         assert!(is_inside(r"C:\Games\RetroBat\roms\x", r"c:\games\retrobat"));
-        assert!(!is_inside(
-            r"C:\Games\RetroBatOther\x",
-            r"C:\Games\RetroBat"
-        ));
+        assert!(!is_inside(r"C:\Games\RetroBatOther\x", r"C:\Games\RetroBat"));
         assert!(!is_inside(r"C:\Games\RetroBat", r"C:\Games\RetroBat"));
         assert!(!is_inside(r"D:\x", r"E:\"));
     }
@@ -3320,16 +2248,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         for size in [0usize, 5, CHUNK, CHUNK + 123, 3 * CHUNK + 4097] {
             let path = dir.path().join(format!("f{size}"));
-            fs::write(
-                &path,
-                (0..size).map(|i| (i % 251) as u8).collect::<Vec<_>>(),
-            )
-            .unwrap();
-            assert_eq!(
-                hash_file_from_disk(&path, &mut || false).ok(),
-                hash_file(&path, &mut || false).ok(),
-                "size {size}"
-            );
+            fs::write(&path, (0..size).map(|i| (i % 251) as u8).collect::<Vec<_>>()).unwrap();
+            assert_eq!(hash_file_from_disk(&path, &mut || false).ok(), hash_file(&path, &mut || false).ok(), "size {size}");
         }
     }
 
@@ -3340,10 +2260,7 @@ mod tests {
         let (a, b) = (dir.path().join("a"), dir.path().join("b"));
         fs::write(&a, &data).unwrap();
         fs::write(&b, &data).unwrap();
-        assert_eq!(
-            same_contents(&a, &b, &mut || false).ok().flatten(),
-            hash_file(&a, &mut || false).ok()
-        );
+        assert_eq!(same_contents(&a, &b, &mut || false).ok().flatten(), hash_file(&a, &mut || false).ok());
         let mut changed = data.clone();
         *changed.last_mut().unwrap() ^= 1;
         fs::write(&b, &changed).unwrap();
@@ -3362,22 +2279,13 @@ mod tests {
             fn before_verify(&mut self, temp: &Path, _source: &Path) {
                 fs::write(temp, b"bad").unwrap();
                 // FILE_SHARE_READ | FILE_SHARE_WRITE, but not FILE_SHARE_DELETE.
-                self.0 = Some(
-                    OpenOptions::new()
-                        .read(true)
-                        .share_mode(1 | 2)
-                        .open(temp)
-                        .unwrap(),
-                );
+                self.0 = Some(OpenOptions::new().read(true).share_mode(1 | 2).open(temp).unwrap());
             }
         }
         let mut locker = Locker(None);
         let summary = f.deploy_with(&mut locker).unwrap();
         assert_eq!(summary.files_failed, 1);
-        let temp: Option<String> = f
-            .catalog
-            .query_row("SELECT temp_path FROM deployment_items", [], |r| r.get(0))
-            .unwrap();
+        let temp: Option<String> = f.catalog.query_row("SELECT temp_path FROM deployment_items", [], |r| r.get(0)).unwrap();
         let temp = PathBuf::from(temp.expect("the leftover is still recorded"));
         assert!(temp.exists());
         assert!(!f.root.join("roms/nes/Kid.nes").exists());
@@ -3394,37 +2302,14 @@ mod tests {
         let elsewhere = f.dir.path().join("elsewhere");
         fs::create_dir_all(&elsewhere).unwrap();
         // The junction appears after the plan was reviewed.
-        let made = std::process::Command::new("cmd")
-            .args(["/C", "mklink", "/J"])
-            .arg(f.root.join("roms").join("nes"))
-            .arg(&elsewhere)
-            .output()
-            .unwrap();
+        let made = std::process::Command::new("cmd").args(["/C", "mklink", "/J"]).arg(f.root.join("roms").join("nes")).arg(&elsewhere).output().unwrap();
         assert!(made.status.success());
-        let result = deploy(
-            &f.catalog,
-            None,
-            &DeployRequest {
-                installation_id: &f.id,
-                systems: None,
-                fingerprint: &fingerprint,
-                choices: &deployment::Choices::new(),
-                collection: None,
-                sync: false,
-            },
-            &connected,
-            &roomy,
-            &mut Quiet,
-        );
+        let result = deploy(&f.catalog, None, &DeployRequest { installation_id: &f.id, systems: None, fingerprint: &fingerprint, choices: &deployment::Choices::new(), collection: None, sync: false }, &connected, &roomy, &mut Quiet);
         // Either the changed plan is refused, or the copy refuses the link; nothing lands elsewhere.
         if let Ok(summary) = result {
             assert_eq!(summary.files_copied, 0);
         }
-        assert_eq!(
-            fs::read_dir(&elsewhere).unwrap().count(),
-            0,
-            "nothing was written through the junction"
-        );
+        assert_eq!(fs::read_dir(&elsewhere).unwrap().count(), 0, "nothing was written through the junction");
     }
 
     fn conflict_fixture() -> Fixture {
@@ -3436,57 +2321,34 @@ mod tests {
     #[test]
     fn replace_moves_the_original_to_the_backup_folder_then_copies() {
         let mut f = conflict_fixture();
-        f.choices
-            .insert("roms/nes/diff.nes".into(), deployment::Choice::Replace);
+        f.choices.insert("roms/nes/diff.nes".into(), deployment::Choice::Replace);
         let summary = f.deploy();
         assert_eq!(summary.status, "completed", "{:?}", summary.issues);
         assert_eq!(summary.files_replaced, 1);
         assert_eq!(fs::read(f.root.join("roms/nes/Diff.nes")).unwrap(), b"mine");
-        let backup = f
-            .root
-            .join(".retrodrive/backup")
-            .join(&summary.deployment_id)
-            .join("roms/nes/Diff.nes");
-        assert_eq!(
-            fs::read(&backup).unwrap(),
-            b"theirs, longer",
-            "the original is kept, never deleted"
-        );
-        let manifest: serde_json::Value =
-            serde_json::from_slice(&fs::read(summary.manifest_path.unwrap()).unwrap()).unwrap();
+        let backup = f.root.join(".retrodrive/backup").join(&summary.deployment_id).join("roms/nes/Diff.nes");
+        assert_eq!(fs::read(&backup).unwrap(), b"theirs, longer", "the original is kept, never deleted");
+        let manifest: serde_json::Value = serde_json::from_slice(&fs::read(summary.manifest_path.unwrap()).unwrap()).unwrap();
         assert_eq!(manifest["items"][0]["outcome"], "replaced");
-        assert!(manifest["items"][0]["backup"]
-            .as_str()
-            .unwrap()
-            .starts_with(".retrodrive/backup/"));
+        assert!(manifest["items"][0]["backup"].as_str().unwrap().starts_with(".retrodrive/backup/"));
         assert!(temps_left(&f.root).is_empty());
     }
 
     #[test]
     fn a_failed_replace_puts_the_original_back() {
         let mut f = conflict_fixture();
-        f.choices
-            .insert("roms/nes/diff.nes".into(), deployment::Choice::Replace);
+        f.choices.insert("roms/nes/diff.nes".into(), deployment::Choice::Replace);
         let summary = f.deploy_with(&mut Corrupter).unwrap();
         assert_eq!(summary.files_failed, 1);
-        assert!(
-            summary.issues[0].message.contains("put back"),
-            "{:?}",
-            summary.issues
-        );
-        assert_eq!(
-            fs::read(f.root.join("roms/nes/Diff.nes")).unwrap(),
-            b"theirs, longer",
-            "the original is back under its name"
-        );
+        assert!(summary.issues[0].message.contains("put back"), "{:?}", summary.issues);
+        assert_eq!(fs::read(f.root.join("roms/nes/Diff.nes")).unwrap(), b"theirs, longer", "the original is back under its name");
         assert!(temps_left(&f.root).is_empty());
     }
 
     #[test]
     fn cancelling_during_a_replace_puts_the_original_back() {
         let mut f = conflict_fixture();
-        f.choices
-            .insert("roms/nes/diff.nes".into(), deployment::Choice::Replace);
+        f.choices.insert("roms/nes/diff.nes".into(), deployment::Choice::Replace);
         struct CancelAfterBackup(bool);
         impl DeployObserver for CancelAfterBackup {
             fn cancelled(&mut self) -> bool {
@@ -3498,73 +2360,36 @@ mod tests {
         }
         let summary = f.deploy_with(&mut CancelAfterBackup(false)).unwrap();
         assert!(summary.cancelled);
-        assert_eq!(
-            fs::read(f.root.join("roms/nes/Diff.nes")).unwrap(),
-            b"theirs, longer"
-        );
+        assert_eq!(fs::read(f.root.join("roms/nes/Diff.nes")).unwrap(), b"theirs, longer");
     }
 
     #[test]
     fn keep_both_copies_under_the_next_free_number() {
         let mut f = conflict_fixture();
         write(&f.root, "roms/nes/Diff (2).nes", b"someone else's (2)");
-        f.choices
-            .insert("roms/nes/diff.nes".into(), deployment::Choice::KeepBoth);
+        f.choices.insert("roms/nes/diff.nes".into(), deployment::Choice::KeepBoth);
         let summary = f.deploy();
         assert_eq!(summary.files_copied, 1, "{:?}", summary.issues);
-        assert_eq!(
-            fs::read(f.root.join("roms/nes/Diff.nes")).unwrap(),
-            b"theirs, longer",
-            "the existing file is kept"
-        );
-        assert_eq!(
-            fs::read(f.root.join("roms/nes/Diff (2).nes")).unwrap(),
-            b"someone else's (2)",
-            "a taken number is skipped"
-        );
-        assert_eq!(
-            fs::read(f.root.join("roms/nes/Diff (3).nes")).unwrap(),
-            b"mine"
-        );
+        assert_eq!(fs::read(f.root.join("roms/nes/Diff.nes")).unwrap(), b"theirs, longer", "the existing file is kept");
+        assert_eq!(fs::read(f.root.join("roms/nes/Diff (2).nes")).unwrap(), b"someone else's (2)", "a taken number is skipped");
+        assert_eq!(fs::read(f.root.join("roms/nes/Diff (3).nes")).unwrap(), b"mine");
     }
 
     #[test]
     fn an_interrupted_replace_is_put_right_on_the_next_start() {
         let mut f = Fixture::new(&[("nes/Kid.nes", b"kid"), ("nes/Done.nes", b"new")]);
         f.deploy();
-        let deployment: String = f
-            .catalog
-            .query_row("SELECT id FROM deployments", [], |r| r.get(0))
-            .unwrap();
+        let deployment: String = f.catalog.query_row("SELECT id FROM deployments", [], |r| r.get(0)).unwrap();
         let root = crate::paths::normalize(&f.root).unwrap();
         // Crash 1: the original was moved to the backup folder, the new file never arrived.
         let dest = root.join("roms/nes/Lost.nes");
-        let backup = root
-            .join(".retrodrive/backup")
-            .join(&deployment)
-            .join("roms/nes/Lost.nes");
-        write(
-            &root,
-            &format!(".retrodrive/backup/{deployment}/roms/nes/Lost.nes"),
-            b"original",
-        );
+        let backup = root.join(".retrodrive/backup").join(&deployment).join("roms/nes/Lost.nes");
+        write(&root, &format!(".retrodrive/backup/{deployment}/roms/nes/Lost.nes"), b"original");
         // Crash 2: the new file did get its name before the crash.
-        let done_backup = root
-            .join(".retrodrive/backup")
-            .join(&deployment)
-            .join("roms/nes/Done.nes");
-        write(
-            &root,
-            &format!(".retrodrive/backup/{deployment}/roms/nes/Done.nes"),
-            b"old done",
-        );
-        f.catalog
-            .execute("UPDATE deployments SET status = 'running'", [])
-            .unwrap();
-        for (d, b) in [
-            (&dest, &backup),
-            (&root.join("roms/nes/Done.nes"), &done_backup),
-        ] {
+        let done_backup = root.join(".retrodrive/backup").join(&deployment).join("roms/nes/Done.nes");
+        write(&root, &format!(".retrodrive/backup/{deployment}/roms/nes/Done.nes"), b"old done");
+        f.catalog.execute("UPDATE deployments SET status = 'running'", []).unwrap();
+        for (d, b) in [(&dest, &backup), (&root.join("roms/nes/Done.nes"), &done_backup)] {
             f.catalog
                 .execute(
                     "INSERT INTO deployment_items (deployment_id, game_index, game_title, source_path, destination_path, backup_path, size_bytes, planned_action, state)
@@ -3574,29 +2399,12 @@ mod tests {
                 .unwrap();
         }
         recover(&f.catalog).unwrap();
-        assert_eq!(
-            cleanup_leftovers(&f.catalog, &|_, _| Presence::OtherVolume).unwrap(),
-            0,
-            "nothing moves on an unconfirmed drive"
-        );
+        assert_eq!(cleanup_leftovers(&f.catalog, &|_, _| Presence::OtherVolume).unwrap(), 0, "nothing moves on an unconfirmed drive");
         assert!(!dest.exists());
         assert_eq!(cleanup_leftovers(&f.catalog, &connected).unwrap(), 1);
-        assert_eq!(
-            fs::read(&dest).unwrap(),
-            b"original",
-            "the original is back"
-        );
+        assert_eq!(fs::read(&dest).unwrap(), b"original", "the original is back");
         assert!(done_backup.exists(), "a completed replace keeps its backup");
-        let states: Vec<String> = f
-            .catalog
-            .prepare(
-                "SELECT state FROM deployment_items WHERE planned_action = 'replace' ORDER BY id",
-            )
-            .unwrap()
-            .query_map([], |r| r.get(0))
-            .unwrap()
-            .map(|r| r.unwrap())
-            .collect();
+        let states: Vec<String> = f.catalog.prepare("SELECT state FROM deployment_items WHERE planned_action = 'replace' ORDER BY id").unwrap().query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect();
         assert_eq!(states, ["restored", "replaced"]);
     }
 
@@ -3615,11 +2423,7 @@ mod tests {
         fs::create_dir_all(&library).unwrap();
         let count = 2000;
         for i in 0..count {
-            fs::write(
-                library.join(format!("Game {i:05} (USA).nes")),
-                vec![(i % 251) as u8; 40 * 1024],
-            )
-            .unwrap();
+            fs::write(library.join(format!("Game {i:05} (USA).nes")), vec![(i % 251) as u8; 40 * 1024]).unwrap();
         }
         let db_path = dir.path().join("catalog.sqlite");
         let mut catalog = db::open(&db_path).unwrap();
@@ -3627,49 +2431,21 @@ mod tests {
         scanner::scan(&mut catalog, &dir.path().join("library"), &unknown).unwrap();
         let id = installations::add(&catalog, &root, "retrobat", &unknown).unwrap();
         let choices = deployment::Choices::new();
-        let fingerprint =
-            deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy)
-                .unwrap()
-                .fingerprint;
+        let fingerprint = deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap().fingerprint;
         // RETRODRIVE_BENCH_WORKERS picks how many games are copied at once (default: the app's).
-        let workers = std::env::var("RETRODRIVE_BENCH_WORKERS")
-            .ok()
-            .and_then(|w| w.parse().ok())
-            .unwrap_or(DEFAULT_WORKERS);
+        let workers = std::env::var("RETRODRIVE_BENCH_WORKERS").ok().and_then(|w| w.parse().ok()).unwrap_or(DEFAULT_WORKERS);
         let started = std::time::Instant::now();
-        let summary = deploy(
-            &catalog,
-            None,
-            &DeployRequest {
-                installation_id: &id,
-                systems: None,
-                fingerprint: &fingerprint,
-                choices: &choices,
-                collection: None,
-                sync: false,
-            },
-            &connected,
-            &roomy,
-            &mut Workers(workers),
-        )
-        .unwrap();
+        let summary = deploy(&catalog, None, &DeployRequest { installation_id: &id, systems: None, fingerprint: &fingerprint, choices: &choices, collection: None, sync: false }, &connected, &roomy, &mut Workers(workers)).unwrap();
         let elapsed = started.elapsed();
         assert_eq!(summary.files_copied, count);
-        eprintln!(
-            "{workers} worker(s): copied {count} x 40 KB files in {:?} ({:.1} files/s)",
-            elapsed,
-            count as f64 / elapsed.as_secs_f64()
-        );
+        eprintln!("{workers} worker(s): copied {count} x 40 KB files in {:?} ({:.1} files/s)", elapsed, count as f64 / elapsed.as_secs_f64());
     }
 
     #[test]
     fn leftovers_are_found_by_name_even_without_journal_entries() {
         let mut f = Fixture::new(&[("nes/Kid.nes", b"kid")]);
         f.deploy();
-        let deployment: String = f
-            .catalog
-            .query_row("SELECT id FROM deployments", [], |r| r.get(0))
-            .unwrap();
+        let deployment: String = f.catalog.query_row("SELECT id FROM deployments", [], |r| r.get(0)).unwrap();
         let marker = format!("{TEMP_MARKER}{}", &deployment[..8]);
         let root = crate::paths::normalize(&f.root).unwrap();
         // A power loss dropped the journal's temp and backup paths.
@@ -3677,18 +2453,10 @@ mod tests {
         let temp = PathBuf::from(format!("{}{marker}", lost_dest.display()));
         fs::write(&temp, b"half").unwrap();
         let replaced_dest = root.join("roms").join("nes").join("Orig.nes");
-        let backup = root
-            .join(".retrodrive")
-            .join("backup")
-            .join(&deployment)
-            .join("roms")
-            .join("nes")
-            .join("Orig.nes");
+        let backup = root.join(".retrodrive").join("backup").join(&deployment).join("roms").join("nes").join("Orig.nes");
         fs::create_dir_all(backup.parent().unwrap()).unwrap();
         fs::write(&backup, b"original").unwrap();
-        f.catalog
-            .execute("UPDATE deployments SET status = 'running'", [])
-            .unwrap();
+        f.catalog.execute("UPDATE deployments SET status = 'running'", []).unwrap();
         for (dest, planned) in [(&lost_dest, "copy"), (&replaced_dest, "replace")] {
             f.catalog
                 .execute(
@@ -3699,24 +2467,11 @@ mod tests {
                 .unwrap();
         }
         recover(&f.catalog).unwrap();
-        assert_eq!(
-            cleanup_leftovers(&f.catalog, &|_, _| Presence::OtherVolume).unwrap(),
-            0
-        );
+        assert_eq!(cleanup_leftovers(&f.catalog, &|_, _| Presence::OtherVolume).unwrap(), 0);
         assert!(temp.exists() && backup.exists());
         assert_eq!(cleanup_leftovers(&f.catalog, &connected).unwrap(), 2);
-        assert!(
-            !temp.exists(),
-            "our own temporary file is found by its marked name"
-        );
-        assert_eq!(
-            fs::read(&replaced_dest).unwrap(),
-            b"original",
-            "the original comes back from the backup folder"
-        );
-        assert!(
-            root.join("roms/nes/Kid.nes").exists(),
-            "verified copies are untouched"
-        );
+        assert!(!temp.exists(), "our own temporary file is found by its marked name");
+        assert_eq!(fs::read(&replaced_dest).unwrap(), b"original", "the original comes back from the backup folder");
+        assert!(root.join("roms/nes/Kid.nes").exists(), "verified copies are untouched");
     }
 }

@@ -35,10 +35,7 @@ pub struct VolumeProbe {
 impl VolumeProbe {
     #[cfg(test)]
     pub fn unknown() -> Self {
-        Self {
-            kind: "unknown",
-            identity: None,
-        }
+        Self { kind: "unknown", identity: None }
     }
 }
 
@@ -48,15 +45,9 @@ pub const SHARE_ID_FILE: &str = "share-id";
 
 /// The id RetroDrive left on a share, if any (read-only; anything odd counts as none).
 pub fn share_id(root: &str) -> Option<String> {
-    let text = std::fs::read_to_string(
-        std::path::Path::new(root)
-            .join(SHARE_ID_FOLDER)
-            .join(SHARE_ID_FILE),
-    )
-    .ok()?;
+    let text = std::fs::read_to_string(std::path::Path::new(root).join(SHARE_ID_FOLDER).join(SHARE_ID_FILE)).ok()?;
     let id = text.trim();
-    (!id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
-        .then(|| id.to_lowercase())
+    (!id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')).then(|| id.to_lowercase())
 }
 
 /// The share's fingerprint: its path, plus its id once RetroDrive has given it one.
@@ -78,25 +69,15 @@ pub fn claim_share(root: &str) -> Result<String, String> {
     std::fs::create_dir_all(&folder).map_err(|e| format!("Couldn't prepare the share: {e}"))?;
     let id = uuid::Uuid::new_v4().to_string();
     let path = folder.join(SHARE_ID_FILE);
-    let written = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&path)
-        .and_then(|mut f| {
-            use std::io::Write;
-            f.write_all(id.as_bytes())?;
-            f.sync_all()
-        });
+    let written = std::fs::OpenOptions::new().write(true).create_new(true).open(&path).and_then(|mut f| {
+        use std::io::Write;
+        f.write_all(id.as_bytes())?;
+        f.sync_all()
+    });
     match written {
-        Ok(()) => share_id(root).filter(|read| *read == id).ok_or_else(|| {
-            "The share didn't keep RetroDrive's id file, so nothing was copied.".to_string()
-        }),
+        Ok(()) => share_id(root).filter(|read| *read == id).ok_or_else(|| "The share didn't keep RetroDrive's id file, so nothing was copied.".to_string()),
         // Someone else claimed it at the same moment: use theirs.
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-            share_id(root).ok_or_else(|| {
-                "The share's RetroDrive id file can't be read, so nothing was copied.".to_string()
-            })
-        }
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => share_id(root).ok_or_else(|| "The share's RetroDrive id file can't be read, so nothing was copied.".to_string()),
         Err(e) => Err(format!("Couldn't write to the share: {e}")),
     }
 }
@@ -125,10 +106,7 @@ pub fn probe(root: &str) -> VolumeProbe {
             }),
         };
     }
-    VolumeProbe {
-        kind: crate::drives::volume_kind(root),
-        identity: identity(root),
-    }
+    VolumeProbe { kind: crate::drives::volume_kind(root), identity: identity(root) }
 }
 
 /// Whether a catalog storage location is currently attached.
@@ -149,16 +127,10 @@ pub fn presence(root: &str, stable_id: Option<&str>) -> Presence {
         return Presence::NotConnected;
     }
     if let Some(expected) = stable_id.filter(|s| s.starts_with("unc:")) {
-        return if share_matches(expected, share_id(root).as_deref()) {
-            Presence::Connected
-        } else {
-            Presence::OtherVolume
-        };
+        return if share_matches(expected, share_id(root).as_deref()) { Presence::Connected } else { Presence::OtherVolume };
     }
     match (stable_id, probe(root).identity) {
-        (Some(expected), Some(current)) if !current.stable_id.eq_ignore_ascii_case(expected) => {
-            Presence::OtherVolume
-        }
+        (Some(expected), Some(current)) if !current.stable_id.eq_ignore_ascii_case(expected) => Presence::OtherVolume,
         // Matching fingerprint, no fingerprint on record, or reachable but unidentifiable.
         _ => Presence::Connected,
     }
@@ -189,72 +161,35 @@ pub fn max_file_bytes(filesystem: Option<&str>) -> Option<u64> {
 #[cfg(windows)]
 pub fn space(folder: &std::path::Path) -> Option<VolumeSpace> {
     use std::os::windows::ffi::OsStrExt;
-    use windows_sys::Win32::Storage::FileSystem::{
-        GetDiskFreeSpaceExW, GetDiskFreeSpaceW, GetVolumeInformationW, GetVolumePathNameW,
-    };
+    use windows_sys::Win32::Storage::FileSystem::{GetDiskFreeSpaceExW, GetDiskFreeSpaceW, GetVolumeInformationW, GetVolumePathNameW};
 
-    let wide: Vec<u16> = folder
-        .as_os_str()
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
+    let wide: Vec<u16> = folder.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
     let (mut free, mut total) = (0u64, 0u64);
     // SAFETY: NUL-terminated path; valid out pointers; the unused output is null.
-    if unsafe { GetDiskFreeSpaceExW(wide.as_ptr(), &mut free, &mut total, std::ptr::null_mut()) }
-        == 0
-    {
+    if unsafe { GetDiskFreeSpaceExW(wide.as_ptr(), &mut free, &mut total, std::ptr::null_mut()) } == 0 {
         return None;
     }
     let mut root = [0u16; 1024];
     // SAFETY: the buffer length matches the size passed.
     if unsafe { GetVolumePathNameW(wide.as_ptr(), root.as_mut_ptr(), root.len() as u32) } == 0 {
-        return Some(VolumeSpace {
-            free_bytes: free,
-            total_bytes: total,
-            filesystem: None,
-            cluster_bytes: 4096,
-        });
+        return Some(VolumeSpace { free_bytes: free, total_bytes: total, filesystem: None, cluster_bytes: 4096 });
     }
     let mut filesystem = [0u16; 261];
     // SAFETY: `root` is NUL-terminated by the call above; buffers match their sizes.
     let have_fs = unsafe {
-        GetVolumeInformationW(
-            root.as_ptr(),
-            std::ptr::null_mut(),
-            0,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            filesystem.as_mut_ptr(),
-            filesystem.len() as u32,
-        )
+        GetVolumeInformationW(root.as_ptr(), std::ptr::null_mut(), 0, std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), filesystem.as_mut_ptr(), filesystem.len() as u32)
     } != 0;
     let (mut sectors, mut sector_bytes, mut free_clusters, mut clusters) = (0u32, 0u32, 0u32, 0u32);
     // SAFETY: valid NUL-terminated root and out pointers.
-    let have_cluster = unsafe {
-        GetDiskFreeSpaceW(
-            root.as_ptr(),
-            &mut sectors,
-            &mut sector_bytes,
-            &mut free_clusters,
-            &mut clusters,
-        )
-    } != 0;
-    let end = filesystem
-        .iter()
-        .position(|&c| c == 0)
-        .unwrap_or(filesystem.len());
+    let have_cluster = unsafe { GetDiskFreeSpaceW(root.as_ptr(), &mut sectors, &mut sector_bytes, &mut free_clusters, &mut clusters) } != 0;
+    let end = filesystem.iter().position(|&c| c == 0).unwrap_or(filesystem.len());
     let name = String::from_utf16_lossy(&filesystem[..end]);
     let cluster_bytes = u64::from(sectors) * u64::from(sector_bytes);
     Some(VolumeSpace {
         free_bytes: free,
         total_bytes: total,
         filesystem: (have_fs && !name.is_empty()).then_some(name),
-        cluster_bytes: if have_cluster && cluster_bytes > 0 {
-            cluster_bytes
-        } else {
-            4096
-        },
+        cluster_bytes: if have_cluster && cluster_bytes > 0 { cluster_bytes } else { 4096 },
     })
 }
 
@@ -267,18 +202,13 @@ pub fn space(_folder: &std::path::Path) -> Option<VolumeSpace> {
 fn identity(root: &str) -> Option<VolumeIdentity> {
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
-    use windows_sys::Win32::Storage::FileSystem::{
-        GetDiskFreeSpaceExW, GetVolumeInformationW, GetVolumeNameForVolumeMountPointW,
-    };
+    use windows_sys::Win32::Storage::FileSystem::{GetDiskFreeSpaceExW, GetVolumeInformationW, GetVolumeNameForVolumeMountPointW};
 
     let mut with_slash = root.to_string();
     if !with_slash.ends_with('\\') {
         with_slash.push('\\');
     }
-    let wide: Vec<u16> = OsStr::new(&with_slash)
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
+    let wide: Vec<u16> = OsStr::new(&with_slash).encode_wide().chain(std::iter::once(0)).collect();
 
     let mut label = [0u16; 261];
     let mut filesystem = [0u16; 261];
@@ -302,20 +232,11 @@ fn identity(root: &str) -> Option<VolumeIdentity> {
 
     let mut total: u64 = 0;
     // SAFETY: valid NUL-terminated path and a valid out pointer; other outputs unused.
-    let have_total = unsafe {
-        GetDiskFreeSpaceExW(
-            wide.as_ptr(),
-            std::ptr::null_mut(),
-            &mut total,
-            std::ptr::null_mut(),
-        )
-    } != 0;
+    let have_total = unsafe { GetDiskFreeSpaceExW(wide.as_ptr(), std::ptr::null_mut(), &mut total, std::ptr::null_mut()) } != 0;
 
     let mut guid = [0u16; 64];
     // SAFETY: buffer length matches the size passed.
-    let have_guid = unsafe {
-        GetVolumeNameForVolumeMountPointW(wide.as_ptr(), guid.as_mut_ptr(), guid.len() as u32)
-    } != 0;
+    let have_guid = unsafe { GetVolumeNameForVolumeMountPointW(wide.as_ptr(), guid.as_mut_ptr(), guid.len() as u32) } != 0;
 
     let text = |buf: &[u16]| {
         let end = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
@@ -353,53 +274,27 @@ mod tests {
 
     #[test]
     fn a_share_is_known_by_its_id_once_it_has_one() {
-        assert_eq!(
-            share_stable_id(r"\\BATOCERA\share\", None),
-            r"unc:\\batocera\share\"
-        );
-        assert_eq!(
-            share_stable_id(r"\\BATOCERA\share\", Some("abc-1")),
-            r"unc:\\batocera\share\#abc-1"
-        );
-        assert!(
-            share_matches(r"unc:\\batocera\share\", None),
-            "no id recorded: the path decides"
-        );
+        assert_eq!(share_stable_id(r"\\BATOCERA\share\", None), r"unc:\\batocera\share\");
+        assert_eq!(share_stable_id(r"\\BATOCERA\share\", Some("abc-1")), r"unc:\\batocera\share\#abc-1");
+        assert!(share_matches(r"unc:\\batocera\share\", None), "no id recorded: the path decides");
         assert!(share_matches(r"unc:\\batocera\share\", Some("x")));
         assert!(share_matches(r"unc:\\batocera\share\#abc-1", Some("ABC-1")));
-        assert!(
-            !share_matches(r"unc:\\batocera\share\#abc-1", Some("other")),
-            "another Batocera with the same name"
-        );
-        assert!(
-            !share_matches(r"unc:\\batocera\share\#abc-1", None),
-            "a share without RetroDrive's id isn't the one copied to"
-        );
+        assert!(!share_matches(r"unc:\\batocera\share\#abc-1", Some("other")), "another Batocera with the same name");
+        assert!(!share_matches(r"unc:\\batocera\share\#abc-1", None), "a share without RetroDrive's id isn't the one copied to");
         // The id file: written once, never replaced, odd contents ignored.
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().display().to_string();
         assert_eq!(share_id(&root), None);
         let id = claim_share(&root).unwrap();
         assert_eq!(share_id(&root).as_deref(), Some(id.as_str()));
-        assert_eq!(
-            claim_share(&root).unwrap(),
-            id,
-            "claiming again keeps the id"
-        );
-        std::fs::write(
-            dir.path().join(SHARE_ID_FOLDER).join(SHARE_ID_FILE),
-            "not an id!",
-        )
-        .unwrap();
+        assert_eq!(claim_share(&root).unwrap(), id, "claiming again keeps the id");
+        std::fs::write(dir.path().join(SHARE_ID_FOLDER).join(SHARE_ID_FILE), "not an id!").unwrap();
         assert_eq!(share_id(&root), None);
     }
 
     #[test]
     fn unreachable_roots_are_not_present() {
-        assert_eq!(
-            presence(r"Q:\definitely-not-a-volume\", None),
-            Presence::NotConnected
-        );
+        assert_eq!(presence(r"Q:\definitely-not-a-volume\", None), Presence::NotConnected);
     }
 
     #[cfg(windows)]
@@ -410,11 +305,7 @@ mod tests {
         assert!(id.stable_id.starts_with("vol:"), "{}", id.stable_id);
         assert!(id.total_bytes.unwrap_or(0) > 0);
         assert_eq!(presence(&root, Some(&id.stable_id)), Presence::Connected);
-        assert_eq!(
-            presence(&root, Some("vol:0000-0000:1")),
-            Presence::OtherVolume,
-            "a different volume at the same letter"
-        );
+        assert_eq!(presence(&root, Some("vol:0000-0000:1")), Presence::OtherVolume, "a different volume at the same letter");
         assert_eq!(presence(&root, None), Presence::Connected);
     }
 

@@ -19,10 +19,7 @@
 //! - The version isn't visible from the roms share, so it's reported as unknown.
 
 use super::retrobat::{arcade_folder, system_folder};
-use super::{
-    has_entry, plan_in, AdapterKind, ArcadeSystem, Capabilities, CheckStatus, Confidence,
-    Detection, LayoutCheck, Placement, PlacementRequest, PlatformAdapter,
-};
+use super::{has_entry, plan_in, AdapterKind, ArcadeSystem, Capabilities, CheckStatus, Confidence, Detection, LayoutCheck, Placement, PlacementRequest, PlatformAdapter};
 use std::path::Path;
 
 pub struct RetroPie;
@@ -33,71 +30,13 @@ const NAME: &str = "RetroPie";
 /// RetroPie system folders (from `platforms.cfg`) that are common enough to count as
 /// evidence, and the ones only RetroPie uses (strong evidence).
 const SYSTEMS: &[&str] = &[
-    "nes",
-    "snes",
-    "megadrive",
-    "mastersystem",
-    "gamegear",
-    "psx",
-    "n64",
-    "gb",
-    "gbc",
-    "gba",
-    "atari2600",
-    "atari7800",
-    "pcengine",
-    "segacd",
-    "sega32x",
-    "neogeo",
-    "ngp",
-    "ngpc",
-    "arcade",
-    "fds",
-    "zxspectrum",
-    "c64",
-    "amiga",
-    "msx",
-    "dreamcast",
-    "psp",
-    "nds",
-    "vectrex",
-    "intellivision",
-    "atarilynx",
-    "coleco",
-    "sg-1000",
-    "videopac",
-    "wonderswan",
-    "wonderswancolor",
-    "fba",
-    "mame-libretro",
-    "mame-advmame",
-    "mame-mame4all",
-    "ports",
-    "pc",
-    "scummvm",
-    "kodi",
+    "nes", "snes", "megadrive", "mastersystem", "gamegear", "psx", "n64", "gb", "gbc", "gba", "atari2600", "atari7800", "pcengine", "segacd", "sega32x", "neogeo", "ngp", "ngpc", "arcade", "fds", "zxspectrum", "c64", "amiga", "msx", "dreamcast", "psp", "nds", "vectrex", "intellivision",
+    "atarilynx", "coleco", "sg-1000", "videopac", "wonderswan", "wonderswancolor", "fba", "mame-libretro", "mame-advmame", "mame-mame4all", "ports", "pc", "scummvm", "kodi",
 ];
-const RETROPIE_ONLY: &[&str] = &[
-    "atarilynx",
-    "coleco",
-    "sg-1000",
-    "videopac",
-    "wonderswan",
-    "wonderswancolor",
-    "fba",
-    "mame-libretro",
-    "mame-advmame",
-    "mame-mame4all",
-    "ports",
-    "pc",
-];
+const RETROPIE_ONLY: &[&str] = &["atarilynx", "coleco", "sg-1000", "videopac", "wonderswan", "wonderswancolor", "fba", "mame-libretro", "mame-advmame", "mame-mame4all", "ports", "pc"];
 
 fn system_folders(dir: &Path) -> (usize, bool) {
-    let found: Vec<&str> = SYSTEMS
-        .iter()
-        .copied()
-        .filter(|s| has_entry(dir, s, true))
-        .collect();
+    let found: Vec<&str> = SYSTEMS.iter().copied().filter(|s| has_entry(dir, s, true)).collect();
     (found.len(), found.iter().any(|s| RETROPIE_ONLY.contains(s)))
 }
 
@@ -107,11 +46,7 @@ fn is_network_path(path: &str) -> bool {
 
 /// A Raspberry Pi's boot partition (FAT, readable by Windows): never a game folder.
 fn is_pi_boot_partition(root: &Path) -> bool {
-    has_entry(root, "config.txt", false)
-        && has_entry(root, "cmdline.txt", false)
-        && (has_entry(root, "start.elf", false)
-            || has_entry(root, "start4.elf", false)
-            || has_entry(root, "bootcode.bin", false))
+    has_entry(root, "config.txt", false) && has_entry(root, "cmdline.txt", false) && (has_entry(root, "start.elf", false) || has_entry(root, "start4.elf", false) || has_entry(root, "bootcode.bin", false))
 }
 
 /// The folder that holds the system folders: the root itself (the roms share) or its `roms`.
@@ -124,17 +59,10 @@ pub(crate) fn games_folder(root: &Path) -> std::path::PathBuf {
 }
 
 /// RetroBat/Batocera folder → RetroPie folder (`platforms.cfg`).
-fn retropie_folder(
-    platform: &str,
-    extension: &str,
-    request: &PlacementRequest,
-) -> Result<&'static str, String> {
+fn retropie_folder(platform: &str, extension: &str, request: &PlacementRequest) -> Result<&'static str, String> {
     let folder = match platform {
         "CPS1" | "CPS2" | "CPS3" | "Arcade" => {
-            return match (
-                request.options.arcade,
-                arcade_folder(extension, request.options),
-            ) {
+            return match (request.options.arcade, arcade_folder(extension, request.options)) {
                 (Some(ArcadeSystem::Fbneo), Ok(_)) => Ok("fba"),
                 (Some(ArcadeSystem::Mame), Ok(_)) => Ok("mame-libretro"),
                 (_, Err(e)) => Err(e),
@@ -155,9 +83,7 @@ fn retropie_folder(
         "wswanc" => "wonderswancolor",
         "colecovision" => "coleco",
         "megacd" => "segacd",
-        "amigacd32" | "neogeocd" | "gx4000" | "supervision" | "naomi" | "atomiswave" => {
-            return Err(format!("RetroPie has no folder for {platform}."))
-        }
+        "amigacd32" | "neogeocd" | "gx4000" | "supervision" | "naomi" | "atomiswave" => return Err(format!("RetroPie has no folder for {platform}.")),
         same => same,
     })
 }
@@ -173,26 +99,11 @@ impl PlatformAdapter for RetroPie {
         AdapterKind::BootableOs
     }
     fn capabilities(&self) -> Capabilities {
-        Capabilities {
-            detect: true,
-            validate_layout: true,
-            plan_placement: true,
-            copy_games: true,
-            install: false,
-            write_files: false,
-        }
+        Capabilities { detect: true, validate_layout: true, plan_placement: true, copy_games: true, install: false, write_files: false }
     }
 
     fn detect(&self, root: &Path) -> Detection {
-        let detection = |confidence, evidence: Vec<String>, hint: Option<String>| Detection {
-            adapter_id: ID,
-            display_name: NAME,
-            kind: AdapterKind::BootableOs,
-            confidence,
-            evidence,
-            version: None,
-            hint,
-        };
+        let detection = |confidence, evidence: Vec<String>, hint: Option<String>| Detection { adapter_id: ID, display_name: NAME, kind: AdapterKind::BootableOs, confidence, evidence, version: None, hint };
         if is_pi_boot_partition(root) {
             return detection(
                 Confidence::Possible,
@@ -201,11 +112,7 @@ impl PlatformAdapter for RetroPie {
             );
         }
         // Never claim RetroBat or Batocera folders.
-        if has_entry(root, "RetroBat.exe", false)
-            || (has_entry(root, "system", true)
-                && has_entry(&root.join("system"), "batocera.conf", false))
-            || super::recalbox::has_recalbox_conf(root)
-        {
+        if has_entry(root, "RetroBat.exe", false) || (has_entry(root, "system", true) && has_entry(&root.join("system"), "batocera.conf", false)) || super::recalbox::has_recalbox_conf(root) {
             return detection(Confidence::NotDetected, Vec::new(), None);
         }
         let folder = games_folder(root);
@@ -245,16 +152,8 @@ impl PlatformAdapter for RetroPie {
             LayoutCheck {
                 id: "systems",
                 label: "System folders".into(),
-                status: if count > 0 {
-                    CheckStatus::Ok
-                } else {
-                    CheckStatus::Problem
-                },
-                detail: if count > 0 {
-                    format!("Found {count} system folders.")
-                } else {
-                    "No system folders found. RetroPie creates them when its emulators are installed.".into()
-                },
+                status: if count > 0 { CheckStatus::Ok } else { CheckStatus::Problem },
+                detail: if count > 0 { format!("Found {count} system folders.") } else { "No system folders found. RetroPie creates them when its emulators are installed.".into() },
             },
             LayoutCheck {
                 id: "access",
@@ -269,23 +168,14 @@ impl PlatformAdapter for RetroPie {
             LayoutCheck {
                 id: "copying",
                 label: "Copying".into(),
-                status: if network {
-                    CheckStatus::Warning
-                } else {
-                    CheckStatus::Ok
-                },
+                status: if network { CheckStatus::Warning } else { CheckStatus::Ok },
                 detail: if network {
                     "Copies over the network are new: keep RetroPie on and connected until the copy finishes. Every file is checked after it's written; nothing is overwritten or deleted. Restart RetroPie (or EmulationStation) afterwards to see new games.".into()
                 } else {
                     "RetroDrive copies games here, checks every file after it's written, and never overwrites or deletes anything. Plug the stick back into RetroPie afterwards.".into()
                 },
             },
-            LayoutCheck {
-                id: "version",
-                label: "Version".into(),
-                status: CheckStatus::Warning,
-                detail: "RetroPie's version isn't visible from here; its menu shows it.".into(),
-            },
+            LayoutCheck { id: "version", label: "Version".into(), status: CheckStatus::Warning, detail: "RetroPie's version isn't visible from here; its menu shows it.".into() },
         ]
     }
 
@@ -300,15 +190,7 @@ impl PlatformAdapter for RetroPie {
             };
         }
         match retropie_folder(&request.platform, &request.extension, request) {
-            Ok(system) => plan_in(
-                if request.options.has_roms_folder {
-                    "roms/"
-                } else {
-                    ""
-                },
-                system,
-                request,
-            ),
+            Ok(system) => plan_in(if request.options.has_roms_folder { "roms/" } else { "" }, system, request),
             Err(reason) => Placement::Unsupported { reason },
         }
     }
@@ -333,147 +215,53 @@ mod tests {
     }
 
     fn request(platform: &str, ext: &str, options: PlacementOptions) -> PlacementRequest {
-        PlacementRequest {
-            title: "Saga".into(),
-            platform: platform.into(),
-            extension: ext.into(),
-            files: vec![PlacementFile {
-                relative_to_primary: format!("Saga.{ext}"),
-                size: 1,
-            }],
-            options,
-            bios_path: None,
-        }
+        PlacementRequest { title: "Saga".into(), platform: platform.into(), extension: ext.into(), files: vec![PlacementFile { relative_to_primary: format!("Saga.{ext}"), size: 1 }], options, bios_path: None }
     }
 
     #[test]
     fn the_roms_share_and_usb_folders_are_recognized() {
         let share = tempfile::tempdir().unwrap();
-        make(
-            share.path(),
-            &["nes/", "snes/", "megadrive/", "ports/", "coleco/"],
-        );
-        assert_eq!(
-            RetroPie.detect(share.path()).confidence,
-            Confidence::Detected
-        );
+        make(share.path(), &["nes/", "snes/", "megadrive/", "ports/", "coleco/"]);
+        assert_eq!(RetroPie.detect(share.path()).confidence, Confidence::Detected);
         // A plain roms folder (no RetroPie-only names) is only possible.
         let plain = tempfile::tempdir().unwrap();
         make(plain.path(), &["nes/", "snes/", "gba/"]);
-        assert_eq!(
-            RetroPie.detect(plain.path()).confidence,
-            Confidence::Possible
-        );
+        assert_eq!(RetroPie.detect(plain.path()).confidence, Confidence::Possible);
         // USB stick: the retropie folder is pointed at; the folder itself (with roms) is detected.
         let usb = tempfile::tempdir().unwrap();
-        make(
-            usb.path(),
-            &[
-                "retropie/roms/nes/",
-                "retropie/roms/snes/",
-                "retropie/roms/fba/",
-                "Photos/",
-            ],
-        );
+        make(usb.path(), &["retropie/roms/nes/", "retropie/roms/snes/", "retropie/roms/fba/", "Photos/"]);
         let d = RetroPie.detect(usb.path());
         assert_eq!(d.confidence, Confidence::Possible);
         assert!(d.hint.unwrap().contains("retropie"));
-        assert_eq!(
-            RetroPie.detect(&usb.path().join("retropie")).confidence,
-            Confidence::Detected
-        );
+        assert_eq!(RetroPie.detect(&usb.path().join("retropie")).confidence, Confidence::Detected);
         // Pi boot partition, RetroBat and Batocera folders.
         let boot = tempfile::tempdir().unwrap();
         make(boot.path(), &["config.txt", "cmdline.txt", "start4.elf"]);
-        assert!(RetroPie
-            .detect(boot.path())
-            .hint
-            .unwrap()
-            .contains("boot partition"));
+        assert!(RetroPie.detect(boot.path()).hint.unwrap().contains("boot partition"));
         let bato = tempfile::tempdir().unwrap();
-        make(
-            bato.path(),
-            &[
-                "roms/nes/",
-                "roms/snes/",
-                "roms/fba/",
-                "roms/ports/",
-                "system/batocera.conf",
-            ],
-        );
-        assert_eq!(
-            RetroPie.detect(bato.path()).confidence,
-            Confidence::NotDetected
-        );
-        assert!(
-            RetroPie.capabilities().copy_games,
-            "copies since its safety review (docs/18 §26)"
-        );
+        make(bato.path(), &["roms/nes/", "roms/snes/", "roms/fba/", "roms/ports/", "system/batocera.conf"]);
+        assert_eq!(RetroPie.detect(bato.path()).confidence, Confidence::NotDetected);
+        assert!(RetroPie.capabilities().copy_games, "copies since its safety review (docs/18 §26)");
     }
 
     #[test]
     fn placement_uses_retropie_folders_in_either_layout() {
         let flat = PlacementOptions::default();
-        let nested = PlacementOptions {
-            has_roms_folder: true,
-            ..PlacementOptions::default()
-        };
+        let nested = PlacementOptions { has_roms_folder: true, ..PlacementOptions::default() };
         let dest = |p: Placement| match p {
             Placement::Planned { destinations, .. } => destinations[0].clone(),
             Placement::Unsupported { reason } => format!("unsupported: {reason}"),
         };
-        assert_eq!(
-            dest(RetroPie.plan_placement(&request("SNES", "sfc", flat))),
-            "snes/Saga.sfc",
-            "the roms share holds the system folders"
-        );
-        assert_eq!(
-            dest(RetroPie.plan_placement(&request("SNES", "sfc", nested))),
-            "roms/snes/Saga.sfc",
-            "a USB retropie folder has roms inside"
-        );
-        assert_eq!(
-            dest(RetroPie.plan_placement(&request("Atari Lynx", "lnx", flat))),
-            "atarilynx/Saga.lnx"
-        );
-        assert_eq!(
-            dest(RetroPie.plan_placement(&request("ColecoVision", "col", flat))),
-            "coleco/Saga.col"
-        );
-        assert_eq!(
-            dest(RetroPie.plan_placement(&request("Sega CD", "chd", flat))),
-            "segacd/Saga.chd"
-        );
-        assert_eq!(
-            dest(RetroPie.plan_placement(&request("SG-1000", "sg", flat))),
-            "sg-1000/Saga.sg"
-        );
-        assert!(
-            dest(RetroPie.plan_placement(&request("Naomi", "zip", flat)))
-                .starts_with("unsupported")
-        );
-        assert!(
-            dest(RetroPie.plan_placement(&request("Arcade", "zip", flat)))
-                .contains("Choose MAME or FinalBurn Neo")
-        );
-        let fbneo = PlacementOptions {
-            arcade: Some(ArcadeSystem::Fbneo),
-            ..flat
-        };
-        assert_eq!(
-            dest(RetroPie.plan_placement(&request("Arcade", "zip", fbneo))),
-            "fba/Saga.zip"
-        );
-        assert_eq!(
-            dest(RetroPie.plan_placement(&request(
-                "CPS2",
-                "zip",
-                PlacementOptions {
-                    arcade: Some(ArcadeSystem::Mame),
-                    ..flat
-                }
-            ))),
-            "mame-libretro/Saga.zip"
-        );
+        assert_eq!(dest(RetroPie.plan_placement(&request("SNES", "sfc", flat))), "snes/Saga.sfc", "the roms share holds the system folders");
+        assert_eq!(dest(RetroPie.plan_placement(&request("SNES", "sfc", nested))), "roms/snes/Saga.sfc", "a USB retropie folder has roms inside");
+        assert_eq!(dest(RetroPie.plan_placement(&request("Atari Lynx", "lnx", flat))), "atarilynx/Saga.lnx");
+        assert_eq!(dest(RetroPie.plan_placement(&request("ColecoVision", "col", flat))), "coleco/Saga.col");
+        assert_eq!(dest(RetroPie.plan_placement(&request("Sega CD", "chd", flat))), "segacd/Saga.chd");
+        assert_eq!(dest(RetroPie.plan_placement(&request("SG-1000", "sg", flat))), "sg-1000/Saga.sg");
+        assert!(dest(RetroPie.plan_placement(&request("Naomi", "zip", flat))).starts_with("unsupported"));
+        assert!(dest(RetroPie.plan_placement(&request("Arcade", "zip", flat))).contains("Choose MAME or FinalBurn Neo"));
+        let fbneo = PlacementOptions { arcade: Some(ArcadeSystem::Fbneo), ..flat };
+        assert_eq!(dest(RetroPie.plan_placement(&request("Arcade", "zip", fbneo))), "fba/Saga.zip");
+        assert_eq!(dest(RetroPie.plan_placement(&request("CPS2", "zip", PlacementOptions { arcade: Some(ArcadeSystem::Mame), ..flat }))), "mame-libretro/Saga.zip");
     }
 }

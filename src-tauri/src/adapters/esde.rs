@@ -20,10 +20,7 @@
 //!   its README says to copy only the ones needed into `ROMs`).
 
 use super::retrobat::system_folder;
-use super::{
-    has_entry, plan_in, AdapterKind, Capabilities, CheckStatus, Confidence, Detection, LayoutCheck,
-    Placement, PlacementRequest, PlatformAdapter,
-};
+use super::{has_entry, plan_in, AdapterKind, Capabilities, CheckStatus, Confidence, Detection, LayoutCheck, Placement, PlacementRequest, PlatformAdapter};
 use std::path::Path;
 
 pub struct EsDe;
@@ -33,49 +30,12 @@ const NAME: &str = "ES-DE";
 
 /// Common ES-DE system folders (from es_systems.xml), used as evidence.
 const SYSTEMS: &[&str] = &[
-    "nes",
-    "snes",
-    "megadrive",
-    "genesis",
-    "mastersystem",
-    "gamegear",
-    "psx",
-    "ps2",
-    "psp",
-    "n64",
-    "gb",
-    "gbc",
-    "gba",
-    "nds",
-    "atari2600",
-    "atarilynx",
-    "pcengine",
-    "segacd",
-    "megacd",
-    "sega32x",
-    "neogeo",
-    "arcade",
-    "mame",
-    "fbneo",
-    "dreamcast",
-    "saturn",
-    "c64",
-    "amiga",
-    "msx",
-    "colecovision",
-    "sg-1000",
-    "wonderswan",
+    "nes", "snes", "megadrive", "genesis", "mastersystem", "gamegear", "psx", "ps2", "psp", "n64", "gb", "gbc", "gba", "nds", "atari2600", "atarilynx", "pcengine", "segacd", "megacd", "sega32x", "neogeo", "arcade", "mame", "fbneo", "dreamcast", "saturn", "c64", "amiga", "msx", "colecovision", "sg-1000", "wonderswan",
 ];
 
 /// Whether ES-DE created this ROMs folder: its `systems.txt`, or `systeminfo.txt` in system folders.
 pub(crate) fn has_esde_markers(roms: &Path) -> bool {
-    has_entry(roms, "systems.txt", false)
-        || SYSTEMS
-            .iter()
-            .filter(|s| has_entry(&roms.join(s), "systeminfo.txt", false))
-            .take(2)
-            .count()
-            >= 2
+    has_entry(roms, "systems.txt", false) || SYSTEMS.iter().filter(|s| has_entry(&roms.join(s), "systeminfo.txt", false)).take(2).count() >= 2
 }
 
 /// The ROMs folder ES-DE's settings point at (`ROMDirectory`), if set.
@@ -96,11 +56,7 @@ fn is_data_folder(root: &Path) -> bool {
     has_entry(root, "settings", true) && has_entry(&root.join("settings"), "es_settings.xml", false)
 }
 
-fn esde_folder(
-    platform: &str,
-    extension: &str,
-    request: &PlacementRequest,
-) -> Result<&'static str, String> {
+fn esde_folder(platform: &str, extension: &str, request: &PlacementRequest) -> Result<&'static str, String> {
     let folder = system_folder(platform, extension, request.options, NAME)?;
     Ok(match folder {
         "lynx" => "atarilynx",
@@ -124,76 +80,35 @@ impl PlatformAdapter for EsDe {
         AdapterKind::Frontend
     }
     fn capabilities(&self) -> Capabilities {
-        Capabilities {
-            detect: true,
-            validate_layout: true,
-            plan_placement: true,
-            copy_games: true,
-            install: false,
-            write_files: false,
-        }
+        Capabilities { detect: true, validate_layout: true, plan_placement: true, copy_games: true, install: false, write_files: false }
     }
 
     fn detect(&self, root: &Path) -> Detection {
-        let detection = |confidence, evidence: Vec<String>, hint: Option<String>| Detection {
-            adapter_id: ID,
-            display_name: NAME,
-            kind: AdapterKind::Frontend,
-            confidence,
-            evidence,
-            version: None,
-            hint,
-        };
-        if has_entry(root, "RetroBat.exe", false)
-            || (has_entry(root, "system", true)
-                && has_entry(&root.join("system"), "batocera.conf", false))
-            || super::recalbox::has_recalbox_conf(root)
-        {
+        let detection = |confidence, evidence: Vec<String>, hint: Option<String>| Detection { adapter_id: ID, display_name: NAME, kind: AdapterKind::Frontend, confidence, evidence, version: None, hint };
+        if has_entry(root, "RetroBat.exe", false) || (has_entry(root, "system", true) && has_entry(&root.join("system"), "batocera.conf", false)) || super::recalbox::has_recalbox_conf(root) {
             return detection(Confidence::NotDetected, Vec::new(), None);
         }
         let parent = root.parent();
         let portable = parent.is_some_and(is_program_folder);
-        let name = root
-            .file_name()
-            .map(|n| n.to_string_lossy().to_lowercase())
-            .unwrap_or_default();
+        let name = root.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
         // The portable program folder: point at its ROMs folder.
         if is_program_folder(root) {
-            return detection(
-                Confidence::Possible,
-                vec!["ES-DE.exe found".into()],
-                Some(format!(
-                    "This is ES-DE's program folder. Choose its ROMs folder instead: {}.",
-                    root.join("ROMs").display()
-                )),
-            );
+            return detection(Confidence::Possible, vec!["ES-DE.exe found".into()], Some(format!("This is ES-DE's program folder. Choose its ROMs folder instead: {}.", root.join("ROMs").display())));
         }
         // ROMs_ALL is the catalog of every system to copy from, not where ES-DE reads games.
         if portable && name == "roms_all" {
-            let roms = parent
-                .map(|p| p.join("ROMs").display().to_string())
-                .unwrap_or_default();
+            let roms = parent.map(|p| p.join("ROMs").display().to_string()).unwrap_or_default();
             return detection(Confidence::Possible, vec!["ES-DE's ROMs_ALL found".into()], Some(format!("ROMs_ALL holds an empty folder for every system ES-DE supports; ES-DE reads games from {roms}. Choose that folder instead (RetroDrive creates the system folders it copies into).")));
         }
         // ES-DE's own data folder: point at the ROMs folder.
         if is_data_folder(root) {
-            let beside = parent
-                .filter(|p| is_program_folder(p))
-                .map(|p| p.join("ROMs").display().to_string());
-            let roms = rom_directory_setting(root).or(beside).unwrap_or_else(|| {
-                std::env::var("USERPROFILE")
-                    .map(|h| format!("{h}\\ROMs"))
-                    .unwrap_or_else(|_| "your ROMs folder".into())
-            });
+            let beside = parent.filter(|p| is_program_folder(p)).map(|p| p.join("ROMs").display().to_string());
+            let roms = rom_directory_setting(root).or(beside).unwrap_or_else(|| std::env::var("USERPROFILE").map(|h| format!("{h}\\ROMs")).unwrap_or_else(|_| "your ROMs folder".into()));
             return detection(Confidence::Possible, vec!["ES-DE settings found".into()], Some(format!("This is ES-DE's settings and media folder; games don't go here. Choose ES-DE's ROMs folder instead: {roms}.")));
         }
         // A portable ES-DE's ROMs folder, even before it has any system folders.
         if portable && name == "roms" {
-            return detection(
-                Confidence::Detected,
-                vec!["ROMs folder next to ES-DE.exe (portable ES-DE)".into()],
-                None,
-            );
+            return detection(Confidence::Detected, vec!["ROMs folder next to ES-DE.exe (portable ES-DE)".into()], None);
         }
         let count = SYSTEMS.iter().filter(|s| has_entry(root, s, true)).count();
         let marked = has_esde_markers(root);
@@ -272,33 +187,14 @@ mod tests {
     #[test]
     fn an_esde_roms_folder_is_recognized_and_other_folders_point_to_it() {
         let roms = tempfile::tempdir().unwrap();
-        make(
-            roms.path(),
-            &[
-                "systems.txt",
-                "nes/systeminfo.txt",
-                "snes/systeminfo.txt",
-                "ports/",
-                "coleco/",
-            ],
-        );
+        make(roms.path(), &["systems.txt", "nes/systeminfo.txt", "snes/systeminfo.txt", "ports/", "coleco/"]);
         assert_eq!(EsDe.detect(roms.path()).confidence, Confidence::Detected);
-        assert_eq!(
-            crate::adapters::retropie::RetroPie
-                .detect(roms.path())
-                .confidence,
-            Confidence::NotDetected,
-            "RetroPie doesn't claim ES-DE's folder"
-        );
+        assert_eq!(crate::adapters::retropie::RetroPie.detect(roms.path()).confidence, Confidence::NotDetected, "RetroPie doesn't claim ES-DE's folder");
         // ES-DE's data folder points at the ROMs folder from its settings.
         let data = tempfile::tempdir().unwrap();
         make(data.path(), &["gamelists/", "downloaded_media/"]);
         fs::create_dir_all(data.path().join("settings")).unwrap();
-        fs::write(
-            data.path().join("settings/es_settings.xml"),
-            "<?xml version=\"1.0\"?>\n<string name=\"ROMDirectory\" value=\"D:\\Games\\ROMs\" />\n",
-        )
-        .unwrap();
+        fs::write(data.path().join("settings/es_settings.xml"), "<?xml version=\"1.0\"?>\n<string name=\"ROMDirectory\" value=\"D:\\Games\\ROMs\" />\n").unwrap();
         let d = EsDe.detect(data.path());
         assert_eq!(d.confidence, Confidence::Possible);
         assert!(d.hint.unwrap().contains("D:\\Games\\ROMs"));
@@ -307,18 +203,9 @@ mod tests {
         make(plain.path(), &["nes/", "snes/", "gba/"]);
         assert_eq!(EsDe.detect(plain.path()).confidence, Confidence::Possible);
         let retrobat = tempfile::tempdir().unwrap();
-        make(
-            retrobat.path(),
-            &["RetroBat.exe", "systems.txt", "nes/systeminfo.txt"],
-        );
-        assert_eq!(
-            EsDe.detect(retrobat.path()).confidence,
-            Confidence::NotDetected
-        );
-        assert!(
-            EsDe.capabilities().copy_games,
-            "copies since the owner's go-ahead (docs/18 §30)"
-        );
+        make(retrobat.path(), &["RetroBat.exe", "systems.txt", "nes/systeminfo.txt"]);
+        assert_eq!(EsDe.detect(retrobat.path()).confidence, Confidence::NotDetected);
+        assert!(EsDe.capabilities().copy_games, "copies since the owner's go-ahead (docs/18 §30)");
     }
 
     #[test]
@@ -326,95 +213,33 @@ mod tests {
         // The owner's portable layout: ES-DE.exe, ES-DE\ (data), empty ROMs\, ROMs_ALL\.
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path().join("ES-DE");
-        make(
-            &p,
-            &[
-                "ES-DE.exe",
-                "portable.txt",
-                "ROMs/",
-                "ROMs_ALL/systems.txt",
-                "ROMs_ALL/nes/systeminfo.txt",
-                "ROMs_ALL/snes/systeminfo.txt",
-                "ES-DE/gamelists/",
-                "ES-DE/downloaded_media/",
-            ],
-        );
+        make(&p, &["ES-DE.exe", "portable.txt", "ROMs/", "ROMs_ALL/systems.txt", "ROMs_ALL/nes/systeminfo.txt", "ROMs_ALL/snes/systeminfo.txt", "ES-DE/gamelists/", "ES-DE/downloaded_media/"]);
         fs::create_dir_all(p.join("ES-DE/settings")).unwrap();
-        fs::write(
-            p.join("ES-DE/settings/es_settings.xml"),
-            "<string name=\"ROMDirectory\" value=\"\" />\n",
-        )
-        .unwrap();
-        assert_eq!(
-            EsDe.detect(&p.join("ROMs")).confidence,
-            Confidence::Detected,
-            "the empty ROMs folder next to ES-DE.exe"
-        );
-        assert!(EsDe
-            .validate_layout(&p.join("ROMs"))
-            .iter()
-            .all(|c| c.status != CheckStatus::Problem));
-        for (folder, expect) in [
-            (p.clone(), "program folder"),
-            (p.join("ROMs_ALL"), "ROMs_ALL holds"),
-            (p.join("ES-DE"), "settings and media folder"),
-        ] {
+        fs::write(p.join("ES-DE/settings/es_settings.xml"), "<string name=\"ROMDirectory\" value=\"\" />\n").unwrap();
+        assert_eq!(EsDe.detect(&p.join("ROMs")).confidence, Confidence::Detected, "the empty ROMs folder next to ES-DE.exe");
+        assert!(EsDe.validate_layout(&p.join("ROMs")).iter().all(|c| c.status != CheckStatus::Problem));
+        for (folder, expect) in [(p.clone(), "program folder"), (p.join("ROMs_ALL"), "ROMs_ALL holds"), (p.join("ES-DE"), "settings and media folder")] {
             let d = EsDe.detect(&folder);
             assert_eq!(d.confidence, Confidence::Possible, "{}", folder.display());
             let hint = d.hint.unwrap();
-            assert!(
-                hint.contains(expect) && hint.contains(&p.join("ROMs").display().to_string()),
-                "{hint}"
-            );
+            assert!(hint.contains(expect) && hint.contains(&p.join("ROMs").display().to_string()), "{hint}");
         }
     }
 
     #[test]
     fn placement_uses_esde_folder_names() {
-        let req = |platform: &str, ext: &str, options: PlacementOptions| PlacementRequest {
-            title: "Saga".into(),
-            platform: platform.into(),
-            extension: ext.into(),
-            files: vec![PlacementFile {
-                relative_to_primary: format!("Saga.{ext}"),
-                size: 1,
-            }],
-            options,
-            bios_path: None,
-        };
+        let req = |platform: &str, ext: &str, options: PlacementOptions| PlacementRequest { title: "Saga".into(), platform: platform.into(), extension: ext.into(), files: vec![PlacementFile { relative_to_primary: format!("Saga.{ext}"), size: 1 }], options, bios_path: None };
         let dest = |p: Placement| match p {
             Placement::Planned { destinations, .. } => destinations[0].clone(),
             Placement::Unsupported { reason } => format!("unsupported: {reason}"),
         };
         let o = PlacementOptions::default();
-        assert_eq!(
-            dest(EsDe.plan_placement(&req("SNES", "sfc", o))),
-            "snes/Saga.sfc",
-            "system folders at the top of the ROMs folder"
-        );
-        assert_eq!(
-            dest(EsDe.plan_placement(&req("Atari Lynx", "lnx", o))),
-            "atarilynx/Saga.lnx"
-        );
-        assert_eq!(
-            dest(EsDe.plan_placement(&req("SG-1000", "sg", o))),
-            "sg-1000/Saga.sg"
-        );
-        assert_eq!(
-            dest(EsDe.plan_placement(&req("WonderSwan Color", "wsc", o))),
-            "wonderswancolor/Saga.wsc"
-        );
-        assert_eq!(
-            dest(EsDe.plan_placement(&req("ColecoVision", "col", o))),
-            "colecovision/Saga.col"
-        );
-        let fbneo = PlacementOptions {
-            arcade: Some(ArcadeSystem::Fbneo),
-            ..o
-        };
-        assert_eq!(
-            dest(EsDe.plan_placement(&req("Arcade", "zip", fbneo))),
-            "fbneo/Saga.zip"
-        );
+        assert_eq!(dest(EsDe.plan_placement(&req("SNES", "sfc", o))), "snes/Saga.sfc", "system folders at the top of the ROMs folder");
+        assert_eq!(dest(EsDe.plan_placement(&req("Atari Lynx", "lnx", o))), "atarilynx/Saga.lnx");
+        assert_eq!(dest(EsDe.plan_placement(&req("SG-1000", "sg", o))), "sg-1000/Saga.sg");
+        assert_eq!(dest(EsDe.plan_placement(&req("WonderSwan Color", "wsc", o))), "wonderswancolor/Saga.wsc");
+        assert_eq!(dest(EsDe.plan_placement(&req("ColecoVision", "col", o))), "colecovision/Saga.col");
+        let fbneo = PlacementOptions { arcade: Some(ArcadeSystem::Fbneo), ..o };
+        assert_eq!(dest(EsDe.plan_placement(&req("Arcade", "zip", fbneo))), "fbneo/Saga.zip");
     }
 }

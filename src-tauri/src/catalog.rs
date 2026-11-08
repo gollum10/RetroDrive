@@ -157,13 +157,7 @@ fn offline_storage_ids(connection: &Connection, presence: PresenceFn) -> Result<
         .prepare("SELECT id, root_path, stable_id FROM storage_locations")
         .map_err(|e| e.to_string())?;
     let rows = statement
-        .query_map([], |r| {
-            Ok((
-                r.get::<_, String>(0)?,
-                r.get::<_, String>(1)?,
-                r.get::<_, Option<String>>(2)?,
-            ))
-        })
+        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<String>>(2)?)))
         .map_err(|e| e.to_string())?;
     let mut offline = Vec::new();
     for row in rows {
@@ -209,20 +203,12 @@ fn fts_phrase(text: &str) -> String {
 
 /// Escape LIKE wildcards; used with `ESCAPE '\'`.
 fn like_pattern(text: &str) -> String {
-    let escaped = text
-        .replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_");
+    let escaped = text.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
     format!("%{escaped}%")
 }
 
 /// WHERE clause, bound values and whether the query is filtered, for a library query.
-fn filter_sql(
-    query: &GameQuery,
-    offline: &str,
-    guns: &str,
-    vertical: &str,
-) -> Result<(String, Vec<Value>, bool), String> {
+fn filter_sql(query: &GameQuery, offline: &str, guns: &str, vertical: &str) -> Result<(String, Vec<Value>, bool), String> {
     let offline = offline.to_string();
     // Always list primary files only. The unary `+` stops SQLite from choosing the
     // role index for this term, which would scan every primary file instead of
@@ -230,12 +216,7 @@ fn filter_sql(
     let mut conditions: Vec<&str> = vec!["+gf.file_role = 'primary'"];
     let mut values: Vec<Value> = Vec::new();
 
-    if let Some(text) = query
-        .text
-        .as_deref()
-        .map(str::trim)
-        .filter(|t| !t.is_empty())
-    {
+    if let Some(text) = query.text.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
         // Trigram search needs at least 3 characters; shorter searches use LIKE.
         if text.chars().count() >= 3 {
             conditions.push("g.id IN (SELECT game_id FROM games_fts WHERE games_fts MATCH ?)");
@@ -274,30 +255,21 @@ fn filter_sql(
     if query.duplicates_only {
         conditions.push(HAS_DUPLICATE);
     }
-    match query
-        .letter
-        .as_deref()
-        .map(str::trim)
-        .filter(|l| !l.is_empty())
-    {
+    match query.letter.as_deref().map(str::trim).filter(|l| !l.is_empty()) {
         None => {}
-        Some("#") => {
-            conditions.push("NOT (lower(substr(g.display_title, 1, 1)) BETWEEN 'a' AND 'z')")
-        }
+        Some("#") => conditions.push("NOT (lower(substr(g.display_title, 1, 1)) BETWEEN 'a' AND 'z')"),
         Some(letter) if letter.len() == 1 && letter.chars().all(|c| c.is_ascii_alphabetic()) => {
             // A range on the title keeps the title index usable.
             let low = letter.to_ascii_lowercase();
             let high = ((low.as_bytes()[0]) + 1) as char;
-            conditions
-                .push("g.display_title >= ? COLLATE NOCASE AND g.display_title < ? COLLATE NOCASE");
+            conditions.push("g.display_title >= ? COLLATE NOCASE AND g.display_title < ? COLLATE NOCASE");
             values.push(Value::Text(low));
             values.push(Value::Text(high.to_string()));
         }
         Some(other) => return Err(format!("Unknown letter filter: {other}")),
     }
     if let Some(collection) = query.collection_id.as_deref().filter(|c| !c.is_empty()) {
-        conditions
-            .push("gf.id IN (SELECT game_file_id FROM collection_games WHERE collection_id = ?)");
+        conditions.push("gf.id IN (SELECT game_file_id FROM collection_games WHERE collection_id = ?)");
         values.push(Value::Text(collection.to_string()));
     }
     if query.lightgun_only {
@@ -308,12 +280,7 @@ fn filter_sql(
         conditions.push("g.id IN (SELECT value FROM json_each(?))");
         values.push(Value::Text(vertical.to_string()));
     }
-    if let Some(genre) = query
-        .genre
-        .as_deref()
-        .map(str::trim)
-        .filter(|g| !g.is_empty())
-    {
+    if let Some(genre) = query.genre.as_deref().map(str::trim).filter(|g| !g.is_empty()) {
         conditions.push("g.id IN (SELECT gr.game_id FROM game_reference gr JOIN reference_entries re ON re.id = gr.entry_id WHERE re.genre LIKE ? ESCAPE '\\')");
         values.push(Value::Text(like_pattern(genre)));
     }
@@ -328,11 +295,7 @@ fn filter_sql(
     }
     let filtered = conditions.len() > 1 || query.left_out;
     // Left-out files are hidden unless asked for; this alone doesn't make a query "filtered".
-    conditions.push(if query.left_out {
-        "gf.excluded_at IS NOT NULL"
-    } else {
-        "gf.excluded_at IS NULL"
-    });
+    conditions.push(if query.left_out { "gf.excluded_at IS NOT NULL" } else { "gf.excluded_at IS NULL" });
     let where_clause = format!("WHERE {}", conditions.join(" AND "));
     Ok((where_clause, values, filtered))
 }
@@ -357,26 +320,12 @@ fn vertical_ids_json(connection: &Connection, query: &GameQuery) -> Result<Strin
 
 /// Every primary file id matching a library query (up to `cap`), e.g. to add all
 /// shown games to a collection.
-pub fn matching_file_ids(
-    connection: &Connection,
-    query: &GameQuery,
-    presence: PresenceFn,
-    cap: usize,
-) -> Result<Vec<String>, String> {
+pub fn matching_file_ids(connection: &Connection, query: &GameQuery, presence: PresenceFn, cap: usize) -> Result<Vec<String>, String> {
     let query = &crate::collections::resolve(connection, query)?;
     let offline = offline_storage_ids(connection, presence)?;
-    let (where_clause, values, _) = filter_sql(
-        query,
-        &offline,
-        &gun_ids_json(connection, query)?,
-        &vertical_ids_json(connection, query)?,
-    )?;
-    let mut statement = connection
-        .prepare(&format!("SELECT gf.id {FROM} {where_clause} LIMIT {cap}"))
-        .map_err(|e| e.to_string())?;
-    let rows = statement
-        .query_map(params_from_iter(values.iter()), |r| r.get(0))
-        .map_err(|e| e.to_string())?;
+    let (where_clause, values, _) = filter_sql(query, &offline, &gun_ids_json(connection, query)?, &vertical_ids_json(connection, query)?)?;
+    let mut statement = connection.prepare(&format!("SELECT gf.id {FROM} {where_clause} LIMIT {cap}")).map_err(|e| e.to_string())?;
+    let rows = statement.query_map(params_from_iter(values.iter()), |r| r.get(0)).map_err(|e| e.to_string())?;
     rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
 }
 
@@ -384,37 +333,16 @@ pub fn matching_file_ids(
 ///
 /// Two phases: (1) find the ids for the requested page using only indexed columns,
 /// (2) load full details, availability and duplicate counts for just those rows.
-pub fn query_games(
-    connection: &Connection,
-    query: &GameQuery,
-    presence: PresenceFn,
-) -> Result<GamePage, String> {
+pub fn query_games(connection: &Connection, query: &GameQuery, presence: PresenceFn) -> Result<GamePage, String> {
     let query = &crate::collections::resolve(connection, query)?;
-    let limit = query
-        .limit
-        .unwrap_or(DEFAULT_PAGE_SIZE)
-        .clamp(1, MAX_PAGE_SIZE);
+    let limit = query.limit.unwrap_or(DEFAULT_PAGE_SIZE).clamp(1, MAX_PAGE_SIZE);
     let offline = offline_storage_ids(connection, presence)?;
-    let (where_clause, values, filtered) = filter_sql(
-        query,
-        &offline,
-        &gun_ids_json(connection, query)?,
-        &vertical_ids_json(connection, query)?,
-    )?;
+    let (where_clause, values, filtered) = filter_sql(query, &offline, &gun_ids_json(connection, query)?, &vertical_ids_json(connection, query)?)?;
     let (page_from, order) = match query.sort.as_deref() {
-        Some("platform") => (
-            FROM_BY_GAME,
-            "g.platform, g.display_title COLLATE NOCASE, g.rowid, fl.id",
-        ),
-        Some("size") => (
-            FROM_BY_FILE,
-            "gf.file_role DESC, gf.payload_bytes DESC, fl.id",
-        ),
+        Some("platform") => (FROM_BY_GAME, "g.platform, g.display_title COLLATE NOCASE, g.rowid, fl.id"),
+        Some("size") => (FROM_BY_FILE, "gf.file_role DESC, gf.payload_bytes DESC, fl.id"),
         // The title the library shows (catalog title when matched), so the list reads in order.
-        Some("title") | None => (
-            FROM_BY_GAME,
-            "g.display_title COLLATE NOCASE, g.rowid, fl.id",
-        ),
+        Some("title") | None => (FROM_BY_GAME, "g.display_title COLLATE NOCASE, g.rowid, fl.id"),
         Some(other) => return Err(format!("Unknown sort: {other}")),
     };
 
@@ -430,17 +358,10 @@ pub fn query_games(
     // Every game_files row has exactly one file_locations row (the scanner creates
     // them in pairs), so primary files can be counted straight from the role index.
     let total: i64 = if !filtered {
-        connection.query_row(
-            "SELECT COUNT(*) FROM game_files WHERE file_role = 'primary' AND excluded_at IS NULL",
-            [],
-            |r| r.get(0),
-        )
+        connection.query_row("SELECT COUNT(*) FROM game_files WHERE file_role = 'primary' AND excluded_at IS NULL", [], |r| r.get(0))
     } else {
         connection.query_row(
-            &format!(
-                "SELECT COUNT(*) FROM (SELECT 1 {count_from} {where_clause} LIMIT {})",
-                COUNT_CAP + 1
-            ),
+            &format!("SELECT COUNT(*) FROM (SELECT 1 {count_from} {where_clause} LIMIT {})", COUNT_CAP + 1),
             params_from_iter(values.iter()),
             |r| r.get(0),
         )
@@ -449,11 +370,7 @@ pub fn query_games(
     let total_capped = filtered && total > COUNT_CAP;
 
     // The size sort walks the (file_role, payload_bytes) index, which needs an indexable role term.
-    let page_extra = if query.sort.as_deref() == Some("size") {
-        " AND gf.file_role = 'primary'"
-    } else {
-        ""
-    };
+    let page_extra = if query.sort.as_deref() == Some("size") { " AND gf.file_role = 'primary'" } else { "" };
 
     // Phase 1: ids for this page.
     let mut page_values = values.clone();
@@ -463,19 +380,11 @@ pub fn query_games(
         let mut statement = connection
             .prepare(&format!("SELECT fl.id {page_from} {where_clause}{page_extra} ORDER BY {order} LIMIT ? OFFSET ?"))
             .map_err(|e| e.to_string())?;
-        let rows = statement
-            .query_map(params_from_iter(page_values.iter()), |r| r.get(0))
-            .map_err(|e| e.to_string())?;
+        let rows = statement.query_map(params_from_iter(page_values.iter()), |r| r.get(0)).map_err(|e| e.to_string())?;
         rows.collect::<Result<_, _>>().map_err(|e| e.to_string())?
     };
     if ids.is_empty() {
-        return Ok(GamePage {
-            rows: Vec::new(),
-            total,
-            total_capped,
-            offset: query.offset,
-            limit,
-        });
+        return Ok(GamePage { rows: Vec::new(), total, total_capped, offset: query.offset, limit });
     }
 
     // Phase 2: details for those rows only.
@@ -520,14 +429,7 @@ pub fn query_games(
                 disc_count: r.get(10)?,
                 incomplete: r.get(11)?,
                 reference: match r.get::<_, Option<String>>(12)? {
-                    Some(title) => Some(ReferenceInfo {
-                        title,
-                        year: r.get(13)?,
-                        genre: r.get(14)?,
-                        publisher: r.get(15)?,
-                        developer: r.get(16)?,
-                        method: r.get(17)?,
-                    }),
+                    Some(title) => Some(ReferenceInfo { title, year: r.get(13)?, genre: r.get(14)?, publisher: r.get(15)?, developer: r.get(16)?, method: r.get(17)? }),
                     None => None,
                 },
                 file_id: r.get(18)?,
@@ -557,13 +459,7 @@ pub fn query_games(
             r
         })
         .collect();
-    Ok(GamePage {
-        rows,
-        total,
-        total_capped,
-        offset: query.offset,
-        limit,
-    })
+    Ok(GamePage { rows, total, total_capped, offset: query.offset, limit })
 }
 
 /// Totals for the dashboard and filter menus. Each figure uses an index.
@@ -580,21 +476,12 @@ pub fn system_summary(connection: &Connection) -> Result<Vec<SystemSummary>, Str
         )
         .map_err(|e| e.to_string())?;
     let rows = statement
-        .query_map([], |r| {
-            Ok(SystemSummary {
-                platform: r.get(0)?,
-                games: r.get(1)?,
-                bytes: r.get(2)?,
-            })
-        })
+        .query_map([], |r| Ok(SystemSummary { platform: r.get(0)?, games: r.get(1)?, bytes: r.get(2)? }))
         .map_err(|e| e.to_string())?;
     rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
 }
 
-pub fn library_stats(
-    connection: &Connection,
-    presence: PresenceFn,
-) -> Result<LibraryStats, String> {
+pub fn library_stats(connection: &Connection, presence: PresenceFn) -> Result<LibraryStats, String> {
     let offline_ids = offline_storage_ids(connection, presence)?;
     let count = |sql: &str, bind_offline: bool| -> Result<i64, String> {
         if bind_offline {
@@ -605,14 +492,8 @@ pub fn library_stats(
         .map_err(|e| e.to_string())
     };
     const PRIMARY: &str = "FROM file_locations fl JOIN game_files gf ON gf.id = fl.game_file_id WHERE +gf.file_role = 'primary' AND gf.excluded_at IS NULL";
-    let files = count(
-        "SELECT COUNT(*) FROM game_files WHERE file_role = 'primary' AND excluded_at IS NULL",
-        false,
-    )?;
-    let left_out = count(
-        "SELECT COUNT(*) FROM game_files WHERE file_role = 'primary' AND excluded_at IS NOT NULL",
-        false,
-    )?;
+    let files = count("SELECT COUNT(*) FROM game_files WHERE file_role = 'primary' AND excluded_at IS NULL", false)?;
+    let left_out = count("SELECT COUNT(*) FROM game_files WHERE file_role = 'primary' AND excluded_at IS NOT NULL", false)?;
     let offline = if offline_ids == "[]" {
         0
     } else {
@@ -632,24 +513,11 @@ pub fn library_stats(
         .prepare("SELECT platform, COUNT(*) FROM games GROUP BY platform ORDER BY platform")
         .map_err(|e| e.to_string())?;
     let platforms = statement
-        .query_map([], |r| {
-            Ok(PlatformCount {
-                platform: r.get(0)?,
-                files: r.get(1)?,
-            })
-        })
+        .query_map([], |r| Ok(PlatformCount { platform: r.get(0)?, files: r.get(1)? }))
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
-    Ok(LibraryStats {
-        files,
-        online: files - offline - missing,
-        offline,
-        missing,
-        duplicate_files,
-        left_out,
-        platforms,
-    })
+    Ok(LibraryStats { files, online: files - offline - missing, offline, missing, duplicate_files, left_out, platforms })
 }
 
 /// A drive the catalog knows about, connected or not (Drive Manager "Known drives").
@@ -670,10 +538,7 @@ pub struct StorageRow {
     pub presence: Presence,
 }
 
-pub fn list_storage_locations(
-    connection: &Connection,
-    presence: &dyn Fn(&str, Option<&str>) -> Presence,
-) -> Result<Vec<StorageRow>, String> {
+pub fn list_storage_locations(connection: &Connection, presence: &dyn Fn(&str, Option<&str>) -> Presence) -> Result<Vec<StorageRow>, String> {
     let mut statement = connection
         .prepare(
             "SELECT s.id, s.display_name, s.root_path, s.kind, s.stable_id, s.volume_label, s.filesystem, s.volume_serial, s.total_bytes, s.last_seen_at,
@@ -711,14 +576,8 @@ pub fn list_storage_locations(
 
 /// Distinct genres in the reference catalog (for the genre filter), split on `/` and `,`.
 pub fn genres(connection: &Connection) -> Result<Vec<String>, String> {
-    let mut statement = connection
-        .prepare(
-            "SELECT DISTINCT genre FROM reference_entries WHERE genre IS NOT NULL AND genre <> ''",
-        )
-        .map_err(|e| e.to_string())?;
-    let rows = statement
-        .query_map([], |r| r.get::<_, String>(0))
-        .map_err(|e| e.to_string())?;
+    let mut statement = connection.prepare("SELECT DISTINCT genre FROM reference_entries WHERE genre IS NOT NULL AND genre <> ''").map_err(|e| e.to_string())?;
+    let rows = statement.query_map([], |r| r.get::<_, String>(0)).map_err(|e| e.to_string())?;
     let mut set = std::collections::BTreeSet::new();
     for row in rows {
         for part in row.map_err(|e| e.to_string())?.split(['/', ',', ';']) {
@@ -751,10 +610,7 @@ mod tests {
         }
         let mut c = Connection::open_in_memory().unwrap();
         db::migrate(&mut c, None).unwrap();
-        scanner::scan(&mut c, dir.path(), &|_| {
-            crate::volumes::VolumeProbe::unknown()
-        })
-        .unwrap();
+        scanner::scan(&mut c, dir.path(), &|_| crate::volumes::VolumeProbe::unknown()).unwrap();
         (dir, c)
     }
 
@@ -767,10 +623,7 @@ mod tests {
     }
 
     fn text(t: &str) -> GameQuery {
-        GameQuery {
-            text: Some(t.into()),
-            ..GameQuery::default()
-        }
+        GameQuery { text: Some(t.into()), ..GameQuery::default() }
     }
 
     const SAMPLE: &[(&str, &[u8])] = &[
@@ -784,20 +637,10 @@ mod tests {
         let (dir, c) = library(&[("snes/A.sfc", b"a"), ("snes/B.sfc", b"b")]);
         fs::remove_file(dir.path().join("snes/B.sfc")).unwrap();
         let mut c = c;
-        scanner::scan(&mut c, dir.path(), &|_| {
-            crate::volumes::VolumeProbe::unknown()
-        })
-        .unwrap();
+        scanner::scan(&mut c, dir.path(), &|_| crate::volumes::VolumeProbe::unknown()).unwrap();
 
         let page = run(&c, GameQuery::default());
-        let state = |t: &str| {
-            page.rows
-                .iter()
-                .find(|r| r.title == t)
-                .unwrap()
-                .availability
-                .clone()
-        };
+        let state = |t: &str| page.rows.iter().find(|r| r.title == t).unwrap().availability.clone();
         assert_eq!(state("A"), "online");
         assert_eq!(state("B"), "missing");
 
@@ -820,137 +663,45 @@ mod tests {
     fn text_search_matches_inside_titles_and_platforms() {
         let (_dir, c) = library(SAMPLE);
         assert_eq!(run(&c, text("puzzle")).total, 2);
-        assert_eq!(
-            run(&c, text("PUZ")).total,
-            2,
-            "case-insensitive, 3 chars uses the index"
-        );
-        assert_eq!(
-            titles(&run(&c, text("ra"))),
-            ["Racing Hero"],
-            "short searches fall back to LIKE"
-        );
-        assert_eq!(
-            titles(&run(&c, text("snes"))),
-            ["Super Puzzle Quest"],
-            "platform names match too"
-        );
-        assert_eq!(
-            run(&c, text("   ")).total,
-            3,
-            "blank search means no filter"
-        );
+        assert_eq!(run(&c, text("PUZ")).total, 2, "case-insensitive, 3 chars uses the index");
+        assert_eq!(titles(&run(&c, text("ra"))), ["Racing Hero"], "short searches fall back to LIKE");
+        assert_eq!(titles(&run(&c, text("snes"))), ["Super Puzzle Quest"], "platform names match too");
+        assert_eq!(run(&c, text("   ")).total, 3, "blank search means no filter");
         for awkward in ["a\"b", "100%", "x_y", "\\", "\"\"\"", "*", "NEAR(a b)"] {
-            assert_eq!(
-                run(&c, text(awkward)).total,
-                0,
-                "{awkward} is searched literally"
-            );
+            assert_eq!(run(&c, text(awkward)).total, 0, "{awkward} is searched literally");
         }
     }
 
     #[test]
     fn filters_combine() {
         let (dir, mut c) = library(SAMPLE);
-        assert_eq!(
-            titles(&run(
-                &c,
-                GameQuery {
-                    platform: Some("NES".into()),
-                    ..GameQuery::default()
-                }
-            )),
-            ["Puzzle Kid"]
-        );
+        assert_eq!(titles(&run(&c, GameQuery { platform: Some("NES".into()), ..GameQuery::default() })), ["Puzzle Kid"]);
         fs::remove_file(dir.path().join("nes/Puzzle Kid.nes")).unwrap();
-        scanner::scan(&mut c, dir.path(), &|_| {
-            crate::volumes::VolumeProbe::unknown()
-        })
-        .unwrap();
-        let missing = run(
-            &c,
-            GameQuery {
-                availability: Some("missing".into()),
-                ..GameQuery::default()
-            },
-        );
+        scanner::scan(&mut c, dir.path(), &|_| crate::volumes::VolumeProbe::unknown()).unwrap();
+        let missing = run(&c, GameQuery { availability: Some("missing".into()), ..GameQuery::default() });
         assert_eq!(titles(&missing), ["Puzzle Kid"]);
-        let combined = run(
-            &c,
-            GameQuery {
-                text: Some("puzzle".into()),
-                availability: Some("online".into()),
-                ..GameQuery::default()
-            },
-        );
+        let combined = run(&c, GameQuery { text: Some("puzzle".into()), availability: Some("online".into()), ..GameQuery::default() });
         assert_eq!(titles(&combined), ["Super Puzzle Quest"]);
-        let storage: String = c
-            .query_row("SELECT id FROM storage_locations", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(
-            run(
-                &c,
-                GameQuery {
-                    storage_id: Some(storage),
-                    ..GameQuery::default()
-                }
-            )
-            .total,
-            3
-        );
-        assert_eq!(
-            run(
-                &c,
-                GameQuery {
-                    storage_id: Some("nope".into()),
-                    ..GameQuery::default()
-                }
-            )
-            .total,
-            0
-        );
-        assert!(query_games(
-            &c,
-            &GameQuery {
-                availability: Some("deleted".into()),
-                ..GameQuery::default()
-            },
-            &connected
-        )
-        .is_err());
-        assert!(query_games(
-            &c,
-            &GameQuery {
-                sort: Some("random".into()),
-                ..GameQuery::default()
-            },
-            &connected
-        )
-        .is_err());
+        let storage: String = c.query_row("SELECT id FROM storage_locations", [], |r| r.get(0)).unwrap();
+        assert_eq!(run(&c, GameQuery { storage_id: Some(storage), ..GameQuery::default() }).total, 3);
+        assert_eq!(run(&c, GameQuery { storage_id: Some("nope".into()), ..GameQuery::default() }).total, 0);
+        assert!(query_games(&c, &GameQuery { availability: Some("deleted".into()), ..GameQuery::default() }, &connected).is_err());
+        assert!(query_games(&c, &GameQuery { sort: Some("random".into()), ..GameQuery::default() }, &connected).is_err());
     }
 
     #[test]
     fn duplicate_candidates_need_same_platform_name_and_size() {
         let (_dir, c) = library(&[
             ("drive1/snes/Copy Game.sfc", b"same"),
-            ("drive2/snes/COPY GAME.sfc", b"same"), // same name (case-insensitive) + size
-            ("drive3/snes/Copy Game.sfc", b"different"), // different size
-            ("drive1/nes/Copy Game.nes", b"same"),  // different platform and name
-            ("drive1/snes/Empty.sfc", b""),         // zero-byte files are ignored
+            ("drive2/snes/COPY GAME.sfc", b"same"),       // same name (case-insensitive) + size
+            ("drive3/snes/Copy Game.sfc", b"different"),  // different size
+            ("drive1/nes/Copy Game.nes", b"same"),        // different platform and name
+            ("drive1/snes/Empty.sfc", b""),               // zero-byte files are ignored
             ("drive2/snes/Empty.sfc", b""),
         ]);
-        let dups = run(
-            &c,
-            GameQuery {
-                duplicates_only: true,
-                ..GameQuery::default()
-            },
-        );
+        let dups = run(&c, GameQuery { duplicates_only: true, ..GameQuery::default() });
         assert_eq!(dups.total, 2, "{:?}", titles(&dups));
-        assert!(dups
-            .rows
-            .iter()
-            .all(|r| r.duplicate_count == 2 && r.platform == "SNES"));
+        assert!(dups.rows.iter().all(|r| r.duplicate_count == 2 && r.platform == "SNES"));
         let stats = library_stats(&c, &connected).unwrap();
         assert_eq!(stats.duplicate_files, 2);
         assert_eq!(stats.files, 6);
@@ -958,54 +709,18 @@ mod tests {
 
     #[test]
     fn pages_and_sorting() {
-        let files: Vec<(String, Vec<u8>)> = (0..7)
-            .map(|i| (format!("snes/Game {i}.sfc"), vec![b'x'; i + 1]))
-            .collect();
-        let refs: Vec<(&str, &[u8])> = files
-            .iter()
-            .map(|(p, b)| (p.as_str(), b.as_slice()))
-            .collect();
+        let files: Vec<(String, Vec<u8>)> = (0..7).map(|i| (format!("snes/Game {i}.sfc"), vec![b'x'; i + 1])).collect();
+        let refs: Vec<(&str, &[u8])> = files.iter().map(|(p, b)| (p.as_str(), b.as_slice())).collect();
         let (_dir, c) = library(&refs);
-        let page = run(
-            &c,
-            GameQuery {
-                offset: 3,
-                limit: Some(3),
-                ..GameQuery::default()
-            },
-        );
+        let page = run(&c, GameQuery { offset: 3, limit: Some(3), ..GameQuery::default() });
         assert_eq!(page.total, 7);
         assert_eq!(titles(&page), ["Game 3", "Game 4", "Game 5"]);
-        let past_end = run(
-            &c,
-            GameQuery {
-                offset: 50,
-                limit: Some(3),
-                ..GameQuery::default()
-            },
-        );
+        let past_end = run(&c, GameQuery { offset: 50, limit: Some(3), ..GameQuery::default() });
         assert!(past_end.rows.is_empty());
         assert_eq!(past_end.total, 7);
-        let by_size = run(
-            &c,
-            GameQuery {
-                sort: Some("size".into()),
-                limit: Some(1),
-                ..GameQuery::default()
-            },
-        );
+        let by_size = run(&c, GameQuery { sort: Some("size".into()), limit: Some(1), ..GameQuery::default() });
         assert_eq!(titles(&by_size), ["Game 6"]);
-        assert_eq!(
-            run(
-                &c,
-                GameQuery {
-                    limit: Some(10_000),
-                    ..GameQuery::default()
-                }
-            )
-            .limit,
-            MAX_PAGE_SIZE
-        );
+        assert_eq!(run(&c, GameQuery { limit: Some(10_000), ..GameQuery::default() }).limit, MAX_PAGE_SIZE);
     }
 
     #[test]
@@ -1019,10 +734,7 @@ mod tests {
     #[test]
     fn multi_file_games_are_listed_once_with_their_total_size() {
         let (dir, mut c) = library(&[
-            (
-                "psx/Saga/Saga.m3u",
-                b"Saga (Disc 1).cue\nSaga (Disc 2).cue\n",
-            ),
+            ("psx/Saga/Saga.m3u", b"Saga (Disc 1).cue\nSaga (Disc 2).cue\n"),
             ("psx/Saga/Saga (Disc 1).cue", b"FILE \"d1.bin\" BINARY\n"),
             ("psx/Saga/Saga (Disc 2).cue", b"FILE \"d2.bin\" BINARY\n"),
             ("psx/Saga/d1.bin", &[0u8; 4000]),
@@ -1030,72 +742,35 @@ mod tests {
             ("snes/Plain.sfc", b"rom"),
         ]);
         let page = run(&c, GameQuery::default());
-        assert_eq!(
-            titles(&page),
-            ["Plain", "Saga"],
-            "discs and tracks are not separate rows"
-        );
+        assert_eq!(titles(&page), ["Plain", "Saga"], "discs and tracks are not separate rows");
         let saga = &page.rows[1];
         assert_eq!(saga.disc_count, 2);
         assert!(saga.file_size > 10_000, "{}", saga.file_size);
         assert!(!saga.incomplete);
         assert_eq!(library_stats(&c, &connected).unwrap().files, 2);
         let systems = system_summary(&c).unwrap();
-        let psx = systems
-            .iter()
-            .find(|p| p.platform == "PlayStation")
-            .unwrap();
+        let psx = systems.iter().find(|p| p.platform == "PlayStation").unwrap();
         assert_eq!(psx.games, 1, "a multi-disc game counts once per system");
-        assert_eq!(
-            psx.bytes, saga.file_size,
-            "system totals include discs and tracks"
-        );
+        assert_eq!(psx.bytes, saga.file_size, "system totals include discs and tracks");
         assert_eq!(systems.iter().map(|s| s.games).sum::<i64>(), 2);
-        let by_size = run(
-            &c,
-            GameQuery {
-                sort: Some("size".into()),
-                limit: Some(1),
-                ..GameQuery::default()
-            },
-        );
-        assert_eq!(
-            titles(&by_size),
-            ["Saga"],
-            "size sort uses the game's total size"
-        );
+        let by_size = run(&c, GameQuery { sort: Some("size".into()), limit: Some(1), ..GameQuery::default() });
+        assert_eq!(titles(&by_size), ["Saga"], "size sort uses the game's total size");
 
         fs::remove_file(dir.path().join("psx/Saga/d2.bin")).unwrap();
-        scanner::scan(&mut c, dir.path(), &|_| {
-            crate::volumes::VolumeProbe::unknown()
-        })
-        .unwrap();
+        scanner::scan(&mut c, dir.path(), &|_| crate::volumes::VolumeProbe::unknown()).unwrap();
         let saga = run(&c, text("saga")).rows.remove(0);
         assert!(saga.incomplete, "a missing track marks the game incomplete");
-        assert_eq!(
-            saga.availability, "online",
-            "the game's main file is still there"
-        );
+        assert_eq!(saga.availability, "online", "the game's main file is still there");
     }
 
     #[test]
     fn stats_summarize_the_library() {
         let (dir, mut c) = library(SAMPLE);
         fs::remove_file(dir.path().join("gba/Racing Hero.gba")).unwrap();
-        scanner::scan(&mut c, dir.path(), &|_| {
-            crate::volumes::VolumeProbe::unknown()
-        })
-        .unwrap();
+        scanner::scan(&mut c, dir.path(), &|_| crate::volumes::VolumeProbe::unknown()).unwrap();
         let stats = library_stats(&c, &connected).unwrap();
-        assert_eq!(
-            (stats.files, stats.online, stats.missing, stats.offline),
-            (3, 2, 1, 0)
-        );
-        let platforms: Vec<&str> = stats
-            .platforms
-            .iter()
-            .map(|p| p.platform.as_str())
-            .collect();
+        assert_eq!((stats.files, stats.online, stats.missing, stats.offline), (3, 2, 1, 0));
+        let platforms: Vec<&str> = stats.platforms.iter().map(|p| p.platform.as_str()).collect();
         assert_eq!(platforms, ["GBA", "NES", "SNES"]);
         let offline = library_stats(&c, &|_, _| Presence::NotConnected).unwrap();
         assert_eq!((offline.online, offline.offline), (0, 3));
@@ -1118,21 +793,8 @@ mod tests {
             let key = if i % 100 == 1 { i - 1 } else { i };
             let platform = platforms[(key % 6) as usize];
             let name = format!("Game {key:06}.rom");
-            let title = format!(
-                "Benchmark Adventure {i:06} {}",
-                if i % 7 == 0 { "Puzzle" } else { "Quest" }
-            );
-            let file = db::insert_game_file(
-                &tx,
-                &title,
-                platform,
-                &name,
-                "rom",
-                1024 + i64::from(key),
-                None,
-                "folder",
-            )
-            .unwrap();
+            let title = format!("Benchmark Adventure {i:06} {}", if i % 7 == 0 { "Puzzle" } else { "Quest" });
+            let file = db::insert_game_file(&tx, &title, platform, &name, "rom", 1024 + i64::from(key), None, "folder").unwrap();
             tx.execute(
                 "INSERT INTO file_locations (id, game_file_id, storage_location_id, relative_path) VALUES (?1, ?2, ?3, ?4)",
                 rusqlite::params![db::new_id(), file, storage, format!("roms/{platform}/{i}/{name}")],
@@ -1144,64 +806,25 @@ mod tests {
 
         let cases: Vec<(&str, GameQuery)> = vec![
             ("first page, no filter", GameQuery::default()),
-            (
-                "page 500 (offset 50,000)",
-                GameQuery {
-                    offset: 50_000,
-                    ..GameQuery::default()
-                },
-            ),
+            ("page 500 (offset 50,000)", GameQuery { offset: 50_000, ..GameQuery::default() }),
             ("text 'puzzle'", text("puzzle")),
             ("text 'adventure 0999'", text("adventure 0999")),
             ("text 'ad' (LIKE)", text("ad")),
-            (
-                "platform SNES",
-                GameQuery {
-                    platform: Some("SNES".into()),
-                    ..GameQuery::default()
-                },
-            ),
-            (
-                "duplicates only",
-                GameQuery {
-                    duplicates_only: true,
-                    ..GameQuery::default()
-                },
-            ),
-            (
-                "sort by size",
-                GameQuery {
-                    sort: Some("size".into()),
-                    ..GameQuery::default()
-                },
-            ),
+            ("platform SNES", GameQuery { platform: Some("SNES".into()), ..GameQuery::default() }),
+            ("duplicates only", GameQuery { duplicates_only: true, ..GameQuery::default() }),
+            ("sort by size", GameQuery { sort: Some("size".into()), ..GameQuery::default() }),
         ];
         for (name, query) in cases {
             let t = Instant::now();
             let page = query_games(&c, &query, &connected).unwrap();
-            eprintln!(
-                "{name:<28} total={:>6}{} {:?}",
-                page.total,
-                if page.total_capped { "+" } else { " " },
-                t.elapsed()
-            );
+            eprintln!("{name:<28} total={:>6}{} {:?}", page.total, if page.total_capped { "+" } else { " " }, t.elapsed());
         }
         let t = Instant::now();
         let stats = library_stats(&c, &connected).unwrap();
-        eprintln!(
-            "{:<28} files={:>6}  {:?}",
-            "library_stats",
-            stats.files,
-            t.elapsed()
-        );
+        eprintln!("{:<28} files={:>6}  {:?}", "library_stats", stats.files, t.elapsed());
         let t = std::time::Instant::now();
         let systems = system_summary(&c).unwrap();
-        eprintln!(
-            "{:<28} systems={:>4}  {:?}",
-            "system_summary",
-            systems.len(),
-            t.elapsed()
-        );
+        eprintln!("{:<28} systems={:>4}  {:?}", "system_summary", systems.len(), t.elapsed());
         assert_eq!(stats.files, 100_000);
         assert_eq!(stats.duplicate_files, 2_000);
     }
@@ -1213,107 +836,36 @@ mod tests {
     #[ignore]
     fn benchmark_real_catalog() {
         use std::time::Instant;
-        let Some(path) = std::env::var_os("RETRODRIVE_BENCH_DB") else {
-            return;
-        };
+        let Some(path) = std::env::var_os("RETRODRIVE_BENCH_DB") else { return };
         let mut c = Connection::open(&path).unwrap();
         let t = Instant::now();
         let report = db::migrate(&mut c, None).unwrap();
-        eprintln!(
-            "upgrade v{} -> v{}: {:?}",
-            report.from_version,
-            report.to_version,
-            t.elapsed()
-        );
+        eprintln!("upgrade v{} -> v{}: {:?}", report.from_version, report.to_version, t.elapsed());
         let cases: Vec<(&str, GameQuery)> = vec![
             ("first page, title sort", GameQuery::default()),
-            (
-                "page 500, title sort",
-                GameQuery {
-                    offset: 50_000,
-                    ..GameQuery::default()
-                },
-            ),
-            (
-                "platform sort",
-                GameQuery {
-                    sort: Some("platform".into()),
-                    ..GameQuery::default()
-                },
-            ),
-            (
-                "letter M",
-                GameQuery {
-                    letter: Some("M".into()),
-                    ..GameQuery::default()
-                },
-            ),
-            (
-                "letter #",
-                GameQuery {
-                    letter: Some("#".into()),
-                    ..GameQuery::default()
-                },
-            ),
-            (
-                "SNES, title sort",
-                GameQuery {
-                    platform: Some("SNES".into()),
-                    ..GameQuery::default()
-                },
-            ),
+            ("page 500, title sort", GameQuery { offset: 50_000, ..GameQuery::default() }),
+            ("platform sort", GameQuery { sort: Some("platform".into()), ..GameQuery::default() }),
+            ("letter M", GameQuery { letter: Some("M".into()), ..GameQuery::default() }),
+            ("letter #", GameQuery { letter: Some("#".into()), ..GameQuery::default() }),
+            ("SNES, title sort", GameQuery { platform: Some("SNES".into()), ..GameQuery::default() }),
             ("text 'street fighter'", text("street fighter")),
             ("text 'sf' (LIKE)", text("sf")),
         ];
         for (name, query) in cases {
             let t = Instant::now();
             let page = query_games(&c, &query, &connected).unwrap();
-            eprintln!(
-                "{name:<24} total={:>7}{} {:?}",
-                page.total,
-                if page.total_capped { "+" } else { " " },
-                t.elapsed()
-            );
+            eprintln!("{name:<24} total={:>7}{} {:?}", page.total, if page.total_capped { "+" } else { " " }, t.elapsed());
         }
     }
 
     #[test]
     fn letters_filter_titles_and_hash_means_digits_or_symbols() {
-        let (_dir, c) = library(&[
-            ("nes/Metroid (USA).nes", b"m"),
-            ("nes/mario (USA).nes", b"m2"),
-            ("nes/Zelda (USA).nes", b"z"),
-            ("nes/1942 (USA).nes", b"1"),
-            ("nes/'89 Uranai (Japan).nes", b"8"),
-        ]);
-        let pick = |l: &str| -> Vec<String> {
-            titles(&run(
-                &c,
-                GameQuery {
-                    letter: Some(l.into()),
-                    ..GameQuery::default()
-                },
-            ))
-            .into_iter()
-            .map(|t| t.to_string())
-            .collect()
-        };
-        assert_eq!(
-            pick("M"),
-            ["mario (USA)", "Metroid (USA)"],
-            "case doesn't matter"
-        );
+        let (_dir, c) = library(&[("nes/Metroid (USA).nes", b"m"), ("nes/mario (USA).nes", b"m2"), ("nes/Zelda (USA).nes", b"z"), ("nes/1942 (USA).nes", b"1"), ("nes/'89 Uranai (Japan).nes", b"8")]);
+        let pick = |l: &str| -> Vec<String> { titles(&run(&c, GameQuery { letter: Some(l.into()), ..GameQuery::default() })).into_iter().map(|t| t.to_string()).collect() };
+        assert_eq!(pick("M"), ["mario (USA)", "Metroid (USA)"], "case doesn't matter");
         assert_eq!(pick("z"), ["Zelda (USA)"]);
         assert_eq!(pick("#"), ["'89 Uranai (Japan)", "1942 (USA)"]);
-        assert!(query_games(
-            &c,
-            &GameQuery {
-                letter: Some("AB".into()),
-                ..GameQuery::default()
-            },
-            &connected
-        )
-        .is_err());
+        assert!(query_games(&c, &GameQuery { letter: Some("AB".into()), ..GameQuery::default() }, &connected).is_err());
     }
 
     #[test]
@@ -1331,74 +883,25 @@ mod tests {
         .unwrap();
         let mut c = Connection::open_in_memory().unwrap();
         crate::db::migrate(&mut c, None).unwrap();
-        crate::scanner::scan(&mut c, dir.path(), &|_| {
-            crate::volumes::VolumeProbe::unknown()
-        })
-        .unwrap();
+        crate::scanner::scan(&mut c, dir.path(), &|_| crate::volumes::VolumeProbe::unknown()).unwrap();
         let connected = |_: &str, _: Option<&str>| crate::volumes::Presence::Connected;
         let page = query_games(&c, &GameQuery::default(), &connected).unwrap();
-        let contra = page
-            .rows
-            .iter()
-            .find(|r| r.title.contains("Contra"))
-            .unwrap();
-        assert_eq!(
-            (
-                contra.description.as_deref(),
-                contra.players.as_deref(),
-                contra.rating
-            ),
-            (Some("Run & gun."), Some("1-2"), Some(0.9))
-        );
-        let zelda = page
-            .rows
-            .iter()
-            .find(|r| r.title.contains("Zelda"))
-            .unwrap();
+        let contra = page.rows.iter().find(|r| r.title.contains("Contra")).unwrap();
+        assert_eq!((contra.description.as_deref(), contra.players.as_deref(), contra.rating), (Some("Run & gun."), Some("1-2"), Some(0.9)));
+        let zelda = page.rows.iter().find(|r| r.title.contains("Zelda")).unwrap();
         assert_eq!(zelda.rating, Some(0.9), "a 0-5 rating is turned into 0-1");
-        assert!(page
-            .rows
-            .iter()
-            .find(|r| r.title.contains("Tetris"))
-            .unwrap()
-            .players
-            .is_none());
-        let two = query_games(
-            &c,
-            &GameQuery {
-                players_min: Some(2),
-                ..GameQuery::default()
-            },
-            &connected,
-        )
-        .unwrap();
-        assert_eq!(
-            two.rows
-                .iter()
-                .map(|r| r.title.as_str())
-                .collect::<Vec<_>>(),
-            vec![contra.title.as_str()]
-        );
+        assert!(page.rows.iter().find(|r| r.title.contains("Tetris")).unwrap().players.is_none());
+        let two = query_games(&c, &GameQuery { players_min: Some(2), ..GameQuery::default() }, &connected).unwrap();
+        assert_eq!(two.rows.iter().map(|r| r.title.as_str()).collect::<Vec<_>>(), vec![contra.title.as_str()]);
         // A rescan after the gamelist loses a game's details clears them.
-        std::fs::write(
-            nes.join("gamelist.xml"),
-            "<gameList><game><path>./Zelda (USA).nes</path><players>1</players></game></gameList>",
-        )
-        .unwrap();
-        crate::scanner::scan(&mut c, dir.path(), &|_| {
-            crate::volumes::VolumeProbe::unknown()
-        })
-        .unwrap();
+        std::fs::write(nes.join("gamelist.xml"), "<gameList><game><path>./Zelda (USA).nes</path><players>1</players></game></gameList>").unwrap();
+        crate::scanner::scan(&mut c, dir.path(), &|_| crate::volumes::VolumeProbe::unknown()).unwrap();
         let page = query_games(&c, &GameQuery::default(), &connected).unwrap();
-        assert!(page
-            .rows
-            .iter()
-            .find(|r| r.title.contains("Contra"))
-            .unwrap()
-            .description
-            .is_none());
+        assert!(page.rows.iter().find(|r| r.title.contains("Contra")).unwrap().description.is_none());
         assert_eq!(crate::media::players_max("1-4"), Some(4));
         assert_eq!(crate::media::players_max("2+"), Some(2));
         assert_eq!(crate::media::players_max("one"), None);
     }
 }
+
+
