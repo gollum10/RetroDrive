@@ -37,7 +37,7 @@ const NAME: &str = "RetroBat";
 /// `roms\` folder for a catalog platform; `Err` explains why a game can't be placed.
 /// Shared with Batocera, whose folder names are the same (checked 2026-11-06);
 /// `target` names the platform in messages.
-pub(super) fn system_folder(platform: &str, extension: &str, options: PlacementOptions, target: &str) -> Result<&'static str, String> {
+pub(crate) fn system_folder(platform: &str, extension: &str, options: PlacementOptions, target: &str) -> Result<&'static str, String> {
     Ok(match platform {
         "NES" if extension == "fds" => "fds",
         "NES" => "nes",

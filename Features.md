@@ -78,7 +78,7 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 | Search and sort by catalog title | ✅ | Matched games are listed, sorted and A–Z filtered by their catalog title (e.g. *'88 Games* for `konami88.zip`); search finds file titles and catalog titles. Library pages are also much faster on big libraries (e.g. the A–Z bar went from about 3 s to under 0.25 s on 145,000 games). |
 | Import (scan) a user-selected folder | ✅ | Runs as a background job; the window stays responsive. Read only: tests confirm source files are unchanged. 40,000 files took about 3 s in a dev build. |
 | 49 systems recognized, incl. your hack folders | ✅ | C64, Amiga, Amstrad, Atari, MSX, X68000, PC Engine, Neo Geo, WonderSwan and many more; `nesh`/`snesh`/`genh`/`megadrive-japan` join their systems. On your library: Unclassified drops from 60,558 to 4 after a rescan. RetroBat folders mapped for all of them. |
-| BIOS files kept out of the game list | ✅ | `bios` folders and `[BIOS] …` names become **BIOS** (never placed or copied as games). A BIOS checker is planned (M4). |
+| BIOS files kept out of the game list | ✅ | `bios` folders and `[BIOS] …` names become **BIOS** (never placed or copied as games). The **BIOS checker** in Customize shows which ones your systems need. |
 | Platform detection from folder names | ✅ | Uses the nearest platform folder (e.g. `roms/psx/Game (USA)/game.cue`). The scanned folder's own name counts. |
 | Non-game files ignored inside platform folders | ✅ | `readme.txt`, `.srm` saves, `.state`, `gamelist.xml`, images and similar are skipped. |
 | Extension-only detection outside platform folders | ✅ | `.zip`, `.7z`, `.chd`, `.iso`, `.cue`, `.m3u` are recorded as **Unclassified**. |
@@ -196,7 +196,7 @@ ecalbox.conf` the way Recalbox's own menu saves them, after you review them, and
 | Feature | Status | Requirement |
 |---|---|---|
 | Artwork and metadata scraping with attribution | ⛔ | FR-06, dropped 2026-11-06: RetroDrive is free and won't fetch online art or metadata (ADR-033). |
-| BIOS checker (user-supplied files only) | 📋 | FR-07 |
+| BIOS checker (user-supplied files only) | ✅ | FR-07. In **Customize**: which systems in your library need a BIOS, whether you have it (library and that system), with regional alternatives counted. Names from libretro-core-info (MIT, credited); RetroDrive never provides BIOS files. Checks names, not checksums. |
 | Controller profiles | 📋 | FR-08 |
 | Backup and restore of configs and saves | 📋 | FR-09 |
 | Maintenance checks and repair plans | 📋 | FR-10 |

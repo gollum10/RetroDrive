@@ -80,7 +80,7 @@ pub fn esde_retroarch(roms: &Path) -> Option<PathBuf> {
 }
 
 /// Where this installation's BIOS step copies to, or why there's none.
-fn target_for(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<PathBuf, String> {
+pub(crate) fn target_for(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<PathBuf, String> {
     let install = installations::located(connection, presence, Some(installation_id))?.into_iter().next().ok_or("Installation not found")?;
     if install.presence != Presence::Connected {
         return Err("The installation isn't connected.".into());
@@ -103,14 +103,14 @@ fn target_for(connection: &Connection, installation_id: &str, presence: Presence
 }
 
 /// One BIOS file in the library: path below its `bios` folder, the file, its size.
-struct LibraryBios {
-    rel: String,
-    source: PathBuf,
-    size: u64,
+pub(crate) struct LibraryBios {
+    pub(crate) rel: String,
+    pub(crate) source: PathBuf,
+    pub(crate) size: u64,
 }
 
 /// BIOS files from library `bios` folders on connected drives, by path below `bios`.
-fn library_bios(connection: &Connection, presence: PresenceFn) -> Result<BTreeMap<String, Vec<LibraryBios>>, String> {
+pub(crate) fn library_bios(connection: &Connection, presence: PresenceFn) -> Result<BTreeMap<String, Vec<LibraryBios>>, String> {
     let mut statement = connection
         .prepare(
             "SELECT fl.relative_path, gf.size_bytes, fl.present_status, s.root_path, s.stable_id

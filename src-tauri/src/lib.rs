@@ -3,6 +3,7 @@
 
 mod adapters;
 mod batocera_settings;
+mod bios_check;
 mod bios_step;
 mod catalog;
 mod classify;
@@ -884,6 +885,13 @@ async fn apply_lakka_playlists(catalog: State<'_, Catalog>, active: State<'_, Ac
     result?
 }
 
+/// Which BIOS files the library's systems need, in the library and on a system (reads only, ADR-088).
+#[tauri::command]
+async fn check_bios(catalog: State<'_, Catalog>, installation_id: Option<String>) -> Result<bios_check::BiosCheck, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || bios_check::check(&db::open(&db_path)?, installation_id.as_deref(), &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
 /// Recalbox settings and themes offered, with current values (reads only).
 #[tauri::command]
 async fn recalbox_options(catalog: State<'_, Catalog>, installation_id: String) -> Result<recalbox_settings::RecalboxOptions, String> {
@@ -1562,6 +1570,7 @@ pub fn run() {
             preview_recalbox_settings,
             apply_recalbox_settings,
             recalbox_games,
+            check_bios,
             preview_lakka_playlists,
             apply_lakka_playlists,
             recalbox_game_options,
