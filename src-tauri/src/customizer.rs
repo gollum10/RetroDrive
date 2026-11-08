@@ -420,6 +420,34 @@ fn attribute(e: &BytesStart, key: &str) -> Option<String> {
 }
 
 /// Systems, their names and emulators/cores from es_systems.cfg.
+/// The file types each RetroBat system shows (`<extension>` in es_systems.cfg, e.g.
+/// `.nes .zip .7z`), lower case with the dot (RDS-018). `None` if the file can't be read.
+pub(crate) fn system_extensions(root: &Path) -> Option<HashMap<String, Vec<String>>> {
+    let text = read_text(&root.join(SYSTEMS)).ok()?;
+    let inner = |block: &str, tag: &str| -> Option<String> {
+        let open = format!("<{tag}>");
+        let start = block.find(&open)? + open.len();
+        let end = block[start..].find(&format!("</{tag}>"))? + start;
+        Some(unescape(block[start..end].trim()))
+    };
+    let mut out = HashMap::new();
+    for block in text.split("<system>").skip(1) {
+        let block = block.split("</system>").next().unwrap_or(block);
+        if let (Some(name), Some(exts)) = (inner(block, "name"), inner(block, "extension")) {
+            let mut list: Vec<String> = Vec::new();
+            for e in exts.split_whitespace().map(|e| e.to_lowercase()).filter(|e| e.starts_with('.')) {
+                if !list.contains(&e) {
+                    list.push(e);
+                }
+            }
+            if !name.is_empty() && !list.is_empty() {
+                out.insert(name, list);
+            }
+        }
+    }
+    Some(out)
+}
+
 fn read_systems(path: &Path) -> Result<Vec<(String, String, Vec<EmulatorOption>)>, String> {
     let text = read_text(path)?;
     let mut reader = Reader::from_str(&text);

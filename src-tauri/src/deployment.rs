@@ -120,6 +120,36 @@ pub struct SystemChoice {
     pub selected: bool,
 }
 
+/// Games of one file type a system doesn't list (so its menu won't show them).
+#[derive(Debug, Serialize, Clone, PartialEq)]
+pub struct FormatWarning {
+    pub system_folder: String,
+    pub extension: String,
+    pub games: i64,
+    /// The file types the system lists, e.g. `.nes .zip .7z`.
+    pub accepted: String,
+}
+
+/// RDS-018: games whose file type the system doesn't list (RetroBat's es_systems.cfg).
+fn format_warnings(adapter_id: &str, root: &Path, items: &[Item]) -> Vec<FormatWarning> {
+    if adapter_id != "retrobat" {
+        return Vec::new();
+    }
+    let Some(lists) = crate::customizer::system_extensions(root) else { return Vec::new() };
+    let mut counts: BTreeMap<(String, String), i64> = BTreeMap::new();
+    for item in items {
+        let Some(list) = lists.get(&item.system_folder) else { continue };
+        let Some(first) = item.files.first() else { continue };
+        let file = first.relative.rsplit('/').next().unwrap_or(&first.relative);
+        let Some((_, ext)) = file.rsplit_once('.') else { continue };
+        let ext = format!(".{}", ext.to_lowercase());
+        if !list.contains(&ext) {
+            *counts.entry((item.system_folder.clone(), ext)).or_default() += 1;
+        }
+    }
+    counts.into_iter().map(|((system_folder, extension), games)| FormatWarning { accepted: lists[&system_folder].join(" "), system_folder, extension, games }).collect()
+}
+
 #[derive(Debug, Serialize)]
 pub struct UnsupportedGroup {
     pub platform: String,
@@ -210,6 +240,8 @@ pub struct DeploymentPlan {
     /// Games RetroDrive copied before that are no longer on the drive (asked about), and games kept off it.
     pub removed: Vec<PlanGame>,
     pub sample: Vec<PlanGame>,
+    /// Games the system won't show because it doesn't list their file type (RDS-018).
+    pub format_warnings: Vec<FormatWarning>,
     /// Stable hash of every source, destination, size and action. RDS-010 rebuilds
     /// the plan before copying and refuses to start if this changed.
     pub fingerprint: String,
@@ -476,6 +508,7 @@ pub(crate) fn build(
         },
     };
 
+    let format_warnings = format_warnings(&install.adapter_id, &install.root, &items);
     let plan = DeploymentPlan {
         installation_id: install.id,
         adapter_id: install.adapter_id,
@@ -498,6 +531,7 @@ pub(crate) fn build(
         same_game,
         removed,
         sample,
+        format_warnings,
         fingerprint: format!("{:016x}", fingerprint.finish()),
     };
     Ok((plan, items))
@@ -1158,6 +1192,29 @@ mod tests {
 
         let again = super::plan(&f.catalog, &f.id, None, &connected, &roomy).unwrap();
         assert_eq!(again.fingerprint, plan.fingerprint, "same state, same fingerprint");
+    }
+
+    #[test]
+    fn games_retrobat_wont_show_are_flagged_by_file_type() {
+        let f = fixture(&[("nes/Kid.7z", b"kid"), ("nes/Zelda.nes", b"zelda"), ("nes/Metroid.7z", b"metroid"), ("snes/Mario.sfc", b"mario")]);
+        let none = plan_with(&f.catalog, &f.id, None, None, &Choices::new(), &connected, &roomy).unwrap();
+        assert!(none.format_warnings.is_empty(), "no es_systems.cfg: nothing to check against");
+        write(&f.root, "emulationstation/.emulationstation/es_systems.cfg", b"<?xml version=\"1.0\"?>
+<systemList>
+  <system>
+    <name>nes</name>
+    <extension>.nes .NES .zip .ZIP</extension>
+  </system>
+  <system>
+    <name>snes</name>
+    <extension>.sfc .smc .zip .7z</extension>
+  </system>
+</systemList>
+");
+        let plan = plan_with(&f.catalog, &f.id, None, None, &Choices::new(), &connected, &roomy).unwrap();
+        assert_eq!(plan.format_warnings, vec![FormatWarning { system_folder: "nes".into(), extension: ".7z".into(), games: 2, accepted: ".nes .zip".into() }]);
+        let fingerprint_before = none.fingerprint;
+        assert_eq!(plan.fingerprint, fingerprint_before, "a warning doesn't change what would be copied");
     }
 
     #[test]
