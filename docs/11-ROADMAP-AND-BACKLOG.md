@@ -41,7 +41,7 @@ Navigation, basic read-only mounted volume discovery, folder scan into simple SQ
 - RDS-011 Add user-confirmed deletion/overwrite policy and safety tests.
 - RDS-016 Arcade choice per installation (MAME or FinalBurn Neo). **Done 2026-11-05** (schema v8, adapter contract v2, ADR-022).
 - RDS-017 Conflict and clash choices: for a different existing file, or two library files with the same name (25 pairs in the owner's NES library), let the user pick one version or keep both side by side; replace only with a backup and explicit confirmation (docs/08). Needs a safety review.
-- RDS-018 Format check per target: warn when a target won't show a file type (e.g. OneSauce's NES collection accepts only `.nes`, while many libraries are zipped). Unzipping would be a new kind of change and needs its own design and safety review.
+- RDS-018 **Done for RetroBat 2026-11-09** (Plan warns from es_systems.cfg's `<extension>` lists; other systems' lists aren't readable from Windows). Format check per target: warn when a target won't show a file type (e.g. OneSauce's NES collection accepts only `.nes`, while many libraries are zipped). Unzipping would be a new kind of change and needs its own design and safety review.
 - RDS-019 Faster copies of many small files (each file is synced and read back; thousands of tiny ROMs take longer than their size suggests) without weakening verification.
 
 ### M3: Install and guide
