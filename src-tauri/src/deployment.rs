@@ -482,7 +482,7 @@ pub(crate) fn build(
         adapter_name: adapter.display_name().to_string(),
         adapter_contract: adapters::CONTRACT_VERSION,
         copy_supported: adapter.capabilities().copy_games,
-        systems_prefix: if ((adapter.id() == "retropie" || adapter.id() == "rocknix") && !install.options.has_roms_folder) || adapter.id() == "esde" { String::new() } else { "roms\\".into() },
+        systems_prefix: if ((adapter.id() == "retropie" || adapter.id() == "rocknix") && !install.options.has_roms_folder) || adapter.id() == "esde" || adapter.id() == "lakka" { String::new() } else { "roms\\".into() },
         installation_path: install_root,
         selected_games: items.len() as i64,
         systems: choices.into_values().collect(),

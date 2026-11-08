@@ -3,7 +3,7 @@
 //! (`\\<host>\bios`, RetroPie-Setup `samba.sh`), and ES-DE has no BIOS folder: its
 //! RetroArch reads them from RetroArch's `system` folder. Plans and the copier keep
 //! every file inside the installation folder, so this is a separate step built like
-//! the art step's picture copies: **new files only** (temporary name, checked, renamed
+//! the art step's picture copies (Lakka too: its `System` share, ADR-086): **new files only** (temporary name, checked, renamed
 //! without replacing), a file already there is never replaced (a different one is
 //! listed as kept), and nothing is deleted. Where the installation folder can hold the
 //! BIOS itself (RetroBat, Batocera, Recalbox, a RetroPie USB folder), the `bios` row in
@@ -93,6 +93,7 @@ fn target_for(connection: &Connection, installation_id: &str, presence: Presence
             let ra = esde_retroarch(&install.root).ok_or("ES-DE uses RetroArch's system folder for BIOS files, and RetroArch isn't installed for this ES-DE yet. Put RetroArch in ES-DE's Emulators folder (Emulators\\RetroArch), start it once, then try again.")?;
             retroarch_system_dir(&ra)
         }
+        "lakka" => crate::adapters::lakka::share(&install.root, "System").ok_or("Lakka's System share is reached over the network; add Lakka by its ROMs share.")?,
         _ => return Err("For this system, BIOS files go with the games: tick bios in Plan.".into()),
     };
     if !target.is_dir() {
@@ -265,5 +266,19 @@ mod tests {
         assert!(!target.join(".gitkeep").exists() && !target.join("neogeo.zip").exists());
         let (again, more) = plan_into(&catalog, &target, &connected).unwrap();
         assert_eq!((again.to_copy, again.already_there, more.len()), (0, 1, 0), "nothing left to copy");
+    }
+
+    #[test]
+    fn lakkas_bios_files_go_to_its_system_share() {
+        let dir = tempfile::tempdir().unwrap();
+        for d in ["ROMs", "Playlists", "System", "Configfiles/retroarch"] {
+            fs::create_dir_all(dir.path().join(d)).unwrap();
+        }
+        fs::write(dir.path().join("Configfiles/retroarch/retroarch.cfg"), "").unwrap();
+        let mut catalog = Connection::open_in_memory().unwrap();
+        db::migrate(&mut catalog, None).unwrap();
+        let id = installations::add(&catalog, &dir.path().join("ROMs"), "lakka", &|_: &str| VolumeProbe::unknown()).unwrap();
+        let target = target_for(&catalog, &id, &connected).unwrap();
+        assert_eq!(fs::canonicalize(target).unwrap(), fs::canonicalize(dir.path().join("System")).unwrap());
     }
 }

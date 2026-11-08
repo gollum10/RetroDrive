@@ -158,8 +158,8 @@ struct Target {
 }
 
 #[derive(Debug, Clone, Default)]
-struct Details {
-    title: Option<String>,
+pub(crate) struct Details {
+    pub(crate) title: Option<String>,
     year: Option<i64>,
     genre: Option<String>,
     developer: Option<String>,
@@ -305,10 +305,10 @@ fn image_name(rel: &str, suffix: &str, source: &Path) -> String {
 // ---------- what RetroDrive knows ----------
 
 /// A game's known art on connected drives as (rank, kind, path), and whether it has any art at all.
-type Candidates = (Vec<(i32, String, PathBuf)>, bool);
+pub(crate) type Candidates = (Vec<(i32, String, PathBuf)>, bool);
 
 /// From the catalog only (no file checks): art recorded for a game file on drives that are connected.
-fn media_for(connection: &Connection, file_id: &str, presence: PresenceFn, online: &mut HashMap<String, bool>) -> Result<Candidates, String> {
+pub(crate) fn media_for(connection: &Connection, file_id: &str, presence: PresenceFn, online: &mut HashMap<String, bool>) -> Result<Candidates, String> {
     let mut statement = connection
         .prepare_cached(
             "SELECT gm.kind, gm.source, s.id, s.root_path, s.stable_id, gm.relative_path
@@ -342,7 +342,7 @@ fn media_for(connection: &Connection, file_id: &str, presence: PresenceFn, onlin
     Ok((found, any))
 }
 
-fn details_for(connection: &Connection, file_id: &str) -> Result<Details, String> {
+pub(crate) fn details_for(connection: &Connection, file_id: &str) -> Result<Details, String> {
     let mut statement = connection
         .prepare_cached(
             "SELECT re.title, re.year, re.genre, re.developer, re.publisher

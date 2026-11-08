@@ -14,7 +14,7 @@ export default function BiosStep({ installationId, adapterId, disabled, notify }
   const [working, setWorking] = useState(false); const [progress, setProgress] = useState<Progress|null>(null); const [confirm, setConfirm] = useState(false);
   useEffect(() => { setP(null); setProblem(''); setConfirm(false); }, [installationId]);
   useEffect(() => { const un = listen<Progress>('art-progress', e => { if (working) setProgress(e.payload); }); return () => { void un.then(f => f()); }; }, [working]);
-  const where = adapterId === 'esde' ? "RetroArch's system folder (where ES-DE's RetroArch looks for BIOS files)" : "RetroPie's bios share";
+  const where = adapterId === 'esde' ? "RetroArch's system folder (where ES-DE's RetroArch looks for BIOS files)" : adapterId === 'lakka' ? "Lakka's System share (where its RetroArch looks for BIOS files)" : "RetroPie's bios share";
   const check = async () => { setChecking(true); setProblem(''); setConfirm(false);
     try { setP(await invoke<Preview>('preview_bios_step', { installationId })); } catch (e) { setP(null); setProblem(String(e)); } finally { setChecking(false); } };
   const copy = async () => { if (!confirm) { setConfirm(true); return; } setWorking(true); setProgress(null);
