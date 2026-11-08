@@ -165,11 +165,7 @@ pub(crate) fn folders(dir: &Path) -> Vec<String> {
 
 /// System folders under `roms` with at least one game file.
 pub(crate) fn systems(root: &Path) -> Vec<String> {
-    let skip = |name: &str| name.eq_ignore_ascii_case("_info.txt") || name.eq_ignore_ascii_case("gamelist.xml") || name.eq_ignore_ascii_case("images") || name.starts_with('.');
-    folders(&root.join("roms"))
-        .into_iter()
-        .filter(|s| fs::read_dir(root.join("roms").join(s)).map(|r| r.filter_map(Result::ok).any(|e| !skip(&e.file_name().to_string_lossy()))).unwrap_or(false))
-        .collect()
+    folders(&root.join("roms")).into_iter().filter(|s| !game_names(&root.join("roms").join(s)).is_empty()).collect()
 }
 
 /// The key on an active `key=value` line (not disabled with `#` or `;`).
