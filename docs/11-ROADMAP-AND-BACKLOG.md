@@ -1,5 +1,7 @@
 # 11 | Development Roadmap and Backlog
 
+**Theme Studio resize increment prepared:** bottom-right handle, local-axis rotation-aware resizing and keyboard sizing with undo/redo. Native gesture QA remains pending. Other handles, aspect locking, snapping/guides, groups/lock/hide and assets remain planned.
+
 **Theme Studio canvas alignment prepared:** single-layer edge/center commands now account for rotation and preserve units, with undo/redo. Multi-selection/distribution, snapping/guides, handles, groups/lock/hide and assets remain future work; native QA is pending.
 
 **Theme Studio transform increment prepared:** numeric rotation and opacity controls for text/panels, guarded source-preserving updates and undo/redo tests. Native visual QA, resize handles, grouping/lock/hide and assets remain future work.
