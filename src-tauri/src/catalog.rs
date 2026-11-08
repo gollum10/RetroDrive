@@ -46,6 +46,8 @@ pub struct GameRow {
     pub lightgun: bool,
     /// A vertical arcade game (ADR-069).
     pub vertical: bool,
+    /// In the user's Favorites (ADR-073).
+    pub favorite: bool,
     pub storage_name: String,
     /// `online`: file was present at the last scan and its volume is attached.
     /// `offline`: the volume (drive / share) is not attached, or its drive letter
@@ -57,7 +59,7 @@ pub struct GameRow {
 }
 
 /// Library filters sent by the UI. Every field is optional.
-#[derive(Debug, Deserialize, Default, Clone)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 #[serde(default)]
 pub struct GameQuery {
     /// Matches inside titles and platform names, case-insensitively.
@@ -77,6 +79,11 @@ pub struct GameQuery {
     pub lightgun_only: bool,
     /// Only vertical arcade games (ADR-069).
     pub vertical_only: bool,
+    /// Only games whose catalog genre contains this (ADR-073).
+    pub genre: Option<String>,
+    /// Only games whose catalog year is in this range (ADR-073).
+    pub year_from: Option<i64>,
+    pub year_to: Option<i64>,
     /// `title` (default), `platform` or `size`.
     pub sort: Option<String>,
     pub offset: u32,
@@ -135,7 +142,7 @@ pub struct LibraryStats {
     pub platforms: Vec<PlatformCount>,
 }
 
-type PresenceFn<'a> = &'a dyn Fn(&str, Option<&str>) -> Presence;
+pub type PresenceFn<'a> = &'a dyn Fn(&str, Option<&str>) -> Presence;
 
 /// JSON array of storage-location ids whose volume is not attached right now.
 fn offline_storage_ids(connection: &Connection, presence: PresenceFn) -> Result<String, String> {
@@ -266,6 +273,15 @@ fn filter_sql(query: &GameQuery, offline: &str, guns: &str, vertical: &str) -> R
         conditions.push("g.id IN (SELECT value FROM json_each(?))");
         values.push(Value::Text(vertical.to_string()));
     }
+    if let Some(genre) = query.genre.as_deref().map(str::trim).filter(|g| !g.is_empty()) {
+        conditions.push("g.id IN (SELECT gr.game_id FROM game_reference gr JOIN reference_entries re ON re.id = gr.entry_id WHERE re.genre LIKE ? ESCAPE '\\')");
+        values.push(Value::Text(like_pattern(genre)));
+    }
+    if query.year_from.is_some() || query.year_to.is_some() {
+        conditions.push("g.id IN (SELECT gr.game_id FROM game_reference gr JOIN reference_entries re ON re.id = gr.entry_id WHERE re.year BETWEEN ? AND ?)");
+        values.push(Value::Integer(query.year_from.unwrap_or(0)));
+        values.push(Value::Integer(query.year_to.unwrap_or(9999)));
+    }
     let filtered = conditions.len() > 1 || query.left_out;
     // Left-out files are hidden unless asked for; this alone doesn't make a query "filtered".
     conditions.push(if query.left_out { "gf.excluded_at IS NOT NULL" } else { "gf.excluded_at IS NULL" });
@@ -294,6 +310,7 @@ fn vertical_ids_json(connection: &Connection, query: &GameQuery) -> Result<Strin
 /// Every primary file id matching a library query (up to `cap`), e.g. to add all
 /// shown games to a collection.
 pub fn matching_file_ids(connection: &Connection, query: &GameQuery, presence: PresenceFn, cap: usize) -> Result<Vec<String>, String> {
+    let query = &crate::collections::resolve(connection, query)?;
     let offline = offline_storage_ids(connection, presence)?;
     let (where_clause, values, _) = filter_sql(query, &offline, &gun_ids_json(connection, query)?, &vertical_ids_json(connection, query)?)?;
     let mut statement = connection.prepare(&format!("SELECT gf.id {FROM} {where_clause} LIMIT {cap}")).map_err(|e| e.to_string())?;
@@ -306,6 +323,7 @@ pub fn matching_file_ids(connection: &Connection, query: &GameQuery, presence: P
 /// Two phases: (1) find the ids for the requested page using only indexed columns,
 /// (2) load full details, availability and duplicate counts for just those rows.
 pub fn query_games(connection: &Connection, query: &GameQuery, presence: PresenceFn) -> Result<GamePage, String> {
+    let query = &crate::collections::resolve(connection, query)?;
     let limit = query.limit.unwrap_or(DEFAULT_PAGE_SIZE).clamp(1, MAX_PAGE_SIZE);
     let offline = offline_storage_ids(connection, presence)?;
     let (where_clause, values, filtered) = filter_sql(query, &offline, &gun_ids_json(connection, query)?, &vertical_ids_json(connection, query)?)?;
@@ -405,6 +423,7 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
                 art: r.get(19)?,
                 lightgun: false,
                 vertical: false,
+                favorite: false,
             })
         })
         .map_err(|e| e.to_string())?
@@ -413,12 +432,14 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
         .map_err(|e| e.to_string())?;
     let guns = crate::lightguns::game_ids(connection)?;
     let vertical = crate::vertical::game_ids(connection)?;
+    let favorites = crate::collections::favorite_file_ids(connection)?;
     let rows = ids
         .iter()
         .filter_map(|id| by_id.remove(id))
         .map(|mut r| {
             r.lightgun = guns.contains(&r.game_id);
             r.vertical = vertical.contains(&r.game_id);
+            r.favorite = favorites.contains(&r.file_id);
             r
         })
         .collect();
@@ -535,6 +556,22 @@ pub fn list_storage_locations(connection: &Connection, presence: &dyn Fn(&str, O
         Ok(row)
     })
     .collect()
+}
+
+/// Distinct genres in the reference catalog (for the genre filter), split on `/` and `,`.
+pub fn genres(connection: &Connection) -> Result<Vec<String>, String> {
+    let mut statement = connection.prepare("SELECT DISTINCT genre FROM reference_entries WHERE genre IS NOT NULL AND genre <> ''").map_err(|e| e.to_string())?;
+    let rows = statement.query_map([], |r| r.get::<_, String>(0)).map_err(|e| e.to_string())?;
+    let mut set = std::collections::BTreeSet::new();
+    for row in rows {
+        for part in row.map_err(|e| e.to_string())?.split(['/', ',', ';']) {
+            let g = part.trim();
+            if !g.is_empty() && g.len() <= 40 {
+                set.insert(g.to_string());
+            }
+        }
+    }
+    Ok(set.into_iter().collect())
 }
 
 #[cfg(test)]

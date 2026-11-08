@@ -86,7 +86,8 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 | Duplicate candidates | ✅ | RDS-004. Same platform, same file name (ignoring case) and same non-zero size. Shown with a ×N badge and a "Possible duplicates only" filter. Informational only: nothing is ever deleted. |
 | Hash-verified duplicates | 📋 | Needs background hashing; `sha256` / `crc32` columns are reserved. |
 | Collections | ✅ | Step 7. Your own named game lists: Collections tab, Add to collection on each game, Add all shown (current filters, up to 10,000), rename, remove, delete (asks twice). Lists only: games and files are never touched. |
-| Favorites | 📋 | Later (a built-in collection). |
+| Favorites | ✅ | Star (☆) any game to add it to **Favorites**, a built-in collection listed first; copy it with Plan like any collection. Showing favorites on your systems comes later. |
+| Smart collections | ✅ | Pick filters in the Game Library (platform, **genre**, **years**, light gun, vertical, search) and **Save as smart collection**: it fills itself from your library, now and as you add games, and works in Plan and Sync. |
 | Scan progress and cancellation | ✅ | RDS-002. Cancelling keeps files found so far and skips missing-file detection, so it can't mark files missing (QA-002). |
 | One scan at a time | ✅ | Starting a second scan is refused with a clear message. |
 | Scans survive crashes safely | ✅ | Work is saved in batches (500 files or 1 s). A scan cut off by a crash or forced close is marked **Interrupted** on the next launch; files already saved are kept. |

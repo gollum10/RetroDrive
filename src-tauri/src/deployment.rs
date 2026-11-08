@@ -332,18 +332,13 @@ pub(crate) fn build(
     let install_root = install.root.display().to_string();
     let mut gathered = gather(connection, adapter.as_ref(), &install_root, install.options, presence)?;
     if let Some(collection) = collection.filter(|c| !c.is_empty()) {
-        let mut statement = connection.prepare("SELECT game_file_id FROM collection_games WHERE collection_id = ?1").map_err(|e| e.to_string())?;
-        let members: std::collections::HashSet<String> = statement.query_map([collection], |r| r.get(0)).map_err(|e| e.to_string())?.collect::<Result<_, _>>().map_err(|e| e.to_string())?;
+        let members = crate::collections::member_file_ids(connection, collection, presence)?;
         gathered.items.retain(|item| item.files.first().is_some_and(|f| members.contains(&f.game_file_id)));
     }
     if let Some(scope) = scope {
         let mut members: std::collections::HashSet<String> = std::collections::HashSet::new();
         for c in &scope.collections {
-            let mut statement = connection.prepare("SELECT game_file_id FROM collection_games WHERE collection_id = ?1").map_err(|e| e.to_string())?;
-            let ids = statement.query_map([c], |r| r.get::<_, String>(0)).map_err(|e| e.to_string())?;
-            for id in ids {
-                members.insert(id.map_err(|e| e.to_string())?);
-            }
+            members.extend(crate::collections::member_file_ids(connection, c, presence)?);
         }
         gathered.items.retain(|item| scope.systems.contains(&item.system_folder) || item.files.first().is_some_and(|f| members.contains(&f.game_file_id)));
     }
