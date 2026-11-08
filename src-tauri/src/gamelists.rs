@@ -87,7 +87,7 @@ fn esde_has_media(dir: &Path, stem: &str) -> bool {
 }
 
 /// Where the system folders are: `<root>\roms`, or the root itself (RetroPie's roms share).
-fn games_dir(root: &Path) -> (PathBuf, &'static str) {
+pub(crate) fn games_dir(root: &Path) -> (PathBuf, &'static str) {
     if root.join("roms").is_dir() {
         (root.join("roms"), "roms/")
     } else {

@@ -27,6 +27,8 @@ pub struct Group {
     pub on: bool,
     /// Matching games in the user's library.
     pub in_library: usize,
+    /// Matching games RetroDrive copied to this system (RetroPie, ES-DE).
+    pub copied: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]
@@ -34,6 +36,8 @@ pub struct GroupsState {
     pub groups: Vec<Group>,
     pub file_sha: String,
     pub network: bool,
+    /// Something to tell the user (e.g. an assumed path on a RetroPie).
+    pub note: Option<String>,
 }
 
 fn place(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<(customizer::Install, &'static str, PathBuf), String> {
@@ -51,16 +55,26 @@ fn names(value: Option<&String>) -> Vec<String> {
     value.map(|v| v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()).unwrap_or_default()
 }
 
+/// RetroPie and ES-DE get custom collection files instead (ADR-072).
+fn uses_files(connection: &Connection, installation_id: &str) -> bool {
+    let adapter: String = connection.query_row("SELECT adapter_id FROM installations WHERE id = ?1", [installation_id], |r| r.get(0)).unwrap_or_default();
+    adapter == "retropie" || adapter == "esde"
+}
+
 /// Which groups are on, with how many library games each would show (reads only).
 pub fn state(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<GroupsState, String> {
+    if uses_files(connection, installation_id) {
+        return crate::custom_collections::state(connection, installation_id, presence);
+    }
     let (install, _, path) = place(connection, installation_id, presence)?;
     let text = customizer::read_text(&path)?;
     let on = names(customizer::values(&customizer::entries(&text)?)?.get(KEY));
     let counts = [crate::lightguns::game_ids(connection)?.len(), crate::vertical::game_ids(connection)?.len()];
     Ok(GroupsState {
-        groups: GROUPS.iter().zip(counts).map(|((id, label), n)| Group { id, label, on: on.iter().any(|x| x == id), in_library: n }).collect(),
+        groups: GROUPS.iter().zip(counts).map(|((id, label), n)| Group { id, label, on: on.iter().any(|x| x == id), in_library: n, copied: None }).collect(),
         file_sha: customizer::hex_sha(text.as_bytes()),
         network: install.root_text.starts_with(r"\\"),
+        note: None,
     })
 }
 
@@ -100,6 +114,9 @@ fn change(text: &str, wanted: &BTreeMap<String, bool>) -> Result<Change, String>
 
 /// What turning groups on or off would change (reads only).
 pub fn preview(connection: &Connection, installation_id: &str, wanted: &BTreeMap<String, bool>, presence: PresenceFn) -> Result<Preview, String> {
+    if uses_files(connection, installation_id) {
+        return crate::custom_collections::preview(connection, installation_id, wanted, presence);
+    }
     let (_, _, path) = place(connection, installation_id, presence)?;
     let text = customizer::read_text(&path)?;
     let (edit, rows) = change(&text, wanted)?;
@@ -110,6 +127,9 @@ pub fn preview(connection: &Connection, installation_id: &str, wanted: &BTreeMap
 /// Turn the groups on or off: only if es_settings.cfg is unchanged since the review
 /// and RetroBat isn't running; journaled, backed up and undoable.
 pub fn apply(connection: &Connection, installation_id: &str, wanted: &BTreeMap<String, bool>, expected_sha: &str, presence: PresenceFn, running: RunningFn) -> Result<String, String> {
+    if uses_files(connection, installation_id) {
+        return crate::custom_collections::apply(connection, installation_id, wanted, expected_sha, presence, running);
+    }
     let (install, relative, path) = place(connection, installation_id, presence)?;
     if let Some(reason) = customizer::running_message(running) {
         return Err(format!("{reason} Nothing was changed."));

@@ -524,3 +524,16 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** not tried on a real RetroBat with the groups on, or a real Batocera with rotation.
 
+## 43. Addendum: light gun and vertical collections on RetroPie and ES-DE (2026-11-07)
+**Scope and authorization:** owner ("let's continue" after agreeing the next step: fill RetroPie's and ES-DE's groups from the library). Writes `custom-Light Gun Games.cfg` / `custom-Vertical Games.cfg` and one setting (`CollectionSystemsCustom`).
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| A user's collection changed | Lines are only added (existing lines kept byte for byte); turning a group off removes only its name from the setting, never a file | `es_de_groups_list_the_copied_games_and_keep_existing_lines` |
+| Invalid entries | Only games RetroDrive copied and verified there, still present on the drive | `copied` |
+| Wrong path on the Pi | Read from RetroPie's own files; if assumed, the review warns | `the_pis_rom_folder_is_read_from_its_own_files` |
+| The frontend saves over it | ES-DE: refused while running; RetroPie: restart EmulationStation before changing its settings (message) | same test |
+| Can't take it back | Each file via `customizer::write_file` (journal, backup); a failure undoes the earlier files; Undo in the settings history | same test |
+
+**Residual risk:** not tried on a real RetroPie (Pi path and share) or a real ES-DE install.
+

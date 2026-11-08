@@ -12,6 +12,7 @@ mod controllers;
 mod customizer;
 mod designs;
 mod copier;
+mod custom_collections;
 mod db;
 mod deployment;
 mod drives;

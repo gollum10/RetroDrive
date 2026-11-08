@@ -302,11 +302,10 @@ pub(crate) fn edit_typed(text: &str, wanted: &BTreeMap<String, Option<String>>, 
             }
         }
     }
-    // Add new entries before </config>, indented like the others.
+    // Add new entries before </config>, indented like the others. ES-DE's
+    // es_settings.xml has no <config> wrapper (a flat list), so there they go at the end.
     let additions: Vec<(&String, &String)> = wanted.iter().filter(|(k, _)| !before.contains_key(*k)).filter_map(|(k, v)| v.as_ref().map(|v| (k, v))).collect();
     if !additions.is_empty() {
-        let close = out.rfind("</config>").ok_or("es_settings.cfg has no </config>, so RetroDrive won't edit it.")?;
-        let line_start = out[..close].rfind('\n').map(|p| p + 1).unwrap_or(0);
         let indent = list.first().map(|e| {
             let s = text[..e.start].rfind('\n').map(|p| p + 1).unwrap_or(0);
             text[s..e.start].to_string()
@@ -316,10 +315,22 @@ pub(crate) fn edit_typed(text: &str, wanted: &BTreeMap<String, Option<String>>, 
         for (name, value) in additions {
             block.push_str(&format!("{indent}<{} name=\"{}\" value=\"{}\" />{newline}", tag(name), escape(name), escape(value)));
         }
-        if out[line_start..close].trim().is_empty() {
-            out.insert_str(line_start, &block);
-        } else {
-            out.insert_str(close, &format!("{newline}{block}"));
+        match out.rfind("</config>") {
+            Some(close) => {
+                let line_start = out[..close].rfind('\n').map(|p| p + 1).unwrap_or(0);
+                if out[line_start..close].trim().is_empty() {
+                    out.insert_str(line_start, &block);
+                } else {
+                    out.insert_str(close, &format!("{newline}{block}"));
+                }
+            }
+            None if !out.contains("<config") => {
+                if !out.is_empty() && !out.ends_with('\n') {
+                    out.push_str(newline);
+                }
+                out.push_str(&block);
+            }
+            None => return Err("es_settings.cfg has no </config>, so RetroDrive won't edit it.".into()),
         }
     }
     // Check the result: valid XML, wanted values in place, every other entry unchanged.

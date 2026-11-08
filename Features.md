@@ -49,7 +49,7 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 | Grid or list view | ✅ | Grid shows cover tiles (coloured placeholders until box art); list is the detailed table. Your choice is remembered. |
 | Reference catalog import (names, details, genres) | ✅ | Settings → Reference catalog: import your `.xlsx`/`.csv` and an optional genre file. Games are matched by exact No-Intro/MAME name, MAME clone set, then title per system; cards and the list show catalog titles, year and genre. Art columns are never read. On your library: 47,840 of 116,405 games matched (Arcade 93%). |
 | Catalog import waits for scans and copies | ✅ | Its buttons are greyed out during a scan or copy, and scans wait for an import (instead of a "database is locked" error). |
-| Search and sort by catalog titles | 📋 | Search still uses file titles today. |
+| Search and sort by catalog titles | ✅ | Search and sort use catalog titles (schema v14). |
 | Arcade routing by source folder (`mame`/`fbneo`) | 📋 | Your library already separates them. |
 | Box art from your own images | ✅ | Found automatically during scans (your `gamelist.xml` from Skraper/ScreenScraper, or images named like the game in `media`, `images`, `boxart`, `covers`…), or pick one with **Add art** on a game card. Shown from where it is; never copied or shipped. On your NAS's NES folder: 1,520 of 1,520 images linked. |
 | Scan summary counts images separately | ✅ | "N images found, N games linked to art" instead of "non-game files ignored". |
@@ -151,7 +151,7 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 | Copy to Batocera | ✅ | RDS-022. Copies games to Batocera the same way as RetroBat (checked after writing, never overwrites or deletes): to a Batocera game drive plugged into your PC, or over the network to `\\BATOCERA\share` while Batocera is running. The first network copy leaves a small id on the share so a different Batocera with the same name is never mistaken for it. Network copies are new; not yet tried on a real Batocera. |
 | Batocera Sync | ✅ | The Batocera card has **Sync**, working like RetroBat's: it keeps the platforms you copied up to date. |
 | Batocera settings and theme | ✅ | RDS-024. In **Customize**, change Batocera's settings for all systems or one system (aspect ratio, shader set, decorations, smoothing, integer scaling, rewind, auto save/load, menu music) using Batocera's own choices, and switch its theme (built-in Carbon or themes you added). Reviewed before saving, backed up, undoable. Emulator and core choices aren't offered yet. |
-| Vertical games and game groups | ✅ | The **Game Library** marks **vertical** arcade games (made for a portrait screen; 3,481 known, from Batocera's list) and can show only those, like light gun games. In **Customize**, RetroBat and Batocera can show **Light gun games** and **Vertical arcade games** as their own groups in their menus (their built-in groups, switched on for you; reviewed, undoable). For a vertical screen: Batocera's **Screen rotation** is in its settings; for RetroBat, RetroDrive points you to Windows' Display orientation. Next: the same groups for RetroPie and ES-DE, filled from your library. |
+| Vertical games and game groups | ✅ | The **Game Library** marks **vertical** arcade games (made for a portrait screen; 3,481 known, from Batocera's list) and can show only those, like light gun games. In **Customize**, RetroBat and Batocera can show **Light gun games** and **Vertical arcade games** as their own groups in their menus (their built-in groups, switched on for you; reviewed, undoable). For a vertical screen: Batocera's **Screen rotation** is in its settings; for RetroBat, RetroDrive points you to Windows' Display orientation. **RetroPie and ES-DE:** RetroDrive creates **Light Gun Games** and **Vertical Games** collections and fills them with the matching games it copied there, so you don't pick them by hand; *Add newly copied games* tops them up later. Nothing in a collection is ever removed. |
 | Recalbox settings and theme | ✅ | In **Customize**, change Recalbox's settings for all systems or one system (aspect ratio, shader set, smoothing, rewind, auto save/load), plus integer scaling, frame rate, press twice to quit and the **theme**. Changes are saved in `system
 ecalbox.conf` the way Recalbox's own menu saves them, after you review them, and can be undone. |
 | Install a system (helper) | ✅ | RDS-027. **Install a system** on Emulation Systems walks you through putting Batocera or RetroPie on a card or USB stick: open the official download page, choose the file you downloaded (RetroDrive checks it and tells you what it's for), optionally check its checksum, then RetroDrive opens Raspberry Pi Imager or balenaEtcher to write it. RetroDrive never writes to the card and never downloads or ships images. |
@@ -163,21 +163,21 @@ ecalbox.conf` the way Recalbox's own menu saves them, after you review them, and
 | Existing files checked by content | ✅ | "Already there" files are compared byte for byte before being skipped; if they differ, the existing file is kept and reported. |
 | Cancel and crash recovery | ✅ | Cancel discards only the file in progress. After a crash or unplugged drive, RetroDrive removes its own unfinished temporary files the next time that same drive is connected. Partly copied multi-disc games keep their verified discs; copying again finishes them. |
 | Copy record (manifest) | ✅ | Every copy is recorded in the catalog and as `.retrodrive\deployments\<id>.json` in the RetroBat folder. Verified checksums are saved to the catalog. |
-| Conflict choices (replace with backup, side-by-side rename) | 📋 | Today conflicts are always kept (docs/08). |
+| Conflict choices (replace with backup, side-by-side rename) | ✅ | RDS-017: choose to keep, replace (original backed up) or copy both (docs/18 §7). |
 | Guided installs and imaging | ⛔ | RDS-012 to RDS-014, gated. |
 
 ## Later modules
 
 | Feature | Status | Requirement |
 |---|---|---|
-| Artwork and metadata scraping with attribution | 📋 | FR-06 |
+| Artwork and metadata scraping with attribution | ⛔ | FR-06, dropped 2026-11-06: RetroDrive is free and won't fetch online art or metadata (ADR-033). |
 | BIOS checker (user-supplied files only) | 📋 | FR-07 |
 | Controller profiles | 📋 | FR-08 |
 | Backup and restore of configs and saves | 📋 | FR-09 |
 | Maintenance checks and repair plans | 📋 | FR-10 |
 | Arcade Builder | 📋 | FR-11 |
 | Optional AI troubleshooting (opt-in, redacted) | 📋 | FR-12 |
-| More platforms (Recalbox, Lakka, ES-DE, …) | 📋 | FR-13 |
+| More platforms (Knulli/ROCKNIX, Lakka, …) | 📋 | FR-13. ES-DE and Recalbox are done. |
 
 ## Legal and compliance (docs/16)
 
