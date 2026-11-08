@@ -1,5 +1,7 @@
 # RetroDrive — Features
 
+**Theme Studio alignment:** selected leaf text/panel layers can align left/right/top/bottom or center on either canvas axis, using rotated rectangular bounds and existing undo/save services. Native visual checks remain pending; export stays disabled.
+
 **Theme Studio transforms:** text/panel inspectors now author rotation and numeric opacity with undo/redo. Unknown opacity expressions remain read-only. Native visual verification remains pending; export stays disabled.
 
 **Theme Studio layer ordering:** selected text/panel layers can move backward/forward or to the back/front in flat supported scenes, with undo/redo and existing draft/checkpoint persistence. Nested/unknown scenes remain read-only for ordering. Native visual QA is pending; export remains disabled.

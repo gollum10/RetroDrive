@@ -1,5 +1,7 @@
 # 15 | Quality Assurance, Threat Scenarios and Test Matrix
 
+**Alignment checks:** test:theme-workspace covers all six actions, rotated corner bounds, mixed units, precision, untouched fields/scenes, nested/unknown guards, unrepresentable positions, no-ops, undo/redo and real control callback guards. Contract checks, production build and diff check pass. Native visual/focus checks remain manual; no Rust rerun for frontend-only changes.
+
 **Transform checks:** test:theme-workspace covers value limits/nonfinite rejection, default/no-op opacity, opaque-expression preservation, inspector callbacks/disabled guards, undo/redo and actual SVG rotation/opacity attributes. test:theme-contract, production build and diff checks pass. Native visual checks remain manual; Rust suite was not rerun for these frontend-only changes.
 
 **Layer-order checks:** test:theme-workspace covers one-step/endpoint/boundary moves, nested/unknown guards, source preservation, actual SVG paint order, control callbacks/busy guards, undo/redo and draft/checkpoint writes. test:theme-contract and production build pass. Native overlap/focus checks remain manual; no Rust rerun for this frontend-only increment.
