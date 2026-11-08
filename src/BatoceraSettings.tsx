@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Eye, Palette } from 'lucide-react';
+import GamePicker, { gameScope } from './GamePicker';
 
 type Choice = { label: string; value: string };
 type Setting = { key: string; label: string; help: string; per_system: boolean; scope: string; choices: Choice[] };
@@ -15,16 +16,17 @@ const themeName = (t: string) => t === BUILTIN ? 'Carbon (built in)' : t;
 
 export default function BatoceraSettings({ installationId, disabled, notify, onSaved }: { installationId: string; disabled: boolean; notify: (text: string, error?: boolean) => void; onSaved: () => void }) {
   const [o, setO] = useState<Options|null>(null); const [problem, setProblem] = useState('');
-  const [scope, setScope] = useState('global'); const [pending, setPending] = useState<Record<string, string|null>>({});
+  const [scope, setScope] = useState('global'); const [game, setGame] = useState(''); const [pending, setPending] = useState<Record<string, string|null>>({});
   const [review, setReview] = useState<Preview|null>(null); const [theme, setTheme] = useState(''); const [themeReview, setThemeReview] = useState<Preview|null>(null);
   const [working, setWorking] = useState(false);
   const load = async () => { try { const x = await invoke<Options>('batocera_options', { installationId }); setO(x); setTheme(x.theme ?? BUILTIN); setProblem(''); } catch (e) { setO(null); setProblem(String(e)); } };
-  useEffect(() => { setPending({}); setReview(null); setThemeReview(null); setScope('global'); void load(); }, [installationId]);
+  useEffect(() => { setPending({}); setReview(null); setThemeReview(null); setScope('global'); setGame(''); void load(); }, [installationId]);
 
   if (problem) return <div className="backups"><h3>Batocera settings</h3><p className="warn-text">{problem}</p></div>;
   if (!o) return <div className="backups"><h3>Batocera settings</h3><p className="plan-notes">Reading Batocera's settings…</p></div>;
 
-  const full = (s: Setting) => s.per_system ? `${scope}.${s.key}` : `${s.scope}.${s.key}`;
+  const sc = gameScope(scope, game);
+  const full = (s: Setting) => s.per_system ? `${sc}.${s.key}` : `${s.scope}.${s.key}`;
   const shown = o.settings.filter(s => s.per_system || scope === 'global');
   const value = (s: Setting) => { const k = full(s); return k in pending ? (pending[k] ?? '') : (o.values[k] ?? ''); };
   const set = (s: Setting, v: string) => { const k = full(s); const now = o.values[k] ?? ''; setReview(null);
@@ -39,20 +41,25 @@ export default function BatoceraSettings({ installationId, disabled, notify, onS
   const saveTheme = async () => { if (!themeReview) return; setWorking(true);
     try { notify(await invoke<string>('apply_batocera_theme', { installationId, theme, fileSha: themeReview.file_sha })); setThemeReview(null); await load(); onSaved(); }
     catch (e) { notify(`Could not switch the theme: ${String(e)}`, true); } finally { setWorking(false); } };
-  const label = (s: Setting, v: string|null) => v === null || v === '' ? (scope === 'global' || !s.per_system ? 'Auto' : 'Same as all systems') : (s.choices.find(c => c.value === v)?.label ?? v);
+  const name = (s: Setting, v: string) => s.choices.find(c => c.value === v)?.label ?? v;
+  // No line: Auto for all systems; a system follows all systems; a game follows its system.
+  const unset = (s: Setting, system: string) => system === 'all systems' || !s.per_system ? 'Auto' : system.includes(': ') ? `Same as ${system.split(': ')[0]}` : 'Same as all systems';
+  const label = (s: Setting, v: string|null, system: string) => v === null || v === '' ? unset(s, system) : name(s, v);
+  const inherited = (s: Setting) => game ? (o.values[`${scope}.${s.key}`] ?? o.values[`global.${s.key}`]) : o.values[`global.${s.key}`];
   const byKey = (k: string) => o.settings.find(s => s.key === k);
 
   return <>
     <div className="backups"><h3>Batocera settings</h3>
-      <p className="plan-notes">Saved in Batocera's <span className="mono">system\batocera.conf</span>, the same file its menus use; Batocera uses them the next time a game starts. Choose <b>Auto</b> to let Batocera decide. Emulator and core choices aren't offered yet (Batocera keeps that list where Windows can't read it).</p>
-      <div className="actions"><label>Settings for <select className="choice" value={scope} onChange={e => { setScope(e.target.value); setReview(null); }}>
-        <option value="global">All systems</option>{o.systems.map(s => <option key={s} value={s}>{s}{Object.keys(pending).some(k => k.startsWith(`${s}.`)) ? ' •' : ''}</option>)}</select></label></div>
+      <p className="plan-notes">Saved in Batocera's <span className="mono">system\batocera.conf</span>, the same file its menus use; Batocera uses them the next time a game starts. Choose <b>Auto</b> to let Batocera decide. Pick a system and then a <b>Game</b> to set things for just that game. Emulator and core choices aren't offered yet (Batocera keeps that list where Windows can't read it).</p>
+      <div className="actions"><label>Settings for <select className="choice" value={scope} onChange={e => { setScope(e.target.value); setGame(''); setReview(null); }}>
+        <option value="global">All systems</option>{o.systems.map(s => <option key={s} value={s}>{s}{Object.keys(pending).some(k => k.startsWith(`${s}.`) || k.startsWith(`${s}["`)) ? ' •' : ''}</option>)}</select></label>
+        <GamePicker installationId={installationId} system={scope} command="batocera_games" value={game} disabled={disabled || working} onChange={g => { setGame(g); setReview(null); }} changed={g => Object.keys({ ...o.values, ...pending }).some(k => k.startsWith(`${gameScope(scope, g)}.`))}/></div>
       <div className="option-grid">{shown.map(s => <label key={s.key} title={s.help}><span>{s.label}<small>{s.help}</small></span>
         <select className="choice" value={value(s)} disabled={disabled || working} onChange={e => set(s, e.target.value)}>
-          <option value="">{scope === 'global' || !s.per_system ? 'Auto (Batocera decides)' : `Same as all systems${o.values[`global.${s.key}`] ? ` (${label(s, o.values[`global.${s.key}`])})` : ''}`}</option>
+          <option value="">{scope === 'global' || !s.per_system ? 'Auto (Batocera decides)' : `${unset(s, game ? `${scope}: ${game}` : scope)}${inherited(s) ? ` (${name(s, inherited(s))})` : ''}`}</option>
           {s.choices.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>)}</div>
       {count > 0 && !review && <div className="actions"><button className="primary" disabled={disabled || working} onClick={() => void doReview()}><Eye size={15}/> Review {count} change{count === 1 ? '' : 's'}</button><button className="ghost" onClick={() => setPending({})}>Discard</button></div>}
-      {review && <div className="confirm"><p><b>Save these to batocera.conf?</b></p><ul>{review.changes.map(r => { const s = byKey(r.key); return <li key={r.system + r.key}>{r.system}: {s?.label ?? r.key}: {s ? label(s, r.before) : r.before ?? 'Auto'} → <b>{s ? label(s, r.after) : r.after ?? 'Auto'}</b></li>; })}
+      {review && <div className="confirm"><p><b>Save these to batocera.conf?</b></p><ul>{review.changes.map(r => { const s = byKey(r.key); return <li key={r.system + r.key}>{r.system}: {s?.label ?? r.key}: {s ? label(s, r.before, r.system) : r.before ?? 'Auto'} → <b>{s ? label(s, r.after, r.system) : r.after ?? 'Auto'}</b></li>; })}
         {review.changes.some(r => r.key === 'rotate') && <li className="warn-text">Screen rotation turns the whole picture after Batocera restarts. If it ends up sideways, set it back here (or use Undo) and restart Batocera.</li>}
         <li className="plan-notes">Only these lines change; the file is backed up first and Undo puts it back.</li></ul>
         <div className="actions"><button className="primary" disabled={working} onClick={() => void save()}>{working ? 'Saving…' : 'Save'}</button><button className="ghost" disabled={working} onClick={() => setReview(null)}>Not now</button></div></div>}

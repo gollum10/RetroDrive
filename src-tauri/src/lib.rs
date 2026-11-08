@@ -858,6 +858,20 @@ async fn apply_recalbox_settings(catalog: State<'_, Catalog>, active: State<'_, 
     result?
 }
 
+/// The games in a ROCKNIX system folder, for settings of one game (reads only).
+#[tauri::command]
+async fn rocknix_games(catalog: State<'_, Catalog>, installation_id: String, system: String) -> Result<Vec<String>, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || rocknix_settings::games(&db::open(&db_path)?, &installation_id, &system, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// The games in a Batocera system folder, for settings of one game (reads only).
+#[tauri::command]
+async fn batocera_games(catalog: State<'_, Catalog>, installation_id: String, system: String) -> Result<Vec<String>, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || batocera_settings::games(&db::open(&db_path)?, &installation_id, &system, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
 /// ROCKNIX settings offered, with current values (reads only; network installs).
 #[tauri::command]
 async fn rocknix_options(catalog: State<'_, Catalog>, installation_id: String) -> Result<rocknix_settings::RocknixOptions, String> {
@@ -1465,6 +1479,8 @@ pub fn run() {
             preview_recalbox_settings,
             apply_recalbox_settings,
             rocknix_options,
+            rocknix_games,
+            batocera_games,
             preview_rocknix_settings,
             apply_rocknix_settings,
             retropie_options,

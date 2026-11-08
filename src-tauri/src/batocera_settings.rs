@@ -179,7 +179,47 @@ fn active_key(line: &str) -> Option<&str> {
         return None;
     }
     let (key, _) = line.split_once('=')?;
-    (!key.is_empty() && !key.contains(char::is_whitespace)).then_some(key)
+    // A game's key (`snes["Super Mario World (USA).zip"].ratio`) may have spaces in the name.
+    let plain = !key.is_empty() && !key.contains(char::is_whitespace);
+    (plain || split_key(key).is_some_and(|(_, game, _)| game.is_some())).then_some(key)
+}
+
+/// The scope (`global` or a system), the game (for `system["file"].key`, ADR-083) and
+/// the setting name of a full key, as EmulationStation writes them.
+pub(crate) fn split_key(full: &str) -> Option<(&str, Option<&str>, &str)> {
+    let word = |w: &str| !w.is_empty() && !w.contains(char::is_whitespace) && !w.contains(['.', '[', ']', '"', '=']);
+    if let Some((system, rest)) = full.split_once("[\"") {
+        let (game, key) = rest.split_once("\"].")?;
+        return (word(system) && !game.is_empty() && !game.contains(['"', '=', '#']) && word(key)).then_some((system, Some(game), key));
+    }
+    let (scope, key) = full.split_once('.')?;
+    (word(scope) && !key.is_empty()).then_some((scope, None, key))
+}
+
+/// How EmulationStation names a game in its settings: the file name without `=` and `#`
+/// (`FileData::getConfigurationName`).
+pub(crate) fn game_name(file: &str) -> String {
+    file.replace(['=', '#'], "")
+}
+
+/// The games in a system folder (files and disc folders), by their settings name.
+pub(crate) fn game_names(folder: &Path) -> Vec<String> {
+    const NOT_GAMES: &[&str] = &["gamelist.xml", "_info.txt", "images", "videos", "manuals", "media", "downloaded_images", "systeminfo.txt"];
+    let mut list: Vec<String> = fs::read_dir(folder)
+        .map(|r| r.filter_map(Result::ok).map(|e| e.file_name().to_string_lossy().to_string()).filter(|n| !n.starts_with('.') && !NOT_GAMES.iter().any(|x| n.eq_ignore_ascii_case(x))).map(|n| game_name(&n)).collect())
+        .unwrap_or_default();
+    list.sort_by_key(|s| s.to_lowercase());
+    list.dedup();
+    list
+}
+
+/// Who a review row is about: all systems, a system, or one game of a system.
+pub(crate) fn scope_label(scope: &str, game: Option<&str>) -> String {
+    match game {
+        Some(g) => format!("{scope}: {g}"),
+        None if scope == "global" => "all systems".into(),
+        None => scope.into(),
+    }
 }
 
 /// Active values in a batocera.conf text.
@@ -273,6 +313,15 @@ const NO_CONF: &str = "system\\batocera.conf is missing. Start Batocera once wit
 const NO_ES: &str = "Batocera's interface settings (system\\configs\\emulationstation\\es_settings.cfg) are missing. Start Batocera once so it creates them.";
 
 /// What can be set, with the current values (reads only).
+/// The games in one of Batocera's system folders, for settings of one game (ADR-083).
+pub fn games(connection: &Connection, installation_id: &str, system: &str, presence: PresenceFn) -> Result<Vec<String>, String> {
+    let install = install(connection, installation_id, presence)?;
+    if !systems(&install.root).iter().any(|s| s == system) {
+        return Err(format!("{system} isn't a system with games on this Batocera."));
+    }
+    Ok(game_names(&install.root.join("roms").join(system)))
+}
+
 pub fn options(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<BatoceraOptions, String> {
     let install = install(connection, installation_id, presence)?;
     let text = read(&install.root, CONF, NO_CONF)?;
@@ -301,11 +350,16 @@ fn validate(root: &Path, changes: &[ConfChange]) -> Result<BTreeMap<String, Opti
     let systems = systems(root);
     let mut wanted = BTreeMap::new();
     for c in changes {
-        let (scope, key) = c.key.split_once('.').ok_or_else(|| format!("Unknown setting {}.", c.key))?;
+        let (scope, game, key) = split_key(&c.key).ok_or_else(|| format!("Unknown setting {}.", c.key))?;
         let setting = offered.iter().find(|s| s.key == key).ok_or_else(|| format!("RetroDrive doesn't change {key} on Batocera."))?;
-        let scope_ok = if setting.per_system { scope == "global" || systems.iter().any(|s| s == scope) } else { scope == setting.scope };
+        let scope_ok = if setting.per_system { (scope == "global" && game.is_none()) || systems.iter().any(|s| s == scope) } else { scope == setting.scope && game.is_none() };
         if !scope_ok {
             return Err(format!("{} can't be set for {scope}.", setting.label));
+        }
+        if let Some(g) = game {
+            if !game_names(&root.join("roms").join(scope)).iter().any(|n| n == g) {
+                return Err(format!("{g} isn't in Batocera's {scope} folder."));
+            }
         }
         if let Some(v) = &c.value {
             if !setting.choices.iter().any(|ch| &ch.value == v) {
@@ -321,8 +375,8 @@ fn rows(wanted: &BTreeMap<String, Option<String>>, current: &BTreeMap<String, St
     wanted
         .iter()
         .map(|(key, value)| {
-            let (scope, name) = key.split_once('.').unwrap_or(("global", key));
-            ChangeRow { system: if scope == "global" { "all systems".into() } else { scope.into() }, key: name.into(), before: current.get(key).cloned(), after: value.clone() }
+            let (scope, game, name) = split_key(key).unwrap_or(("global", None, key));
+            ChangeRow { system: scope_label(scope, game), key: name.into(), before: current.get(key).cloned(), after: value.clone() }
         })
         .collect()
 }
@@ -467,5 +521,40 @@ mod tests {
         assert_eq!(fs::read_to_string(share.join("system/configs/emulationstation/es_settings.cfg")).unwrap(), es);
         // Not for RetroBat installations.
         assert!(customizer::install(&catalog, &id, &connected).is_err());
+    }
+
+    #[test]
+    fn one_game_gets_its_own_settings_like_emulationstation_names_them() {
+        assert_eq!(split_key("snes[\"Super Mario World (USA).zip\"].ratio"), Some(("snes", Some("Super Mario World (USA).zip"), "ratio")));
+        assert_eq!(split_key("global.ratio"), Some(("global", None, "ratio")));
+        assert_eq!(split_key("snes[\"a\"b\"].ratio"), None, "a quote can't be in the name");
+        assert_eq!(split_key("sn es[\"a\"].ratio"), None);
+        assert_eq!(game_name("Doom #1 (a=b).zip"), "Doom 1 (ab).zip", "EmulationStation drops = and #");
+        let text = "snes[\"Super Mario World (USA).zip\"].ratio=4/3\n#snes[\"Zelda (USA).zip\"].smooth=1\n";
+        assert_eq!(conf_values(text).get("snes[\"Super Mario World (USA).zip\"].ratio").map(String::as_str), Some("4/3"), "a game's key with spaces is read");
+
+        let dir = tempfile::tempdir().unwrap();
+        let share = dir.path().join("share");
+        for d in ["roms/snes/images", "system"] {
+            fs::create_dir_all(share.join(d)).unwrap();
+        }
+        for g in ["Super Mario World (USA).zip", "Zelda (USA).zip", "gamelist.xml"] {
+            fs::write(share.join("roms/snes").join(g), b"m").unwrap();
+        }
+        fs::write(share.join("system/batocera.conf"), text).unwrap();
+        let mut catalog = Connection::open_in_memory().unwrap();
+        db::migrate(&mut catalog, None).unwrap();
+        let id = installations::add(&catalog, &share, "batocera", &|_: &str| VolumeProbe::unknown()).unwrap();
+        assert_eq!(games(&catalog, &id, "snes", &connected).unwrap(), ["Super Mario World (USA).zip", "Zelda (USA).zip"], "games only, not gamelist.xml or images");
+        assert!(games(&catalog, &id, "nes", &connected).is_err());
+
+        let change = |k: &str, v: Option<&str>| ConfChange { key: k.into(), value: v.map(str::to_string) };
+        assert!(preview(&catalog, &id, &[change("snes[\"Not Here.zip\"].ratio", Some("4/3"))], &connected).unwrap_err().contains("isn't in"));
+        assert!(preview(&catalog, &id, &[change("global[\"Zelda (USA).zip\"].ratio", Some("4/3"))], &connected).is_err());
+        let changes = [change("snes[\"Zelda (USA).zip\"].smooth", Some("0")), change("snes[\"Super Mario World (USA).zip\"].ratio", None)];
+        let p = preview(&catalog, &id, &changes, &connected).unwrap();
+        assert!(p.changes.iter().any(|r| r.system == "snes: Zelda (USA).zip" && r.key == "smooth"), "{:?}", p.changes);
+        apply(&catalog, &id, &changes, &p.file_sha, &connected).unwrap();
+        assert_eq!(fs::read_to_string(share.join("system/batocera.conf")).unwrap(), "snes[\"Zelda (USA).zip\"].smooth=0\n", "the disabled line is reactivated; Auto removes the game's line");
     }
 }
