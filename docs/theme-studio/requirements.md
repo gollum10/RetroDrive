@@ -1,5 +1,7 @@
 # Theme Studio delivery tracking
 
+**VIS-002 partial follow-up:** back/front and one-step layer ordering now operate on flat text/panel scenes through existing undo/draft/checkpoint services. Unsupported/nested scenes are guarded. Grouping, locking and hiding remain unimplemented; native interaction QA is outstanding.
+
 First canvas increment advances PROJ-003 and VIS-001–004 with top-level text/panel creation/selection, movement, numeric sizing/properties and bounded undo/redo. This is partial visual authoring: snapping/guides, handles, grouping/z-order/lock/hide, images, advanced variants and full property/binding resolution remain later work. [Scope and QA limits](canvas.md).
 
 PR 4 update: DEPLOY-001/PREV-003 foundation now includes exact theme-adapter contracts, read-only local profile discovery and source-preserving capability diagnostics. Production export/deploy are always disabled; real engine-version/native fixtures remain outstanding. [Matrix and provenance](target-matrix.md). Four PRs prepared is not completion of every P0 or the native acceptance gates.

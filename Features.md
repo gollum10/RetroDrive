@@ -1,5 +1,7 @@
 # RetroDrive — Features
 
+**Theme Studio layer ordering:** selected text/panel layers can move backward/forward or to the back/front in flat supported scenes, with undo/redo and existing draft/checkpoint persistence. Nested/unknown scenes remain read-only for ordering. Native visual QA is pending; export remains disabled.
+
 **Theme Studio first canvas increment:** add/select top-level text and panels, pointer/keyboard movement, numeric sizing/unit conversion, basic text/color/font properties and bounded session undo/redo. Editor preview remains approximate; nested/unknown content stays read-only/preserved. No native export, asset import or installation. [Behavior and manual checks](docs/theme-studio/canvas.md).
 
 **Theme Studio project UX cleanup:** scoped dark controls replace native white inputs/buttons; Save As has a separate named confirmation form, disables original-property editing while open and announces copy creation. Suggested names use numbered copy suffixes, including legacy copy-copy names; identities/storage behavior are unchanged. Owner confirmed creation, checkpoint/draft recovery/discard, native close after restart, Save As creation and copy independence during disposable-catalog QA. Native visual recheck of this styling update remains pending.
