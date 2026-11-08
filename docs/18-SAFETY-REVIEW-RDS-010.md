@@ -556,3 +556,5 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 ## 48. Addendum: game art and details on ROCKNIX (2026-11-08)
 **Scope and authorization:** owner ("keep working the list"). ROCKNIX joins the existing art and details step (§24 and later): new image files only, game lists edited by adding missing fields, checked, journaled and undoable. Nothing in that step changed except the list of systems. Evidence: `rocknix_game_lists_get_the_same_art_and_details`.
+## 49. Addendum: game details from game lists (2026-11-08)
+**Scope and authorization:** owner ("keep working the list"). Scans read three more fields from gamelist.xml files they already read (no new files touched; only RetroDrive's catalog is written). The art step adds `<desc>`, `<players>` and `<rating>` only where an entry lacks them, through the same checked, journaled, undoable edit (§24 and later). Evidence: `library_descriptions_players_and_ratings_go_along`.

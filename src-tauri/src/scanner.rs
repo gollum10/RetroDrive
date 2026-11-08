@@ -393,6 +393,9 @@ pub fn scan_with(
     Ok(summary)
 }
 
+/// Description, players and rating read from a gamelist entry (ADR-079).
+type GameDetails = (Option<String>, Option<String>, Option<f64>);
+
 /// Link games reached by this scan to images: entries in `gamelist.xml` first, then
 /// common folder conventions next to the ROM. Only image files seen by this walk are
 /// used, so links always point inside the scanned folder. The user's own picks are
@@ -407,6 +410,8 @@ fn link_media(
     summary: &mut ScanSummary,
 ) -> Result<usize, String> {
     let mut chosen: HashMap<&str, Vec<(&'static str, &'static str, String)>> = HashMap::new();
+    // Description, players, rating per file (ADR-079).
+    let mut details: HashMap<&str, GameDetails> = HashMap::new();
     for (file, folder) in gamelists {
         let entries = match media::parse_gamelist(file) {
             Ok(entries) => entries,
@@ -420,6 +425,11 @@ fn link_media(
             let Some(record) = recorded.get(&rom.to_lowercase()) else { continue };
             if !record.walked || members.contains(&record.file_id) {
                 continue;
+            }
+            let clip = |s: &Option<String>, max: usize| s.as_ref().map(|v| v.chars().take(max).collect::<String>()).filter(|v| !v.trim().is_empty());
+            let rating = entry.rating.as_deref().and_then(media::rating_0_to_1);
+            if entry.description.is_some() || entry.players.is_some() || rating.is_some() {
+                details.insert(record.file_id.as_str(), (clip(&entry.description, 4000), clip(&entry.players, 16), rating));
             }
             for (kind, image) in &entry.images {
                 let found = media::resolve_relative(folder, image).and_then(|r| images.get(&r.to_lowercase()));
@@ -462,6 +472,18 @@ fn link_media(
         for (kind, source, relative) in found {
             insert.execute(params![file_id, kind, source, storage_id, relative]).map_err(|e| e.to_string())?;
         }
+    }
+    // Details are refreshed for every game this scan reached.
+    let mut clear_details = connection.prepare_cached("DELETE FROM game_details WHERE game_file_id = ?1").map_err(|e| e.to_string())?;
+    for record in recorded.values().filter(|r| r.walked && !members.contains(&r.file_id)) {
+        clear_details.execute([&record.file_id]).map_err(|e| e.to_string())?;
+    }
+    let mut insert_details = connection
+        .prepare_cached("INSERT INTO game_details (game_file_id, description, players, players_max, rating) VALUES (?1, ?2, ?3, ?4, ?5)")
+        .map_err(|e| e.to_string())?;
+    for (file_id, (description, players, rating)) in &details {
+        let max = players.as_deref().and_then(media::players_max);
+        insert_details.execute(params![file_id, description, players, max, rating]).map_err(|e| e.to_string())?;
     }
     Ok(chosen.len())
 }

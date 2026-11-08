@@ -99,7 +99,7 @@ pub(crate) fn games_dir(root: &Path) -> (PathBuf, &'static str) {
 use crate::customizer::{self, ChangeRow, PresenceFn, RunningFn};
 use crate::volumes::Presence;
 use crate::{db, paths};
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::{self, OpenOptions};
@@ -166,6 +166,10 @@ struct Details {
     publisher: Option<String>,
     /// Starred in RetroDrive (Favorites, ADR-074).
     favorite: bool,
+    /// From the library's own gamelist (ADR-079).
+    description: Option<String>,
+    players: Option<String>,
+    rating: Option<f64>,
 }
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
@@ -349,7 +353,7 @@ fn details_for(connection: &Connection, file_id: &str) -> Result<Details, String
     let mut rows = statement.query([file_id]).map_err(|e| e.to_string())?;
     let Some(r) = rows.next().map_err(|e| e.to_string())? else { return Ok(Details::default()) };
     let clean = |v: Option<String>| v.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
-    Ok(Details { title: clean(r.get(0).ok()), year: r.get(1).ok().flatten(), genre: clean(r.get(2).ok()), developer: clean(r.get(3).ok()), publisher: clean(r.get(4).ok()), favorite: false })
+    Ok(Details { title: clean(r.get(0).ok()), year: r.get(1).ok().flatten(), genre: clean(r.get(2).ok()), developer: clean(r.get(3).ok()), publisher: clean(r.get(4).ok()), favorite: false, description: None, players: None, rating: None })
 }
 
 /// A game found in the catalog, before its files are checked.
@@ -395,6 +399,15 @@ fn targets(connection: &Connection, install: &customizer::Install, deployment: O
         let (media, any_media) = media_for(connection, &file_id, presence, &mut online)?;
         let mut details = details_for(connection, &file_id)?;
         details.favorite = favorites.contains(&file_id);
+        let extra: Option<(Option<String>, Option<String>, Option<f64>)> = connection
+            .query_row("SELECT description, players, rating FROM game_details WHERE game_file_id = ?1", [&file_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .optional()
+            .map_err(|e| e.to_string())?;
+        if let Some((description, players, rating)) = extra {
+            details.description = description;
+            details.players = players;
+            details.rating = rating;
+        }
         seen.insert(format!("{system}/{}", rel.to_lowercase()), Pending { system: system.to_string(), rel: rel.to_string(), destination: PathBuf::from(&destination), media, any_media, details });
     }
     // 2. The files (slow on a network share): checked in parallel.
@@ -528,6 +541,13 @@ fn plan_system(games: &Path, layout: &Layout, system: &str, targets: &[&Target],
                 }
             }
         };
+        add_text("desc", &d.description, &mut lines);
+        add_text("players", &d.players, &mut lines);
+        if let Some(r) = d.rating.filter(|r| (0.0..=1.0).contains(r)) {
+            if !entry.is_some_and(|e| has(e, "rating")) {
+                lines.push(format!("<rating>{}</rating>", format!("{r:.2}").trim_end_matches('0').trim_end_matches('.')));
+            }
+        }
         add_text("genre", &d.genre, &mut lines);
         add_text("developer", &d.developer, &mut lines);
         add_text("publisher", &d.publisher, &mut lines);
@@ -935,6 +955,23 @@ mod tests {
         assert!(after.contains("<favorite>false</favorite>") && after.matches("<favorite>true</favorite>").count() == 1);
         // Nothing left to do the second time.
         assert!(preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap().systems.iter().all(|x| x.favorites == 0));
+    }
+
+    #[test]
+    fn library_descriptions_players_and_ratings_go_along() {
+        let s = setup();
+        let kid: String = s.catalog.query_row("SELECT game_file_id FROM deployment_items WHERE destination_path LIKE '%Kid.zip' LIMIT 1", [], |r| r.get(0)).unwrap();
+        let other: String = s.catalog.query_row("SELECT game_file_id FROM deployment_items WHERE destination_path LIKE '%Scraped.zip' LIMIT 1", [], |r| r.get(0)).unwrap();
+        s.catalog.execute("INSERT INTO game_details (game_file_id, description, players, players_max, rating) VALUES (?1, 'A <winged> hero.', '1', 1, 0.75)", [&kid]).unwrap();
+        s.catalog.execute("INSERT INTO game_details (game_file_id, description, players, players_max, rating) VALUES (?1, 'Ours.', '2', 2, 0.5)", [&other]).unwrap();
+        // The system's list already has Scraped's description: kept.
+        fs::write(games_dir(&s.root).0.join("nes/gamelist.xml"), LIST.replace("<name>Scraped Game</name>", "<name>Scraped Game</name>\r\n\t\t<desc>Theirs.</desc>")).unwrap();
+        let p = preview(&s.catalog, &s.install, None, false, &connected, &quiet).unwrap();
+        apply(&s.catalog, &s.install, None, Some(&p.list_shas), false, &connected, &closed, &quiet).unwrap();
+        let after = list(&s);
+        assert!(after.contains("<desc>A &lt;winged&gt; hero.</desc>") && after.contains("<players>1</players>") && after.contains("<rating>0.75</rating>"), "{after}");
+        assert!(after.contains("<desc>Theirs.</desc>") && !after.contains("Ours."), "the system's own description is kept");
+        assert!(after.contains("<players>2</players>"), "but missing fields are still added");
     }
 
     #[test]
