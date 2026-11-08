@@ -254,7 +254,25 @@ async fn clean_up_duplicates(catalog: State<'_, Catalog>, active: State<'_, Acti
 
 #[tauri::command]
 fn list_collections(catalog: State<'_, Catalog>) -> Result<Vec<collections::Collection>, String> {
-    collections::list(&db::open(&catalog.path()?)?)
+    collections::list(&db::open(&catalog.path()?)?, &volumes::presence)
+}
+
+/// Star or unstar a game (Favorites, ADR-073).
+#[tauri::command]
+fn set_favorite(catalog: State<'_, Catalog>, file_id: String, favorite: bool) -> Result<(), String> {
+    collections::set_favorite(&db::open(&catalog.path()?)?, &file_id, favorite)
+}
+
+/// Save library filters as a smart collection (ADR-073).
+#[tauri::command]
+fn create_smart_collection(catalog: State<'_, Catalog>, name: String, query: catalog::GameQuery) -> Result<String, String> {
+    collections::create_smart(&db::open(&catalog.path()?)?, &name, &query)
+}
+
+/// Genres in the user's reference catalog, for the library's genre filter.
+#[tauri::command]
+fn library_genres(catalog: State<'_, Catalog>) -> Result<Vec<String>, String> {
+    catalog::genres(&db::open(&catalog.path()?)?)
 }
 
 #[tauri::command]
@@ -1382,6 +1400,9 @@ pub fn run() {
             undo_replace,
             open_backup_folder,
             list_collections,
+            set_favorite,
+            create_smart_collection,
+            library_genres,
             create_collection,
             rename_collection,
             delete_collection,

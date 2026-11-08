@@ -199,6 +199,14 @@ button.small{padding:4px 10px;font-size:12.5px}
 .setup-list{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
 .setup-list li{font-size:13px}
 .setup-ready b{color:#7ee2a8}.setup-add b{color:#8fd3ff}.setup-manual b{color:#ffd27a}.setup-unavailable b{color:#8a9bb0}
+.fav-star{position:absolute;z-index:3;top:6px;left:6px;display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;border:1px solid #2b4466;background:rgba(7,18,38,.8);color:#9fb3c8;cursor:pointer;opacity:0;transition:opacity .15s}
+.cover:hover .fav-star,.fav-star.on,.fav-star:focus-visible{opacity:1}
+.fav-star.on{color:#ffd27a;border-color:#6b5420}
+.year-range{display:inline-flex;align-items:center;gap:4px;color:#b5c7dc;font-size:13px}
+.year-range input{width:56px;background:#0b1830;color:#e6eefb;border:1px solid #2b4466;border-radius:6px;padding:5px 6px;font:inherit}
+.smart-save{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
+.smart-save input{min-width:200px;background:#0b1830;color:#e6eefb;border:1px solid #2b4466;border-radius:8px;padding:6px 8px;font:inherit}
+.collection-open .system-name{display:inline-flex;align-items:center;gap:6px}
 .cover-badges{position:absolute;z-index:2;bottom:8px;right:6px;display:flex;flex-direction:column;align-items:flex-end;gap:3px}
 .cover-gun{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;padding:2px 6px;border-radius:999px;background:rgba(7,18,38,.85);color:#ffd27a;border:1px solid #6b5420}
 .light-guns h3{display:flex;align-items:center;gap:6px}

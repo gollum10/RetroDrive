@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 23;
+pub const SCHEMA_VERSION: i32 = 24;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -199,6 +199,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 23 {
         tx.execute_batch(SCHEMA_V23).map_err(|e| e.to_string())?;
+    }
+    if from_version < 24 {
+        tx.execute_batch(SCHEMA_V24).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -993,6 +996,14 @@ CREATE TABLE gun_choices (
     gun_id      TEXT NOT NULL,
     decided_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+";
+
+/// v24 (ADR-073): Favorites and smart collections. `kind` is `list` (the user's own
+/// list), `favorites` (the built-in one, id `favorites`) or `smart` (filled from
+/// `rule_json`, a saved library filter).
+const SCHEMA_V24: &str = "
+ALTER TABLE collections ADD COLUMN kind TEXT NOT NULL DEFAULT 'list';
+ALTER TABLE collections ADD COLUMN rule_json TEXT;
 ";
 
 #[cfg(test)]

@@ -66,7 +66,10 @@ Some playlists (the owner's X68000 sets) list disks as `/Game/disk.dim`, meaning
 - `catalog::system_summary`: games (multi-disc games count once) and total size per platform for the Systems page. It runs only when that page is shown, because summing sizes walks every game; `library_stats` (run on every refresh) stays a plain count.
 - Grid and list views use the same paged query (`query_games`, 100 per page).
 
-## Collections (step 7, implemented 2026-11-05, `src-tauri/src/collections.rs`)
+## Collections
+
+**Favorites and smart collections (2026-11-07, ADR-073):** a ☆ on each game adds it to the built-in **Favorites** collection; **Save as smart collection…** keeps the current filters (platform, genre, years, light gun, vertical, search) as a collection that fills itself. Both can be copied with Plan and kept up to date by Sync like any collection.
+ (step 7, implemented 2026-11-05, `src-tauri/src/collections.rs`)
 - A collection is the user's own named list of games (e.g. "Couch co-op"). It is a **catalog list only**: creating, renaming, emptying or deleting one never touches games or files.
 - **Add** one game from its card, or **Add all shown to a collection…** (every game matching the current search and filters, up to 10,000 at a time). A new collection can be created from the same window. Adding a game twice keeps one entry.
 - **Collections tab** in the Game Library: a card per collection with its game count and size (left-out games aren't counted); Open shows its games with the usual search, filters and views, where each card offers **Remove from collection**.
