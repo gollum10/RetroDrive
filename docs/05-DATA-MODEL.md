@@ -1,5 +1,7 @@
 # 05 | Hybrid Library Data Model
 
+**Resize:** existing layout.width/height fields retain px/% units and opaque dimension fields. Changed sizes have a one-logical-pixel gesture minimum and the existing 1,000,000 source-unit maximum; positive rounding floor is 0.000001. Unchanged axes retain original precision. No SQLite/source migration.
+
 **Alignment:** only existing layout.x or layout.y changes. Original px/% units and extension fields remain intact; geometry rounds to six source-unit decimals. Positions outside the existing +/-1,000,000 source-unit limit are refused instead of clamped. No source/catalog migration.
 
 **Transform authoring:** existing layout.rotation and style.opacity fields are now editable for supported leaf layers. Rotation accepts finite degrees within +/-36,000; opacity accepts 0..1 and defaults to 1 when absent. Unknown/out-of-range opacity source is read-only. No source or SQLite migration.

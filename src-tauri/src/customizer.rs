@@ -529,8 +529,10 @@ fn folders(paths: &[PathBuf]) -> Vec<String> {
     names.into_iter().collect()
 }
 
+/// Whether `roms\<system>` holds any games (not just `_info.txt`, a game list or an
+/// `images` folder; found on a real RetroBat 2026-11-09).
 fn has_games(root: &Path, system: &str) -> bool {
-    fs::read_dir(root.join("roms").join(system)).map(|read| read.filter_map(Result::ok).any(|e| !e.file_name().to_string_lossy().eq_ignore_ascii_case("_info.txt"))).unwrap_or(false)
+    !crate::batocera_settings::game_names(&root.join("roms").join(system)).is_empty()
 }
 
 pub(crate) struct Install {
@@ -1592,6 +1594,11 @@ mod tests {
         assert_eq!(snes.emulators[0], EmulatorOption { emulator: "libretro".into(), cores: vec!["snes9x".into(), "bsnes".into()] });
         assert_eq!(snes.emulators[1].emulator, "snes9x");
         assert_eq!(snes.current.get("shaderset").map(String::as_str), Some("scanlines"));
+        assert!(!o.systems.iter().find(|x| x.system == "nes").unwrap().has_games);
+        // A system folder with only an images folder and a game list has no games (seen on a real RetroBat).
+        fs::create_dir_all(s.root.join("roms/nes/images")).unwrap();
+        fs::write(s.root.join("roms/nes/gamelist.xml"), "<gameList/>").unwrap();
+        let o = options(&s.catalog, &s.install, &connected, &closed).unwrap();
         assert!(!o.systems.iter().find(|x| x.system == "nes").unwrap().has_games);
         assert_eq!(o.shaders.iter().map(|c| c.value.as_str()).collect::<Vec<_>>(), ["none", "crt-royale", "scanlines"]);
         assert_eq!(o.bezels.iter().map(|c| c.value.as_str()).collect::<Vec<_>>(), ["none", "arcade_1980s", "my_bezels"]);

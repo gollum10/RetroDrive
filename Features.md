@@ -1,5 +1,7 @@
 # RetroDrive — Features
 
+**Theme Studio resize:** selected leaf text/panel layers now have a bottom-right resize handle and handle-focused arrow/Shift-arrow sizing. Rotated local-axis math and existing undo/save services are reused. Native pointer/keyboard QA remains pending; export stays disabled.
+
 **Theme Studio alignment:** selected leaf text/panel layers can align left/right/top/bottom or center on either canvas axis, using rotated rectangular bounds and existing undo/save services. Native visual checks remain pending; export stays disabled.
 
 **Theme Studio transforms:** text/panel inspectors now author rotation and numeric opacity with undo/redo. Unknown opacity expressions remain read-only. Native visual verification remains pending; export stays disabled.

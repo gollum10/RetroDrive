@@ -107,6 +107,11 @@ impl PlatformAdapter for Rocknix {
             return detection(Confidence::NotDetected, Vec::new(), None);
         }
         let folder = games_folder(root);
+        // ES-DE writes systeminfo.txt into its system folders (and portable ES-DE's
+        // ROMs_ALL has one for every system, ROCKNIX's names among them): not ROCKNIX.
+        if super::esde::has_esde_markers(&folder) {
+            return detection(Confidence::NotDetected, Vec::new(), None);
+        }
         let systems = SYSTEMS.iter().filter(|s| has_entry(&folder, s, true)).count();
         let marks = rocknix_marks(&folder);
         let mut evidence = Vec::new();
@@ -196,6 +201,15 @@ mod tests {
         let pie = tempfile::tempdir().unwrap();
         make(pie.path(), &["nes", "snes", "megadrive", "ports", "coleco", "fba"]);
         assert_eq!(Rocknix.detect(pie.path()).confidence, Confidence::NotDetected);
+        // Portable ES-DE's ROMs_ALL (an empty folder with systeminfo.txt for every system,
+        // sfc and tg16 included) isn't ROCKNIX (found on the owner's G:\ES-DE).
+        let all = tempfile::tempdir().unwrap();
+        make(all.path(), ROMS);
+        make(all.path(), &["tg16"]);
+        for system in ["nes", "snes", "sfc", "tg16"] {
+            fs::write(all.path().join(system).join("systeminfo.txt"), "x").unwrap();
+        }
+        assert_eq!(Rocknix.detect(all.path()).confidence, Confidence::NotDetected);
         assert!(Rocknix.capabilities().copy_games, "copies since the owner's go-ahead (docs/18 §47)");
         assert!(Rocknix.validate_layout(roms.path()).iter().all(|c| c.status != CheckStatus::Problem));
     }
