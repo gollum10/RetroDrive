@@ -235,3 +235,9 @@ button.small{padding:4px 10px;font-size:12.5px}
 .list-mark{display:inline-flex;margin-left:6px;color:#ffd27a;vertical-align:middle}
 .list-detail{display:block;color:#9fb3c8;font-size:12px;margin-top:2px}
 .list-path{display:block}
+
+/* BIOS checker (ADR-088). */
+.bios-list{list-style:none;padding-left:0;margin:6px 0}
+.bios-list>li{margin:4px 0}
+.bios-list ul{margin:4px 0 8px 22px;color:#9fb3c8;font-size:13px}
+.ok-text{color:#7ee2a8}
