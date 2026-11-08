@@ -19,12 +19,14 @@ const themeName = (t: string) => t === BUILTIN ? 'Recalbox Next (built in)' : t;
 
 export default function RecalboxSettings({ installationId, disabled, notify, onSaved }: { installationId: string; disabled: boolean; notify: (text: string, error?: boolean) => void; onSaved: () => void }) {
   const [o, setO] = useState<Options|null>(null); const [problem, setProblem] = useState('');
-  const [scope, setScope] = useState('global'); const [game, setGame] = useState(''); const [gameOpts, setGameOpts] = useState<GameOptions|null>(null); const [pending, setPending] = useState<Record<string, string|null>>({});
+  const [scope, setScope] = useState('global'); const [game, setGame] = useState(''); const [gameOpts, setGameOpts] = useState<GameOptions|null>(null); const [own, setOwn] = useState<string[]>([]); const [pending, setPending] = useState<Record<string, string|null>>({});
   const [review, setReview] = useState<Preview|null>(null); const [working, setWorking] = useState(false);
   const load = async () => { try { setO(await invoke<Options>('recalbox_options', { installationId })); setProblem(''); } catch (e) { setO(null); setProblem(String(e)); } };
   useEffect(() => { setPending({}); setReview(null); setScope('global'); setGame(''); setGameOpts(null); void load(); }, [installationId]);
   // One game (ADR-085): its own settings come from <game>.recalbox.conf next to it.
   const loadGame = async (sys: string, g: string) => { setGameOpts(null); if (!g) return; try { setGameOpts(await invoke<GameOptions>('recalbox_game_options', { installationId, system: sys, game: g })); } catch (e) { notify(String(e), true); } };
+  const loadOwn = async (sys: string) => { setOwn([]); if (sys === 'global') return; try { setOwn(await invoke<string[]>('recalbox_games_with_settings', { installationId, system: sys })); } catch { /* the dots are a hint only */ } };
+  useEffect(() => { void loadOwn(scope); }, [installationId, scope]);
   const pickGame = (g: string) => { setGame(g); setPending({}); setReview(null); void loadGame(scope, g); };
 
   if (problem) return <div className="backups"><h3>Recalbox settings</h3><p className="warn-text">{problem}</p></div>;
@@ -41,7 +43,7 @@ export default function RecalboxSettings({ installationId, disabled, notify, onS
   const changes = () => Object.entries(pending).map(([key, value]) => ({ key, value }));
   const doReview = async () => { try { setReview(await invoke<Preview>(game ? 'preview_recalbox_game' : 'preview_recalbox_settings', game ? { installationId, system: scope, game, changes: changes() } : { installationId, changes: changes() })); } catch (e) { notify(`Could not check the changes: ${String(e)}`, true); } };
   const save = async () => { if (!review) return; setWorking(true);
-    try { notify(await invoke<string>(game ? 'apply_recalbox_game' : 'apply_recalbox_settings', game ? { installationId, system: scope, game, changes: changes(), fileSha: review.file_sha } : { installationId, changes: changes(), fileSha: review.file_sha })); setPending({}); setReview(null); if (game) await loadGame(scope, game); else await load(); onSaved(); }
+    try { notify(await invoke<string>(game ? 'apply_recalbox_game' : 'apply_recalbox_settings', game ? { installationId, system: scope, game, changes: changes(), fileSha: review.file_sha } : { installationId, changes: changes(), fileSha: review.file_sha })); setPending({}); setReview(null); if (game) { await loadGame(scope, game); await loadOwn(scope); } else await load(); onSaved(); }
     catch (e) { notify(`Could not save: ${String(e)}`, true); } finally { setWorking(false); } };
   const byKey = (k: string) => o.settings.find(s => s.key === k);
   const label = (s: Setting|undefined, v: string|null, system: string) => {
@@ -55,7 +57,7 @@ export default function RecalboxSettings({ installationId, disabled, notify, onS
       <p className="plan-notes">Saved in Recalbox's <span className="mono">system\recalbox.conf</span>, the same file its menus use; Recalbox uses them the next time a game starts. A system set to <b>Same as all systems</b> follows the all-systems setting; pick a system and then a <b>Game</b> to set things for just that game.</p>
       <div className="actions"><label>Settings for <select className="choice" value={scope} onChange={e => { setScope(e.target.value); setGame(''); setGameOpts(null); setPending(p => game ? {} : p); setReview(null); }}>
         <option value="global">All systems</option>{o.systems.map(s => <option key={s} value={s}>{s}{Object.keys(pending).some(k => k.startsWith(`${s}.`)) ? ' •' : ''}</option>)}</select></label>
-        <GamePicker installationId={installationId} system={scope} command="recalbox_games" value={game} disabled={disabled || working} onChange={pickGame} changed={() => false}/></div>
+        <GamePicker installationId={installationId} system={scope} command="recalbox_games" value={game} disabled={disabled || working} onChange={pickGame} changed={g => own.includes(g)}/></div>
       {game && <p className="plan-notes">{gameOpts?.exists ? <>This game's own settings are in <span className="mono">{game}.recalbox.conf</span> next to it.</> : <>The first change creates <span className="mono">{game}.recalbox.conf</span> next to the game; Undo moves it into RetroDrive's backup folder.</>}</p>}
       {(!game || gameOpts) && <div className="option-grid">{shown.map(s => <label key={s.key} title={s.help}><span>{s.label}<small>{s.help}</small></span>
         <select className="choice" value={value(s)} disabled={disabled || working} onChange={e => set(s, e.target.value)}>
