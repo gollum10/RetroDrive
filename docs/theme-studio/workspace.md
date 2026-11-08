@@ -1,5 +1,7 @@
 # Theme Studio workspace (Sprint 1 PR 3)
 
+The subsequent [first canvas increment](canvas.md) replaces the static overview with restricted text/panel authoring and session undo/redo. References below to unimplemented canvas manipulation describe the original Sprint 1 workspace; advanced authoring, native export and other gates remain outstanding.
+
 Manual QA follow-up: the owner confirmed native close after the fix/restart, creation of an additional Save As project, duplication, and independence when editing the copy. These reports supplement the earlier checkpoint/recovery/discard checks; they do not validate every native failure or crash path.
 
 The copy UX now uses a separate Save a separate copy form with source/new-name explanation and explicit Create copy action. Original metadata and checkpoint controls are disabled while it is open, so the inspector cannot accidentally rename the original. Cancel returns focus to Save As; successful copying is announced. Suggested names use numbered (copy) suffixes and normalize legacy copy-copy names, respecting 120 Unicode code points. The browser avoids suggestions already on the loaded page only; distinct IDs remain authoritative and equal names remain allowed. No existing project is automatically renamed. The browser labels projects without exposing raw schema details except when a compatible app version is required.

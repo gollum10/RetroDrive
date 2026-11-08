@@ -1,5 +1,7 @@
 # 11 | Development Roadmap and Backlog
 
+**First Theme Studio canvas PR prepared:** text/panel creation, selection/movement, basic inspector and bounded undo/redo. Follow-ups retain resize handles, snapping/guides, grouping/z-order/locking, secure assets, richer properties and bindings. Native interaction QA is pending; native engine evidence still gates actual export. [Scope](theme-studio/canvas.md).
+
 **Theme Studio follow-up:** copy-flow clarification, numbered names and dark controls prepared as a small UI PR after manual QA; backend/source/target behavior unchanged. Owner's persistence/recovery/close/copy checks succeeded. Next functional increment is scene/layer canvas editing with bounded edit operations and undo/redo; native frontend verification still gates actual export.
 
 **Theme Studio PR 4 prepared:** exact capability/adapter boundary, synthetic target fixtures, read-only discovery and compatibility status. The four foundation PRs do not complete all P0 requirements. Real engine fixtures/native verification and manual workspace interaction checks remain gates before native support. Canvas/asset/compiler/media/sharing/deployment increments remain planned.

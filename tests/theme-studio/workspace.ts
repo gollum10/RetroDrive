@@ -10,3 +10,5 @@ export function record(): ProjectRecord {
 export { ProjectSession, newDocument, suggestCopyName };
 export { guardedWindowClose } from '../../src/theme-studio/window-close';
 export type { Writer };
+export { EditHistory } from '../../src/theme-studio/history';
+export { addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor } from '../../src/theme-studio/scene-edit';

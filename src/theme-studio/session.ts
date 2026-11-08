@@ -1,5 +1,6 @@
 import type { ThemeProject } from './types';
 import type { ProjectRecord } from './api';
+import { EditHistory } from './history';
 
 export type Writer = (id: string, revision: number, json: string, kind: 'autosave' | 'checkpoint') => Promise<ProjectRecord>;
 
@@ -12,6 +13,7 @@ export class ProjectSession {
   private changes = 0;
   private pending = 0;
   error: unknown = null;
+  readonly history = new EditHistory();
   constructor(public record: ProjectRecord, public document: ThemeProject, private writer: Writer) {}
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   snapshot = () => this.changes;
@@ -19,7 +21,13 @@ export class ProjectSession {
   get busy() { return this.pending > 0; }
   get conflict() { return !!this.error && typeof this.error === 'object' && 'code' in this.error && this.error.code === 'conflict'; }
   private emit() { this.changes++; this.listeners.forEach(listener => listener()); }
-  edit(document: ThemeProject) { this.document = document; this.generation++; this.emit(); }
+  edit(document: ThemeProject, label = 'Edit project', group?: string) {
+    if (!this.history.record(this.document, document, label, group)) return;
+    this.document = document; this.generation++; this.emit();
+  }
+  endEditGroup() { this.history.endGroup(); }
+  undo() { const document = this.history.undo(this.document); if (document) { this.document = document; this.generation++; this.emit(); } }
+  redo() { const document = this.history.redo(this.document); if (document) { this.document = document; this.generation++; this.emit(); } }
   private enqueue(kind: 'autosave' | 'checkpoint'): Promise<void> {
     const generation = this.generation;
     const json = JSON.stringify(this.document);

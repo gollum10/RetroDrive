@@ -1,0 +1,378 @@
+{
+  "format": "retrodrive.theme",
+  "schemaVersion": "1.0.0",
+  "id": "new-theme",
+  "metadata": {
+    "name": "Original theme",
+    "author": "Creator",
+    "description": "",
+    "version": "1.0.0",
+    "license": "original",
+    "tags": []
+  },
+  "targets": [],
+  "scenes": [
+    {
+      "id": "startup",
+      "role": "startup",
+      "name": "Startup",
+      "resolution": {
+        "width": 1080,
+        "height": 1920
+      },
+      "nodes": [
+        {
+          "id": "startup-title",
+          "type": "text",
+          "name": "Startup",
+          "layout": {
+            "x": {
+              "value": 5,
+              "unit": "%"
+            },
+            "y": {
+              "value": 5,
+              "unit": "%"
+            },
+            "width": {
+              "value": 90,
+              "unit": "%"
+            },
+            "height": {
+              "value": 10,
+              "unit": "%"
+            },
+            "rotation": 0
+          },
+          "style": {},
+          "children": [],
+          "assets": [],
+          "bindings": {}
+        },
+        {
+          "id": "text-1",
+          "type": "text",
+          "name": "Text",
+          "layout": {
+            "x": {
+              "value": 50,
+              "unit": "%"
+            },
+            "y": {
+              "value": 50,
+              "unit": "%"
+            },
+            "width": {
+              "value": 30,
+              "unit": "%"
+            },
+            "height": {
+              "value": 10,
+              "unit": "%"
+            },
+            "rotation": 0
+          },
+          "style": {
+            "text": "Your text",
+            "color": "ffffff",
+            "fontSize": {
+              "value": 36,
+              "unit": "px"
+            }
+          },
+          "children": [],
+          "assets": [],
+          "bindings": {}
+        }
+      ]
+    },
+    {
+      "id": "main_menu",
+      "role": "main_menu",
+      "name": "Main Menu",
+      "resolution": {
+        "width": 1080,
+        "height": 1920
+      },
+      "nodes": [
+        {
+          "id": "main_menu-title",
+          "type": "text",
+          "name": "Main Menu",
+          "layout": {
+            "x": {
+              "value": 5,
+              "unit": "%"
+            },
+            "y": {
+              "value": 5,
+              "unit": "%"
+            },
+            "width": {
+              "value": 90,
+              "unit": "%"
+            },
+            "height": {
+              "value": 10,
+              "unit": "%"
+            },
+            "rotation": 0
+          },
+          "style": {},
+          "children": [],
+          "assets": [],
+          "bindings": {}
+        }
+      ]
+    },
+    {
+      "id": "system_select",
+      "role": "system_select",
+      "name": "System Select",
+      "resolution": {
+        "width": 1080,
+        "height": 1920
+      },
+      "nodes": [
+        {
+          "id": "system_select-title",
+          "type": "text",
+          "name": "System Select",
+          "layout": {
+            "x": {
+              "value": 5,
+              "unit": "%"
+            },
+            "y": {
+              "value": 5,
+              "unit": "%"
+            },
+            "width": {
+              "value": 90,
+              "unit": "%"
+            },
+            "height": {
+              "value": 10,
+              "unit": "%"
+            },
+            "rotation": 0
+          },
+          "style": {},
+          "children": [],
+          "assets": [],
+          "bindings": {}
+        }
+      ]
+    },
+    {
+      "id": "game_list",
+      "role": "game_list",
+      "name": "Game List",
+      "resolution": {
+        "width": 1080,
+        "height": 1920
+      },
+      "nodes": [
+        {
+          "id": "game_list-title",
+          "type": "text",
+          "name": "Game List",
+          "layout": {
+            "x": {
+              "value": 5,
+              "unit": "%"
+            },
+            "y": {
+              "value": 5,
+              "unit": "%"
+            },
+            "width": {
+              "value": 90,
+              "unit": "%"
+            },
+            "height": {
+              "value": 10,
+              "unit": "%"
+            },
+            "rotation": 0
+          },
+          "style": {},
+          "children": [],
+          "assets": [],
+          "bindings": {
+            "text": {
+              "source": "game.title",
+              "kind": "text"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "game_detail",
+      "role": "game_detail",
+      "name": "Game Detail",
+      "resolution": {
+        "width": 1080,
+        "height": 1920
+      },
+      "nodes": [
+        {
+          "id": "game_detail-title",
+          "type": "text",
+          "name": "Game Detail",
+          "layout": {
+            "x": {
+              "value": 5,
+              "unit": "%"
+            },
+            "y": {
+              "value": 5,
+              "unit": "%"
+            },
+            "width": {
+              "value": 90,
+              "unit": "%"
+            },
+            "height": {
+              "value": 10,
+              "unit": "%"
+            },
+            "rotation": 0
+          },
+          "style": {},
+          "children": [],
+          "assets": [],
+          "bindings": {}
+        }
+      ]
+    },
+    {
+      "id": "launch",
+      "role": "launch",
+      "name": "Launch",
+      "resolution": {
+        "width": 1080,
+        "height": 1920
+      },
+      "nodes": [
+        {
+          "id": "launch-title",
+          "type": "text",
+          "name": "Launch",
+          "layout": {
+            "x": {
+              "value": 5,
+              "unit": "%"
+            },
+            "y": {
+              "value": 5,
+              "unit": "%"
+            },
+            "width": {
+              "value": 90,
+              "unit": "%"
+            },
+            "height": {
+              "value": 10,
+              "unit": "%"
+            },
+            "rotation": 0
+          },
+          "style": {},
+          "children": [],
+          "assets": [],
+          "bindings": {}
+        }
+      ]
+    },
+    {
+      "id": "idle",
+      "role": "idle",
+      "name": "Idle",
+      "resolution": {
+        "width": 1080,
+        "height": 1920
+      },
+      "nodes": [
+        {
+          "id": "idle-title",
+          "type": "text",
+          "name": "Idle",
+          "layout": {
+            "x": {
+              "value": 5,
+              "unit": "%"
+            },
+            "y": {
+              "value": 5,
+              "unit": "%"
+            },
+            "width": {
+              "value": 90,
+              "unit": "%"
+            },
+            "height": {
+              "value": 10,
+              "unit": "%"
+            },
+            "rotation": 0
+          },
+          "style": {},
+          "children": [],
+          "assets": [],
+          "bindings": {}
+        }
+      ]
+    },
+    {
+      "id": "exit",
+      "role": "exit",
+      "name": "Exit",
+      "resolution": {
+        "width": 1080,
+        "height": 1920
+      },
+      "nodes": [
+        {
+          "id": "exit-title",
+          "type": "text",
+          "name": "Exit",
+          "layout": {
+            "x": {
+              "value": 5,
+              "unit": "%"
+            },
+            "y": {
+              "value": 5,
+              "unit": "%"
+            },
+            "width": {
+              "value": 90,
+              "unit": "%"
+            },
+            "height": {
+              "value": 10,
+              "unit": "%"
+            },
+            "rotation": 0
+          },
+          "style": {},
+          "children": [],
+          "assets": [],
+          "bindings": {}
+        }
+      ]
+    }
+  ],
+  "assets": [],
+  "tokens": {},
+  "variants": {},
+  "futureAnimation": {
+    "tracks": [
+      {
+        "opaque": true
+      }
+    ]
+  }
+}

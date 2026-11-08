@@ -1,5 +1,7 @@
 # 17 | Third-Party Component Manifest (LEGAL-001)
 
+**Canvas increment:** no new dependencies, fonts, game art or other media. Canvas uses React/native SVG and the system sans-serif font; generated JSON fixtures are original structural test data. No external resources are loaded by preview.
+
 **Theme Studio PR 4:** no new dependencies or copied frontend themes/assets. Target-profile fixtures are original synthetic test data; historically observed application-release strings are not a bundled frontend or verified theme support.
 
 **Theme Studio PR 3:** no new dependencies/assets; workspace/lifecycle tests reuse TypeScript, Node assertions and React DOM server rendering. No copied theme, game art or media is included.

@@ -1,5 +1,7 @@
 # 04 | Technical Architecture
 
+**Canvas authoring:** scene-edit.ts provides immutable unit-aware graph operations; SceneCanvas renders an allowlisted SVG subset with local pointer previews; NodeInspector edits recognized properties only. ProjectSession owns bounded EditHistory and sends undo/redo through the same serialized persistence queue. No compiler, schema migration, media execution or new dependency. [Details](theme-studio/canvas.md).
+
 **Theme Studio close protection fix:** async close handler waits for persistence and cancels only unsuccessful/duplicate requests. The installed Tauri SDK then invokes window.destroy; main capability explicitly permits it. No recursive window.close invocation or new filesystem/installation authority. Logic is isolated in theme-studio/window-close.ts and tested against the real SDK wrapper using stubbed IPC.
 
 **Theme Studio PR 4:** separate pure ThemeAdapter capability contract and empty production registry; TargetProfile distinguishes detected app release from an exact engine/fork/platform/format tuple. Read-only background discovery/report IPC accepts saved installation IDs or project intent only. [Matrix](theme-studio/target-matrix.md). No game adapter or deployment behavior changes.
