@@ -11,6 +11,7 @@ pub mod esde;
 pub mod recalbox;
 pub mod retrobat;
 pub mod retropie;
+pub mod rocknix;
 
 use serde::Serialize;
 use std::path::Path;
@@ -186,7 +187,7 @@ pub fn catalog() -> Vec<AdapterInfo> {
 
 /// Every adapter this build ships.
 pub fn registry() -> Vec<Box<dyn PlatformAdapter>> {
-    vec![Box::new(retrobat::RetroBat), Box::new(batocera::Batocera), Box::new(retropie::RetroPie), Box::new(esde::EsDe), Box::new(recalbox::Recalbox)]
+    vec![Box::new(retrobat::RetroBat), Box::new(batocera::Batocera), Box::new(retropie::RetroPie), Box::new(esde::EsDe), Box::new(recalbox::Recalbox), Box::new(rocknix::Rocknix)]
 }
 
 pub fn find(id: &str) -> Option<Box<dyn PlatformAdapter>> {

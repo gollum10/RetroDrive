@@ -117,7 +117,7 @@ impl PlatformAdapter for RetroPie {
         }
         let folder = games_folder(root);
         // ES-DE creates folders for every system (including RetroPie-style names) and marks them.
-        if super::esde::has_esde_markers(&folder) {
+        if super::esde::has_esde_markers(&folder) || super::rocknix::has_rocknix_markers(&folder) {
             return detection(Confidence::NotDetected, Vec::new(), None);
         }
         let (count, distinctive) = system_folders(&folder);

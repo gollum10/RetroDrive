@@ -50,6 +50,16 @@ fn is_network_path(path: &str) -> bool {
     path.starts_with(r"\\") || path.starts_with("//")
 }
 
+/// A Knulli share (ADR-076): reached as \\KNULLI\share, or its batocera.conf names the
+/// system KNULLI.
+pub(crate) fn is_knulli(root: &Path) -> bool {
+    let text = root.display().to_string().to_lowercase();
+    if text.starts_with(r"\\knulli\") || text.starts_with("//knulli/") {
+        return true;
+    }
+    std::fs::read_to_string(root.join("system").join("batocera.conf")).map(|c| c.lines().any(|l| l.trim().eq_ignore_ascii_case("system.hostname=KNULLI"))).unwrap_or(false)
+}
+
 impl PlatformAdapter for Batocera {
     fn id(&self) -> &'static str {
         ID
@@ -92,6 +102,11 @@ impl PlatformAdapter for Batocera {
             evidence.push(format!("Batocera folders found: {}", others.join(", ")));
         }
         if roms && conf {
+            // Knulli (a Batocera-based system for handhelds) keeps Batocera's files and
+            // folder names; its default batocera.conf sets system.hostname=KNULLI.
+            if is_knulli(root) {
+                evidence.push("Knulli (based on Batocera): RetroDrive treats it as Batocera".to_string());
+            }
             return detection(Confidence::Detected, evidence, None);
         }
         if roms && others.len() >= 2 {
@@ -285,5 +300,18 @@ mod tests {
         let mut cps = request("CPS2", "zip", &["ddtod.zip"]);
         cps.options.arcade = Some(ArcadeSystem::Fbneo);
         assert_eq!(Batocera.plan_placement(&cps), Placement::Planned { system_folder: "fbneo".into(), destinations: vec!["roms/fbneo/ddtod.zip".into()] });
+    }
+
+    #[test]
+    fn knulli_is_recognized_as_batocera_and_named() {
+        let share = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(share.path().join("roms/snes")).unwrap();
+        std::fs::create_dir_all(share.path().join("system")).unwrap();
+        std::fs::write(share.path().join("system/batocera.conf"), "## Set system hostname, accessible via network share.\nsystem.hostname=KNULLI\n").unwrap();
+        let d = Batocera.detect(share.path());
+        assert_eq!(d.confidence, Confidence::Detected);
+        assert!(d.evidence.iter().any(|e| e.contains("Knulli")), "{:?}", d.evidence);
+        std::fs::write(share.path().join("system/batocera.conf"), "system.hostname=BATOCERA\n").unwrap();
+        assert!(!Batocera.detect(share.path()).evidence.iter().any(|e| e.contains("Knulli")));
     }
 }
