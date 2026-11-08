@@ -1,5 +1,7 @@
 # 15 | Quality Assurance, Threat Scenarios and Test Matrix
 
+**Resize checks:** test:theme-workspace covers inverse rotation math, negative-size prevention, unit conversion, opaque/source preservation, unchanged axes/no-ops, limits, nested/missing guards, undo/redo and actual SVG handle presence/disabled states. Contract checks, build and diff checks pass. Native pointer capture/cancellation/DPI/focus checks remain manual. Rust was not rerun for this frontend-only change.
+
 **Alignment checks:** test:theme-workspace covers all six actions, rotated corner bounds, mixed units, precision, untouched fields/scenes, nested/unknown guards, unrepresentable positions, no-ops, undo/redo and real control callback guards. Contract checks, production build and diff check pass. Native visual/focus checks remain manual; no Rust rerun for frontend-only changes.
 
 **Transform checks:** test:theme-workspace covers value limits/nonfinite rejection, default/no-op opacity, opaque-expression preservation, inspector callbacks/disabled guards, undo/redo and actual SVG rotation/opacity attributes. test:theme-contract, production build and diff checks pass. Native visual checks remain manual; Rust suite was not rerun for these frontend-only changes.

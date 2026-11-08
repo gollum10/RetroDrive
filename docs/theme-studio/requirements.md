@@ -1,5 +1,7 @@
 # Theme Studio delivery tracking
 
+**VIS-001 partial resize:** selected supported leaf layers now expose a bottom-right handle and handle-focused arrow sizing. Other handles, aspect locking, multi-selection, snapping/grid/guides, groups and native engine preview remain unimplemented; native interaction QA is pending.
+
 **VIS-001 partial alignment:** single supported leaf layers can align their rotated rectangles to canvas edges/centers with undo/redo. Multi-selection, distribute, snapping/grid/guides and resize/rotation handles remain unimplemented; native rendering is unverified.
 
 **VIS-001/004 partial follow-up:** numeric rotation and opacity authoring now reuse existing source fields and history for supported leaf text/panel layers. Rotation handles, anchors, conditions, grouping and complete style resolution remain planned; native rendering is not verified.

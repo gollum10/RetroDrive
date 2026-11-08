@@ -21,7 +21,7 @@ async function main() {
   const errors = ts.getPreEmitDiagnostics(withAssets);
   assert.equal(errors.length, 0, ts.formatDiagnosticsWithColorAndContext(errors, { getCanonicalFileName: f => f, getCurrentDirectory: () => root, getNewLine: () => '\n' }));
   assert.equal(withAssets.emit().emitSkipped, false);
-  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor, canOrderLayers, orderLayer, transformNode, alignedNode, alignLayer } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor, canOrderLayers, orderLayer, transformNode, alignedNode, alignLayer, resizeDelta, resizeLayer } = require(path.join(output, 'tests/theme-studio/workspace.js'));
   assert.deepEqual(project.targets, []);
   assert.equal(project.scenes[0].resolution.width, 1080);
   assert.equal(project.scenes[0].resolution.height, 1920);
@@ -177,6 +177,35 @@ async function main() {
   assert.deepEqual(alignHistory.undo(centered), alignSource);
   assert.deepEqual(alignHistory.redo(alignSource), centered);
 
+  assert.deepEqual(resizeDelta(200, 100, 0, 20, 30), { width: 220, height: 130 });
+  assert.deepEqual(resizeDelta(0.1, 100, 0, 0, 10), { width: 0.1, height: 110 }, 'unchanged tiny axis keeps its original size');
+  const rotatedResize = resizeDelta(200, 100, 90, -30, 20);
+  assert.ok(Math.abs(rotatedResize.width - 220) < 1e-8);
+  assert.ok(Math.abs(rotatedResize.height - 130) < 1e-8);
+  assert.deepEqual(resizeDelta(200, 100, 0, -1000, -1000), { width: 1, height: 1 });
+  const resizeJson = JSON.stringify(alignSource);
+  const resized = resizeLayer(alignSource, scene.id, added.id, 400, 250);
+  const resizedNode = resized.scenes[0].nodes[0];
+  assert.equal(resizedNode.layout.width.value, 400); assert.equal(resizedNode.layout.height.value, 250);
+  assert.deepEqual(resizedNode.layout.x, alignmentNode.layout.x);
+  assert.equal(JSON.stringify(alignSource), resizeJson);
+  assert.equal(resized.scenes[1], alignSource.scenes[1]);
+  assert.deepEqual(resized.futureAnimation, alignSource.futureAnimation);
+  assert.deepEqual(resizedNode.style, alignmentNode.style);
+  const percentNode = { ...alignmentNode, layout: { ...alignmentNode.layout, width: { value: 20, unit: '%', futureScale: 'kept' }, height: { value: 10, unit: '%' } } };
+  const percentProject = { ...alignSource, scenes: [{ ...alignmentScene, nodes: [percentNode] }, ...alignSource.scenes.slice(1)] };
+  const percentResized = resizeLayer(percentProject, scene.id, added.id, 540, 960).scenes[0].nodes[0];
+  assert.equal(percentResized.layout.width.value, 50); assert.equal(percentResized.layout.height.value, 50);
+  assert.equal(percentResized.layout.width.futureScale, 'kept');
+  assert.equal(resizeLayer(alignSource, scene.id, added.id, 200, 100), alignSource, 'unchanged size creates no history');
+  for (const [w, h] of [[0, 10], [-1, 10], [10, NaN], [Infinity, 10]]) assert.equal(resizeLayer(alignSource, scene.id, added.id, w, h), alignSource);
+  assert.equal(resizeLayer(nested, scene.id, added.id, 300, 300), nested);
+  assert.equal(resizeLayer(alignSource, scene.id, 'missing', 300, 300), alignSource);
+  assert.equal(resizeLayer(alignSource, 'missing', added.id, 300, 300), alignSource);
+  assert.equal(resizeLayer(alignSource, scene.id, added.id, 1e20, 1e20).scenes[0].nodes[0].layout.width.value, 1_000_000);
+  const resizeHistory = new EditHistory(); resizeHistory.record(alignSource, resized, 'Resize');
+  assert.deepEqual(resizeHistory.undo(resized), alignSource); assert.deepEqual(resizeHistory.redo(alignSource), resized);
+
   const history = new EditHistory();
   assert.ok(history.record(source, added.project, 'Add text'));
   assert.ok(history.record(added.project, moved, 'Move text', 'drag-1'));
@@ -327,11 +356,17 @@ async function main() {
     const safeProject = addNode(project, project.scenes[0].id, 'text');
     const safeNode = safeProject.project.scenes[0].nodes.find(node => node.id === safeProject.id);
     safeNode.style.text = '<script>alert(1)</script>'; safeNode.style.color = 'url(https://untrusted)';
-    const canvas = render('theme-studio/SceneCanvas', { scene: safeProject.project.scenes[0], selected: safeNode.id, disabled: false, onSelect() {}, onMove() {}, onEndGroup() {} });
+    const canvas = render('theme-studio/SceneCanvas', { scene: safeProject.project.scenes[0], selected: safeNode.id, disabled: false, onSelect() {}, onMove() {}, onResize() {}, onEndGroup() {} });
     assert.match(canvas, /&lt;script&gt;/); assert.ok(!canvas.includes('<script>'));
     assert.ok(!canvas.includes('https://untrusted'));
+    assert.match(canvas, /aria-label="Resize Text"/);
+    const disabledCanvas = render('theme-studio/SceneCanvas', { scene: safeProject.project.scenes[0], selected: safeNode.id, disabled: true, onSelect() {}, onMove() {}, onResize() {}, onEndGroup() {} });
+    assert.ok(!disabledCanvas.includes('aria-label="Resize Text"'), 'disabled editor exposes no resize handle');
+    const noSelectionCanvas = render('theme-studio/SceneCanvas', { scene: safeProject.project.scenes[0], selected: null, disabled: false, onSelect() {}, onMove() {}, onResize() {}, onEndGroup() {} });
+    assert.ok(!noSelectionCanvas.includes('aria-label="Resize Text"'));
+
     const orderedScene = orderLayer(layered, scene.id, added.id, 'front').scenes[0];
-    const orderedCanvas = render('theme-studio/SceneCanvas', { scene: orderedScene, selected: added.id, disabled: false, onSelect() {}, onMove() {}, onEndGroup() {} });
+    const orderedCanvas = render('theme-studio/SceneCanvas', { scene: orderedScene, selected: added.id, disabled: false, onSelect() {}, onMove() {}, onResize() {}, onEndGroup() {} });
     const paintedIds = [...orderedCanvas.matchAll(/data-node-id="([^"]+)"/g)].map(match => match[1]);
     assert.deepEqual(paintedIds, expectedOrders.front, 'actual SVG paint order follows source ordering');
     let orderRequest = null;
@@ -375,7 +410,7 @@ async function main() {
     disabledTransform.props.children.find(child => child?.type === 'fieldset').props.children.find(child => child?.props?.label === 'Rotation (degrees)').props.onChange(60);
     assert.equal(renamedLayer, null);
     assert.match(render('theme-studio/NodeInspector', { ...transformProps, node: opaqueOpacity }), /Unsupported opacity data is preserved read-only/);
-    const transformedCanvas = render('theme-studio/SceneCanvas', { scene: transformProject.scenes[0], selected: added.id, disabled: false, onSelect() {}, onMove() {}, onEndGroup() {} });
+    const transformedCanvas = render('theme-studio/SceneCanvas', { scene: transformProject.scenes[0], selected: added.id, disabled: false, onSelect() {}, onMove() {}, onResize() {}, onEndGroup() {} });
     assert.match(transformedCanvas, /rotate\(-45\.5\)/);
     assert.match(transformedCanvas, /opacity="0.25"/);
     let alignRequest = null;
