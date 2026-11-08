@@ -1,5 +1,7 @@
 # RetroDrive — Features
 
+**Theme Studio transforms:** text/panel inspectors now author rotation and numeric opacity with undo/redo. Unknown opacity expressions remain read-only. Native visual verification remains pending; export stays disabled.
+
 **Theme Studio layer ordering:** selected text/panel layers can move backward/forward or to the back/front in flat supported scenes, with undo/redo and existing draft/checkpoint persistence. Nested/unknown scenes remain read-only for ordering. Native visual QA is pending; export remains disabled.
 
 **Theme Studio first canvas increment:** add/select top-level text and panels, pointer/keyboard movement, numeric sizing/unit conversion, basic text/color/font properties and bounded session undo/redo. Editor preview remains approximate; nested/unknown content stays read-only/preserved. No native export, asset import or installation. [Behavior and manual checks](docs/theme-studio/canvas.md).

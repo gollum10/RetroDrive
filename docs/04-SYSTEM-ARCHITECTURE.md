@@ -1,5 +1,7 @@
 # 04 | Technical Architecture
 
+**Transform controls:** NodeInspector uses guarded transformNode updates for finite rotation and numeric opacity, preserving layout/style extensions. Existing updateNode eligibility, session history and serialized persistence are reused; SVG already renders these fields. No backend/schema/dependency change.
+
 **Layer ordering:** immutable orderLayer operations rearrange existing node references in the scene array; SVG and layer navigation consume that same back-to-front order. LayerOrderControls blocks unsupported/nested scenes and busy/copy states. History/persistence are reused, without new schema or backend behavior.
 
 **Canvas authoring:** scene-edit.ts provides immutable unit-aware graph operations; SceneCanvas renders an allowlisted SVG subset with local pointer previews; NodeInspector edits recognized properties only. ProjectSession owns bounded EditHistory and sends undo/redo through the same serialized persistence queue. No compiler, schema migration, media execution or new dependency. [Details](theme-studio/canvas.md).

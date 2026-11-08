@@ -1,5 +1,7 @@
 # 05 | Hybrid Library Data Model
 
+**Transform authoring:** existing layout.rotation and style.opacity fields are now editable for supported leaf layers. Rotation accepts finite degrees within +/-36,000; opacity accepts 0..1 and defaults to 1 when absent. Unknown/out-of-range opacity source is read-only. No source or SQLite migration.
+
 **Canvas layer order:** the existing scene.nodes array stores editor back-to-front order for flat text/panel scenes. Reordering changes only array placement, preserving IDs, payloads, extensions and other scenes. No catalog/source schema migration; native exporter ordering is not verified.
 
 **Canvas increment:** universal source stays v1.0.0 and catalog stays v27. Original text/panel additions reuse node/layout/style contracts; supported style extension fields are text, color/fill and pixel fontSize. Unknown data remains intact. Session history is transient and separate from saved checkpoint/draft JSON; undo never rewrites a checkpoint implicitly.
