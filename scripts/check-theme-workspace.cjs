@@ -21,13 +21,20 @@ async function main() {
   const errors = ts.getPreEmitDiagnostics(withAssets);
   assert.equal(errors.length, 0, ts.formatDiagnosticsWithColorAndContext(errors, { getCanonicalFileName: f => f, getCurrentDirectory: () => root, getNewLine: () => '\n' }));
   assert.equal(withAssets.emit().emitSkipped, false);
-  const { ProjectSession, project, form, record, newDocument, guardedWindowClose } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose } = require(path.join(output, 'tests/theme-studio/workspace.js'));
   assert.deepEqual(project.targets, []);
   assert.equal(project.scenes[0].resolution.width, 1080);
   assert.equal(project.scenes[0].resolution.height, 1920);
   assert.equal(new Set(project.scenes.flatMap(s => s.nodes.map(n => n.id))).size, 8);
   assert.equal(newDocument({ ...form, target: 'retrobat', targetVersion: '' }).targets[0].frontendVersion, null);
   assert.equal(newDocument({ ...form, template: 'blank' }).scenes.flatMap(s => s.nodes).length, 0);
+  assert.equal(suggestCopyName('QA Test'), 'QA Test (copy)');
+  assert.equal(suggestCopyName('QA Test (copy)'), 'QA Test (copy 2)');
+  assert.equal(suggestCopyName('QA Test (copy 9)'), 'QA Test (copy 10)');
+  assert.equal(suggestCopyName('QA Test copy copy'), 'QA Test (copy 3)');
+  assert.equal(suggestCopyName('QA Test', ['qa test (COPY)', 'QA Test (copy 2)']), 'QA Test (copy 3)');
+  assert.equal(suggestCopyName('Copy'), 'Copy (copy)');
+  assert.ok(Array.from(suggestCopyName('🎮'.repeat(120))).length <= 120);
 
   let stored = record();
   const calls = [];
@@ -141,6 +148,24 @@ async function main() {
     assert.match(editor, /Native support is unverified/);
     const browser = render('theme-studio/ProjectBrowser', { projects: [], busy: false, offset: 0, onNew() {}, onOpen() {}, onDuplicate() {}, onPage() {}, onRefresh() {} });
     assert.match(browser, /No projects yet/);
+    let submitted = null; let cancelled = false;
+    const copyProps = { name: ' New copy ', sourceName: 'Original', busy: false, onName() {}, onCreate(name) { submitted = name; }, onCancel() { cancelled = true; } };
+    const copyForm = component('theme-studio/SaveCopyForm')(copyProps);
+    const copyHtml = render('theme-studio/SaveCopyForm', copyProps);
+    assert.match(copyHtml, /Save a separate copy/);
+    assert.match(copyHtml, /does not rename the original project/);
+    assert.match(copyHtml, /New copy name/);
+    copyForm.props.onSubmit({ preventDefault() {} });
+    assert.equal(submitted, 'New copy', 'confirmation uses the new name, not the source name');
+    submitted = null;
+    component('theme-studio/SaveCopyForm')({ ...copyProps, busy: true }).props.onSubmit({ preventDefault() {} });
+    assert.equal(submitted, null);
+    component('theme-studio/SaveCopyForm')({ ...copyProps, name: ' ' }).props.onSubmit({ preventDefault() {} });
+    assert.equal(submitted, null);
+    const buttons = copyForm.props.children.find(child => child?.type === 'div').props.children;
+    buttons.find(button => button.props.type === 'button').props.onClick();
+    assert.equal(cancelled, true);
+    assert.equal(submitted, null, 'cancel must not create another project');
     const customize = render('Customize', { installs: [], native: true, busy: false, notify() {} });
     assert.match(customize, /Add a RetroBat or Batocera installation/);
     const shell = render('App', {});
@@ -149,7 +174,7 @@ async function main() {
     const fallback = render('ThemeStudio', { native: false, leaveGuard: { current: null } });
     assert.match(fallback, /No emulator installation or cloud account is required/);
   } finally { Module._load = originalLoad; }
-  console.log('Theme workspace: creation, queued saves, in-flight edits, failure/conflict protection, real SDK close/permission regression and React rendering passed.');
+  console.log('Theme workspace: creation, serialized saves, close regression, copy naming/confirmation and React rendering passed.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => {
   assert.equal(path.dirname(output), cache); assert.ok(path.basename(output).startsWith('theme-workspace-'));
