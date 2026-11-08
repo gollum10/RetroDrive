@@ -187,6 +187,20 @@ Owner authorization: "yes, do the read only pass on G: for ES-DE". Drive `G:\ES-
 
 **Found and fixed:** ROCKNIX also offered itself ("Possible") for `ROMs_ALL`, whose empty folders include ROCKNIX's `sfc` and `tg16` names. ROCKNIX now steps aside when the folder has ES-DE's `systeminfo.txt` markers, as RetroPie already did; regression check in `a_rocknix_roms_folder_is_recognized_and_retropie_steps_aside`.
 
+## Real hardware: write-and-undo tests on the owner's RetroBat and ES-DE (2026-11-09)
+Owner authorization: "Go ahead with real write tests." Method: temporary ignored tests (not committed) calling the same backend functions as the app, on a scratch copy of the owner's catalog (the owner's own catalog untouched). RetroBat, ES-DE, RetroArch and RetroDrive weren't running. Before and after: a listing of every file and folder on `G:\RetroBat` and `G:\ES-DE`, and copies of both settings files.
+
+| Test | Result |
+|---|---|
+| RetroBat: NES aspect ratio 4/3 (system) and 16/9 for one NES game (`'89 Dennou Kyuusei Uranai (Japan).zip`) | Preview showed the 2 rows; apply took 0.6 s; es_settings.cfg gained exactly 2 lines (`nes.ratio`, `nes[&quot;…&quot;].ratio`), none removed, still well formed (59 entries); the game picker then showed the game's own setting |
+| RetroBat: undo | es_settings.cfg byte-identical to before, with its original timestamp (the backup is moved back); the changed file kept under `.retrodrive\backup\settings-undo-16` |
+| ES-DE: copy run, Atari 2600 only | Run only because the plan said nothing would be copied or replaced: 1,576 games already there, 0 files copied, 0 replaced, 0 conflicts; the only new file is RetroDrive's record in `ROMs\.retrodrive\deployments` |
+| ES-DE: light gun collection on | Before the copy record it was refused ("None of your light gun games are on this ES-DE yet"). After: `collections\custom-Light Gun Games.cfg` created with the 2 light gun games (`%ROMPATH%/atari2600/…`), and `CollectionSystemsCustom` set to `Light Gun Games` (1 line changed in es_settings.xml) |
+| ES-DE: undo (both changes) | es_settings.xml byte-identical to before; the created collection file moved to `ES-DE\.retrodrive\backup\settings-undo-17` (ES-DE no longer sees it) |
+| Leftovers (by design: RetroDrive never deletes) | `.retrodrive\backup` folders on both drives holding the changed versions (some now empty), and the ES-DE copy record. Nothing else changed |
+
+Also read (no writes): a plan from the owner's whole library onto RetroBat would copy 67,180 files (191 GB) for 145,342 selected games, 3 groups unsupported.
+
 ## Later raw disk operations (not in starter)
 - Protect Windows system/boot and source disks.
 - Verify exact physical disk identity before raw write.
