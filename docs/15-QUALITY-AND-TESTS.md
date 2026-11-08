@@ -170,6 +170,22 @@ Owner authorization: "start the read-only pass on retrobat". Drive `G:\RetroBat`
 
 **Found and fixed:** `roms\ps2` holds only an `images` folder, yet counted as a system with games, so it appeared in the RetroBat game picker with no games. `customizer::has_games` and `batocera_settings::systems` now use the same game listing as the game pickers (`game_names`: game lists, media folders and `_info.txt` aren't games); regression check in `options_come_from_the_install`.
 
+## Real hardware: read-only pass on the owner's ES-DE (2026-11-09)
+Owner authorization: "yes, do the read only pass on G: for ES-DE". Drive `G:\ES-DE` (portable ES-DE 3.5.0: `ES-DE.exe`, `ES-DE\` data, `ROMs\` with 1,576 Atari 2600 games copied by RetroDrive on 2026-11-07, `ROMs_ALL\`, empty `Emulators\`; 6,158 files and folders). Same method as the RetroBat pass: a temporary ignored test (not committed), in-memory catalog, read paths only: every adapter's `detect` on the program, ROMs, data and ROMs_ALL folders, ES-DE's `validate_layout`, `installations::add` (catalog only), `game_groups::state`, `custom_collections::state`, `controller_setup::for_installation`, `bios_step::preview`, a scan of `ROMs` as a library, `deployment::plan_with` back onto the drive, and the art preview with and without creating lists. **Proof nothing was written:** a listing of every file and folder (path, size, last-write time) before and after compared equal (0 differences); ES-DE wasn't running.
+
+| Check | Result |
+|---|---|
+| Recognition | `ROMs` Detected ("ROMs folder next to ES-DE.exe"); the program, data and ROMs_ALL folders each Possible with a hint naming `G:\ES-DE\ROMs` |
+| Layout checks | All OK (1 system folder, portable markers, copying, emulators) |
+| Data folder, RetroArch | `G:\ES-DE\ES-DE` found; no RetroArch in `Emulators`, so the BIOS step explains how to add it (expected) |
+| Game groups and custom collections | Read `settings\es_settings.xml`; both off; after the scan, 2 light gun games in the library |
+| Controllers | Nothing to add |
+| Scan | 1,576 games (3 skipped) in 0.64 s |
+| Plan back onto the drive | 1,576 games already in place, 0 files to copy, 0 unsupported, 0 file-type warnings, in 27 ms |
+| Art | Nothing to do (the library has no pictures for these games) |
+
+**Found and fixed:** ROCKNIX also offered itself ("Possible") for `ROMs_ALL`, whose empty folders include ROCKNIX's `sfc` and `tg16` names. ROCKNIX now steps aside when the folder has ES-DE's `systeminfo.txt` markers, as RetroPie already did; regression check in `a_rocknix_roms_folder_is_recognized_and_retropie_steps_aside`.
+
 ## Later raw disk operations (not in starter)
 - Protect Windows system/boot and source disks.
 - Verify exact physical disk identity before raw write.
