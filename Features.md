@@ -53,7 +53,7 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 | Arcade routing by source folder (`mame`/`fbneo`) | 📋 | Your library already separates them. |
 | Box art from your own images | ✅ | Found automatically during scans (your `gamelist.xml` from Skraper/ScreenScraper, or images named like the game in `media`, `images`, `boxart`, `covers`…), or pick one with **Add art** on a game card. Shown from where it is; never copied or shipped. On your NAS's NES folder: 1,520 of 1,520 images linked. |
 | Scan summary counts images separately | ✅ | "N images found, N games linked to art" instead of "non-game files ignored". |
-| Game details from gamelist.xml (descriptions, players, rating) | 📋 | Follow-up. |
+| Game details from gamelist.xml (descriptions, players, rating) | ✅ | Read from the game lists already in your library folders when you scan: cards show "1–2 players · ★ 4.5" and the description on hover; filter by **Players** (2+, 3+, 4+) and save it as a smart collection (e.g. Couch co-op). Copies carry them to your systems' game lists where those lack them. |
 | Scraper (e.g. ScreenScraper) | ❌ | Not planned: RetroDrive is free and doesn't fetch online metadata or art (owner decision, 2026-11-06). |
 | Search and sort by catalog title | ✅ | Matched games are listed, sorted and A–Z filtered by their catalog title (e.g. *'88 Games* for `konami88.zip`); search finds file titles and catalog titles. Library pages are also much faster on big libraries (e.g. the A–Z bar went from about 3 s to under 0.25 s on 145,000 games). |
 | Import (scan) a user-selected folder | ✅ | Runs as a background job; the window stays responsive. Read only: tests confirm source files are unchanged. 40,000 files took about 3 s in a dev build. |

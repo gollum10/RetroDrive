@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 24;
+pub const SCHEMA_VERSION: i32 = 25;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -202,6 +202,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 24 {
         tx.execute_batch(SCHEMA_V24).map_err(|e| e.to_string())?;
+    }
+    if from_version < 25 {
+        tx.execute_batch(SCHEMA_V25).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -1004,6 +1007,20 @@ CREATE TABLE gun_choices (
 const SCHEMA_V24: &str = "
 ALTER TABLE collections ADD COLUMN kind TEXT NOT NULL DEFAULT 'list';
 ALTER TABLE collections ADD COLUMN rule_json TEXT;
+";
+
+/// v25 (ADR-079): details read from the library's own gamelist.xml files during a scan
+/// (description, players, rating), per primary game file. Refreshed by each scan.
+const SCHEMA_V25: &str = "
+CREATE TABLE game_details (
+    game_file_id  TEXT PRIMARY KEY REFERENCES game_files(id) ON DELETE CASCADE,
+    description   TEXT,
+    players       TEXT,
+    players_max   INTEGER,
+    rating        REAL,
+    updated_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_game_details_players ON game_details(players_max);
 ";
 
 #[cfg(test)]

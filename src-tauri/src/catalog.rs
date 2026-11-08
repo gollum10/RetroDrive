@@ -48,6 +48,11 @@ pub struct GameRow {
     pub vertical: bool,
     /// In the user's Favorites (ADR-073).
     pub favorite: bool,
+    /// From the library's gamelist.xml (ADR-079).
+    pub description: Option<String>,
+    pub players: Option<String>,
+    /// 0–1.
+    pub rating: Option<f64>,
     pub storage_name: String,
     /// `online`: file was present at the last scan and its volume is attached.
     /// `offline`: the volume (drive / share) is not attached, or its drive letter
@@ -84,6 +89,8 @@ pub struct GameQuery {
     /// Only games whose catalog year is in this range (ADR-073).
     pub year_from: Option<i64>,
     pub year_to: Option<i64>,
+    /// Only games for at least this many players (from gamelist details, ADR-079).
+    pub players_min: Option<i64>,
     /// `title` (default), `platform` or `size`.
     pub sort: Option<String>,
     pub offset: u32,
@@ -277,6 +284,10 @@ fn filter_sql(query: &GameQuery, offline: &str, guns: &str, vertical: &str) -> R
         conditions.push("g.id IN (SELECT gr.game_id FROM game_reference gr JOIN reference_entries re ON re.id = gr.entry_id WHERE re.genre LIKE ? ESCAPE '\\')");
         values.push(Value::Text(like_pattern(genre)));
     }
+    if let Some(min) = query.players_min.filter(|n| *n > 1) {
+        conditions.push("gf.id IN (SELECT game_file_id FROM game_details WHERE players_max >= ?)");
+        values.push(Value::Integer(min));
+    }
     if query.year_from.is_some() || query.year_to.is_some() {
         conditions.push("g.id IN (SELECT gr.game_id FROM game_reference gr JOIN reference_entries re ON re.id = gr.entry_id WHERE re.year BETWEEN ? AND ?)");
         values.push(Value::Integer(query.year_from.unwrap_or(0)));
@@ -392,9 +403,11 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
                     EXISTS (SELECT 1 FROM game_files m WHERE m.release_id = gf.release_id AND m.missing_parts > 0)
                     OR EXISTS (SELECT 1 FROM game_files m JOIN file_locations ml ON ml.game_file_id = m.id
                                WHERE m.release_id = gf.release_id AND m.file_role <> 'primary' AND ml.present_status = 'missing'),
-                    re.title, re.year, re.genre, re.publisher, re.developer, gr.method, gf.id, {art}
+                    re.title, re.year, re.genre, re.publisher, re.developer, gr.method, gf.id, {art},
+                    gd.description, gd.players, gd.rating
              {FROM} JOIN storage_locations s ON s.id = fl.storage_location_id
              LEFT JOIN game_reference gr ON gr.game_id = g.id LEFT JOIN reference_entries re ON re.id = gr.entry_id
+             LEFT JOIN game_details gd ON gd.game_file_id = gf.id
              WHERE fl.id IN (SELECT value FROM json_each(?1))",
             art = crate::media::best_media_sql("gf.id")
         ))
@@ -424,6 +437,9 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
                 lightgun: false,
                 vertical: false,
                 favorite: false,
+                description: r.get(20)?,
+                players: r.get(21)?,
+                rating: r.get(22)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -851,4 +867,40 @@ mod tests {
         assert_eq!(pick("#"), ["'89 Uranai (Japan)", "1942 (USA)"]);
         assert!(query_games(&c, &GameQuery { letter: Some("AB".into()), ..GameQuery::default() }, &connected).is_err());
     }
+
+    #[test]
+    fn gamelist_details_are_shown_and_filter_by_players() {
+        let dir = tempfile::tempdir().unwrap();
+        let nes = dir.path().join("nes");
+        std::fs::create_dir_all(&nes).unwrap();
+        for g in ["Contra (USA).nes", "Zelda (USA).nes", "Tetris (USA).nes"] {
+            std::fs::write(nes.join(g), g.as_bytes()).unwrap();
+        }
+        std::fs::write(
+            nes.join("gamelist.xml"),
+            "<gameList><game><path>./Contra (USA).nes</path><desc>Run &amp; gun.</desc><players>1-2</players><rating>0.9</rating></game><game><path>./Zelda (USA).nes</path><players>1</players><rating>4.5</rating></game></gameList>",
+        )
+        .unwrap();
+        let mut c = Connection::open_in_memory().unwrap();
+        crate::db::migrate(&mut c, None).unwrap();
+        crate::scanner::scan(&mut c, dir.path(), &|_| crate::volumes::VolumeProbe::unknown()).unwrap();
+        let connected = |_: &str, _: Option<&str>| crate::volumes::Presence::Connected;
+        let page = query_games(&c, &GameQuery::default(), &connected).unwrap();
+        let contra = page.rows.iter().find(|r| r.title.contains("Contra")).unwrap();
+        assert_eq!((contra.description.as_deref(), contra.players.as_deref(), contra.rating), (Some("Run & gun."), Some("1-2"), Some(0.9)));
+        let zelda = page.rows.iter().find(|r| r.title.contains("Zelda")).unwrap();
+        assert_eq!(zelda.rating, Some(0.9), "a 0-5 rating is turned into 0-1");
+        assert!(page.rows.iter().find(|r| r.title.contains("Tetris")).unwrap().players.is_none());
+        let two = query_games(&c, &GameQuery { players_min: Some(2), ..GameQuery::default() }, &connected).unwrap();
+        assert_eq!(two.rows.iter().map(|r| r.title.as_str()).collect::<Vec<_>>(), vec![contra.title.as_str()]);
+        // A rescan after the gamelist loses a game's details clears them.
+        std::fs::write(nes.join("gamelist.xml"), "<gameList><game><path>./Zelda (USA).nes</path><players>1</players></game></gameList>").unwrap();
+        crate::scanner::scan(&mut c, dir.path(), &|_| crate::volumes::VolumeProbe::unknown()).unwrap();
+        let page = query_games(&c, &GameQuery::default(), &connected).unwrap();
+        assert!(page.rows.iter().find(|r| r.title.contains("Contra")).unwrap().description.is_none());
+        assert_eq!(crate::media::players_max("1-4"), Some(4));
+        assert_eq!(crate::media::players_max("2+"), Some(2));
+        assert_eq!(crate::media::players_max("one"), None);
+    }
 }
+

@@ -83,6 +83,7 @@ pub fn resolve(connection: &Connection, query: &GameQuery) -> Result<GameQuery, 
         genre: pick(&query.genre, &rule.genre),
         year_from: query.year_from.or(rule.year_from),
         year_to: query.year_to.or(rule.year_to),
+        players_min: query.players_min.or(rule.players_min),
         duplicates_only: query.duplicates_only || rule.duplicates_only,
         lightgun_only: query.lightgun_only || rule.lightgun_only,
         vertical_only: query.vertical_only || rule.vertical_only,
@@ -105,7 +106,7 @@ pub fn member_file_ids(connection: &Connection, id: &str, presence: catalog::Pre
 pub fn create_smart(connection: &Connection, name: &str, query: &GameQuery) -> Result<String, String> {
     let rule = clean_rule(query);
     if rule == GameQuery::default() {
-        return Err("Choose at least one filter (platform, genre, years, light gun, vertical or a search) first.".into());
+        return Err("Choose at least one filter (platform, genre, years, players, light gun, vertical or a search) first.".into());
     }
     let id = create(connection, name)?;
     let json = serde_json::to_string(&rule).map_err(|e| e.to_string())?;

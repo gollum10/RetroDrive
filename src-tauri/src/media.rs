@@ -45,10 +45,26 @@ pub struct GamelistEntry {
     pub path: String,
     /// `(kind, path)`: kinds are `image`, `thumbnail` (often the box) and `marquee`.
     pub images: Vec<(&'static str, String)>,
+    /// Details a scraper wrote (ADR-079): description, players (`1-2`), rating (`0.8`).
+    pub description: Option<String>,
+    pub players: Option<String>,
+    pub rating: Option<String>,
+}
+
+/// The most players a gamelist `players` value allows (`1-2` → 2, `4` → 4, `2+` → 2).
+pub fn players_max(players: &str) -> Option<i64> {
+    players.split(|c: char| !c.is_ascii_digit()).filter_map(|n| n.parse::<i64>().ok()).filter(|n| (1..=64).contains(n)).max()
+}
+
+/// A rating as 0–1 (EmulationStation writes 0–1; some tools write 0–5 or 0–10).
+pub fn rating_0_to_1(rating: &str) -> Option<f64> {
+    let v: f64 = rating.trim().parse().ok()?;
+    let v = if v <= 1.0 { v } else if v <= 5.0 { v / 5.0 } else if v <= 10.0 { v / 10.0 } else { return None };
+    (v >= 0.0).then_some(v)
 }
 
 /// Read the games and image paths from an EmulationStation `gamelist.xml`.
-/// Unknown elements (descriptions, ratings…) are skipped.
+/// Other elements are skipped.
 pub fn parse_gamelist(path: &Path) -> Result<Vec<GamelistEntry>, String> {
     let size = std::fs::metadata(path).map_err(|e| e.to_string())?.len();
     if size > MAX_GAMELIST_BYTES {
@@ -114,6 +130,9 @@ pub fn parse_gamelist(path: &Path) -> Result<Vec<GamelistEntry>, String> {
                             "image" => entry.images.push(("image", value)),
                             "thumbnail" => entry.images.push(("thumbnail", value)),
                             "marquee" => entry.images.push(("marquee", value)),
+                            "desc" => entry.description = Some(value),
+                            "players" => entry.players = Some(value),
+                            "rating" => entry.rating = Some(value),
                             _ => {}
                         }
                     }
