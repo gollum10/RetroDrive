@@ -548,3 +548,5 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 ## 45. Addendum: light gun steps for RetroPie, ES-DE and Recalbox (2026-11-07)
 **Scope and authorization:** owner ("Light gun steps is next"). The guide reads only. The one write is Recalbox's light gun group: `emulationstation.collection.lightgun=1` (or 0) in `system\recalbox.conf`, edited like Recalbox's own menu (the `;`-disabled line reactivated in place, every other line unchanged), reviewed, refused if the file changed since the review, journaled and undoable (`recalboxs_light_gun_group_is_switched_in_recalbox_conf`). RetroArch settings are not written.
 
+## 46. Addendum: ROCKNIX step 1 and Knulli (2026-11-08)
+**Scope and authorization:** owner ("let's keep working the list"; "more systems"). Read-only: the ROCKNIX adapter recognizes, checks and plans; `copy_games` is false, so the copier refuses ROCKNIX until a separate go-ahead and review (as for every new platform). Knulli only gets a label: it is copied to as Batocera, which is already reviewed (§21 and later).
