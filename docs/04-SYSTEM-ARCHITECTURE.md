@@ -1,5 +1,7 @@
 # 04 | Technical Architecture
 
+**Resize gestures:** SceneCanvas extends its local pointer preview to width/height; resize.ts projects canvas deltas into rotated local axes and applies immutable, unit-preserving bounded dimensions. Only pointer release commits through ProjectSession. Numeric inspector sizing remains available. No backend/schema/dependency changes.
+
 **Canvas alignment:** alignment.ts computes rotated local rectangle bounds using the same top-left pivot as SceneCanvas, then updates only the chosen position dimension through existing graph/history/persistence services. AlignmentControls guards unsupported/no-op/busy actions. No schema, backend or dependency changes.
 
 **Transform controls:** NodeInspector uses guarded transformNode updates for finite rotation and numeric opacity, preserving layout/style extensions. Existing updateNode eligibility, session history and serialized persistence are reused; SVG already renders these fields. No backend/schema/dependency change.
