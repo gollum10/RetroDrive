@@ -79,6 +79,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-07 (favorites on the systems, ADR-074; owner: "1. I love this idea"):** the **Game art and details** step (Customize, and the tick box when copying, now "…box art, logos, catalog details and ★ favorites…") also marks starred games as favorites in the system's game list; its preview table has a **★ Favorites** column and the result says "N favorite(s) marked".
 
+**Implemented 2026-11-07 (light gun steps for RetroPie, ES-DE and Recalbox, ADR-075; owner: "Light gun steps is next"):** the light gun guide on the Controllers page now has *On RetroPie*, *On ES-DE* and *On Recalbox* parts for the user's systems: RetroArch steps (cores, Device Type, Save Core Overrides, Mouse Index for two guns), gun-specific lines (Sinden border, GUN4IR tool, DolphinBar mouse mode, GunCon 2 CRT), a pointer to Game groups; on Recalbox, what it supports or a plain "doesn't support this gun, use RetroBat or Batocera". Customize for Recalbox shows **Game groups** with its single *Light gun games* group.
+
 **Implemented 2026-11-07 (RetroPie and ES-DE collections, ADR-072; owner: "in RetroPie … I then have to select which games go in there … we should be able to add them from the library"):** the **Game groups** box also appears for ES-DE and for a RetroPie added by its network share. Each group shows how many matching games are on that system and in the library; ticking one → *Review* ("Light Gun Games: 0 → 1 games", "Collections shown: … → …", and a warning if the Pi's ROM folder is assumed) → *Save*. When groups are already on, *Add newly copied games* tops them up after later copies.
 
 ## Drives

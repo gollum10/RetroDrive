@@ -196,6 +196,49 @@ pub fn guns() -> &'static [Gun] {
     })
 }
 
+// ---------- B. steps for RetroPie, ES-DE and Recalbox (ADR-075) ----------
+
+const RA_DEVICE: &str = "In a game, open RetroArch's menu, then Controls → Port 1 Controls → Device Type, choose the light gun the core offers (Light Gun, Zapper, Super Scope, Justifier…), and save it with Save Core Overrides so it stays.";
+const RA_CORES: &str = "Light guns work in RetroArch cores that support them, such as Genesis Plus GX (Master System, Mega Drive, Sega CD), Snes9x (Super Scope), PCSX-ReARMed or SwanStation (PlayStation), FBNeo and MAME.";
+const RA_TWO: &str = "With two guns, give each player its own gun under Port 1 / Port 2 Controls → Mouse Index.";
+
+/// A gun's steps on RetroPie, ES-DE and Recalbox, by system (from their wikis and
+/// RetroArch's settings; RetroPie and ES-DE have no automatic gun setup, Recalbox
+/// supports only Wiimotes with a DolphinBar and the GunCon 2).
+pub fn other_steps(id: &str) -> BTreeMap<&'static str, Vec<String>> {
+    let mut map = BTreeMap::new();
+    let s = |list: &[&str]| list.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let gun_line: Option<&str> = match id {
+        "sinden" => Some("Sinden: these systems don't draw the white border themselves, so add a border overlay or shader in RetroArch (the Sinden wiki explains the options)."),
+        "gun4ir" => Some("GUN4IR: set it up and calibrate it with the GUN4IR tool on a Windows PC first, and keep it in mouse mode."),
+        "wiimote" => Some("Wiimote: use a Mayflash DolphinBar in its mouse mode (see the DolphinBar's manual), with the IR bar on."),
+        "guncon2" => Some("GunCon 2: it needs a CRT TV, and support depends on the emulator; check that system's forum before buying cables."),
+        _ => None,
+    };
+    let mut retropie = s(&["RetroPie has no automatic light gun setup: the gun works as a mouse, and you choose it in RetroArch for each core.", RA_CORES, RA_DEVICE, RA_TWO]);
+    let mut esde = s(&["ES-DE starts the emulators; the gun is set up in the emulator (RetroArch, or standalone MAME, which uses the gun as a mouse).", RA_CORES, RA_DEVICE, RA_TWO]);
+    if id == "sinden" {
+        retropie.insert(1, "Install the Sinden software for Raspberry Pi from the Sinden website and follow its Raspberry Pi guide; it must be running when you play.".into());
+        esde.insert(1, "Run the Sinden software (Lightgun.exe) before starting ES-DE, as on any Windows PC.".into());
+    }
+    if let Some(line) = gun_line {
+        retropie.push(line.into());
+        esde.push(line.into());
+    }
+    map.insert("retropie", retropie);
+    map.insert("esde", esde);
+    let recalbox = match id {
+        "wiimote" => s(&[
+            "Recalbox supports Wiimotes with a Mayflash DolphinBar: one DolphinBar per Wiimote, up to two players.",
+            "Recalbox sets its light gun games up by itself. Turn on its Light gun group (in Customize → Game groups, or in Recalbox's game collection settings) to see them together.",
+        ]),
+        "guncon2" => s(&["Recalbox supports the GunCon 2 on a CRT screen, through a Recalbox RGB Dual or RGB JAMMA."]),
+        _ => vec!["Recalbox doesn't support this gun (Recalbox 10.1 supports Wiimotes with a DolphinBar, the GunCon 2 and JVS arcade guns). Use it with RetroBat or Batocera instead.".to_string()],
+    };
+    map.insert("recalbox", recalbox);
+    map
+}
+
 pub fn gun(id: &str) -> Option<&'static Gun> {
     guns().iter().find(|g| g.id == id)
 }
@@ -383,6 +426,14 @@ mod tests {
         assert_eq!(identify("046d", "c077", Some("USB Optical Mouse")), None, "an ordinary mouse isn't a gun");
         assert_eq!(identify("1234", "5678", Some("Fusion Keyboard")), None);
         assert!(guns().iter().all(|g| !g.setup.is_empty() && !g.retrobat.is_empty() && !g.batocera.is_empty()));
+        // Every gun has steps for RetroPie, ES-DE and Recalbox; Recalbox says plainly when it can't.
+        for g in guns() {
+            let o = other_steps(g.id);
+            assert!(["retropie", "esde", "recalbox"].iter().all(|s| o.get(s).is_some_and(|v| !v.is_empty())), "{}", g.id);
+        }
+        assert!(other_steps("sinden")["recalbox"][0].contains("doesn't support"));
+        assert!(other_steps("wiimote")["recalbox"][0].contains("DolphinBar"));
+        assert!(other_steps("sinden")["retropie"].iter().any(|l| l.contains("border")));
         assert!(NAME_WORDS.iter().all(|(id, _)| gun(id).is_some()));
         let mut c = Connection::open_in_memory().unwrap();
         crate::db::migrate(&mut c, None).unwrap();

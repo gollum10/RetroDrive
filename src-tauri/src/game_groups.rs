@@ -61,8 +61,54 @@ fn uses_files(connection: &Connection, installation_id: &str) -> bool {
     adapter == "retropie" || adapter == "esde"
 }
 
+/// Recalbox: its own light gun collection, switched on in recalbox.conf (ADR-075).
+const RECALBOX_KEY: &str = "emulationstation.collection.lightgun";
+
+fn adapter_of(connection: &Connection, installation_id: &str) -> String {
+    connection.query_row("SELECT adapter_id FROM installations WHERE id = ?1", [installation_id], |r| r.get(0)).unwrap_or_default()
+}
+
+fn recalbox_place(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<(customizer::Install, PathBuf), String> {
+    let install = customizer::install_for(connection, installation_id, presence, &["recalbox"], "This is for Recalbox.")?;
+    let path = install.root.join("system").join("recalbox.conf");
+    if !path.is_file() {
+        return Err("system\\recalbox.conf is missing. Start Recalbox once so it creates it.".into());
+    }
+    Ok((install, path))
+}
+
+fn recalbox_state(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<GroupsState, String> {
+    let (install, path) = recalbox_place(connection, installation_id, presence)?;
+    let text = customizer::read_text(&path)?;
+    let on = crate::batocera_settings::conf_values(&text).get(RECALBOX_KEY).is_some_and(|v| v.trim() == "1");
+    Ok(GroupsState {
+        groups: vec![Group { id: "lightgun", label: "Light gun games", on, in_library: crate::lightguns::game_ids(connection)?.len(), copied: None }],
+        file_sha: customizer::hex_sha(text.as_bytes()),
+        network: install.root_text.starts_with(r"\\"),
+        note: Some("Recalbox has no vertical games group; its light gun group uses Recalbox's own list of light gun games.".into()),
+    })
+}
+
+fn recalbox_change(text: &str, wanted: &BTreeMap<String, bool>) -> Result<Change, String> {
+    if wanted.keys().any(|k| k != "lightgun") {
+        return Err("Recalbox only has a light gun group.".into());
+    }
+    let on = wanted.get("lightgun").copied().ok_or("Choose the light gun group.")?;
+    let before = crate::batocera_settings::conf_values(text).get(RECALBOX_KEY).is_some_and(|v| v.trim() == "1");
+    if before == on {
+        return Err("Nothing to change: the light gun group is already set that way.".into());
+    }
+    let value = if on { "1" } else { "0" };
+    let edit: BTreeMap<String, Option<String>> = [(RECALBOX_KEY.to_string(), Some(value.to_string()))].into_iter().collect();
+    let label = |b: bool| if b { "Light gun games shown" } else { "Light gun games hidden" }.to_string();
+    Ok((edit, vec![ChangeRow { system: "interface".into(), key: "game groups".into(), before: Some(label(before)), after: Some(label(on)) }]))
+}
+
 /// Which groups are on, with how many library games each would show (reads only).
 pub fn state(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<GroupsState, String> {
+    if adapter_of(connection, installation_id) == "recalbox" {
+        return recalbox_state(connection, installation_id, presence);
+    }
     if uses_files(connection, installation_id) {
         return crate::custom_collections::state(connection, installation_id, presence);
     }
@@ -114,6 +160,13 @@ fn change(text: &str, wanted: &BTreeMap<String, bool>) -> Result<Change, String>
 
 /// What turning groups on or off would change (reads only).
 pub fn preview(connection: &Connection, installation_id: &str, wanted: &BTreeMap<String, bool>, presence: PresenceFn) -> Result<Preview, String> {
+    if adapter_of(connection, installation_id) == "recalbox" {
+        let (_, path) = recalbox_place(connection, installation_id, presence)?;
+        let text = customizer::read_text(&path)?;
+        let (edit, rows) = recalbox_change(&text, wanted)?;
+        crate::batocera_settings::edit_conf(&text, &edit, &[';'], "recalbox.conf")?;
+        return Ok(Preview { changes: rows, file_sha: customizer::hex_sha(text.as_bytes()) });
+    }
     if uses_files(connection, installation_id) {
         return crate::custom_collections::preview(connection, installation_id, wanted, presence);
     }
@@ -127,6 +180,17 @@ pub fn preview(connection: &Connection, installation_id: &str, wanted: &BTreeMap
 /// Turn the groups on or off: only if es_settings.cfg is unchanged since the review
 /// and RetroBat isn't running; journaled, backed up and undoable.
 pub fn apply(connection: &Connection, installation_id: &str, wanted: &BTreeMap<String, bool>, expected_sha: &str, presence: PresenceFn, running: RunningFn) -> Result<String, String> {
+    if adapter_of(connection, installation_id) == "recalbox" {
+        let (install, path) = recalbox_place(connection, installation_id, presence)?;
+        let text = customizer::read_text(&path)?;
+        if customizer::hex_sha(text.as_bytes()) != expected_sha {
+            return Err("recalbox.conf changed since you reviewed this (perhaps from Recalbox's menu), so nothing was changed. Review it again.".into());
+        }
+        let (edit, rows) = recalbox_change(&text, wanted)?;
+        let new_text = crate::batocera_settings::edit_conf(&text, &edit, &[';'], "recalbox.conf")?;
+        customizer::write_file(connection, &install, crate::recalbox_settings::CONF, &path, &text, &new_text, rows)?;
+        return Ok("Saved. Recalbox shows its light gun group the next time it starts. Undo is under \"Show every settings change\".".into());
+    }
     if uses_files(connection, installation_id) {
         return crate::custom_collections::apply(connection, installation_id, wanted, expected_sha, presence, running);
     }
@@ -198,5 +262,29 @@ mod tests {
         customizer::undo(&c, change, &connected, &customizer::never_running).unwrap();
         assert_eq!(fs::read_to_string(&settings).unwrap(), ES, "undo puts the file back");
     }
+
+    #[test]
+    fn recalboxs_light_gun_group_is_switched_in_recalbox_conf() {
+        let dir = tempfile::tempdir().unwrap();
+        let share = dir.path().join("recalbox");
+        fs::create_dir_all(share.join("system")).unwrap();
+        fs::create_dir_all(share.join("roms/snes")).unwrap();
+        fs::write(share.join("roms/snes/G.sfc"), b"g").unwrap();
+        let conf = "## Recalbox\nglobal.ratio=auto\n;emulationstation.collection.lightgun=0\n";
+        fs::write(share.join("system/recalbox.conf"), conf).unwrap();
+        let mut c = rusqlite::Connection::open_in_memory().unwrap();
+        db::migrate(&mut c, None).unwrap();
+        let id = installations::add(&c, &share, "recalbox", &|_: &str| VolumeProbe::unknown()).unwrap();
+        let s = state(&c, &id, &connected).unwrap();
+        assert_eq!((s.groups.len(), s.groups[0].id, s.groups[0].on), (1, "lightgun", false), "only a light gun group");
+        assert!(preview(&c, &id, &[("vertical".to_string(), true)].into_iter().collect(), &connected).is_err());
+        let on: BTreeMap<String, bool> = [("lightgun".to_string(), true)].into_iter().collect();
+        let p = preview(&c, &id, &on, &connected).unwrap();
+        apply(&c, &id, &on, &p.file_sha, &connected, &customizer::never_running).unwrap();
+        assert_eq!(fs::read_to_string(share.join("system/recalbox.conf")).unwrap(), "## Recalbox\nglobal.ratio=auto\nemulationstation.collection.lightgun=1\n", "the disabled line is switched on in place");
+        assert!(state(&c, &id, &connected).unwrap().groups[0].on);
+        assert!(preview(&c, &id, &on, &connected).unwrap_err().contains("Nothing to change"));
+    }
 }
+
 

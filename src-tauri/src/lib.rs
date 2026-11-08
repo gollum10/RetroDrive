@@ -669,6 +669,8 @@ struct LightGunState {
     gun_games: usize,
     /// Platforms of the user's installations (for the guide).
     systems: Vec<String>,
+    /// Steps for RetroPie, ES-DE and Recalbox, by gun id then system (ADR-075).
+    other_steps: std::collections::BTreeMap<String, std::collections::BTreeMap<&'static str, Vec<String>>>,
 }
 
 #[tauri::command]
@@ -685,6 +687,7 @@ async fn light_guns(catalog: State<'_, Catalog>) -> Result<LightGunState, String
             chosen: remembered.get("manual").and_then(|id| lightguns::gun(id)).cloned(),
             guns: lightguns::guns().to_vec(),
             gun_games: lightguns::gun_game_count(),
+            other_steps: lightguns::guns().iter().map(|g| (g.id.to_string(), lightguns::other_steps(g.id))).collect(),
             systems,
         })
     })
