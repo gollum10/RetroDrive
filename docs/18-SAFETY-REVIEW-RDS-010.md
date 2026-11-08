@@ -564,3 +564,6 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 ## 51. Addendum: settings for one game (2026-11-08)
 **Scope and authorization:** owner ("let's keep going", next on the list: per-game emulator settings). The same files as §23 and §50 (batocera.conf, ROCKNIX's system.cfg) get lines for single games, named as EmulationStation names them; only games present in that system's folder are accepted, and the same values as for systems. Same checked, journaled, backed-up, undoable write, refused if the file changed since the review. Nothing is deleted. Evidence: `one_game_gets_its_own_settings_like_emulationstation_names_them`, the ROCKNIX test's game step.
+
+## 52. Addendum: RetroBat settings for one game (2026-11-08)
+**Scope and authorization:** owner ("yes", to RetroBat per-game settings). The same file as RetroBat's emulator settings (es_settings.cfg, §12) gets entries for single games, named as RetroBat's EmulationStation names them; only games in that system's folder, only RetroBat's own choices, emulator and core checked together. Same checked, journaled, backed-up, undoable write, refused while RetroBat runs or if the file changed since the review. Nothing is deleted. Evidence: `one_game_gets_its_own_emulator_and_display_settings`.

@@ -92,6 +92,56 @@ pub struct Change {
     pub key: String,
     /// `None` = AUTO (remove the entry).
     pub value: Option<String>,
+    /// One game of the system (its settings name, ADR-084), or the whole system.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub game: Option<String>,
+}
+
+/// One RetroBat system's games and the settings each already has of its own (ADR-084).
+#[derive(Debug, Serialize)]
+pub struct GameSettings {
+    pub games: Vec<String>,
+    /// Game → setting → value, for games with settings of their own.
+    pub current: BTreeMap<String, BTreeMap<String, String>>,
+}
+
+/// The settings name of a change: `snes.ratio`, or `snes["F-Zero (USA).zip"].ratio`.
+fn change_key(c: &Change) -> String {
+    match &c.game {
+        Some(game) => format!("{}[\"{game}\"].{}", c.system, c.key),
+        None => format!("{}.{}", c.system, c.key),
+    }
+}
+
+/// A game's settings must be for a game in that system's folder.
+fn check_games(root: &Path, changes: &[Change]) -> Result<(), String> {
+    for c in changes {
+        if let Some(game) = &c.game {
+            let ok = crate::batocera_settings::split_key(&change_key(c)).is_some_and(|(_, g, _)| g == Some(game.as_str()));
+            if !ok || !crate::batocera_settings::game_names(&root.join("roms").join(&c.system)).iter().any(|n| n == game) {
+                return Err(format!("{game} isn't in RetroBat's {} folder.", c.system));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The games in one of RetroBat's system folders and their own settings (reads only).
+pub fn game_settings(connection: &Connection, installation_id: &str, system: &str, presence: PresenceFn) -> Result<GameSettings, String> {
+    let install = install(connection, installation_id, presence)?;
+    if !offer(&install.root)?.systems.iter().any(|(s, _, _)| s == system) {
+        return Err(format!("{system} isn't a system in this RetroBat."));
+    }
+    let text = read_text(&install.root.join(SETTINGS))?;
+    let mut current: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
+    for (name, value) in values(&entries(&text)?)? {
+        if let Some((s, Some(game), key)) = crate::batocera_settings::split_key(&name) {
+            if s == system && KEYS.contains(&key) {
+                current.entry(game.to_string()).or_default().insert(key.to_string(), value);
+            }
+        }
+    }
+    Ok(GameSettings { games: crate::batocera_settings::game_names(&install.root.join("roms").join(system)), current })
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -599,20 +649,22 @@ pub(crate) fn validate_systems(changes: &[Change], offer: &Offer, current: &BTre
                 return Err(format!("{value} isn't one of this RetroBat's choices for {} {}.", c.system, c.key));
             }
         }
-        wanted.insert(format!("{}.{}", c.system, c.key), c.value.clone());
+        wanted.insert(change_key(c), c.value.clone());
     }
-    // The emulator and core must belong together after the change.
-    for (system, _, emulators) in &offer.systems {
+    // The emulator and core must belong together after the change (for a system, or
+    // for one game of it).
+    let mut scopes: Vec<(&str, Option<&str>)> = changes.iter().filter(|c| c.key == "emulator" || c.key == "core").map(|c| (c.system.as_str(), c.game.as_deref())).collect();
+    scopes.dedup();
+    for (system, game) in scopes {
+        let Some((_, _, emulators)) = offer.systems.iter().find(|(s, _, _)| s == system) else { continue };
         let get = |key: &str| -> Option<String> {
-            let k = format!("{system}.{key}");
+            let k = change_key(&Change { system: system.to_string(), key: key.to_string(), value: None, game: game.map(str::to_string) });
             match wanted.get(&k) {
                 Some(v) => v.clone(),
                 None => current.get(&k).cloned(),
             }
         };
-        if !changes.iter().any(|c| &c.system == system && (c.key == "emulator" || c.key == "core")) {
-            continue;
-        }
+        let system = game.map(|g| format!("{system}: {g}")).unwrap_or_else(|| system.to_string());
         match (get("emulator"), get("core")) {
             (None, Some(core)) => return Err(format!("{system}: the core {core} needs an emulator chosen too.")),
             (Some(emulator), core) => {
@@ -635,8 +687,11 @@ pub(crate) fn rows(wanted: &BTreeMap<String, Option<String>>, current: &BTreeMap
     wanted
         .iter()
         .map(|(k, v)| {
-            let (system, key) = k.rsplit_once('.').unwrap_or(("", k));
-            ChangeRow { system: system.to_string(), key: key.to_string(), before: current.get(k).cloned(), after: v.clone() }
+            let (system, key) = match crate::batocera_settings::split_key(k) {
+                Some((s, Some(game), key)) => (format!("{s}: {game}"), key),
+                _ => k.rsplit_once('.').map(|(s, key)| (s.to_string(), key)).unwrap_or((String::new(), k)),
+            };
+            ChangeRow { system, key: key.to_string(), before: current.get(k).cloned(), after: v.clone() }
         })
         .collect()
 }
@@ -646,6 +701,7 @@ pub fn preview(connection: &Connection, installation_id: &str, changes: &[Change
     let install = install(connection, installation_id, presence)?;
     let text = read_text(&install.root.join(SETTINGS))?;
     let current = values(&entries(&text)?)?;
+    check_games(&install.root, changes)?;
     let wanted = validate(changes, &offer(&install.root)?, &current)?;
     edit(&text, &wanted)?;
     Ok(Preview { changes: rows(&wanted, &current), file_sha: hex_sha(text.as_bytes()) })
@@ -671,6 +727,7 @@ pub fn apply(connection: &Connection, installation_id: &str, changes: &[Change],
         return Err("RetroBat's settings changed since you reviewed them, so nothing was changed. Review the changes again.".into());
     }
     let current = values(&entries(&text)?)?;
+    check_games(&install.root, changes)?;
     let wanted = validate(changes, &offer(&install.root)?, &current)?;
     write_settings(connection, &install, &settings, &text, &wanted, &current)
 }
@@ -1488,7 +1545,7 @@ mod tests {
     }
 
     fn change(system: &str, key: &str, value: Option<&str>) -> Change {
-        Change { system: system.into(), key: key.into(), value: value.map(str::to_string) }
+        Change { system: system.into(), key: key.into(), value: value.map(str::to_string), game: None }
     }
 
     fn settings(s: &Setup) -> String {
@@ -1606,6 +1663,39 @@ mod tests {
         assert_eq!(settings(&s), SETTINGS_FILE, "the previous settings are back");
         assert_eq!(history(&s.catalog, &s.install, &connected).unwrap()[0].state, "undone");
         assert!(undo(&s.catalog, h[0].id, &connected, &closed).is_err(), "only once");
+    }
+
+    #[test]
+    fn one_game_gets_its_own_emulator_and_display_settings() {
+        let s = setup();
+        fs::write(s.root.join("roms/snes/F-Zero (USA).zip"), b"f").unwrap();
+        let game = |key: &str, value: Option<&str>| Change { system: "snes".into(), key: key.into(), value: value.map(str::to_string), game: Some("F-Zero (USA).zip".into()) };
+        let gs = game_settings(&s.catalog, &s.install, "snes", &connected).unwrap();
+        assert_eq!(gs.games, ["F-Zero (USA).zip", "Mario.sfc"]);
+        assert!(gs.current.is_empty());
+        assert!(game_settings(&s.catalog, &s.install, "nope", &connected).is_err());
+
+        // Refused: a game that isn't there, a name RetroBat couldn't use, a core without its emulator.
+        let missing = Change { game: Some("Nope.zip".into()), ..game("ratio", Some("4/3")) };
+        assert!(preview(&s.catalog, &s.install, &[missing], &connected).unwrap_err().contains("isn't in"));
+        let quoted = Change { game: Some("a\"b.zip".into()), ..game("ratio", Some("4/3")) };
+        assert!(preview(&s.catalog, &s.install, &[quoted], &connected).is_err());
+        assert!(preview(&s.catalog, &s.install, &[game("core", Some("bsnes"))], &connected).unwrap_err().contains("needs an emulator"));
+
+        let changes = [game("emulator", Some("libretro")), game("core", Some("bsnes")), game("ratio", Some("4/3"))];
+        let p = preview(&s.catalog, &s.install, &changes, &connected).unwrap();
+        assert!(p.changes.iter().all(|r| r.system == "snes: F-Zero (USA).zip"), "{:?}", p.changes);
+        apply(&s.catalog, &s.install, &changes, &p.file_sha, &connected, &closed).unwrap();
+        let now = settings(&s);
+        assert!(now.contains("<string name=\"snes[&quot;F-Zero (USA).zip&quot;].core\" value=\"bsnes\" />"), "{now}");
+        assert!(!now.contains("<string name=\"snes.core\""), "the system's own settings are untouched");
+        let gs = game_settings(&s.catalog, &s.install, "snes", &connected).unwrap();
+        assert_eq!(gs.current["F-Zero (USA).zip"].get("ratio").map(String::as_str), Some("4/3"), "read back by name");
+
+        // "Same as the system" removes the game's line.
+        let p = preview(&s.catalog, &s.install, &[game("ratio", None)], &connected).unwrap();
+        apply(&s.catalog, &s.install, &[game("ratio", None)], &p.file_sha, &connected, &closed).unwrap();
+        assert!(!settings(&s).contains("F-Zero (USA).zip&quot;].ratio"));
     }
 
     #[test]

@@ -858,6 +858,13 @@ async fn apply_recalbox_settings(catalog: State<'_, Catalog>, active: State<'_, 
     result?
 }
 
+/// A RetroBat system's games and their own settings (reads only, ADR-084).
+#[tauri::command]
+async fn retrobat_game_settings(catalog: State<'_, Catalog>, installation_id: String, system: String) -> Result<customizer::GameSettings, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || customizer::game_settings(&db::open(&db_path)?, &installation_id, &system, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
 /// The games in a ROCKNIX system folder, for settings of one game (reads only).
 #[tauri::command]
 async fn rocknix_games(catalog: State<'_, Catalog>, installation_id: String, system: String) -> Result<Vec<String>, String> {
@@ -1480,6 +1487,7 @@ pub fn run() {
             apply_recalbox_settings,
             rocknix_options,
             rocknix_games,
+            retrobat_game_settings,
             batocera_games,
             preview_rocknix_settings,
             apply_rocknix_settings,
