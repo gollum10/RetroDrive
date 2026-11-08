@@ -844,6 +844,13 @@ async fn recalbox_games(catalog: State<'_, Catalog>, installation_id: String, sy
     tauri::async_runtime::spawn_blocking(move || recalbox_settings::games(&db::open(&db_path)?, &installation_id, &system, &volumes::presence)).await.map_err(|e| e.to_string())?
 }
 
+/// The Recalbox games of a system with their own settings file (reads only).
+#[tauri::command]
+async fn recalbox_games_with_settings(catalog: State<'_, Catalog>, installation_id: String, system: String) -> Result<Vec<String>, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || recalbox_settings::games_with_settings(&db::open(&db_path)?, &installation_id, &system, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
 /// One Recalbox game's own settings (reads only).
 #[tauri::command]
 async fn recalbox_game_options(catalog: State<'_, Catalog>, installation_id: String, system: String, game: String) -> Result<recalbox_settings::GameOptions, String> {
@@ -1574,6 +1581,7 @@ pub fn run() {
             preview_lakka_playlists,
             apply_lakka_playlists,
             recalbox_game_options,
+            recalbox_games_with_settings,
             preview_recalbox_game,
             apply_recalbox_game,
             rocknix_options,

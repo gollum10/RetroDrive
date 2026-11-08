@@ -171,6 +171,14 @@ pub fn games(connection: &Connection, installation_id: &str, system: &str, prese
     Ok(game_files(&install.root, system))
 }
 
+/// The games of a system that have their own override file (for the dots in the game list).
+pub fn games_with_settings(connection: &Connection, installation_id: &str, system: &str, presence: PresenceFn) -> Result<Vec<String>, String> {
+    let install = install(connection, installation_id, presence)?;
+    let folder = install.root.join("roms").join(system);
+    let games = game_files(&install.root, system);
+    Ok(games.into_iter().filter(|g| folder.join(format!("{g}{GAME_SUFFIX}")).is_file()).collect())
+}
+
 /// A game's own settings (from its override file, if it has one).
 #[derive(Debug, Serialize)]
 pub struct GameOptions {
@@ -435,6 +443,7 @@ mod tests {
         assert_eq!(games(&c, &id, "snes", &connected).unwrap(), ["F-Zero (USA).zip", "Mario.sfc"], "override files, game lists and images aren't games");
         let mario = game_options(&c, &id, "snes", "Mario.sfc", &connected).unwrap();
         assert!(mario.exists && mario.values.get("snes.smooth").map(String::as_str) == Some("0"));
+        assert_eq!(games_with_settings(&c, &id, "snes", &connected).unwrap(), ["Mario.sfc"], "the dot in the game list");
         let fzero = game_options(&c, &id, "snes", "F-Zero (USA).zip", &connected).unwrap();
         assert!(!fzero.exists && fzero.values.is_empty());
 
