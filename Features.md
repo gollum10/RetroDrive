@@ -216,7 +216,7 @@ ecalbox.conf` the way Recalbox's own menu saves them, after you review them, and
 | CI license gate (LEGAL-014) | 🟡 | `scripts/check-licenses.py` fails CI on copyleft or unknown licenses; release sign-off still to be defined. |
 | Third-party notices file in the installer (LEGAL-009) | 📋 | Needed before public release. |
 | Trademark clearance for "RetroDrive", and logo provenance (LEGAL-008) | 📋 | Owner action; the logo is AI-generated (docs/17 §4). |
-| RetroBat written permission (LEGAL-003) | 📋 | Owner action; blocks RDS-012. |
+| RetroBat written permission (LEGAL-003) | ✅ | Not needed for what RetroDrive does (owner decision 2026-11-09, ADR-087): RetroDrive is free and doesn't download, install, bundle or package RetroBat; it only works with a RetroBat the user installed. Would only come back if RetroDrive ever downloaded or installed RetroBat itself (RDS-012, out of scope). |
 
 ## Engineering
 

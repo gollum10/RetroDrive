@@ -45,7 +45,7 @@ Navigation, basic read-only mounted volume discovery, folder scan into simple SQ
 - RDS-019 Faster copies of many small files (each file is synced and read back; thousands of tiny ROMs take longer than their size suggests) without weakening verification.
 
 ### M3: Install and guide
-- RDS-012 RetroBat portable installation guided workflow and official download validation. **⛔ Blocked on LEGAL-002/003** (RetroBat's written permission for commercial download/install; docs/16 §5).
+- RDS-012 RetroBat portable installation guided workflow and official download validation. **⛔ Out of scope** (owner decision 2026-11-09, ADR-087: RetroDrive doesn't download or install RetroBat; it manages a copy the user installed. Revisiting this would need RetroBat's permission first; docs/16 §5).
 - RDS-013 Batocera official image selection and bootable-media preflight design. **⛔ Blocked on LEGAL-004.**
 - RDS-014 Elevated imaging helper only after independent destructive-disk review and QA. **⛔ Also needs LEGAL-004 and LEGAL-010.**
 - RDS-015 First-boot guide and setup verification.

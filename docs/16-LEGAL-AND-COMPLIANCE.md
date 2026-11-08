@@ -84,6 +84,8 @@ Proprietary console BIOS and firmware files can be protected by copyright and ot
 
 **Action:** Contact RetroBat maintainers and seek written clarification/permission for proposed commercial integration and distribution scenarios.
 
+**Owner decision (2026-11-09, ADR-087):** RetroDrive is a free app; it doesn't download, install, bundle, package or sell RetroBat, and only manages a copy the user installed (the first row above). The owner therefore doesn't seek written permission for the current scope (LEGAL-003 closed as not applicable). The other points stand: no RetroBat logos, graphics or documentation text in RetroDrive (CC BY-NC-SA 4.0), personal use only, no "prepare drives or machines for others" feature, and RDS-012 (RetroDrive downloading or installing RetroBat) stays out of scope.
+
 ### Evidence: license shown by the RetroBat installer (recorded 2026-11-05)
 The project owner captured this text from the RetroBat **8.3.1.1** stable installer (it is also installed as `license.txt`). Quoted for counsel; engineering reading only.
 
@@ -231,7 +233,7 @@ Separating components technically can reduce risk but does not by itself guarant
 
 - [ ] **LEGAL-001:** Inventory every dependency, emulator, core, firmware component, image, and asset.
 - [ ] **LEGAL-002:** Review RetroBat license, project terms, and all commercially relevant integration workflows.
-- [ ] **LEGAL-003:** Contact RetroBat maintainers for written commercial permission/clarification.
+- [x] **LEGAL-003:** ~~Contact RetroBat maintainers for written commercial permission/clarification.~~ **Not needed for the current scope (owner decision 2026-11-09, ADR-087):** RetroDrive is free, and it doesn't download, install, bundle, package or sell RetroBat; it only manages a RetroBat the user installed themselves. Reopen only if RetroDrive ever downloads or installs RetroBat (RDS-012) or becomes paid.
 - [ ] **LEGAL-004:** Review Batocera licenses and redistribution/commercialization guidance.
 - [ ] **LEGAL-005:** Audit every supported emulator/core and third-party installer separately.
 - [ ] **LEGAL-006:** Establish prohibited ROM/BIOS distribution rules and UI requirements.
@@ -316,7 +318,7 @@ This is an engineering status record, not a legal conclusion.
 | No download links or integrations for unauthorized games | ✅ None exist. Rule added to the AI coding brief (docs/14). | docs/14 |
 | User-controlled import and indexing | ✅ The user picks every folder; scans are read-only. | docs/07 |
 | RetroBat: manage a user-installed copy only | ✅ The adapter only reads an existing folder the user picks; nothing is bundled, downloaded or modified. | docs/06, ADR-018 |
-| RetroBat download/install (RDS-012) | ⛔ **Blocked on LEGAL-002/003** (written permission). The installer license recorded in §5 (2026-11-05) supports this block. | docs/11 |
+| RetroBat download/install (RDS-012) | ⛔ **Out of scope** (owner decision 2026-11-09, ADR-087; would need RetroBat's written permission first). The installer license recorded in §5 (2026-11-05) supports this block. | docs/11 |
 | RetroBat: copying the user's games into their own install (RDS-010) | ✅ Personal-use copying only; no RetroBat files are touched; no "prepare drives for sale" feature. | docs/18 |
 | Personal-use statement | 🟡 Draft wording in Settings and README, pending counsel. | `src/App.tsx`, README |
 | Game art | ✅ Never shipped, downloaded or copied. RetroDrive only links to images on the user's own drives (gamelists, folder conventions, user picks) and displays them locally (ADR-025). | docs/07 |
