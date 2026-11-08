@@ -834,6 +834,37 @@ async fn apply_game_groups(catalog: State<'_, Catalog>, active: State<'_, Active
     result?
 }
 
+/// The games in a Recalbox system folder, for settings of one game (reads only, ADR-085).
+#[tauri::command]
+async fn recalbox_games(catalog: State<'_, Catalog>, installation_id: String, system: String) -> Result<Vec<String>, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || recalbox_settings::games(&db::open(&db_path)?, &installation_id, &system, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// One Recalbox game's own settings (reads only).
+#[tauri::command]
+async fn recalbox_game_options(catalog: State<'_, Catalog>, installation_id: String, system: String, game: String) -> Result<recalbox_settings::GameOptions, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || recalbox_settings::game_options(&db::open(&db_path)?, &installation_id, &system, &game, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// What changes to one Recalbox game's settings would do (reads only).
+#[tauri::command]
+async fn preview_recalbox_game(catalog: State<'_, Catalog>, installation_id: String, system: String, game: String, changes: Vec<recalbox_settings::ConfChange>) -> Result<customizer::Preview, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || recalbox_settings::preview_game(&db::open(&db_path)?, &installation_id, &system, &game, &changes, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Save reviewed settings for one Recalbox game (its override file; journaled, undoable).
+#[tauri::command]
+async fn apply_recalbox_game(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, system: String, game: String, changes: Vec<recalbox_settings::ConfChange>, file_sha: String) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || recalbox_settings::apply_game(&db::open(&db_path)?, &installation_id, &system, &game, &changes, &file_sha, &volumes::presence)).await.map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
 /// Recalbox settings and themes offered, with current values (reads only).
 #[tauri::command]
 async fn recalbox_options(catalog: State<'_, Catalog>, installation_id: String) -> Result<recalbox_settings::RecalboxOptions, String> {
@@ -1485,6 +1516,10 @@ pub fn run() {
             apply_game_groups,
             preview_recalbox_settings,
             apply_recalbox_settings,
+            recalbox_games,
+            recalbox_game_options,
+            preview_recalbox_game,
+            apply_recalbox_game,
             rocknix_options,
             rocknix_games,
             retrobat_game_settings,

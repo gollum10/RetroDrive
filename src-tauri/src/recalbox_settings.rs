@@ -18,6 +18,11 @@
 //!   scanlines, retro (`GuiMenuGameSettings.cpp`).
 //! - Theme: `emulationstation.theme.folder` (default `recalbox-next`, built in); user
 //!   themes are folders in the share's `themes`.
+//! - One game (ADR-085): `<rom file>.recalbox.conf` next to the game is loaded over
+//!   recalbox.conf when it starts (configgen `buildOverrideChain` /
+//!   `loadRecalboxSettings`), so any recalbox.conf key works there. RetroDrive writes
+//!   `<system>.<key>` lines (a system's key beats `global.` in recalbox.conf), creating
+//!   the file on the first change; Undo moves a created file into the backup folder.
 
 use crate::batocera_settings::{edit_conf, folders, systems};
 use crate::customizer::{self, ChangeRow, Choice, PresenceFn, Preview};
@@ -134,6 +139,132 @@ fn themes(root: &Path) -> Vec<String> {
     let mut list = vec![BUILTIN_THEME.to_string()];
     list.extend(folders(&root.join("themes")).into_iter().filter(|t| t != BUILTIN_THEME));
     list
+}
+
+/// What an override file next to a game is called.
+pub const GAME_SUFFIX: &str = ".recalbox.conf";
+
+/// The games in one of Recalbox's system folders, by file name (override files, game
+/// lists and media folders left out).
+fn game_files(root: &Path, system: &str) -> Vec<String> {
+    const NOT_GAMES: &[&str] = &["gamelist.xml", "_info.txt", "images", "videos", "manuals", "media", "downloaded_images"];
+    let lower_ends = |n: &str, s: &str| n.to_ascii_lowercase().ends_with(s);
+    let mut list: Vec<String> = std::fs::read_dir(root.join("roms").join(system))
+        .map(|r| {
+            r.filter_map(Result::ok)
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .filter(|n| !n.starts_with('.') && !NOT_GAMES.iter().any(|x| n.eq_ignore_ascii_case(x)))
+                .filter(|n| !lower_ends(n, GAME_SUFFIX) && !lower_ends(n, ".retroarch.cfg") && !lower_ends(n, ".core.cfg"))
+                .collect()
+        })
+        .unwrap_or_default();
+    list.sort_by_key(|s| s.to_lowercase());
+    list
+}
+
+/// The games of a system, for settings of one game (reads only).
+pub fn games(connection: &Connection, installation_id: &str, system: &str, presence: PresenceFn) -> Result<Vec<String>, String> {
+    let install = install(connection, installation_id, presence)?;
+    if !systems(&install.root).iter().any(|s| s == system) {
+        return Err(format!("{system} isn't a system with games on this Recalbox."));
+    }
+    Ok(game_files(&install.root, system))
+}
+
+/// A game's own settings (from its override file, if it has one).
+#[derive(Debug, Serialize)]
+pub struct GameOptions {
+    pub values: BTreeMap<String, String>,
+    pub exists: bool,
+    pub file_sha: String,
+}
+
+/// The game's override file, checked: a game in that system's folder.
+fn game_file(root: &Path, system: &str, game: &str) -> Result<(String, std::path::PathBuf), String> {
+    if !systems(root).iter().any(|s| s == system) || !game_files(root, system).iter().any(|g| g == game) {
+        return Err(format!("{game} isn't in Recalbox's {system} folder."));
+    }
+    let relative = format!("roms/{system}/{game}{GAME_SUFFIX}");
+    let path = root.join("roms").join(system).join(format!("{game}{GAME_SUFFIX}"));
+    Ok((relative, path))
+}
+
+fn read_game(path: &Path) -> Result<(String, bool), String> {
+    if std::fs::symlink_metadata(path).is_err() {
+        return Ok((String::new(), false));
+    }
+    if !path.is_file() {
+        return Err(format!("{} isn't a file, so RetroDrive won't use it.", path.display()));
+    }
+    Ok((customizer::read_text(path)?, true))
+}
+
+pub fn game_options(connection: &Connection, installation_id: &str, system: &str, game: &str, presence: PresenceFn) -> Result<GameOptions, String> {
+    let install = install(connection, installation_id, presence)?;
+    let (_, path) = game_file(&install.root, system, game)?;
+    let (text, exists) = read_game(&path)?;
+    Ok(GameOptions { values: crate::batocera_settings::conf_values(&text), exists, file_sha: customizer::hex_sha(text.as_bytes()) })
+}
+
+/// Checked changes for one game: per-system settings of that system, Recalbox's values.
+fn validate_game(system: &str, changes: &[ConfChange]) -> Result<BTreeMap<String, Option<String>>, String> {
+    if changes.is_empty() {
+        return Err("Nothing to change.".into());
+    }
+    let offered = settings();
+    let mut wanted = BTreeMap::new();
+    for c in changes {
+        let (scope, key) = c.key.split_once('.').ok_or_else(|| format!("Unknown setting {}.", c.key))?;
+        let setting = offered.iter().find(|s| s.key == key && s.per_system).ok_or_else(|| format!("{key} can't be set for one game here."))?;
+        if scope != system {
+            return Err(format!("{} for one {system} game must be a {system} setting.", setting.label));
+        }
+        if let Some(v) = &c.value {
+            if !setting.choices.iter().any(|ch| &ch.value == v) {
+                return Err(format!("{v} isn't one of Recalbox's choices for {}.", setting.label));
+            }
+        }
+        wanted.insert(c.key.clone(), c.value.clone());
+    }
+    Ok(wanted)
+}
+
+fn game_rows(game: &str, wanted: &BTreeMap<String, Option<String>>, current: &BTreeMap<String, String>) -> Vec<ChangeRow> {
+    wanted
+        .iter()
+        .map(|(key, value)| {
+            let (scope, name) = key.split_once('.').unwrap_or(("", key));
+            ChangeRow { system: format!("{scope}: {game}"), key: name.into(), before: current.get(key).cloned(), after: value.clone() }
+        })
+        .collect()
+}
+
+/// What changes to one game's settings would do (reads only).
+pub fn preview_game(connection: &Connection, installation_id: &str, system: &str, game: &str, changes: &[ConfChange], presence: PresenceFn) -> Result<Preview, String> {
+    let install = install(connection, installation_id, presence)?;
+    let (_, path) = game_file(&install.root, system, game)?;
+    let (text, _) = read_game(&path)?;
+    let wanted = validate_game(system, changes)?;
+    edit_conf(&text, &wanted, &[';'], "the game's settings file")?;
+    Ok(Preview { changes: game_rows(game, &wanted, &crate::batocera_settings::conf_values(&text)), file_sha: customizer::hex_sha(text.as_bytes()) })
+}
+
+/// Save reviewed settings for one game in its override file (created on the first
+/// change); journaled, backed up and undoable.
+pub fn apply_game(connection: &Connection, installation_id: &str, system: &str, game: &str, changes: &[ConfChange], expected_sha: &str, presence: PresenceFn) -> Result<String, String> {
+    let install = install(connection, installation_id, presence)?;
+    let (relative, path) = game_file(&install.root, system, game)?;
+    let (text, exists) = read_game(&path)?;
+    if customizer::hex_sha(text.as_bytes()) != expected_sha {
+        return Err("The game's settings file changed since you reviewed it, so nothing was changed. Review the change again.".into());
+    }
+    let wanted = validate_game(system, changes)?;
+    let new_text = edit_conf(&text, &wanted, &[';'], "the game's settings file")?;
+    if !exists && new_text.is_empty() {
+        return Err("Nothing to change.".into());
+    }
+    customizer::write_file(connection, &install, &relative, &path, &text, &new_text, game_rows(game, &wanted, &crate::batocera_settings::conf_values(&text)))?;
+    Ok(format!("Saved to {game}{GAME_SUFFIX} next to the game. Recalbox uses it the next time that game starts. Undo is under \"Show every settings change\"."))
 }
 
 /// What can be set, with the current values (reads only).
@@ -285,5 +416,52 @@ mod tests {
         customizer::undo(&c, change, &connected, &customizer::never_running).unwrap();
         assert_eq!(fs::read_to_string(share.join("system/recalbox.conf")).unwrap(), CONF_TEXT, "undo puts the file back");
     }
-}
 
+    #[test]
+    fn one_game_gets_its_own_override_file_next_to_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let share = dir.path().join("share");
+        fs::create_dir_all(share.join("system")).unwrap();
+        fs::create_dir_all(share.join("roms/snes/images")).unwrap();
+        for g in ["F-Zero (USA).zip", "Mario.sfc", "Mario.sfc.recalbox.conf", "Mario.sfc.retroarch.cfg", "gamelist.xml"] {
+            fs::write(share.join("roms/snes").join(g), b"m").unwrap();
+        }
+        fs::write(share.join("roms/snes/Mario.sfc.recalbox.conf"), "snes.smooth=0\n").unwrap();
+        fs::write(share.join("system/recalbox.conf"), CONF_TEXT).unwrap();
+        let mut c = Connection::open_in_memory().unwrap();
+        db::migrate(&mut c, None).unwrap();
+        let id = installations::add(&c, &share, "recalbox", &|_: &str| VolumeProbe::unknown()).unwrap();
+
+        assert_eq!(games(&c, &id, "snes", &connected).unwrap(), ["F-Zero (USA).zip", "Mario.sfc"], "override files, game lists and images aren't games");
+        let mario = game_options(&c, &id, "snes", "Mario.sfc", &connected).unwrap();
+        assert!(mario.exists && mario.values.get("snes.smooth").map(String::as_str) == Some("0"));
+        let fzero = game_options(&c, &id, "snes", "F-Zero (USA).zip", &connected).unwrap();
+        assert!(!fzero.exists && fzero.values.is_empty());
+
+        let ch = |k: &str, v: Option<&str>| ConfChange { key: k.into(), value: v.map(str::to_string) };
+        assert!(preview_game(&c, &id, "snes", "Nope.zip", &[ch("snes.ratio", Some("4/3"))], &connected).unwrap_err().contains("isn't in"));
+        assert!(preview_game(&c, &id, "snes", "../system/recalbox.conf", &[ch("snes.ratio", Some("4/3"))], &connected).is_err());
+        assert!(preview_game(&c, &id, "snes", "F-Zero (USA).zip", &[ch("global.ratio", Some("4/3"))], &connected).is_err(), "a system setting, not global");
+        assert!(preview_game(&c, &id, "snes", "F-Zero (USA).zip", &[ch("snes.integerscale", Some("1"))], &connected).is_err(), "not a per-system setting");
+        assert!(preview_game(&c, &id, "snes", "F-Zero (USA).zip", &[ch("snes.ratio", Some("99/1"))], &connected).is_err());
+
+        // First change creates the file; undo moves it aside.
+        let changes = [ch("snes.ratio", Some("8/7")), ch("snes.shaderset", Some("scanlines"))];
+        let p = preview_game(&c, &id, "snes", "F-Zero (USA).zip", &changes, &connected).unwrap();
+        assert!(p.changes.iter().all(|r| r.system == "snes: F-Zero (USA).zip"));
+        assert!(apply_game(&c, &id, "snes", "F-Zero (USA).zip", &changes, "stale", &connected).unwrap_err().contains("changed since"));
+        apply_game(&c, &id, "snes", "F-Zero (USA).zip", &changes, &p.file_sha, &connected).unwrap();
+        let file = share.join("roms/snes/F-Zero (USA).zip.recalbox.conf");
+        assert_eq!(fs::read_to_string(&file).unwrap(), "snes.ratio=8/7\nsnes.shaderset=scanlines\n");
+        assert_eq!(fs::read_to_string(share.join("system/recalbox.conf")).unwrap(), CONF_TEXT, "recalbox.conf untouched");
+        let change: i64 = c.query_row("SELECT id FROM settings_changes ORDER BY id DESC LIMIT 1", [], |r| r.get(0)).unwrap();
+        customizer::undo(&c, change, &connected, &customizer::never_running).unwrap();
+        assert!(!file.exists(), "undo moves the created file into the backup folder");
+        assert!(walkdir::WalkDir::new(share.join(".retrodrive")).into_iter().filter_map(Result::ok).any(|e| e.file_name() == "F-Zero (USA).zip.recalbox.conf"), "kept, not deleted");
+
+        // An existing file: only the changed line; "same as the system" removes it.
+        let p = preview_game(&c, &id, "snes", "Mario.sfc", &[ch("snes.smooth", None), ch("snes.rewind", Some("0"))], &connected).unwrap();
+        apply_game(&c, &id, "snes", "Mario.sfc", &[ch("snes.smooth", None), ch("snes.rewind", Some("0"))], &p.file_sha, &connected).unwrap();
+        assert_eq!(fs::read_to_string(share.join("roms/snes/Mario.sfc.recalbox.conf")).unwrap(), "snes.rewind=0\n");
+    }
+}
