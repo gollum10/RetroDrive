@@ -24,6 +24,7 @@ mod jobs;
 mod media;
 mod paths;
 mod reference;
+mod recalbox_settings;
 mod restore;
 mod retropie_settings;
 mod themes;
@@ -772,6 +773,30 @@ async fn apply_retropie_emulators(catalog: State<'_, Catalog>, active: State<'_,
     result?
 }
 
+/// Recalbox settings and themes offered, with current values (reads only).
+#[tauri::command]
+async fn recalbox_options(catalog: State<'_, Catalog>, installation_id: String) -> Result<recalbox_settings::RecalboxOptions, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || recalbox_settings::options(&db::open(&db_path)?, &installation_id, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// What Recalbox settings changes would do (reads only).
+#[tauri::command]
+async fn preview_recalbox_settings(catalog: State<'_, Catalog>, installation_id: String, changes: Vec<recalbox_settings::ConfChange>) -> Result<customizer::Preview, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || recalbox_settings::preview(&db::open(&db_path)?, &installation_id, &changes, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Save reviewed Recalbox settings (journaled, backed up, undoable).
+#[tauri::command]
+async fn apply_recalbox_settings(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, changes: Vec<recalbox_settings::ConfChange>, file_sha: String) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || recalbox_settings::apply(&db::open(&db_path)?, &installation_id, &changes, &file_sha, &volumes::presence)).await.map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
 /// Batocera settings and themes offered, with current values (reads only).
 #[tauri::command]
 async fn batocera_options(catalog: State<'_, Catalog>, installation_id: String) -> Result<batocera_settings::BatoceraOptions, String> {
@@ -1342,6 +1367,9 @@ pub fn run() {
             sync_scope,
             set_sync_scope,
             batocera_options,
+            recalbox_options,
+            preview_recalbox_settings,
+            apply_recalbox_settings,
             retropie_options,
             connected_controllers,
             remember_controller_type,

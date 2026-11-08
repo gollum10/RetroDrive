@@ -142,14 +142,14 @@ pub fn settings(root: &Path) -> Vec<Setting> {
     ]
 }
 
-fn folders(dir: &Path) -> Vec<String> {
+pub(crate) fn folders(dir: &Path) -> Vec<String> {
     let mut list: Vec<String> = fs::read_dir(dir).map(|r| r.filter_map(Result::ok).filter(|e| e.path().is_dir()).map(|e| e.file_name().to_string_lossy().to_string()).collect()).unwrap_or_default();
     list.sort_by_key(|s| s.to_lowercase());
     list
 }
 
 /// System folders under `roms` with at least one game file.
-fn systems(root: &Path) -> Vec<String> {
+pub(crate) fn systems(root: &Path) -> Vec<String> {
     let skip = |name: &str| name.eq_ignore_ascii_case("_info.txt") || name.eq_ignore_ascii_case("gamelist.xml") || name.eq_ignore_ascii_case("images") || name.starts_with('.');
     folders(&root.join("roms"))
         .into_iter()
@@ -183,6 +183,12 @@ pub fn conf_values(text: &str) -> BTreeMap<String, String> {
 /// `#`/`;`-disabled) `key=` line gets the new value, AUTO removes the active lines, a
 /// key without a line is appended. Every other line stays byte for byte.
 pub fn conf_edit(text: &str, wanted: &BTreeMap<String, Option<String>>) -> Result<String, String> {
+    edit_conf(text, wanted, &['#', ';'], "batocera.conf")
+}
+
+/// `conf_edit` for any `key=value` file: `disabled` are the marks of a disabled
+/// `key=` line that a new value reactivates in place (Batocera `#`/`;`; Recalbox `;`).
+pub(crate) fn edit_conf(text: &str, wanted: &BTreeMap<String, Option<String>>, disabled: &[char], file: &str) -> Result<String, String> {
     let ending = if text.contains("\r\n") { "\r\n" } else { "\n" };
     let mut lines: Vec<String> = text.split_inclusive('\n').map(str::to_string).collect();
     for (key, value) in wanted {
@@ -202,7 +208,7 @@ pub fn conf_edit(text: &str, wanted: &BTreeMap<String, Option<String>>) -> Resul
                 }
             }
             Some(v) => {
-                if let Some(i) = lines.iter().position(|l| l.strip_prefix(['#', ';']).is_some_and(|rest| rest.starts_with(&prefix))) {
+                if let Some(i) = lines.iter().position(|l| l.strip_prefix(disabled).is_some_and(|rest| rest.starts_with(&prefix))) {
                     let end = line_end(&lines[i]);
                     lines[i] = format!("{prefix}{v}{end}");
                 } else {
@@ -226,12 +232,12 @@ pub fn conf_edit(text: &str, wanted: &BTreeMap<String, Option<String>>) -> Resul
     let (before, after) = (conf_values(text), conf_values(&out));
     for (key, value) in wanted {
         if after.get(key) != value.as_ref() {
-            return Err(format!("Editing batocera.conf didn't set {key} as expected; nothing was changed."));
+            return Err(format!("Editing {file} didn't set {key} as expected; nothing was changed."));
         }
     }
     let others = |m: &BTreeMap<String, String>| m.iter().filter(|(k, _)| !wanted.contains_key(*k)).map(|(k, v)| (k.clone(), v.clone())).collect::<BTreeMap<_, _>>();
     if others(&before) != others(&after) {
-        return Err("Editing batocera.conf would have changed other settings; nothing was changed.".into());
+        return Err(format!("Editing {file} would have changed other settings; nothing was changed."));
     }
     Ok(out)
 }

@@ -71,6 +71,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-07 (Sinden software, light guns D, ADR-067; owner "then do D"):** in the Sinden guide's *On RetroBat* part, a **Sinden software in RetroBat** box lists each RetroBat: ✓ already in `system\tools\sinden`, or ＋ "Not there yet. Download the Sinden software … then choose its folder" → *Choose the Sinden folder…* (folder picker) → "Copy N files (size) to …?" with kept files listed → *Copy the Sinden software* (two clicks) → progress and result; or a plain reason (wrong folder, RetroBat never started).
 
+**Implemented 2026-11-07 (Recalbox settings, ADR-068; owner "let's go to the next step"):** Customize for a Recalbox shows **Recalbox settings**: *Settings for* All systems or one system; a grid of aspect ratio, shader set, smoothing, rewind and auto save/load (per system: *Same as all systems (value)*), plus integer scaling, frame rate, press twice to quit and **Theme** for all systems; *Review N changes* → "Save these to recalbox.conf?" with before → after → *Save*. Undo is in the settings history. The Dashboard's *Platform roadmap* now shows each system's own installation count (it used to put the total on the RetroBat row).
+
 ## Drives
 Inventory: manufacturer/model, bus type when known, capacity, filesystem, free space, label, stable identity, mount point, safety classification (system/unknown/removable). Selected drive details: partitions, managed installations, activity, backup state. No prominent 'Erase' control in default view. Clearly distinguish physical disks from mounted volumes.
 

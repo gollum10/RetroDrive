@@ -500,3 +500,15 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** not tried with the real Sinden software (the owner has no Sinden gun); file names come from the user's download.
 
+## 41. Addendum: Recalbox settings (2026-11-07)
+**Scope and authorization:** owner ("let's go to the next step"; roadmap RDS-025: Recalbox settings). Edits the share's `system\recalbox.conf`. Code: `recalbox_settings.rs`, `RecalboxSettings.tsx`, `lib.rs`; shared editor in `batocera_settings.rs`.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| Other settings changed | Only the reviewed keys change; the editor checks that every other active value is identical before saving | `edits_change_only_the_wanted_keys_like_recalboxs_menu`, `edit_conf` check |
+| Recalbox's menu changed the file meanwhile | Saved only if the file's hash equals the reviewed one | `settings_and_theme_are_reviewed_saved_and_undone` |
+| Invalid values break Recalbox | Only Recalbox's own keys, scopes, values and installed themes are accepted; no line breaks in values | same test |
+| Can't take it back | `customizer::write_file`: journal, read-back check, backup, no-replace renames; Undo in the settings history | same test (undo restores the file) |
+
+**Residual risk:** not tried on a real Recalbox.
+

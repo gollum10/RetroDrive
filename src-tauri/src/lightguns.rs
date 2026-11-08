@@ -322,13 +322,18 @@ pub fn is_gun_game(folder: &str, stem: &str) -> bool {
     !name.is_empty() && ids.iter().any(|id| name == *id || name.contains(id.as_str()))
 }
 
-type Cache = Option<((i64, i64, i64), Arc<HashSet<String>>)>;
+type Cache = Option<((i64, i64, i64, String), Arc<HashSet<String>>)>;
 
 /// Ids of the library's light gun games (cached until the library changes).
 pub fn game_ids(connection: &Connection) -> Result<Arc<HashSet<String>>, String> {
     static CACHE: Mutex<Cache> = Mutex::new(None);
-    let key: (i64, i64, i64) = connection
-        .query_row("SELECT (SELECT COUNT(*) FROM games), (SELECT COALESCE(MAX(rowid), 0) FROM game_files), (SELECT COUNT(*) FROM game_files)", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+    // Sizes plus the largest game id (random ids, so it also tells libraries apart).
+    let key: (i64, i64, i64, String) = connection
+        .query_row(
+            "SELECT (SELECT COUNT(*) FROM games), (SELECT COALESCE(MAX(rowid), 0) FROM game_files), (SELECT COUNT(*) FROM game_files), (SELECT COALESCE(MAX(id), '') FROM games)",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )
         .map_err(|e| e.to_string())?;
     if let Ok(cache) = CACHE.lock() {
         if let Some((k, ids)) = cache.as_ref().filter(|(k, _)| *k == key) {
