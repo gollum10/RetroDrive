@@ -31,6 +31,7 @@ mod restore;
 mod retropie_settings;
 mod rocknix_settings;
 mod themes;
+pub mod theme_studio;
 mod scanner;
 mod sinden_step;
 mod vertical;

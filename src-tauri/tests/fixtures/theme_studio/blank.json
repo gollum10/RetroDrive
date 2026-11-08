@@ -1,0 +1,29 @@
+{
+  "format": "retrodrive.theme",
+  "schemaVersion": "1.0.0",
+  "id": "universal-blank",
+  "metadata": {
+    "name": "Untitled theme",
+    "author": "",
+    "description": "",
+    "version": "1.0.0",
+    "license": "unknown",
+    "tags": []
+  },
+  "targets": [],
+  "scenes": [
+    {
+      "id": "systems",
+      "role": "system_select",
+      "name": "Systems",
+      "resolution": {
+        "width": 1920,
+        "height": 1080
+      },
+      "nodes": []
+    }
+  ],
+  "assets": [],
+  "tokens": {},
+  "variants": {}
+}

@@ -25,6 +25,8 @@ jobs:
         run: python scripts/check-licenses.py
       - name: Type-check and build frontend
         run: npm run build
+      - name: Theme Studio source contract
+        run: npm run test:theme-contract
       - name: Rust tests
         working-directory: src-tauri
         run: cargo test --locked

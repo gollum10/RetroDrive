@@ -1,5 +1,7 @@
 # 17 | Third-Party Component Manifest (LEGAL-001)
 
+**Theme Studio PR 1 (2026-11-08):** no new dependencies, copied third-party themes, game art, fonts or media assets. Blank/starter/future JSON fixtures are original structural test data. Contract tests use existing TypeScript and Node built-ins; Rust reuses serde/serde_json. No FFmpeg/ZIP/canvas package is introduced.
+
 Inventory of everything RetroDrive ships, fetches or works with, using the fields from docs/16 §11. This is an engineering record for counsel review, not a legal conclusion. Update it whenever a component is added or considered.
 
 _Last updated: 2026-11-05 (RetroBat license, OneSauce)._

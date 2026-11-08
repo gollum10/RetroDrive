@@ -1,5 +1,7 @@
 # 03 | Information Architecture and UX Specification
 
+**Theme Studio (approved design, 2026-11-08):** separate workspace directly below Customize. New-project wizard explicitly offers **Universal / No Target Yet**, requiring no emulator. Future editor regions are scene/layer navigation, central canvas, properties inspector and collapsible animation timeline. PR 1 adds the underlying source contract only; workspace/editor behavior is not implemented yet.
+
 ## Navigation
 Dashboard · My Library · Drives · Systems · Deployments · Artwork Studio · Profiles · Maintenance · Settings. Advanced sections may be marked 'Coming later' rather than faking functionality.
 

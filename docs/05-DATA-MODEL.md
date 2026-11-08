@@ -1,5 +1,7 @@
 # 05 | Hybrid Library Data Model
 
+**Theme Studio PR 1 (2026-11-08):** versioned universal [JSON contract](theme-studio/project-format.md), separate from legacy DesignSpec. No catalog schema version, tables, designs or migrations change. SQLite remains the planned authoritative working store in PR 2. Portable source excludes machine paths/local installation bindings; its format schema version is independent of PRAGMA user_version.
+
 ## Essential rule
 **Game identity is not a file and is not a deployment.** A game may have multiple editions/discs/files; one file can be stored in many physical places; a selected subset can be deployed to many platform installations. Offlining storage must not delete canonical game records.
 

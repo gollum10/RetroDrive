@@ -1,5 +1,7 @@
 # 11 | Development Roadmap and Backlog
 
+**Theme Studio Sprint 1 (approved 2026-11-08):** PR 1 source types/validation/fixtures implemented; PR 2 SQLite persistence/recovery next; PR 3 workspace and explicit no-target wizard/browser; PR 4 capability/adapter foundation. Full visual/media/animation/template/sharing scope stays in [delivery tracking](theme-studio/requirements.md). RetroBat export first, Batocera next, ES-DE later. No main merge without owner authorization.
+
 ## Releases
 
 ### M0: Current scaffold (already provided; not yet independently build-tested)

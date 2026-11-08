@@ -1,5 +1,7 @@
 # 13 | Product Decisions and Open Questions
 
+**Theme Studio contract decision (2026-11-08, owner-approved Option B):** universal portable JSON, SQLite authoritative local working state, explicit empty target intent (Universal / No Target Yet), and separate platform exporters. PR 1 uses a flat scene node arena with ordered child IDs and preserves unknown JSON fields inertly. Local paths/bindings stay outside portable source. Exact 1.0.0 schema only; future versions are refused without data replacement. No changes to legacy DesignSpec or catalog schema. See [contract](theme-studio/project-format.md) for validation limits and future boundaries.
+
 ## Accepted decisions (from product discussions)
 | ID | Decision | Rationale |
 |---|---|---|

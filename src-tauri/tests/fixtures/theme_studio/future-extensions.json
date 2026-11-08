@@ -1,0 +1,182 @@
+{
+  "format": "retrodrive.theme",
+  "schemaVersion": "1.0.0",
+  "id": "original-starter",
+  "metadata": {
+    "name": "Original starter",
+    "author": "",
+    "description": "",
+    "version": "1.0.0",
+    "license": "unknown",
+    "tags": [],
+    "futureCredit": {
+      "name": "Creator"
+    }
+  },
+  "targets": [],
+  "scenes": [
+    {
+      "id": "startup",
+      "role": "startup",
+      "name": "Startup",
+      "resolution": {
+        "width": 1920,
+        "height": 1080
+      },
+      "nodes": []
+    },
+    {
+      "id": "main_menu",
+      "role": "main_menu",
+      "name": "Main Menu",
+      "resolution": {
+        "width": 1920,
+        "height": 1080
+      },
+      "nodes": []
+    },
+    {
+      "id": "system_select",
+      "role": "system_select",
+      "name": "System Select",
+      "resolution": {
+        "width": 1920,
+        "height": 1080
+      },
+      "nodes": []
+    },
+    {
+      "id": "game_list",
+      "role": "game_list",
+      "name": "Game List",
+      "resolution": {
+        "width": 1920,
+        "height": 1080
+      },
+      "nodes": [
+        {
+          "id": "title",
+          "type": "future_hologram",
+          "name": "Title",
+          "layout": {
+            "x": {
+              "value": 40,
+              "unit": "px",
+              "futureSnap": true
+            },
+            "y": {
+              "value": 40,
+              "unit": "px"
+            },
+            "width": {
+              "value": 800,
+              "unit": "px"
+            },
+            "height": {
+              "value": 100,
+              "unit": "px"
+            },
+            "rotation": 0
+          },
+          "style": {
+            "color": "ffffff"
+          },
+          "children": [],
+          "assets": [],
+          "bindings": {
+            "text": {
+              "source": "game.title",
+              "kind": "text"
+            }
+          },
+          "futurePayload": {
+            "depth": 3
+          }
+        }
+      ],
+      "futureOverride": {
+        "system": "nes"
+      }
+    },
+    {
+      "id": "game_detail",
+      "role": "game_detail",
+      "name": "Game Detail",
+      "resolution": {
+        "width": 1920,
+        "height": 1080
+      },
+      "nodes": []
+    },
+    {
+      "id": "launch",
+      "role": "launch",
+      "name": "Launch",
+      "resolution": {
+        "width": 1920,
+        "height": 1080
+      },
+      "nodes": []
+    },
+    {
+      "id": "idle",
+      "role": "idle",
+      "name": "Idle",
+      "resolution": {
+        "width": 1920,
+        "height": 1080
+      },
+      "nodes": []
+    },
+    {
+      "id": "exit",
+      "role": "exit",
+      "name": "Exit",
+      "resolution": {
+        "width": 1920,
+        "height": 1080
+      },
+      "nodes": []
+    }
+  ],
+  "assets": [],
+  "tokens": {},
+  "variants": {},
+  "animations": {
+    "tracks": [
+      {
+        "nodeId": "title",
+        "property": "opacity",
+        "keyframes": [
+          {
+            "time": 0,
+            "value": 0
+          },
+          {
+            "time": 1,
+            "value": 1
+          }
+        ]
+      }
+    ]
+  },
+  "navigation": {
+    "states": [
+      "systems",
+      "games"
+    ],
+    "back": "systems"
+  },
+  "audio": {
+    "playlists": []
+  },
+  "video": {
+    "clips": []
+  },
+  "components": {
+    "templates": []
+  },
+  "sharing": {
+    "attributionRequired": true
+  }
+}
