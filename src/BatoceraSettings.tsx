@@ -5,7 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { Eye, Palette } from 'lucide-react';
 
 type Choice = { label: string; value: string };
-type Setting = { key: string; label: string; help: string; per_system: boolean; choices: Choice[] };
+type Setting = { key: string; label: string; help: string; per_system: boolean; scope: string; choices: Choice[] };
 type Options = { settings: Setting[]; systems: string[]; values: Record<string,string>; conf_sha: string; themes: string[]; theme: string|null; es_sha: string|null; network: boolean };
 type Row = { system: string; key: string; before: string|null; after: string|null };
 type Preview = { changes: Row[]; file_sha: string };
@@ -24,7 +24,7 @@ export default function BatoceraSettings({ installationId, disabled, notify, onS
   if (problem) return <div className="backups"><h3>Batocera settings</h3><p className="warn-text">{problem}</p></div>;
   if (!o) return <div className="backups"><h3>Batocera settings</h3><p className="plan-notes">Reading Batocera's settings…</p></div>;
 
-  const full = (s: Setting) => s.per_system ? `${scope}.${s.key}` : `audio.${s.key}`;
+  const full = (s: Setting) => s.per_system ? `${scope}.${s.key}` : `${s.scope}.${s.key}`;
   const shown = o.settings.filter(s => s.per_system || scope === 'global');
   const value = (s: Setting) => { const k = full(s); return k in pending ? (pending[k] ?? '') : (o.values[k] ?? ''); };
   const set = (s: Setting, v: string) => { const k = full(s); const now = o.values[k] ?? ''; setReview(null);
@@ -53,6 +53,7 @@ export default function BatoceraSettings({ installationId, disabled, notify, onS
           {s.choices.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>)}</div>
       {count > 0 && !review && <div className="actions"><button className="primary" disabled={disabled || working} onClick={() => void doReview()}><Eye size={15}/> Review {count} change{count === 1 ? '' : 's'}</button><button className="ghost" onClick={() => setPending({})}>Discard</button></div>}
       {review && <div className="confirm"><p><b>Save these to batocera.conf?</b></p><ul>{review.changes.map(r => { const s = byKey(r.key); return <li key={r.system + r.key}>{r.system}: {s?.label ?? r.key}: {s ? label(s, r.before) : r.before ?? 'Auto'} → <b>{s ? label(s, r.after) : r.after ?? 'Auto'}</b></li>; })}
+        {review.changes.some(r => r.key === 'rotate') && <li className="warn-text">Screen rotation turns the whole picture after Batocera restarts. If it ends up sideways, set it back here (or use Undo) and restart Batocera.</li>}
         <li className="plan-notes">Only these lines change; the file is backed up first and Undo puts it back.</li></ul>
         <div className="actions"><button className="primary" disabled={working} onClick={() => void save()}>{working ? 'Saving…' : 'Save'}</button><button className="ghost" disabled={working} onClick={() => setReview(null)}>Not now</button></div></div>}
     </div>

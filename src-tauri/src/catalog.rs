@@ -44,6 +44,8 @@ pub struct GameRow {
     pub art: Option<String>,
     /// A light gun game (ADR-066).
     pub lightgun: bool,
+    /// A vertical arcade game (ADR-069).
+    pub vertical: bool,
     pub storage_name: String,
     /// `online`: file was present at the last scan and its volume is attached.
     /// `offline`: the volume (drive / share) is not attached, or its drive letter
@@ -73,6 +75,8 @@ pub struct GameQuery {
     pub collection_id: Option<String>,
     /// Only light gun games (ADR-066).
     pub lightgun_only: bool,
+    /// Only vertical arcade games (ADR-069).
+    pub vertical_only: bool,
     /// `title` (default), `platform` or `size`.
     pub sort: Option<String>,
     pub offset: u32,
@@ -190,7 +194,7 @@ fn like_pattern(text: &str) -> String {
 }
 
 /// WHERE clause, bound values and whether the query is filtered, for a library query.
-fn filter_sql(query: &GameQuery, offline: &str, guns: &str) -> Result<(String, Vec<Value>, bool), String> {
+fn filter_sql(query: &GameQuery, offline: &str, guns: &str, vertical: &str) -> Result<(String, Vec<Value>, bool), String> {
     let offline = offline.to_string();
     // Always list primary files only. The unary `+` stops SQLite from choosing the
     // role index for this term, which would scan every primary file instead of
@@ -258,6 +262,10 @@ fn filter_sql(query: &GameQuery, offline: &str, guns: &str) -> Result<(String, V
         conditions.push("g.id IN (SELECT value FROM json_each(?))");
         values.push(Value::Text(guns.to_string()));
     }
+    if query.vertical_only {
+        conditions.push("g.id IN (SELECT value FROM json_each(?))");
+        values.push(Value::Text(vertical.to_string()));
+    }
     let filtered = conditions.len() > 1 || query.left_out;
     // Left-out files are hidden unless asked for; this alone doesn't make a query "filtered".
     conditions.push(if query.left_out { "gf.excluded_at IS NOT NULL" } else { "gf.excluded_at IS NULL" });
@@ -274,11 +282,20 @@ fn gun_ids_json(connection: &Connection, query: &GameQuery) -> Result<String, St
     serde_json::to_string(&ids.iter().collect::<Vec<_>>()).map_err(|e| e.to_string())
 }
 
+/// The library's vertical game ids as JSON, when the query filters on them.
+fn vertical_ids_json(connection: &Connection, query: &GameQuery) -> Result<String, String> {
+    if !query.vertical_only {
+        return Ok("[]".into());
+    }
+    let ids = crate::vertical::game_ids(connection)?;
+    serde_json::to_string(&ids.iter().collect::<Vec<_>>()).map_err(|e| e.to_string())
+}
+
 /// Every primary file id matching a library query (up to `cap`), e.g. to add all
 /// shown games to a collection.
 pub fn matching_file_ids(connection: &Connection, query: &GameQuery, presence: PresenceFn, cap: usize) -> Result<Vec<String>, String> {
     let offline = offline_storage_ids(connection, presence)?;
-    let (where_clause, values, _) = filter_sql(query, &offline, &gun_ids_json(connection, query)?)?;
+    let (where_clause, values, _) = filter_sql(query, &offline, &gun_ids_json(connection, query)?, &vertical_ids_json(connection, query)?)?;
     let mut statement = connection.prepare(&format!("SELECT gf.id {FROM} {where_clause} LIMIT {cap}")).map_err(|e| e.to_string())?;
     let rows = statement.query_map(params_from_iter(values.iter()), |r| r.get(0)).map_err(|e| e.to_string())?;
     rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
@@ -291,7 +308,7 @@ pub fn matching_file_ids(connection: &Connection, query: &GameQuery, presence: P
 pub fn query_games(connection: &Connection, query: &GameQuery, presence: PresenceFn) -> Result<GamePage, String> {
     let limit = query.limit.unwrap_or(DEFAULT_PAGE_SIZE).clamp(1, MAX_PAGE_SIZE);
     let offline = offline_storage_ids(connection, presence)?;
-    let (where_clause, values, filtered) = filter_sql(query, &offline, &gun_ids_json(connection, query)?)?;
+    let (where_clause, values, filtered) = filter_sql(query, &offline, &gun_ids_json(connection, query)?, &vertical_ids_json(connection, query)?)?;
     let (page_from, order) = match query.sort.as_deref() {
         Some("platform") => (FROM_BY_GAME, "g.platform, g.display_title COLLATE NOCASE, g.rowid, fl.id"),
         Some("size") => (FROM_BY_FILE, "gf.file_role DESC, gf.payload_bytes DESC, fl.id"),
@@ -387,6 +404,7 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
                 file_id: r.get(18)?,
                 art: r.get(19)?,
                 lightgun: false,
+                vertical: false,
             })
         })
         .map_err(|e| e.to_string())?
@@ -394,11 +412,13 @@ pub fn query_games(connection: &Connection, query: &GameQuery, presence: Presenc
         .collect::<Result<_, _>>()
         .map_err(|e| e.to_string())?;
     let guns = crate::lightguns::game_ids(connection)?;
+    let vertical = crate::vertical::game_ids(connection)?;
     let rows = ids
         .iter()
         .filter_map(|id| by_id.remove(id))
         .map(|mut r| {
             r.lightgun = guns.contains(&r.game_id);
+            r.vertical = vertical.contains(&r.game_id);
             r
         })
         .collect();

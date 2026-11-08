@@ -462,7 +462,7 @@ mod tests {
         assert_eq!(r.controllers, 1405);
         assert_eq!(r.types.len(), 12);
         assert_eq!(r.types[0].name, "Classic joystick");
-        assert_eq!(r.sources.len(), 3, "the note row isn't a source");
+        assert_eq!(r.sources.len(), 4, "the note row isn't a source");
         assert!(r.notices.contains("gamesdb.xml"));
         assert!(r.notices.contains("zlib") || r.notices.contains("Permission is granted"));
         assert!(r.notices.contains("MIT License"));

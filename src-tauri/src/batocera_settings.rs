@@ -14,6 +14,9 @@
 //! - The options and their values are Batocera's own (`_shared.emulator.yml` in
 //!   batocera.linux: ratio, rewind, autosave, smooth, integerscale, shaderset, bezel;
 //!   shader sets and `audio.bgmusic` from the default `batocera.conf`).
+//! - Screen rotation is `display.rotate` (0, 1 = 90°, 2 = 180°, 3 = 270°; ADR-071), the
+//!   key Batocera keeps in step with its boot settings (`S65values4boot`); the menu
+//!   offers the same values for extra screens (`display.rotate2`/`3`, `GuiMenu.cpp`).
 //! - The theme is `ThemeSet` in `userdata/system/configs/emulationstation/es_settings.cfg`
 //!   (`Settings.cpp`); user themes are folders in `userdata/themes`, the built-in one
 //!   is `es-theme-carbon` (inside the system image, not visible from Windows). Batocera
@@ -40,8 +43,10 @@ pub struct Setting {
     pub key: &'static str,
     pub label: &'static str,
     pub help: &'static str,
-    /// `global` + systems, or only `audio` (menu music).
+    /// `global` + systems; otherwise the key's fixed prefix is `scope`.
     pub per_system: bool,
+    /// The prefix of a setting that isn't per system (`audio`, `display`).
+    pub scope: &'static str,
     pub choices: Vec<Choice>,
 }
 
@@ -88,6 +93,7 @@ pub fn settings(root: &Path) -> Vec<Setting> {
             label: "Game aspect ratio",
             help: "Force games to this shape. Not every system supports every ratio.",
             per_system: true,
+            scope: "global",
             choices: choices(&[
                 ("4/3", "4/3"),
                 ("16/9", "16/9"),
@@ -121,6 +127,7 @@ pub fn settings(root: &Path) -> Vec<Setting> {
             label: "Shader set",
             help: "A look for the picture, such as scanlines or a CRT curve.",
             per_system: true,
+            scope: "global",
             choices: choices(&[
                 ("Default", "default"),
                 ("None", "none"),
@@ -133,12 +140,20 @@ pub fn settings(root: &Path) -> Vec<Setting> {
                 ("Zfast", "zfast"),
             ]),
         },
-        Setting { key: "bezel", label: "Decorations", help: "The frame (bezel) shown around games.", per_system: true, choices: bezel_choices },
-        Setting { key: "smooth", label: "Smooth games", help: "Bilinear filtering; off when a shader set is used.", per_system: true, choices: choices(ON_OFF) },
-        Setting { key: "integerscale", label: "Integer scaling", help: "Pixel perfect: only whole-number enlargements.", per_system: true, choices: choices(ON_OFF) },
-        Setting { key: "rewind", label: "Rewind", help: "Go back in time while playing, where the emulator supports it.", per_system: true, choices: choices(ON_OFF) },
-        Setting { key: "autosave", label: "Auto save/load", help: "Save when you quit a game and pick up there next time.", per_system: true, choices: choices(ON_OFF) },
-        Setting { key: "bgmusic", label: "Menu music", help: "Background music and sounds in Batocera's menus.", per_system: false, choices: choices(ON_OFF) },
+        Setting { key: "bezel", label: "Decorations", help: "The frame (bezel) shown around games.", per_system: true, scope: "global", choices: bezel_choices },
+        Setting { key: "smooth", label: "Smooth games", help: "Bilinear filtering; off when a shader set is used.", per_system: true, scope: "global", choices: choices(ON_OFF) },
+        Setting { key: "integerscale", label: "Integer scaling", help: "Pixel perfect: only whole-number enlargements.", per_system: true, scope: "global", choices: choices(ON_OFF) },
+        Setting { key: "rewind", label: "Rewind", help: "Go back in time while playing, where the emulator supports it.", per_system: true, scope: "global", choices: choices(ON_OFF) },
+        Setting { key: "autosave", label: "Auto save/load", help: "Save when you quit a game and pick up there next time.", per_system: true, scope: "global", choices: choices(ON_OFF) },
+        Setting {
+            key: "rotate",
+            label: "Screen rotation",
+            help: "Turn the whole picture, e.g. for a TV or monitor stood on its side for vertical games. Takes effect after Batocera restarts.",
+            per_system: false,
+            scope: "display",
+            choices: choices(&[("Normal (0°)", "0"), ("90° (vertical)", "1"), ("180° (upside down)", "2"), ("270° (vertical)", "3")]),
+        },
+        Setting { key: "bgmusic", label: "Menu music", help: "Background music and sounds in Batocera's menus.", per_system: false, scope: "audio", choices: choices(ON_OFF) },
     ]
 }
 
@@ -288,7 +303,7 @@ fn validate(root: &Path, changes: &[ConfChange]) -> Result<BTreeMap<String, Opti
     for c in changes {
         let (scope, key) = c.key.split_once('.').ok_or_else(|| format!("Unknown setting {}.", c.key))?;
         let setting = offered.iter().find(|s| s.key == key).ok_or_else(|| format!("RetroDrive doesn't change {key} on Batocera."))?;
-        let scope_ok = if setting.per_system { scope == "global" || systems.iter().any(|s| s == scope) } else { scope == "audio" };
+        let scope_ok = if setting.per_system { scope == "global" || systems.iter().any(|s| s == scope) } else { scope == setting.scope };
         if !scope_ok {
             return Err(format!("{} can't be set for {scope}.", setting.label));
         }
@@ -427,6 +442,9 @@ mod tests {
         assert!(preview(&catalog, &id, &[change("snes.ratio", Some("5/3"))], &connected).is_err(), "not a Batocera value");
         assert!(preview(&catalog, &id, &[change("global.hostname", Some("x"))], &connected).is_err(), "not an offered setting");
         assert!(preview(&catalog, &id, &[change("global.bgmusic", Some("0"))], &connected).is_err(), "menu music is audio.bgmusic");
+        assert!(preview(&catalog, &id, &[change("display.rotate", Some("1"))], &connected).is_ok(), "screen rotation is display.rotate");
+        assert!(preview(&catalog, &id, &[change("display.rotate", Some("4"))], &connected).is_err());
+        assert!(preview(&catalog, &id, &[change("global.rotate", Some("1"))], &connected).is_err());
         let changes = [change("global.shaderset", Some("scanlines")), change("snes.smooth", None)];
         let p = preview(&catalog, &id, &changes, &connected).unwrap();
         assert_eq!(fs::read_to_string(share.join("system/batocera.conf")).unwrap(), CONF_TEXT, "previewing changes nothing");

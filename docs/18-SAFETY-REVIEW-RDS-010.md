@@ -512,3 +512,15 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 **Residual risk:** not tried on a real Recalbox.
 
+## 42. Addendum: vertical games, game groups and screen rotation (2026-11-07)
+**Scope and authorization:** owner ("Yes, let's do it according to your plan": A vertical games, B groups on RetroBat/Batocera, C screen orientation). A reads only. B edits one setting (`CollectionSystemsAuto`) in es_settings.cfg; C adds `display.rotate` to Batocera's settings.
+
+| Hazard | Mitigation | Evidence |
+|---|---|---|
+| The user's own collections lost | Only `lightgun` and `vertical` are added or removed; every other name in the list stays, in order | `groups_are_added_and_removed_without_touching_the_users_collections` |
+| RetroBat saves over the change | Refused while RetroBat runs (it rewrites es_settings.cfg when it closes); Batocera over the network: restart before other menu changes (as for themes) | same test; message |
+| A sideways screen (C) | Only 0/90/180/270°; the review warns; Undo or setting it back restores it | `settings_and_theme_are_reviewed_saved_and_undone` (extended) |
+| Can't take it back | `customizer::write_file` (journal, backup, no-replace renames); Undo | same tests |
+
+**Residual risk:** not tried on a real RetroBat with the groups on, or a real Batocera with rotation.
+
