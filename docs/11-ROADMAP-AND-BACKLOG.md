@@ -57,6 +57,7 @@ Arcade Builder, additional adapters, cloning/migration, optional AI diagnostics,
   - **Vertical games and game groups (owner 2026-11-07):** vertical games in the library, light gun and vertical groups on RetroBat/Batocera, Batocera screen rotation: **done 2026-11-07** (ADR-069–071). RetroPie's and ES-DE's custom collections filled from the library: **done 2026-11-07** (ADR-072).
 - RDS-020 **OneSauce / RetroFE adapter** (AtGames Legends Ultimate): read-only first, reading collections and accepted file types from the drive's own `settings.conf`. **⛔ Blocked on LEGAL-015** (docs/16 §6).
 - RDS-021 **Version 1 done 2026-11-06** (per-system emulator/core, shader, bezel, aspect ratio, integer scaling in RetroBat's es_settings.cfg, with review, backup and undo; docs/18 §12). Later: per-game settings, controls, advanced options, Batocera.
+- RDS-021 settings for one game **done 2026-11-08 for Batocera, Knulli and ROCKNIX** (ADR-083); RetroBat and Recalbox next.
 - RDS-021 (original scope) **Emulator customizer:** per-system emulator/core, display (shaders, bezels), controls and per-game overrides, described by each adapter. Must change the frontend's own settings (RetroBat rewrites many emulator configs at launch; verify first), back up before changing anything, show the exact change, support undo, and get its own safety review (like docs/18).
 - **Excluded:** preparing drives or machines with RetroBat or games for others or for sale (docs/16 §5).
 

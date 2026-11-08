@@ -199,6 +199,15 @@ fn systems(games_root: &Path) -> Vec<String> {
         .collect()
 }
 
+/// The games in one of ROCKNIX's system folders, for settings of one game (ADR-083).
+pub fn games(connection: &Connection, installation_id: &str, system: &str, presence: PresenceFn) -> Result<Vec<String>, String> {
+    let games = customizer::install_for(connection, installation_id, presence, &["rocknix"], "These settings are for ROCKNIX installations.")?;
+    if !systems(&games.root).iter().any(|s| s == system) {
+        return Err(format!("{system} isn't a system with games on this ROCKNIX."));
+    }
+    Ok(crate::batocera_settings::game_names(&crate::adapters::rocknix::games_folder(&games.root).join(system)))
+}
+
 pub fn options(
     connection: &Connection,
     installation_id: &str,
@@ -238,16 +247,18 @@ fn validate(
     let systems = systems(games);
     let mut wanted = BTreeMap::new();
     for c in changes {
-        let (scope, key) = c
-            .key
-            .split_once('.')
-            .ok_or_else(|| format!("Unknown setting {}.", c.key))?;
+        let (scope, game, key) = crate::batocera_settings::split_key(&c.key).ok_or_else(|| format!("Unknown setting {}.", c.key))?;
         let setting = offered
             .iter()
             .find(|s| s.key == key)
             .ok_or_else(|| format!("RetroDrive doesn't change {key} on ROCKNIX."))?;
-        if scope != "global" && !systems.iter().any(|s| s == scope) {
+        if (scope != "global" || game.is_some()) && !systems.iter().any(|s| s == scope) {
             return Err(format!("{} can't be set for {scope}.", setting.label));
+        }
+        if let Some(g) = game {
+            if !crate::batocera_settings::game_names(&crate::adapters::rocknix::games_folder(games).join(scope)).iter().any(|n| n == g) {
+                return Err(format!("{g} isn't in ROCKNIX's {scope} folder."));
+            }
         }
         if let Some(v) = &c.value {
             let kept = current.get(&c.key) == Some(v);
@@ -270,13 +281,9 @@ fn rows(
     wanted
         .iter()
         .map(|(key, value)| {
-            let (scope, name) = key.split_once('.').unwrap_or(("global", key));
+            let (scope, game, name) = crate::batocera_settings::split_key(key).unwrap_or(("global", None, key));
             ChangeRow {
-                system: if scope == "global" {
-                    "all systems".into()
-                } else {
-                    scope.into()
-                },
+                system: crate::batocera_settings::scope_label(scope, game),
                 key: name.into(),
                 before: current.get(key).cloned(),
                 after: value.clone(),
@@ -520,6 +527,15 @@ mod tests {
             CFG,
             "undo puts the file back"
         );
+
+        // One game (ADR-083): its own line, named the way EmulationStation names it.
+        assert_eq!(super::games(&c, &id, "snes", &connected).unwrap(), ["Mario.sfc"]);
+        let game = [ch("snes[\"Mario.sfc\"].ratio", Some("8/7"))];
+        assert!(preview_at(&c, &id, &[ch("snes[\"Nope.sfc\"].ratio", Some("8/7"))], &connected, &locate).is_err());
+        let p = preview_at(&c, &id, &game, &connected, &locate).unwrap();
+        assert_eq!(p.changes[0].system, "snes: Mario.sfc");
+        apply_at(&c, &id, &game, &p.file_sha, &connected, &locate).unwrap();
+        assert!(fs::read_to_string(config.join("system/configs/system.cfg")).unwrap().ends_with("snes[\"Mario.sfc\"].ratio=8/7\n"));
     }
 
     #[test]
