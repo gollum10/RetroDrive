@@ -83,6 +83,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-08 (ROCKNIX step 1 and Knulli, ADR-076):** Emulation Systems lists **ROCKNIX** (recognizes, checks, plans; "Copies games (not yet: plans are previews until a safety review)"); its plan shows ROCKNIX's folder names and the usual preview note. A Knulli share is recognized as Batocera with the evidence line "Knulli (based on Batocera): RetroDrive treats it as Batocera". The add-installation folder picker's title names the shares (`\\KNULLI\share`, `\\ROCKNIX\games-roms`, …). The Dashboard lists ROCKNIX.
 
+**Implemented 2026-11-08 (copying to ROCKNIX, ADR-077; owner: "switch on copying to Rocknix"):** ROCKNIX installations get *Sync* and a working *Copy* in Plan (no preview note); the Copying check explains network copies; the Dashboard says "Plan & copy games (network or SD card)".
+
 **Implemented 2026-11-07 (RetroPie and ES-DE collections, ADR-072; owner: "in RetroPie … I then have to select which games go in there … we should be able to add them from the library"):** the **Game groups** box also appears for ES-DE and for a RetroPie added by its network share. Each group shows how many matching games are on that system and in the library; ticking one → *Review* ("Light Gun Games: 0 → 1 games", "Collections shown: … → …", and a warning if the Pi's ROM folder is assumed) → *Save*. When groups are already on, *Add newly copied games* tops them up after later copies.
 
 ## Drives

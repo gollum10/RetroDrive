@@ -1,5 +1,6 @@
-//! ROCKNIX adapter (RDS-025, 2026-11-08, step 1: recognize, check, plan; ADR-076).
-//! Copying stays off until the owner's go-ahead (as for every new platform).
+//! ROCKNIX adapter (RDS-025, 2026-11-08: recognize, check, plan, ADR-076; copying since
+//! the owner's go-ahead "switch on copying to Rocknix", ADR-077, docs/18 §47) with the same
+//! verified copier as the other platforms; `\\ROCKNIX\games-roms` gets the share id (ADR-046).
 //!
 //! Facts checked 2026-11-07/08 in ROCKNIX's source (`ROCKNIX/distribution`, branch `next`):
 //! - The Samba share `[games-roms]` is `/storage/roms` (`projects/ROCKNIX/packages/network/
@@ -96,8 +97,8 @@ impl PlatformAdapter for Rocknix {
         AdapterKind::BootableOs
     }
     fn capabilities(&self) -> Capabilities {
-        // Step 1: recognize and plan; copying needs the owner's go-ahead (ADR-076).
-        Capabilities { detect: true, validate_layout: true, plan_placement: true, copy_games: false, install: false, write_files: false }
+        // Copying since the owner's go-ahead (ADR-077).
+        Capabilities { detect: true, validate_layout: true, plan_placement: true, copy_games: true, install: false, write_files: false }
     }
 
     fn detect(&self, root: &Path) -> Detection {
@@ -141,7 +142,16 @@ impl PlatformAdapter for Rocknix {
                 status: CheckStatus::Ok,
                 detail: if network { "Network share (\\\\ROCKNIX\\games-roms). It's only reachable while ROCKNIX is on and Samba is switched on in its Network Settings.".into() } else { "Folder Windows can read (e.g. an SD card's roms folder).".into() },
             },
-            LayoutCheck { id: "copying", label: "Copying".into(), status: CheckStatus::Warning, detail: "Copying to ROCKNIX isn't switched on yet: RetroDrive shows the plan only for now.".into() },
+            LayoutCheck {
+                id: "copying",
+                label: "Copying".into(),
+                status: if network { CheckStatus::Warning } else { CheckStatus::Ok },
+                detail: if network {
+                    "Copies over the network: keep ROCKNIX on and connected until the copy finishes. Every file is checked after it's written; nothing is overwritten or deleted. Restart ROCKNIX's menu (or the device) to see new games.".into()
+                } else {
+                    "RetroDrive copies games here, checks every file after it's written, and never overwrites or deletes anything.".into()
+                },
+            },
             LayoutCheck { id: "version", label: "Version".into(), status: CheckStatus::Warning, detail: "ROCKNIX's version isn't visible from here; its menu shows it.".into() },
         ]
     }
@@ -186,7 +196,7 @@ mod tests {
         let pie = tempfile::tempdir().unwrap();
         make(pie.path(), &["nes", "snes", "megadrive", "ports", "coleco", "fba"]);
         assert_eq!(Rocknix.detect(pie.path()).confidence, Confidence::NotDetected);
-        assert!(!Rocknix.capabilities().copy_games, "step 1: plan only until the owner's go-ahead");
+        assert!(Rocknix.capabilities().copy_games, "copies since the owner's go-ahead (docs/18 §47)");
         assert!(Rocknix.validate_layout(roms.path()).iter().all(|c| c.status != CheckStatus::Problem));
     }
 
