@@ -550,3 +550,6 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 ## 46. Addendum: ROCKNIX step 1 and Knulli (2026-11-08)
 **Scope and authorization:** owner ("let's keep working the list"; "more systems"). Read-only: the ROCKNIX adapter recognizes, checks and plans; `copy_games` is false, so the copier refuses ROCKNIX until a separate go-ahead and review (as for every new platform). Knulli only gets a label: it is copied to as Batocera, which is already reviewed (§21 and later).
+
+## 47. Addendum: copying to ROCKNIX (2026-11-08)
+**Scope and authorization:** owner ("switch on copying to Rocknix"). ROCKNIX now uses the same copier as Batocera, RetroPie and Recalbox: temporary names, read-back checks, no-replace renames, journal and crash recovery scoped to the installation folder (§1–§20); over the network the share gets its id on the first copy and a different machine answering to the same name is refused (§21, ADR-046). Nothing in the copier changed; only the adapter's capability flag and placement (§46). Evidence: `rocknix_roms_folders_are_copied_to`. **Residual risk:** not tried on a real ROCKNIX device or over its Samba share.

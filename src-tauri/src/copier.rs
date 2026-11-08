@@ -1647,6 +1647,36 @@ mod tests {
     }
 
     #[test]
+    fn rocknix_roms_folders_are_copied_to() {
+        // ADR-077: ROCKNIX's games-roms share is its roms folder: system folders at the top,
+        // ROCKNIX's folder names, BIOS in its bios folder.
+        let dir = tempfile::tempdir().unwrap();
+        let roms = dir.path().join("games-roms");
+        for d in ["snes", "atarilynx", "fbn", "bios", "bezels", "savestates"] {
+            fs::create_dir_all(roms.join(d)).unwrap();
+        }
+        let library = dir.path().join("library");
+        write(&library, "snes/Mario.sfc", b"mario");
+        write(&library, "lynx/Racer.lnx", b"lynx!");
+        write(&library, "bios/scph1001.bin", b"psx bios");
+        let mut catalog = Connection::open_in_memory().unwrap();
+        db::migrate(&mut catalog, None).unwrap();
+        scanner::scan(&mut catalog, &library, &unknown).unwrap();
+        let id = installations::add(&catalog, &roms, "rocknix", &unknown).unwrap();
+        let choices = deployment::Choices::new();
+        let plan = deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap();
+        assert!(plan.copy_supported && plan.systems_prefix.is_empty());
+        let request = DeployRequest { installation_id: &id, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None, sync: false };
+        let summary = deploy(&catalog, None, &request, &connected, &roomy, &mut Quiet).unwrap();
+        assert_eq!((summary.status.as_str(), summary.games_copied), ("completed", 3), "{:?}", summary.issues);
+        assert_eq!(fs::read(roms.join("atarilynx/Racer.lnx")).unwrap(), b"lynx!", "ROCKNIX's folder name");
+        assert_eq!(fs::read(roms.join("bios/scph1001.bin")).unwrap(), b"psx bios", "BIOS in ROCKNIX's bios folder");
+        // A second copy finds everything already there.
+        let again = deployment::plan_with(&catalog, &id, None, None, &choices, &connected, &roomy).unwrap();
+        assert_eq!(again.bytes_to_copy, 0);
+    }
+
+    #[test]
     fn esde_roms_folders_are_copied_to() {
         // RDS-025 step 2: ES-DE's ROMs folder holds the system folders; ES-DE's names.
         let dir = tempfile::tempdir().unwrap();
