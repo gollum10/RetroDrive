@@ -1,5 +1,9 @@
 # 15 | Quality Assurance, Threat Scenarios and Test Matrix
 
+PR 3 local checks (2026-11-08): test:theme-workspace, test:theme-contract and frontend build passed; Rust suite 270 passed/7 ignored; Clippy with warnings denied passed; license gate passed (298 dependencies, zero denied). No browser/native interaction or real target smoke test was run. The Customize server-render assertion was corrected to use native=true because its existing browser-mode behavior intentionally renders nothing.
+
+**Theme Studio PR 3:** test:theme-workspace covers document factory, serialized revision writes, edits during in-flight writes, failure/retry/conflict retention, and React server-rendered wizard/editor/browser/sidebar/Customize smoke assertions. This is not DOM event or native close testing. [Limits](theme-studio/workspace.md).
+
 PR 2 local Windows verification (2026-11-08): `cargo test --locked --quiet` — 270 passed, 7 ignored, including 11 new project tests and 2 migration tests; `cargo clippy --locked --all-targets -- -D warnings` passed; `npm.cmd run build` passed; `npm.cmd run test:theme-contract` passed; `python scripts/check-licenses.py` passed (298 shipped dependencies, zero denied). No new dependencies, live-catalog migration, GUI or real target test. Connection-loss simulation covers SQLite transaction rollback, not physical power loss. Commands run in the isolated worktree; Rust commands run in src-tauri.
 
 **Theme Studio PR 2 coverage:** project lifecycle/Unicode/pagination, explicit checkpoint/draft/recover/discard semantics, rename/duplication with future data, stale/reordered and simultaneous writes, forced insert/update rollback, reopen/connection-loss recovery, SQL identity constraints, synthetic target isolation, and v26 backup/migration/legacy-history preservation and failed migration rollback. These are disposable catalog tests; no real application database or installed theme was used. See [persistence](theme-studio/persistence.md).

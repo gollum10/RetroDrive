@@ -1,5 +1,7 @@
 # RetroDrive | Documentation Index
 
+**Theme Studio PR 3:** [workspace and save/recovery behavior](theme-studio/workspace.md); separate from Customize. Lifecycle/server-render tests do not replace a manual native interaction smoke test.
+
 **Theme Studio PR 2:** [local project persistence/recovery](theme-studio/persistence.md) adds catalog v27 and background IPC. It remains separate from legacy designs and installed theme files; no workspace UI is shipped yet.
 
 **Theme Studio:** [master specification](RetroDrive_Theme_Studio_Master_Design_v1.md), [Sprint 1 plan](theme-studio-sprint-1-plan.md), [source contract](theme-studio/project-format.md), [delivery tracking](theme-studio/requirements.md) and [security](theme-studio/security.md). PR 1 adds pure source types/validation only.

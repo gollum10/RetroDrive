@@ -1,5 +1,7 @@
 # RetroDrive — Features
 
+**Theme Studio PR 3: partial workspace implemented.** Separate project browser and no-target wizard; metadata editing, scene/layer overview, future canvas/inspector/timeline regions, autosave/checkpoints, recovery and guarded navigation. No drag-and-drop, media editing, native preview/export or installation. [Workspace behavior and verification limits](docs/theme-studio/workspace.md).
+
 **Theme Studio PR 2 (2026-11-08): backend persistence implemented.** Additive catalog v27 stores universal checkpoints/drafts separately with revision conflicts, recovery/discard, rename and source duplication. Background IPC and typed frontend wrappers are available; workspace/wizard and UI autosave remain PR 3. [Storage contract](docs/theme-studio/persistence.md). Existing Customize, design records and target-write code remain unchanged.
 
 **Theme Studio (2026-11-08, Sprint 1 PR 1): partial foundation only.** Portable source types, validation and fixtures exist: no-target projects, scene/node graphs, typed bindings, asset declarations and future-field preservation. [Contract](docs/theme-studio/project-format.md) and [delivery tracking](docs/theme-studio/requirements.md). Workspace, SQLite project storage, visual editor, compiler, packages and deployment remain planned. Customize is unchanged.

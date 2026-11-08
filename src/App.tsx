@@ -5,6 +5,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import sidebarArtUrl from './assets/retrodrive-sidebar-art.png';
 import iconUrl from './assets/retrodrive-icon.png';
 import Customize from './Customize';
+import ThemeStudio, { type StudioLeaveGuard } from './ThemeStudio';
 import InstallHelper from './InstallHelper';
 import Controllers from './Controllers';
 import { fmtSize, localTime, shortPath } from './format';
@@ -102,14 +103,22 @@ function describeScan(r: ScanSummary): string {
 }
 const availabilityLabel: Record<Availability,string> = { online:'Online', offline:'Offline (drive not connected)', missing:'Missing at last scan' };
 type Drive = { name: string; mount_point: string; total_bytes: number; available_bytes: number; removable: boolean };
-type Page = 'Dashboard'|'Game Library'|'Drive Manager'|'Emulation Systems'|'Controllers'|'Customize'|'Settings';
+type Page = 'Dashboard'|'Game Library'|'Drive Manager'|'Emulation Systems'|'Controllers'|'Customize'|'Theme Studio'|'Settings';
 const menus = [
   {title:'Dashboard',icon:LayoutDashboard}, {title:'Game Library',icon:LibraryBig},
-  {title:'Drive Manager',icon:HardDrive}, {title:'Emulation Systems',icon:Gamepad2}, {title:'Controllers',icon:Joystick}, {title:'Customize',icon:Palette}, {title:'Settings',icon:Settings2},
+  {title:'Drive Manager',icon:HardDrive}, {title:'Emulation Systems',icon:Gamepad2}, {title:'Controllers',icon:Joystick}, {title:'Customize',icon:Palette}, {title:'Theme Studio',icon:Palette}, {title:'Settings',icon:Settings2},
 ] as const;
 const bytes = (n:number) => `${(n/1024/1024/1024).toFixed(1)} GB`;
 export default function App() {
-  const [page,setPage]=useState<Page>('Dashboard');
+  const [page,setPageRaw]=useState<Page>('Dashboard');
+  const studioLeave: StudioLeaveGuard = useRef(null);
+  const navigating = useRef(false);
+  const setPage = (next: Page) => { void (async () => {
+    if (navigating.current) return;
+    navigating.current = true;
+    try { if (page !== 'Theme Studio' || next === page || !studioLeave.current || await studioLeave.current()) setPageRaw(next); }
+    finally { navigating.current = false; }
+  })(); };
   const [stats,setStats]=useState<LibraryStats|null>(null); const [drives,setDrives]=useState<Drive[]>([]); const [storage,setStorage]=useState<StorageRow[]>([]);
   const [libraryMode,setLibraryMode]=useState<LibraryMode>(()=>remembered('rd.libraryMode',['systems','collections','games'] as const,'systems'));
   const [libraryView,setLibraryView]=useState<LibraryView>(()=>remembered('rd.libraryView',['list','grid'] as const,'grid'));
@@ -501,6 +510,7 @@ export default function App() {
     </>}
     {page==='Controllers' && <Controllers onShowGunGames={showGunGames} notify={(text, isError=false)=>{ setError(isError); setMessage(text); }}/>}
     {page==='Customize' && <Customize installs={installs} native={native} busy={busy} notify={(text, isError=false)=>{ setError(isError); setMessage(text); }}/>}
+    {page==='Theme Studio' && <ThemeStudio native={native} leaveGuard={studioLeave}/>}
     {page==='Settings' && <section className="panel"><h2>Reference catalog</h2>
       <p>Import your own game catalog (.xlsx or .csv) to show proper titles, years, genres and publishers. RetroDrive matches games by their exact No-Intro or MAME name first, then by title on the same system. Only names and details are imported; <b>art columns are never read</b>. Your files are never changed, and removing the catalog leaves your library as it was.</p>
       {refStatus ? <div className="ref-status"><div><b>{refStatus.name}</b><small>{refStatus.file_name} · {refStatus.entries.toLocaleString()} entries{refStatus.genres_added?` · ${refStatus.genres_added.toLocaleString()} genres added`:''} · imported {sqlTime(refStatus.imported_at)}</small></div>

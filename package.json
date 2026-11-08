@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "test:theme-workspace": "node scripts/check-theme-workspace.cjs",
     "test:theme-contract": "node scripts/check-theme-contract.cjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
