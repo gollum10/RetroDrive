@@ -15,6 +15,7 @@ mod copier;
 mod db;
 mod deployment;
 mod drives;
+mod game_groups;
 mod gamelists;
 mod duplicates;
 mod install_helper;
@@ -30,6 +31,7 @@ mod retropie_settings;
 mod themes;
 mod scanner;
 mod sinden_step;
+mod vertical;
 mod volumes;
 
 use serde::Serialize;
@@ -773,6 +775,36 @@ async fn apply_retropie_emulators(catalog: State<'_, Catalog>, active: State<'_,
     result?
 }
 
+/// Game groups (light gun, vertical) on RetroBat/Batocera: which are on (reads only).
+#[tauri::command]
+async fn game_groups_state(catalog: State<'_, Catalog>, installation_id: String) -> Result<game_groups::GroupsState, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || game_groups::state(&db::open(&db_path)?, &installation_id, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// What turning game groups on or off would change (reads only).
+#[tauri::command]
+async fn preview_game_groups(catalog: State<'_, Catalog>, installation_id: String, wanted: std::collections::BTreeMap<String, bool>) -> Result<customizer::Preview, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || game_groups::preview(&db::open(&db_path)?, &installation_id, &wanted, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Turn game groups on or off (journaled, backed up, undoable).
+#[tauri::command]
+async fn apply_game_groups(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, wanted: std::collections::BTreeMap<String, bool>, file_sha: String) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let connection = db::open(&db_path)?;
+        let running = running_for(&connection, &installation_id);
+        game_groups::apply(&connection, &installation_id, &wanted, &file_sha, &volumes::presence, running)
+    })
+    .await
+    .map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
 /// Recalbox settings and themes offered, with current values (reads only).
 #[tauri::command]
 async fn recalbox_options(catalog: State<'_, Catalog>, installation_id: String) -> Result<recalbox_settings::RecalboxOptions, String> {
@@ -1368,6 +1400,9 @@ pub fn run() {
             set_sync_scope,
             batocera_options,
             recalbox_options,
+            game_groups_state,
+            preview_game_groups,
+            apply_game_groups,
             preview_recalbox_settings,
             apply_recalbox_settings,
             retropie_options,

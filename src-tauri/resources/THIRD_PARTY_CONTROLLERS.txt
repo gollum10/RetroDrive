@@ -54,7 +54,9 @@ RetroDrive's controller list (src-tauri/resources/controllers.tsv) was compiled 
 Batocera EmulationStation, resources/gamesdb.xml (light gun games list)
 https://github.com/batocera-linux/batocera-emulationstation
 commit ccbcf40ead192d8f5806d5c2fde67aa89a981e0b
-Used in RetroDrive: resources/gun_games.tsv (the games marked as gun games)
+Used in RetroDrive: resources/gun_games.tsv (the games marked as gun games), and from
+resources/arcaderoms.xml (commit b0ed9f56f8b45fe408a7b1acb54d05c162cd7cc4)
+resources/vertical_games.tsv (the games marked as vertical)
 
 MIT License
 

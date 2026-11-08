@@ -303,7 +303,7 @@ fn indexed_name(name: &str) -> String {
 }
 
 /// Arcade folders (MAME short names).
-const ARCADE_FOLDERS: &[&str] = &["mame", "fbneo", "cps1", "cps2", "cps3", "naomi", "atomiswave", "neogeo"];
+pub(crate) const ARCADE_FOLDERS: &[&str] = &["mame", "fbneo", "cps1", "cps2", "cps3", "naomi", "atomiswave", "neogeo"];
 
 /// Whether a game file is a light gun game, the way EmulationStation decides it:
 /// arcade by its exact romset name; other systems by the cleaned name equal to, or
@@ -322,11 +322,17 @@ pub fn is_gun_game(folder: &str, stem: &str) -> bool {
     !name.is_empty() && ids.iter().any(|id| name == *id || name.contains(id.as_str()))
 }
 
-type Cache = Option<((i64, i64, i64, String), Arc<HashSet<String>>)>;
+pub(crate) type Cache = Option<((i64, i64, i64, String), Arc<HashSet<String>>)>;
 
 /// Ids of the library's light gun games (cached until the library changes).
 pub fn game_ids(connection: &Connection) -> Result<Arc<HashSet<String>>, String> {
     static CACHE: Mutex<Cache> = Mutex::new(None);
+    library_matches(connection, &CACHE, is_gun_game)
+}
+
+/// Ids of the library's games for which `is_match(system folder, file stem)` holds,
+/// cached in `cache` until the library changes (light gun and vertical games).
+pub(crate) fn library_matches(connection: &Connection, cache: &Mutex<Cache>, is_match: fn(&str, &str) -> bool) -> Result<Arc<HashSet<String>>, String> {
     // Sizes plus the largest game id (random ids, so it also tells libraries apart).
     let key: (i64, i64, i64, String) = connection
         .query_row(
@@ -335,9 +341,8 @@ pub fn game_ids(connection: &Connection) -> Result<Arc<HashSet<String>>, String>
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
         )
         .map_err(|e| e.to_string())?;
-    if let Ok(cache) = CACHE.lock() {
-        if let Some((k, ids)) = cache.as_ref().filter(|(k, _)| *k == key) {
-            let _ = k;
+    if let Ok(cached) = cache.lock() {
+        if let Some((_, ids)) = cached.as_ref().filter(|(k, _)| *k == key) {
             return Ok(ids.clone());
         }
     }
@@ -353,14 +358,14 @@ pub fn game_ids(connection: &Connection) -> Result<Arc<HashSet<String>>, String>
         let (id, platform, filename) = row.map_err(|e| e.to_string())?;
         let (stem, extension) = filename.rsplit_once('.').unwrap_or((&filename, ""));
         if let Some(folder) = adapters::batocera_folder(&platform, &extension.to_lowercase()) {
-            if is_gun_game(folder, stem) {
+            if is_match(folder, stem) {
                 ids.insert(id);
             }
         }
     }
     let ids = Arc::new(ids);
-    if let Ok(mut cache) = CACHE.lock() {
-        *cache = Some((key, ids.clone()));
+    if let Ok(mut cached) = cache.lock() {
+        *cached = Some((key, ids.clone()));
     }
     Ok(ids)
 }

@@ -1,0 +1,3483 @@
+# Vertical arcade games from Batocera EmulationStation resources/arcaderoms.xml (MIT licence), commit b0ed9f56f8b45fe408a7b1acb54d05c162cd7cc4
+id	name
+005	005
+1941	1941 - Counter Attack (World)
+1941j	1941 - Counter Attack (Japan)
+1941r1	1941: Counter Attack (World)
+1941u	1941: Counter Attack (USA 900227)
+1942	1942 (set 1)
+1942a	1942 (set 2)
+1942abl	1942 (Revision A, bootleg)
+1942b	1942 (set 3)
+1942c64	1942 (With C64 music)
+1942h	42
+1942p	1942 (prototype)
+1942w	1942 (Williams Electronics license)
+1943	1943 - The Battle of Midway (US)
+1943b	1943: Battle of Midway (bootleg, hack of Japan set)
+1943b2	1943: Midway Kaisen (bootleg set 2, hack of Japan set)
+1943bj	1943: Midway Kaisen (bootleg)
+1943j	1943 - The Battle of Midway (Japan)
+1943ja	1943: Midway Kaisen (Japan)
+1943jah	1943: Midway Kaisen (Japan, no protection hack)
+1943jaha	1943: Midway Kaisen (Japan, no protection hack, alt)
+1943kai	1943 Kai
+1943mii	1943 - The Battle of Midway Mark II (US)
+1943u	1943: The Battle of Midway (US)
+1943ua	1943: The Battle of Midway (US)
+1945kiii	1945k III
+1945kiiin	1945k III (newer, OPCX1 PCB)
+1945kiiio	1945k III (older, OPCX1 PCB)
+19in1	19 in 1 MAME bootleg
+19xx	19XX: The War Against Destiny (US 951207)
+19xxa	19XX: The War Against Destiny (Asia 951207)
+19xxar1	19XX: The War Against Destiny (Asia 951207)
+19xxb	19XX: The War Against Destiny (Brazil 951218)
+19xxd	19XX: The War Against Destiny (USA 951207 Phoenix Edition) (bootleg)
+19xxh	19XX: The War Against Destiny (Hispanic 951218)
+19xxj	19XX: The War Against Destiny (Japan 951225)
+19xxjr1	19XX: The War Against Destiny (Japan 951207)
+19xxjr2	19XX: The War Against Destiny (Japan 951207)
+19xxu	19XX: The War Against Destiny (USA 951207)
+20pacgal	Ms. Pac-Man/Galaga - 20th Anniversary Class of 1981 Reunion (V1.08)
+20pacgalr0	Ms. Pac-Man/Galaga - 20th Anniversary Class of 1981 Reunion (V1.00)
+20pacgalr1	Ms. Pac-Man/Galaga - 20th Anniversary Class of 1981 Reunion (V1.01)
+20pacgalr2	Ms. Pac-Man/Galaga - 20th Anniversary Class of 1981 Reunion (V1.02)
+20pacgalr3	Ms. Pac-Man/Galaga - 20th Anniversary Class of 1981 Reunion (V1.03)
+20pacgalr4	Ms. Pac-Man/Galaga - 20th Anniversary Class of 1981 Reunion (V1.04)
+25pacman	Pac-Man - 25th Anniversary Edition (Rev 3.00)
+25pacmano	Pac-Man - 25th Anniversary Edition (Rev 2.00)
+39in1	39 in 1 MAME bootleg
+48in1	48 in 1 MAME bootleg (ver 3.09)
+48in1a	48 in 1 MAME bootleg (ver 3.02)
+48in1b	48 in 1 MAME bootleg (set 2, ver 3.09, alt flash)
+4in1	4 Fun in 1
+4in1a	4 in 1 MAME bootleg (set 1, ver 3.00)
+4in1b	4 in 1 MAME bootleg (set 2)
+600	600
+60in1	60 in 1 MAME bootleg (ver 3.00)
+800fath	800 Fathoms
+800fatha	800 Fathoms (older)
+8ball	Video Eight Ball
+8ball1	Video Eight Ball (Rev.1)
+8ballact	Eight Ball Action (DK conversion)
+8ballact2	Eight Ball Action (DKJr conversion)
+8ballat2	Eight Ball Action (DKJr conversion)
+8bpm	Eight Ball Action (Pac-Man conversion)
+99lstwar	'99 The Last War
+99lstwara	'99: The Last War (alternate)
+99lstwarb	'99: The Last War (bootleg)
+99lstwark	'99: The Last War (Kyugo)
+99lstwra	'99 The Last War (alternate)
+aa	Alien Armada
+aafb	All American Football (rev E)
+aafbb	All American Football (rev B)
+aafbc	All American Football (rev C)
+aafbd2p	All American Football (rev D, 2 Players)
+abattle	Astro Battle (set 1)
+abattle2	Astro Battle (set 2)
+abscam	Abscam
+aceattac	Ace Attacker
+aceattaca	Ace Attacker (Japan, System 16A, FD1094 317-0060)
+acefruit	unknown ACE fruits game
+acitya	Atlantic City Action
+acombat	Astro Combat (newer, CB)
+acombat3	Astro Combat (unencrypted)
+acombat4	Astro Combat (encrypted)
+acombato	Astro Combat (older, PZ)
+acrobatm	Acrobat Mission
+acrobatmbl	Acrobat Mission (bootleg with Raiden sounds)
+ad2083	A. D. 2083
+aerfboo2	Aero Fighters (bootleg set 2)
+aerfboot	Aero Fighters (bootleg set 1)
+aerofgt	Aero Fighters
+aerofgtb	Aero Fighters (Turbo Force hardware set 1)
+aerofgtc	Aero Fighters (Turbo Force hardware set 2)
+aerofgts	Aero Fighters Special (Taiwan)
+aerofgtst	Aero Fighters Special (Taiwan)
+afighter	Action Fighter
+afightera	Action Fighter (unprotected)
+afighterb	Action Fighter (unprotected, analog controls)
+afighterc	Action Fighter (FD1089B 317-unknown)
+afighterd	Action Fighter (FD1089B 317-unknown, analog controls)
+afightere	Action Fighter (System 16B, unprotected, analog controls)
+afighterf	Action Fighter (System 16B, FD1089B 317-unknown, analog controls)
+afighterg	Action Fighter (System 16B, FD1089B 317-unknown)
+afighterh	Action Fighter (System 16B, FD1089A 317-0018)
+afire	Astro Fire
+agallet	Air Gallet
+agalleta	Air Gallet (older, Europe)
+agalletah	Air Gallet (older, Hong Kong)
+agalletaj	Akuu Gallet (older, Japan)
+agalletak	Air Gallet (older, Korea)
+agalletat	Air Gallet (older, Taiwan)
+agalletau	Air Gallet (older, USA)
+agalleth	Air Gallet (Hong Kong)
+agalletj	Air Gallet (Japan)
+agalletk	Air Gallet (Korea)
+agallett	Air Gallet (Taiwan)
+agalletu	Air Gallet (USA)
+airass	Air Assault (World)
+airattck	Air Attack (set 1)
+airattcka	Air Attack (set 2)
+airduel	Air Duel (Japan)
+airdueljm72	Air Duel (Japan, M72 hardware)
+airduelm72	Air Duel (Japan, M72)
+airduelu	Air Duel (US location test, M82 hardware)
+airraid	Air Raid (encrypted)
+ajax	Ajax
+ajaxj	Ajax (Japan)
+akkanvdr	Akkanvader (Japan)
+alcon	Alcon
+alibaba	Ali Baba and 40 Thieves
+alibabab	Mustafa and 40 Thieves (bootleg)
+alieninv	Alien Invasion Part II
+alieninvp2	Alien Invasion Part II
+alienres	Alien Rescue
+alinvade	Alien Invaders
+alleymas	Alley Master
+alphaho	Alpha Fighter / Head On
+alphahob	Missile / Circuit (bootleg of Alpha Fighter / Head On)
+alphamis	Alpha Mission
+alphaxz	The Alphax Z (Japan)
+alpine	Alpine Ski (set 1)
+alpinea	Alpine Ski (set 2)
+altair	Altair
+amatelas	Sei Senshi Amatelass
+amazon	Soldier Girl Amazon
+amazont	Soldier Girl Amazon (Tecfri license)
+amidar	Amidar
+amidar1	Amidar (older)
+amidarb	Amidar (bootleg)
+amidarb2	Amidar (bootleg, set 2)
+amidarc	Amidar (Cirsa bootleg)
+amidaro	Amidar (Olympia)
+amidars	Amidar (Scramble hardware)
+amidaru	Amidar (Stern)
+amigo	Amigo
+amigo2	Amigo (bootleg of Amidar, set 2)
+androidp	Android (prototype, later build)
+androidpo	Android (prototype, early build)
+andromed	Andromeda (Japan?)
+angelkds	Angel Kids (Japan)
+anmlbskt	Animal Basket
+anmlbskta	Animal Basket / Hustle Tamaire Kyousou (19 Jan 2005)
+anteater	Anteater
+anteaterg	Ameisenbaer (German)
+anteatergg	Ameisenbaer (German, Galaxian hardware)
+anteateruk	The Anteater (UK)
+apb	APB - All Points Bulletin (set 1)
+apb1	APB - All Points Bulletin (rev 1)
+apb2	APB - All Points Bulletin (set 2)
+apb3	APB - All Points Bulletin (rev 3)
+apb4	APB - All Points Bulletin (rev 4)
+apb5	APB - All Points Bulletin (rev 5)
+apb6	APB - All Points Bulletin (rev 6)
+apbf	APB - All Points Bulletin (French)
+apbg	APB - All Points Bulletin (German)
+aponow	Apocaljpse Now
+arabian	Arabian
+arabiana	Arabian (Atari)
+aracnis	Aracnis (bootleg of Scorpion on Moon Cresta hardware)
+aracnisa	Aracnis (bootleg of Scorpion on Moon Cresta hardware, set 2)
+arbalest	Arbalester
+arcadian	Arcadia (NMK)
+argus	Argus
+arian	Arian Mission
+ark1ball	Arkanoid (bootleg with MCU, harder)
+ark1balla	Arkanoid (bootleg with MCU, harder, alt)
+arkangc	Arkanoid (Game Corporation bootleg)
+arkangc2	Arkanoid (Game Corporation bootleg, set 2)
+arkanoid	Arkanoid (World)
+arkanoidj	Arkanoid (Japan)
+arkanoidja	Arkanoid (Japan, older rev)
+arkanoidjb	Arkanoid (Japan, oldest rev)
+arkanoidjbl	Arkanoid (bootleg with MCU, set 1)
+arkanoidjbl2	Arkanoid (bootleg with MCU, set 2)
+arkanoidjbla	Arkanoid (bootleg with MCU, alt)
+arkanoidpe	Arkanoid (Phoenix Electronics Co. license)
+arkanoidu	Arkanoid (US)
+arkanoiduo	Arkanoid (US, older)
+arkatayt	Arkanoid (Tayto bootleg, Japanese)
+arkatour	Tournament Arkanoid (US)
+arkatour2	Tournament Arkanoid (US, newer)
+arkbl2	Arkanoid (Japanese bootleg Set 2)
+arkbl3	Arkanoid (Japanese bootleg Set 3)
+arkbloc2	Block (Game Corporation bootleg)
+arkbloc3	Block (Game Corporation bootleg, set 3)
+arkblock	Block (bootleg, Japanese)
+arkgcbl	Arkanoid (bootleg on Block hardware, set 1)
+arkgcbla	Arkanoid (bootleg on Block hardware, set 2)
+arknid2j	Arkanoid - Revenge of DOH (Japan)
+arknid2u	Arkanoid - Revenge of DOH (US)
+arknoid2	Arkanoid - Revenge of DOH (World)
+arknoid2b	Arkanoid - Revenge of DOH (Japan bootleg)
+arknoid2j	Arkanoid - Revenge of DOH (Japan)
+arknoid2u	Arkanoid - Revenge of DOH (US)
+arknoidj	Arkanoid (Japan)
+arknoidu	Arkanoid (US)
+arknoiuo	Arkanoid (US, older)
+arktayt2	Arkanoid (Tayto bootleg, harder)
+armchamp	Arm Champs (Japan)
+armchmp2	Arm Champs II v2.6
+armchmp2o	Arm Champs II v1.7
+armchmp2o2	Arm Champs II (ver 2.6)
+armedf	Armed Formation
+armedff	Armed Formation (Fillmore license)
+armorca2	Armored Car (set 2)
+armorcar	Armored Car (set 1)
+armorcar2	Armored Car (set 2)
+ashura	Ashura Blaster (Japan)
+ashuraj	Ashura Blaster (Japan)
+ashurau	Ashura Blaster (US)
+asideral	Ataque Sideral (Spanish bootleg of UniWar S)
+aso	ASO - Armored Scrum Object
+assault	Assault
+assaultj	Assault (Japan)
+assaultp	Assault Plus (Japan)
+asterion	Asterion
+astinvad	Astro Invader
+astrians	Astrians (clone of Swarm)
+astroamb	Astro Ambush (Scramble bootleg on Galaxian hardware)
+astrob	Astro Blaster (version 3)
+astrob1	Astro Blaster (version 1)
+astrob2	Astro Blaster (version 2)
+astrob2a	Astro Blaster (version 2a)
+astrob2b	Astro Blaster (version 2b)
+astrobg	Astro Blaster (German)
+astrof	Astro Fighter (set 1)
+astrof2	Astro Fighter (set 2)
+astrof3	Astro Fighter (set 3)
+astroff	Astro Fighter (Famaresa bootleg, set 1)
+astroff2	Astro Fighter (Famaresa bootleg, set 2)
+astroft	Astro Fighter (Taito)
+astrowar	Astro Wars
+asuka	Asuka & Asuka (Japan)
+asukaj	Asuka & Asuka (Japan)
+asukaja	Asuka & Asuka (Japan)
+asylum	Asylum (prototype)
+atamanot	Computer Quiz Atama no Taisou (Japan)
+ataqandr	Ataque Androide - Moon Cresta (FAR S.A. Spanish bootleg)
+atetckt2	Tetris (Cocktail set 2)
+atetcktl	Tetris (Cocktail set 1)
+atetrisc	Tetris (cocktail set 1)
+atetrisc2	Tetris (cocktail set 2)
+atlantis	Battle of Atlantis (set 1)
+atlantis2	Battle of Atlantis (set 2)
+atlantisb	Battle of Atlantis (bootleg)
+atlants2	Battle of Atlantis (set 2)
+atombjt	Atom (bootleg of Bombjack Twin)
+attckufo	Attack Ufo
+avefenix	Ave Fenix (Electrogame, Spanish bootleg of Phoenix)
+avefenixl	Ave Fenix (Laguna, Spanish bootleg of Phoenix)
+avefenixrf	Ave Fenix (Recreativos Franco, Spanish bootleg of Phoenix)
+avenger2	Avengers (set 2)
+avengers	Avengers (set 1)
+avengers2	Avengers (US set 2)
+avengersa	Avengers (US, revision A)
+avengersb	Avengers (US)
+avengersc	Avengers (US, unknown revision)
+azurian	Azurian Attack
+babypac	Baby Pac-Man (set 1)
+babypac2	Baby Pac-Man (set 2)
+bace	Balloon Ace
+bagman	Bagman
+bagmanf	Bagman (bootleg on Crazy Kong hardware)
+bagmanj	Bagman (Taito)
+bagmanm2	Bagman (bootleg on Moon Cresta hardware, set 2)
+bagmanmc	Bagman (Moon Cresta hardware)
+bagmans	Bagman (Stern set 1)
+bagmans2	Bagman (Stern set 2)
+bagmans3	Bagman (Stern Electronics, revision A3)
+bagmans4	Bagman (Stern Electronics, revision A4)
+bagnard	Le Bagnard
+bagnarda	Le Bagnard (set 2)
+bagnardi	Le Bagnard (Itisa, Spain)
+bagnardio	Le Bagnard (Itisa, Spain, older)
+bakubrkr	Bakuretsu Breaker
+ballbomb	Balloon Bomber
+baluba	Baluba-louk no Densetsu
+bandido	Bandido
+bandit	Bandit (US)
+baracuda	Barracuda
+barrier	Barrier
+baryon	Baryon - Future Assault
+baryona	Baryon - Future Assault (set 2)
+batman2	Batman Part 2
+batrider	Armed Police Batrider (Japan, version B)
+batriderc	Armed Police Batrider (China) (Fri Feb 13 1998)
+batriderhk	Armed Police Batrider (Hong Kong) (Mon Dec 22 1997)
+batriderj	Armed Police Batrider (Japan, B version) (Fri Feb 13 1998)
+batriderja	Armed Police Batrider (Japan, older version) (Mon Dec 22 1997)
+batriderk	Armed Police Batrider (Korea) (Fri Feb 13 1998)
+batridert	Armed Police Batrider (Taiwan) (Mon Dec 22 1997)
+batrideru	Armed Police Batrider (USA) (Fri Feb 13 1998)
+batridra	Armed Police Batrider (Japan, version A)
+batridrk	Armed Police Batrider (Korea, version B)
+batsugun	Batsugun
+batsuguna	Batsugun (set 2)
+batsugunb	Batsugun (Korean PCB)
+batsugunbl	Batsugun (bootleg)
+batsugunc	Batsugun (older, set 2)
+batsugunsp	Batsugun (Special Ver.)
+battlan2	Battle Lane Vol. 5 (set 2)
+battlan3	Battle Lane Vol. 5 (set 3)
+battlane	Battle Lane Vol. 5 (set 1)
+battlane2	Battle Lane! Vol. 5 (set 2)
+battlane3	Battle Lane! Vol. 5 (set 3)
+battleg	Battle Garegga - Type 2 (Denmark / China) (Tue Apr 2 1996)
+battlega	Battle Garegga (Europe / USA / Japan / Asia) (Sat Feb 3 1996)
+battlegb	Battle Garegga (Austria / Hong Kong) (Sat Mar 2 1996)
+battles	Battles
+battles2	Battles (set 2)
+battlntj	Battlantis (Japan)
+battlnts	Battlantis
+battlntsa	Battlantis (program code F)
+battlntsj	Battlantis (Japan)
+battroad	The Battle-Road
+batugnsp	Batsugun (Special Ver.)
+batwings	Battle Wings (alt)
+bbakradu	Battle Bakraid - Unlimited version (Japan) (Tue Jun 8 1999)
+bbakraid	Battle Bakraid (Japan) (Wed Apr 7 1999)
+bbakraidc	Battle Bakraid - Unlimited Version (China) (Tue Jun 8 1999)
+bbakraidj	Battle Bakraid - Unlimited Version (Japan) (Tue Jun 8 1999)
+bbakraidja	Battle Bakraid (Japan) (Wed Apr 7 1999)
+bcruzm12	Battle Cruiser M-12
+beaminv	Beam Invader
+beastf	Beastie Feastie
+beastfp	Beastie Feastie (Pac-Man conversion)
+beezer	Beezer (set 1)
+beezer1	Beezer (set 2)
+berenstn	The Berenstain Bears in Big Paw's Cave
+bermudaa	Bermuda Triangle (US early version)
+bermudao	Bermuda Triangle (Japan old version)
+bermudat	Bermuda Triangle (US)
+bermudata	Bermuda Triangle (World Wars) (US)
+bermudatj	Bermuda Triangle (Japan)
+betafrce	Beta Force
+bgaregga	Battle Garegga (Europe / USA / Japan / Asia) (Sat Feb 3 1996)
+bgareggabl	1945 Part-2 (Chinese hack of Battle Garegga)
+bgareggabla	Lei Shen Zhuan Thunder Deity Biography (Chinese hack of Battle Garegga)
+bgareggablj	Battle Garegga (Japan, bootleg) (Sat Feb 3 1996)
+bgareggacn	Battle Garegga - Type 2 (Denmark / China) (Tue Apr 2 1996)
+bgareggahk	Battle Garegga (Austria / Hong Kong) (Sat Feb 3 1996)
+bgareggak	Battle Garegga (Korea / Greece) (Wed Feb 7 1996)
+bgaregganv	Battle Garegga - New Version (Austria / Hong Kong) (Sat Mar 2 1996)
+bgareggat	Battle Garegga (location test) (Wed Jan 17 1996)
+bgareggat2	Battle Garegga - Type 2 (Europe / USA / Japan / Asia) (Sat Mar 2 1996)
+bgareggatw	Battle Garegga (Taiwan / Germany) (Thu Feb 1 1996)
+bgareggaz	Battle Garegga Zakk version (Europe / USA / Japan / Asia) (Sat Feb 3 1996)
+bigbang	Big Bang
+bigbanga	Big Bang (9th Nov. 1993, set 2)
+bigbucks	Big Bucks
+bigevglf	Big Event Golf
+bigevglfj	Big Event Golf (Japan)
+bigkong	Big Kong
+bigkonggx	Big Kong (bootleg of Crazy Kong on Galaxian hardware)
+bigprowr	The Big Pro Wrestling!
+bigprowra	The Big Pro Wrestling! (set 2)
+bikkuric	Bikkuri Card (Japan)
+billiard	The Billiards
+bioatack	Bio Attack
+birdiy	Birdiy
+birdtry	Birdie Try (Japan)
+birdtrya	Birdie Try (Japan, revision 2)
+birdtryb	Birdie Try (Japan, sample version)
+bjtwin	Bombjack Twin
+bjtwina	Bombjack Twin (set 2)
+bjtwinp	Bombjack Twin (prototype? with adult pictures)
+bjtwinpa	Bombjack Twin (prototype? with adult pictures, set 2)
+bking	Birdie King
+bking2	Birdie King 2
+bking3	Birdie King 3
+blackhol	Black Hole (EFG Sanremo)
+bladestl	Blades of Steel (version T)
+bladestle	Blades of Steel (version E)
+bladestll	Blades of Steel (version L)
+bladstle	Blades of Steel (version E)
+blastoff	Blast Off (Japan)
+blazer	Blazer (Japan)
+blckgalb	Block Gal (bootleg)
+blkbustr	BlockBuster
+blkhole	Black Hole
+block	Block Block (World)
+block2	Block 2 (S.P.A. Co. bootleg)
+blocka	Block Block (World 910910)
+blockbl	Block Block (bootleg)
+blockcar	Block Carnival / Thunder & Lightning 2
+blockcarb	Block Carnival / Thunder & Lightning 2 (bootleg)
+blockch	G.T. Block Challenger
+blockgal	Block Gal
+blockgalb	Block Gal (bootleg)
+blockj	Block Block (Japan)
+blockjoy	Block Block (World 911106 Joystick)
+blockr1	Block Block (World 911106 Joystick)
+blockr2	Block Block (World 910910)
+blokpong	Block Pong-Pong
+blswhstl	Bells & Whistles
+blswhstla	Bells & Whistles (Asia, version M)
+bluehawk	Blue Hawk
+bluehawkn	Blue Hawk (NTC)
+bluehawn	Blue Hawk (NTC)
+blueprnj	Blue Print (Jaleco)
+blueprnt	Blue Print (Midway)
+blueprntj	Blue Print (Jaleco)
+bmxstunts	BMX Stunts
+bngotime	Bingo Time
+bnj	Bump 'n' Jump
+bnjm	Bump 'n' Jump (Midway)
+boggy84	Boggy '84
+boggy84b	Boggy '84 (bootleg)
+boggy84b2	Boggy '84 (bootleg, set 2)
+bombbee	Bomb Bee
+bomber	Bomber (bootleg of Scramble)
+bombjac2	Bomb Jack (set 2)
+bombjack	Bomb Jack (set 1)
+bombjack2	Bomb Jack (set 2)
+bombjackbl	Bomb Jack (bootleg)
+bombjackt	Bomb Jack (Tecfri, Spain)
+bombsa	Bombs Away
+bongo	Bongo
+boobhack	Booby Kids (Italian manufactured graphic hack / bootleg of Kid no Hore Hore Daisakusen (bootleg))
+boomrang	Boomer Rang'r / Genesis
+boomranga	Boomer Rang'r / Genesis (set 2)
+boonggab	Boong-Ga Boong-Ga (Spank'em!)
+botanic	Botanic (English / Spanish, set 1)
+botanic2	Botanic (English / Spanish, Bagman conversion)
+botanicf	Botanic (French)
+bowl3d	3-D Bowling
+bowler	4 Player Bowling
+bowlrama	Bowl-O-Rama
+brdrlinb	Borderline (bootleg)
+brdrline	Borderline
+brdrlinet	Borderline (Tranquilizer Gun conversion)
+brdrlins	Borderline (Sidam bootleg)
+breakout	Breakout [TTL]
+brickzn	Brick Zone (v5.0)
+brickzn11	Brick Zone (v1.1, Spinner)
+brickzn3	Brick Zone (v3.0)
+brickznv4	Brick Zone (v4.0, Spinner)
+brickznv5	Brick Zone (v5.0, Joystick)
+brix	Brix
+bronx	Bronx
+brubber	Burnin' Rubber
+brvblade	Brave Blade (JAPAN)
+brvbladea	Brave Blade (Asia)
+brvbladej	Brave Blade (Japan)
+brvbladeu	Brave Blade (USA)
+btime	Burger Time (Data East set 1)
+btime2	Burger Time (Data East set 2)
+btime3	Burger Time (Data East USA)
+btimem	Burger Time (Midway)
+btlfield	Battle Field (Japan)
+btlfieldb	Battle Field (bootleg)
+bucaner	Buccaneer
+bucanera	Buccaneer (set 2)
+buggychl	Buggy Challenge
+buggychlt	Buggy Challenge (Tecfri)
+buggycht	Buggy Challenge (Tecfri)
+bullfgtr	Bull Fighter
+bullfgtrs	Bull Fighter (Sega)
+bullsdrt	Bulls Eye Darts
+bullsdrtg	Bulls Eye Darts (Galaxian conversion)
+buraiken	Hissatsu Buraiken (Japan)
+buraikenb	Hissatsu Buraiken (Japan, bootleg?)
+buzzard	Buzzard
+bwcasino	Boardwalk Casino
+bwing	B-Wings (Japan)
+bwings	Battle Wings
+bwingsa	B-Wings (Alt Ver.?)
+bwingso	B-Wings (Japan old Ver.)
+cadanglr	Cassette: Angler Dangler
+cairblad	Change Air Blade (Japan)
+calibr50	Caliber 50
+calipso	Calipso
+cannballv	Cannon Ball (Yun Sung) (vertical)
+cannonb	Cannon Ball (Crazy Climber hardware)
+cannonb2	Cannon Ball (bootleg on Crazy Kong hardware) (set 2, buggy)
+cannonb3	Cannon Ball (bootleg on Crazy Kong hardware) (set 3, no bonus game)
+cannonbp	Cannon Ball (Pacman Hardware)
+capbowl	Capcom Bowling (set 1)
+capbowl2	Capcom Bowling (set 2)
+capbowl3	Capcom Bowling (set 3)
+capbowl4	Capcom Bowling (set 4)
+capitol	Capitol
+captflag	Captain Flag (Japan)
+caractn	Car Action
+caractn2	Car Action (set 2)
+carhntds	Car Hunt / Deep Scan (France)
+carjmbre	Car Jamboree
+carnival	Carnival (upright)
+carnivalb	Carnival (upright, PIT8253 music)
+carnivalc	Carnival (cocktail)
+carnivalca	Carnival (cocktail, earlier)
+carnivalh	Carnival (Head On hardware, set 1)
+carnivalha	Carnival (Head On hardware, set 2)
+carnvckt	Carnival (cocktail)
+castfant	Cassette: Astro Fantasia
+caswin	Casino Winner
+catacomb	Catacomb
+catapult	Catapult
+caterplr	Caterpillar
+catnmous	Cat and Mouse (set 1)
+catnmousa	Cat and Mouse (set 2)
+cavelon	Cavelon
+cbdash	Cassette: Boulder Dash
+cbnj	Cassette: Bump N Jump
+cbtime	Cassette: Burger Time
+cburnrb2	Cassette: Burnin' Rubber (set 2)
+cburnrub	Cassette: Burnin' Rubber (set 1)
+cburnrub2	Burnin' Rubber (Cassette, set 2)
+cburnrubj	Burnin' Rubber (DECO Cassette) (Japan)
+cchasm	Cosmic Chasm (set 1)
+cchasm1	Cosmic Chasm (set 2)
+cdiscon1	Cassette: Disco No.1
+cdsteljn	DS Telejan (DECO Cassette, Japan)
+cencourt	Center Court (World, 4 Players, prototype, MC-8123B)
+centipb2	Centipede (bootleg set 2)
+centipd2	Centipede (revision 2)
+centipdb	Centipede (bootleg set 1)
+centipdb2	Centipede (bootleg, set 2)
+centipdd	Centipede Dux (hack)
+centiped	Centipede (revision 3)
+centiped1	Centipede (revision 1)
+centiped2	Centipede (revision 2)
+centiped3	Centipede (revision 3)
+centipedj	Centipede (Japan, revision 3)
+centtime	Centipede (1 player, timed)
+cexplore	Cassette: Explorer
+cfarm	Chicken Farm (Version 2.0)
+cfboy0a1	Flash Boy (vertical) (DECO Cassette MD) (No.12/Ver.0/Set.1,Japan)
+cfghtice	Cassette: Fighting Ice Hockey
+cfishing	Cassette: Fishing
+cflyball	Cassette: Flying Ball?
+cgraplop	Cassette: Graplop (aka Cluster Buster) (set 1)
+cgraplop2	Cluster Buster / Graplop (Cassette, set 2)
+cgraplopj	Graplop (DECO Cassette) (Japan)
+cgraplp2	Cassette: Graplop (aka Cluster Buster) (set 2)
+challeng	Challenger
+chamburger	Hamburger (DECO Cassette, Japan)
+champbwl	Championship Bowling
+champbwla	Championship Bowling (location test)
+chanbara	Chanbara
+checkmaj	Checkman (Japan)
+checkman	Checkman
+checkmanj	Check Man (Japan)
+cheekyms	Cheeky Mouse
+chewing	Chewing Gum
+chinher2	Chinese Hero (older)
+chinhero	Chinese Hero
+chinhero2	Chinese Hero (older)
+chinhero3	Chinese Hero (older, set 2)
+chinherot	Chinese Heroe (Taito)
+chkun	Chance Kun
+chopper	Chopper I
+choppera	Chopper I (US set 2)
+chopperb	Chopper I (US set 3)
+chqflag	Chequered Flag
+chqflagj	Chequered Flag (Japan)
+chwy	Cassette: Highway Chase?
+circusc	Circus Charlie
+circusc2	Circus Charlie (no level select)
+circusc3	Circus Charlie (no level select)
+circusc4	Circus Charlie (no level select)
+circuscc	Circus Charlie (Centuri)
+circusce	Circus Charlie (Centuri, earlier)
+cityatta	City Attack (Petaco S.A., bootleg of Pleiads)
+citybmrj	City Bomber (Japan)
+citybomb	City Bomber (World)
+citybombj	City Bomber (Japan)
+ckong	Crazy Kong (set 1)
+ckonga	Crazy Kong (set 2)
+ckongalc	Crazy Kong (Alca bootleg)
+ckongcv	Crazy Kong (bootleg on Galaxian hardware, encrypted, set 2)
+ckongdks	Donkey Kong (Spanish Crazy Kong bootleg)
+ckongg	Crazy Kong (bootleg on Galaxian hardware)
+ckonggx	Crazy Kong (bootleg on Galaxian hardware, encrypted, set 1)
+ckongis	Crazy Kong (bootleg on Galaxian hardware, encrypted, set 3)
+ckongjeu	Crazy Kong (Jeutel bootleg)
+ckongmc	Crazy Kong (bootleg on Moon Cresta hardware)
+ckongmc2	Crazy Kong (bootleg on Moon Cresta hardware, set 2)
+ckongo	Crazy Kong (Orca bootleg)
+ckongpt2	Crazy Kong Part II (set 1)
+ckongpt2a	Crazy Kong Part II (set 2)
+ckongpt2b	Crazy Kong Part II (alternative levels)
+ckongpt2b2	Crazy Kong Part II (bootleg)
+ckongpt2j	Crazy Kong Part II (Japan)
+ckongpt2jeu	Crazy Kong Part II (Jeutel bootleg)
+ckongpt2ss	Crazy Kong (SegaSA / Sonic bootleg)
+ckongs	Crazy Kong (Scramble hardware)
+clapapa	Cassette: Rootin' Tootin' (aka La.Pa.Pa)
+clapapa2	Cassette: Rootin' Tootin'
+clbowl	Coors Light Bowling
+clocknch	Cassette: Lock'n'Chase
+clocknchj	Lock'n'Chase (DECO Cassette) (Japan)
+clubpacm	Club Pacman / Lambada (Argentina)
+clubpacma	Pacman Club (set 1, Argentina)
+clubpacmb	Pacman Club (set 2, Argentina)
+cluckypo	Cassette: Lucky Poker
+cmanhat	Manhattan (DECO Cassette)
+cmissnx	Cassette: Mission-X
+cmkenosp	Coinmaster Keno (Y2K, Spanish, 2000-12-14)
+cmkenospa	Coinmaster Keno (Y2K, Spanish, 2000-12-02)
+cmmb103	Centipede / Millipede / Missile Command (rev 1.03)
+cmmb162	Multipede (V1.00)
+cmrltv75	Coinmaster Roulette V75 (Y2K, Spanish)
+cnebula	Nebula (DECO Cassette) (UK)
+cnights2	Cassette: Night Star (set 2)
+cnightst	Cassette: Night Star (set 1)
+cnightst2	Night Star (Cassette, set 2)
+cntsteer	Counter Steer (Japan)
+cocean1a	Ocean to Ocean (Medal) (DECO Cassette MD) (No.10/Ver.1,Japan)
+cocean6b	Ocean to Ocean (Medal) (DECO Cassette MD) (No.10/Ver.6,US)
+cocoloco	Coco Loco
+cocolocoa	Coco Loco (set 2)
+cocolocob	Coco Loco (set 3)
+colony7	Colony 7 (set 1)
+colony7a	Colony 7 (set 2)
+combh	Combat Hawk
+commandj	Senjo no Ookami
+commando	Commando (World)
+commandob	Commando (bootleg)
+commandob2	Commando (bootleg set 2)
+commandob3	Commando (bootleg set 3)
+commandoj	Senjou no Ookami
+commandou	Commando (US)
+commandou2	Commando (US set 2)
+commandu	Commando (US)
+commsega	Commando (Sega)
+complexx	Complex X
+condor	Condor
+condorn	Condor (S C Novar bootleg of Phoenix)
+condorva	Condor (Valadon Automation bootleg of Phoenix)
+congo	Congo Bongo
+congoa	Congo Bongo (Rev C, 3 board stack)
+conquer	Conquer
+conquest	Conquest (prototype)
+contra	Contra (US)
+contra1	Contra (US, Set 2)
+contrab	Contra (US bootleg)
+contrabj	Contra (Japan bootleg, set 1)
+contrabj1	Contra (Japan bootleg, set 2)
+contrae	Contra (US / Asia, set 3)
+contraj	Contra (Japan)
+contraj1	Contra (Japan, set 2)
+contrajb	Contra (Japan bootleg)
+cookrace	Cook Race
+coozumou	Oozumou - The Grand Sumo (DECO Cassette, Japan)
+cosmica	Cosmic Alien
+cosmica1	Cosmic Alien (first version)
+cosmica2	Cosmic Alien (older)
+cosmica22	Cosmic Alien (version II, set 2)
+cosmica23	Cosmic Alien (version II, set 3)
+cosmica2a	Cosmic Alien (early version II?)
+cosmicg	Cosmic Guerilla
+cosmicgi	Cosmic Guerilla (Spanish bootleg)
+cosmicin	Cosmic Invaders (bootleg of Space Invaders)
+cosmicm2	Cosmic Monsters II
+cosmicmo	Cosmic Monsters
+cosmo	Cosmo
+cosmogng	Cosmo Gang the Video (US)
+cosmogngj	Cosmo Gang the Video (Japan)
+cosmognj	Cosmo Gang the Video (Japan)
+cosmos	Cosmos
+cottong	Cotocoto Cottong
+cowtipp	Cow Tipping - Shake Cattle & Roll (set 1)
+cowtippa	Cow Tipping - Shake Cattle & Roll (set 2)
+cppicf	Cassette: Peter Pepper's Ice Cream Factory (set 1)
+cppicf2	Cassette: Peter Pepper's Ice Cream Factory (set 2)
+cprobowl	Cassette: Pro Bowling
+cprogolf	Cassette: Pro Golf
+cprogolf18	18 Challenge Pro Golf (DECO Cassette, Japan)
+cprogolfj	Tournament Pro Golf (DECO Cassette, Japan)
+cprosocc	Cassette: Pro Soccer
+cpsoccer	Pro Soccer (DECO Cassette)
+cpsoccerj	Pro Soccer (DECO Cassette, Japan)
+cptennis	Cassette: Pro Tennis
+cptennisj	Pro Tennis (DECO Cassette) (Japan)
+crashh	Crash (Pac-Man)
+crashrd	Crash Road (bootleg of Space Chaser)
+crazyblk	Crazy Blocks
+crazycop	Crazy Cop (Japan)
+crazym	Crazy Mazey
+crbalon2	Crazy Balloon (set 2)
+crbaloon	Crazy Balloon (set 1)
+crbaloon2	Crazy Balloon (set 2)
+crockman	Crock-Man
+crockmnf	Crock-Man (Marti Colls bootleg of Rene Pierre Crock-Man)
+crshrac2	Lethal Crash Race (set 2)
+crshrace	Lethal Crash Race (set 1)
+crshrace2	Lethal Crash Race (set 2)
+crshrace2a	Lethal Crash Race / Bakuretsu Crash Race (set 2, alternate sound ROM)
+crush	Crush Roller (Kural Samno)
+crush2	Crush Roller (Kural Esco - bootleg?)
+crush3	Crush Roller (Kural - bootleg?)
+crush4	Crush Roller (Kural TWT)
+crush5	Crush Roller (set 5)
+crushbl	Crush Roller (bootleg)
+crushbl2	Crush Roller (bootleg?)
+crushbl3	Crush Roller (bootleg set 3)
+crushrlf	Crush Roller (Famaresa PCB)
+crushs	Crush Roller (Sidam bootleg)
+crzrally	Crazy Rally
+crzrallya	Crazy Rally (set 2)
+crzrallyg	Crazy Rally (Gecas license)
+crzrallyrf	Crazy Rally (Recreativos Franco license)
+cscrtry	Cassette: Scrum Try (set 1)
+cscrtry2	Cassette: Scrum Try (set 2)
+csdtenis	Super Doubles Tennis (DECO Cassette, Japan)
+cshooter	Cross Shooter (not encrypted)
+cshootere	Cross Shooter (encrypted)
+cshootre	Cross Shooter (encrypted)
+cskater	Skater (DECO Cassette, Japan)
+csuperas	Cassette: Super Astro Fighter
+csweetht	Cassette: Sweet Heart
+ctainv	CTA Invader
+cterrani	Cassette: Terranean
+ctisland	Cassette: Treasure Island (set 1)
+ctisland2	Treasure Island (Cassette, set 2)
+ctisland3	Treasure Island (Cassette, set 3)
+ctislnd2	Cassette: Treasure Island (set 2)
+ctislnd3	Cassette: Treasure Island (set 3)
+ctornado	Cassette: Tornado
+ctower	The Tower (DECO Cassette) (Europe)
+ctrpllrp	Caterpillar Pacman Hack
+ctsttape	Cassette: Test Tape
+curvebal	Curve Ball
+cutieq	Cutie Q
+cybattlr	Cybattler
+cyclshtg	Cycle Shooting
+cyvern	Cyvern (Japan)
+cyvernj	Cyvern (Japan)
+czeroize	Cassette: Zeroize?
+dai3wksi	Dai San Wakusei Meteor (Japan)
+daifugo	Daifugo (Japan)
+daikaiju	Daikaiju no Gyakushu
+daioh	Daioh
+daioha	Daioh (earlier)
+daiohc	Daioh (93111A PCB conversion)
+daiohp	Daioh (prototype)
+daiohp2	Daioh (prototype, earlier)
+daiohp3	Daioh (prototype, earliest)
+daisenpu	Daisenpu (Japan)
+dambustr	Dambusters (US, set 1)
+dambustra	Dambusters (US, set 2)
+dambustruk	Dambusters (UK)
+dangar	Dangar - Ufo Robo (12/1/1986)
+dangar2	Dangar - Ufo Robo (9/26/1986)
+dangara	Ufo Robo Dangar (12/1/1986)
+dangarb	Dangar - Ufo Robo (bootleg)
+dangarbt	Ufo Robo Dangar (9/26/1986, bootleg set 2)
+dangarj	Ufo Robo Dangar (9/26/1986, Japan)
+dangseed	Dangerous Seed (Japan)
+darkmist	The Lost Castle in Darkmist
+darkwar	Dark Warrior
+darthvdr	Darth Vader
+darwin	Darwin 4078 (Japan)
+dazzler	Dazzler
+dblewing	Double Wings
+dblewinga	Double Wings (set 2)
+dblewingb	Double Wings (Asia)
+dcheese	Double Cheese
+ddaydoo	Chulgyeok D-Day (Korea)
+ddayjlc	D-Day (Jaleco set 1)
+ddayjlca	D-Day (Jaleco set 2)
+dddoor	Doraemon no Dokodemo Door
+dderby	Death Derby
+ddonpach	Dodonpachi (Japan)
+ddonpacha	DoDonPachi (Arrange Ver. 1.1) (trap15, hack)
+ddonpachj	DoDonPachi (Japan, Master Ver. 97/02/05)
+ddonpchj	DoDonPachi (Japan)
+ddp2	Bee Storm - DoDonPachi II (ver. 100)
+ddp2100	DoDonPachi II - Bee Storm (World, ver. 100)
+ddp2100c	DoDonPachi II - Bee Storm (China, ver. 100)
+ddp2100hk	DoDonPachi II - Bee Storm (Hong Kong, ver. 100)
+ddp2100j	DoDonPachi II - Bee Storm (Japan, ver. 100)
+ddp2100k	DoDonPachi II - Bee Storm (Korea, ver. 100)
+ddp2100t	DoDonPachi II - Bee Storm (Taiwan, ver. 100)
+ddp2101	DoDonPachi II - Bee Storm (World, ver. 101)
+ddp2101c	DoDonPachi II - Bee Storm (China, ver. 101)
+ddp2101hk	DoDonPachi II - Bee Storm (Hong Kong, ver. 101)
+ddp2101j	DoDonPachi II - Bee Storm (Japan, ver. 101)
+ddp2101k	DoDonPachi II - Bee Storm (Korea, ver. 101)
+ddp2101t	DoDonPachi II - Bee Storm (Taiwan, ver. 101)
+ddp2c	DoDonPachi II - Bee Storm (China, ver. 102)
+ddp2hk	DoDonPachi II - Bee Storm (Hong Kong, ver. 102)
+ddp2j	DoDonPachi II - Bee Storm (Japan, ver. 102)
+ddp2k	DoDonPachi II - Bee Storm (Korea, ver. 102)
+ddp2t	DoDonPachi II - Bee Storm (Taiwan, ver. 102)
+ddp3	DoDonPachi Dai-Ou-Jou
+ddp3a	DoDonPachi Dai-Ou-Jou (V100, second revision)
+ddp3b	DoDonPachi Dai-Ou-Jou (V100, first revision)
+ddp3blk	DoDonPachi Dai-Ou-Jou (Black Label)
+ddpdfk	DoDonPachi Dai-Fukkatsu Ver 1.5 (2008/06/23  MASTER VER 1.5)
+ddpdfk10	DoDonPachi Dai-Fukkatsu Ver 1.0 (2008/05/16  MASTER VER)
+ddpdoj	DoDonPachi Dai-Ou-Jou V101 (2002.04.05.Master Ver)
+ddpdoja	DoDonPachi Dai-Ou-Jou V100 (2002.04.05.Master Ver)
+ddpdojb	DoDonPachi Dai-Ou-Jou (2002.04.05 Master Ver)
+ddpdojblk	DoDonPachi Dai-Ou-Jou (2002.10.07.Black Ver)
+ddpdojblka	DoDonPachi Dai-Ou-Jou (2002.10.07 Black Ver)
+ddpdojblkb	DoDonPachi Dai-Ou-Jou Black Label (Japan, 2002.10.07 Black Ver)
+ddpdojblkbl	DoDonPachi Dai-Ou-Jou (2002.10.07 Black Ver., bootleg Knights of Valour Super Heroes conversion)
+ddpdojh	Dodonpachi Daioujou Tamashii (V201, China)
+ddpdojp	DoDonPachi Dai-Ou-Jou (Japan, 2002.04.05 Master Ver, location test)
+ddpsdoj	DoDonPachi SaiDaiOuJou (clean dump)
+dealer	The Dealer
+decodark	DECO Cassette System ROM Multigame (Darksoft, v17)
+decodark15	DECO Cassette System ROM Multigame (Darksoft, v15)
+decodark16	DECO Cassette System ROM Multigame (Darksoft, v16)
+decomult	DECO Cassette System ROM Multigame (David Widel)
+demoneye	Demoneye-X
+desertbr	Desert Breaker (World, FD1094 317-0196)
+desertbrd	Desert Breaker (World) (bootleg of FD1094 317-0196 set)
+desertbrj	Desert Breaker (Japan, FD1094 317-0194)
+desertbrjd	Desert Breaker (Japan) (bootleg of FD1094 317-0194 set)
+desertwr	Desert War / Wangan Sensou
+desterth	Destination Earth
+destryer	Destroyer (Cidelsa) (set 1)
+destryera	Destroyer (Cidelsa) (set 2)
+detatwin	Detana!! Twin Bee (Japan)
+devilfsg	Devil Fish (Galaxian hardware, bootleg?)
+devilfsh	Devil Fish
+devilfshg	Devil Fish (Galaxian hardware)
+devilfshgb	Devil Fish (Galaxian hardware, bootleg)
+devstor2	Devastators (version X)
+devstor3	Devastators (version V)
+devstors	Devastators (version Z)
+devstors2	Devastators (ver. X)
+devstors3	Devastators (ver. V)
+devstorsv	Devastators (ver. V)
+devstorsx	Devastators (ver. X)
+devzone	Devil Zone
+devzone2	Devil Zone (easier)
+dfeveron	Dangun Feveron (Japan)
+dfkbl	DoDonPachi Dai-Fukkatsu Black Label (2010/1/18 BLACK LABEL)
+digdug	Dig Dug (set 1)
+digdug1	Dig Dug (rev 1)
+digdug2	Dig Dug II (set 1)
+digdug2o	Dig Dug II (Old Ver.)
+digduga1	Dig Dug (Atari, rev 1)
+digdugat	Dig Dug (Atari)
+digdugat1	Dig Dug (Atari, rev 1)
+digdugb	Dig Dug (set 2)
+digger	Digger
+diggerc	Digger (CVS)
+digsid	Dig Dug (manufactured by Sidam)
+dimahoo	Dimahoo (US 000121)
+dimahoou	Dimahoo (USA 000121)
+dimahoud	Dimahoo (USA 000121 Phoenix Edition) (bootleg)
+dingo	Dingo
+dingoe	Dingo (encrypted)
+dirtfoxj	Dirt Fox (Japan)
+disco	Disco No.1
+discoboy	Disco Boy
+discoboyp	Disco Boy (Promat license?)
+discof	Disco No.1 (Rev.F)
+divebomb	Kyuukoukabakugekitai - Dive Bomber Squad (Japan, prototype)
+djgirl	DJ Girl (Promat license)
+dkaccel	Donkey Kong Accelerate
+dkcbarrel	Donkey Kong Crazy Barrels Edition (2019-10-04)
+dkchrmx	Donkey Kong Christmas Remix
+dkduel	Donkey Kong Duel
+dkfreerun	Donkey Kong Freerun Edition (2019-06-20)
+dkhrthnt	Donkey Kong Hearthunt
+dking	Donkey King
+dkingjr	Donkey King Jr. (bootleg of Donkey Kong Jr.)
+dkmb	Donkey Kong / Donkey Kong Jr / Mario Bros
+dkngjnrb	Donkey Kong Junior (bootleg?)
+dkngjnrj	Donkey Kong Junior (Japan?)
+dkong	Donkey Kong (US)
+dkong3	Donkey Kong 3 (US)
+dkong3abl	Donkey Kong 3 (bootleg with 2xAY8910)
+dkong3b	Donkey Kong 3 (bootleg on Donkey Kong Jr. hardware)
+dkong3hs	Donkey Kong High Score Kit (hack,V1.0a)
+dkong3j	Donkey Kong 3 (Japan)
+dkong40y	Donkey Kong Anniversary Edition
+dkongbp	Donkey Kong Barrelpalooza v1.06
+dkongbp1	Donkey Kong Barrelpalooza v1.07
+dkongchm	Donkey Kong League Championship v1.00
+dkongchm1	Donkey Kong Championship Edition v1.01
+dkongddk	Double Donkey Kong (hack,V1.2)
+dkongf	Donkey Kong Foundry (hack)
+dkonghrd	Donkey Kong (hard kit)
+dkonghs	Donkey Kong High Score Kit (hack,V1.2)
+dkongike	Donkey Kong/DK (Japan) (hack,V1.1 IKE)
+dkongitd	Donkey Kong In the Dark v1.02 (2020-04-29)
+dkongj	Donkey Kong (Japan set 1)
+dkongjnrj	Donkey Kong Junior (Japan?)
+dkongjo	Donkey Kong (Japan set 2)
+dkongjo1	Donkey Kong (Japan set 3) (bad dump?)
+dkongjp	Donkey Kong (Japan set 1)
+dkongjr	Donkey Kong Junior (US)
+dkongjr2	Donkey Kong Junior (US, bootleg?)
+dkongjrb	Donkey Kong Jr. (bootleg)
+dkongjrc	Donkey Kong/JR (combo) (hack,V1.2)
+dkongjre	Donkey Kong Junior (Easy)
+dkongjrhs	Donkey Junior High Score Kit (hack,V1.2)
+dkongjrj	Donkey Kong Jr. (Japan)
+dkongjrm	Donkey Kong Jr. (Moon Cresta hardware)
+dkongjrmc	Donkey Kong Jr. (bootleg on Moon Cresta hardware, set 2)
+dkongjrpb	Donkey Kong Junior (P kit, bootleg)
+dkongo	Donkey Kong (US set 2)
+dkongotr	Donkey Kong On the Run v1.02 (2020-05-26)
+dkongp	Donkey Kong (patched)
+dkongpac	Donkey Kong (Pac-man graphics)
+dkongpe	Donkey Kong - Pauline Edition
+dkongran1	Donkey Kong Randomized Edition v1.01
+dkongrev	Donkey Kong Reverse (2019-08-29)
+dkongss	Donkey Kong Skip Start v1.00 (2020-05-01)
+dkongst	Donkey Kong Springs Trainer
+dkongst2	Donkey Kong Springs Trainer 2
+dkongtj	Donkey Kong Twisted Jungle v1.05 (2020-12-12)
+dkongx	Donkey Kong II - Jumpman Returns (Hack)
+dkongx11	Donkey Kong II: Jumpman Returns (hack, V1.1)
+dkpace	Donkey Kong Pace
+dkrainbow	Rainbow Donkey Kong
+dkrdemo	Donkey Kong Remix
+dkrndmzr	Donkey Kong RNDMZR v1.00 (2022-05-22)
+dkspkyrmx	Donkey Kong Spooky Remix
+dktrainer	Donkey Kong Trainer 1.01
+dkwizardry	Donkey Kong Wizardry
+docastl2	Mr. Do's Castle (set 2)
+docastle	Mr. Do's Castle (set 1)
+docastle2	Mr. Do's Castle (set 2)
+docastleo	Mr. Do's Castle (older)
+docastlo	Mr. Do's Castle (older)
+dockman	Dock Man
+dockmanb	Dock Man (set 2)
+dockmanc	Dock Man (set 3)
+dogfight	Dog Fight
+dogfightp	Dog Fight (Orca, prototype)
+dogosokb	Dogou Souken (Joystick hack bootleg)
+dogosoke	Dogou Souken
+dogosokj	Dogou Souken (joystick hack bootleg)
+dogyuun	Dogyuun
+dogyuuna	Dogyuun (older set)
+dogyuunb	Dogyuun (oldest set)
+dogyuunt	Dogyuun (location test)
+dogyuunto	Dogyuun (8/25/1992 location test)
+dommy	Dommy
+donight	Mr.Do's Nightmare (hack by Krazy Ivan)
+donpachi	DonPachi (US)
+donpachihk	DonPachi (Hong Kong)
+donpachij	DonPachi (Japan)
+donpachijs	DonPachi (Japan, Satsuei version)
+donpachikr	DonPachi (Korea)
+donpachj	DonPachi (Japan)
+donpachk	DonPachi (Korea)
+dorachan	Dorachan
+dorodon	Dorodon (set 1)
+dorodon2	Dorodon (set 2)
+douni	Mr. Do vs. Unicorns
+downtowj	DownTown (joystick hack)
+downtown	DownTown
+downtown2	DownTown / Mokugeki (Set 2)
+downtownj	DownTown / Mokugeki (Joystick Hack)
+downtownp	DownTown / Mokugeki (prototype)
+draco	Draco
+dragnblz	Dragon Blaze
+drakton	Drakton
+dremshpr	Dream Shopper
+driftout	Drift Out (Japan)
+driftoutct	Drift Out (Europe, Cameltry conversion)
+driftoutj	Drift Out (Japan)
+driveout	Drive Out
+drivfrcb	Driving Force (Galaxian conversion bootleg)
+drivfrcg	Driving Force (Galaxian conversion)
+drivfrcp	Driving Force (Pac-Man conversion)
+drivfrcsg	Driving Force (Galaxian conversion, Seatongrove UK, E-0010)
+drivfrcsga	Driving Force (Galaxian conversion, Seatongrove UK, E-0237)
+drivfrct	Top Racer (bootleg of Driving Force)
+drktnjr	Drakton (DKJr conversion)
+drmicro	Dr. Micro
+drtoppel	Dr. Toppel's Tankentai (Japan)
+drtoppela	Dr. Toppel's Adventure (World, alt?)
+drtoppelj	Dr. Toppel's Tankentai (Japan)
+drtoppelu	Dr. Toppel's Adventure (US)
+drtopplj	Dr. Toppel's Tankentai (Japan)
+drtopplu	Dr. Toppel's Adventure (US)
+dsaber	Dragon Saber
+dsabera	Dragon Saber (World, older?)
+dsaberj	Dragon Saber (Japan)
+dspirit	Dragon Spirit (new version)
+dspirit1	Dragon Spirit (old version (DS1))
+dspirit2	Dragon Spirit (DS2)
+dspirito	Dragon Spirit (old version)
+dtrvwz5v	Deluxe Trivia ? Whiz (6221-75, U5-0 Edition 5 Vertical)
+dualaslt	Dual Assault
+dyger	Dyger (set 1)
+dygera	Dyger (set 2)
+dynadice	Dynamic Dice
+dynamski	Dynamic Ski
+dynobop	Dyno Bop
+dzigzag	Zig Zag (Dig Dug hardware)
+eagle	Eagle (set 1)
+eagle2	Eagle (set 2)
+eagle3	Eagle (set 3)
+earthinv	Super Earth Invasion
+earthjkr	U.N. Defense Force: Earth Joker (Japan)
+earthjkra	U.N. Defense Force: Earth Joker (US / Japan, set 2)
+earthjkrb	U.N. Defense Force: Earth Joker (US / Japan, set 3)
+earthjkrp	U.N. Defense Force: Earth Joker (Japan, prototype?)
+eeekk	Eeekk!
+eeekkp	Eeekk! (Pac-Man conversion)
+efdt	El Fin Del Tiempo
+eggor	Eggor
+eggs	Eggs
+eightfrc	Eight Forces
+elecyoy2	The Electric Yo-Yo (set 2)
+elecyoyo	The Electric Yo-Yo (set 1)
+elecyoyo2	The Electric Yo-Yo (set 2)
+enigma2	Enigma 2
+enigma2a	Enigma 2 (Space Invaders Hardware)
+enigma2b	Phantoms II (Space Invaders hardware)
+equites	Equites
+equitess	Equites (Sega)
+escmars	Escape from Mars (bootleg of Lunar Rescue)
+espgal	EspGaluda
+espgal2	Espgaluda II (2005/11/14 MASTER VER)
+espgal2a	Espgaluda II (2005/11/14 MASTER VER, newer CV1000-B PCB)
+espgal2b	Espgaluda II (2005/11/14 MASTER VER, original CV1000-B PCB)
+espgalbl	Espgaluda (2003/10/15 Master Ver, bootleg cartridge conversion)
+esprade	ESP Ra.De. (Japan)
+espradej	ESP Ra.De. (Japan Ver 1998 4/21)
+espradejo	ESP Ra.De. (Japan, Ver. 98/04/14)
+espradeo	ESP Ra.De. (Japan Ver 1998 4/14)
+evilston	Evil Stone
+excthour	Exciting Hour
+exctscc2	Exciting Soccer II
+exctscca	Exciting Soccer (alternate music)
+exctsccb	Exciting Soccer (bootleg)
+exctsccr	Exciting Soccer
+exctsccra	Exciting Soccer (alternate music)
+exctsccrb	Exciting Soccer (bootleg)
+exctsccrj	Exciting Soccer (Japan)
+exctsccrjo	Exciting Soccer (Japan, older)
+exctsccru	Exciting Soccer (US)
+exedexes	Exed Exes
+exerion	Exerion
+exerionb	Exerion (bootleg)
+exerionb2	Exerion (bootleg, set 2)
+exerionba	Exerion (Assa, bootleg)
+exeriont	Exerion (Taito)
+exerizer	Exerizer (Japan)
+exerizerb	Exerizer (Japan) (bootleg)
+exerizrb	Exerizer (Japan) (bootleg)
+exodus	Exodus (bootleg?)
+explbrkr	Explosive Breaker
+explbrkrk	Explosive Breaker (Korea)
+explorer	Explorer
+extrmatn	Extermination (US)
+extrmatnj	Extermination (Japan)
+extrmatnu	Extermination (US)
+extrmatnur	Extermination (US, Romstar)
+eyes	Eyes (Digitrex Techstar)
+eyes2	Eyes (Techstar Inc.)
+eyesb	Eyes (bootleg set 1)
+eyeszac	Eyes (Zaccaria)
+eyeszacb	Eyes (bootleg set 2, decrypted)
+f1gp	F-1 Grand Prix
+f1gp2	F-1 Grand Prix Part II
+f1gpa	F-1 Grand Prix (set 2)
+f1gpb	F-1 Grand Prix (Playmark bootleg)
+f1gpbl	F-1 Grand Prix (Playmark bootleg)
+fa	F/A (Japan)
+falcon	Falcon
+falconz	Falcon (bootleg of Phoenix) (Z80 CPU)
+fambowl	Family Bowl (Japan, FB1/VER.A V1.00)
+fantasia	Fantasia
+fantasiaa	Fantasia (940307 PCB)
+fantasiab	Fantasia (940429 PCB, set 2)
+fantasian	Fantasia (940803 PCB)
+fantastc	Fantastic (Galaga conversion on Galaxian hardware)
+fantasy	Fantasy (US)
+fantasyg	Fantasy (Germany, set 1)
+fantasyg2	Fantasy (Germany, set 2)
+fantasyj	Fantasy (Japan)
+fantasyu	Fantasy (US)
+fantazia	Fantazia
+fantsy95	Fantasy '95
+fastdraw	Fast Draw Showdown v1.3
+fastdraw_130	Fast Draw Showdown v1.30
+fastfred	Fast Freddie
+fastlane	Fast Lane
+fcombat	Field Combat
+fenix	Fenix (bootleg of Phoenix)
+fenixn	Fenix (Niemer bootleg of Phoenix)
+feversos	Fever SOS (International, Ver. 98/09/25)
+fghtatck	Fighter & Attacker (US)
+fgoal	Field Goal
+fgoala	Field Goal (different)
+fhawk	Fighting Hawk (Japan)
+fhawkj	Fighting Hawk (Japan)
+fi6845	Fast Invaders (6845 version)
+fi8275	Fast Invaders (8275 version)
+fightrol	Fighting Roller
+finalizb	Finalizer - Super Transformation (bootleg)
+finalizr	Finalizer - Super Transformation
+finalizra	Finalizer - Super Transformation (set 2)
+finalizrb	Finalizer - Super Transformation (bootleg)
+finger	Finger (bootleg of Stinger)
+firebarr	Fire Barrel (Japan)
+firebatl	Fire Battle
+firehawkv	Fire Hawk (switchable orientation)
+fireshrk	Fire Shark
+fireshrka	Fire Shark (earlier)
+fireshrkd	Fire Shark (Korea, set 1, easier)
+fireshrkdh	Fire Shark (Korea, set 2, harder)
+firetpbl	Fire Trap (Japan bootleg)
+firetrap	Fire Trap
+firetrapa	Fire Trap (US, set 2)
+firetrapbl	Fire Trap (Japan bootleg)
+firetrapj	Fire Trap (Japan)
+firetrk	Fire Truck
+firetrka	Fire Truck / Smokey Joe (ROM version)
+fitter	Fitter
+fitterbl	Fitter (bootleg)
+fiveside	Five a Side Soccer (ver UAA)
+fixeighb	FixEight (Bootleg)
+fixeight	FixEight
+fixeighta	FixEight (Southeast Asia)
+fixeightat	FixEight (Southeast Asia, Taito license)
+fixeightbl	FixEight (Korea, bootleg)
+fixeighth	FixEight (Hong Kong)
+fixeightht	FixEight (Hong Kong, Taito license)
+fixeightj	FixEight (Japan)
+fixeightjt	FixEight (Japan, Taito license)
+fixeightk	FixEight (Korea)
+fixeightkt	FixEight (Korea, Taito license)
+fixeightt	FixEight (Europe, Taito license)
+fixeighttw	FixEight (Taiwan)
+fixeighttwt	FixEight (Taiwan, Taito license)
+fixeightu	FixEight (USA)
+fixeightut	FixEight (USA, Taito license)
+flipjack	Flipper Jack
+flkatck	Flak Attack (Japan)
+flkatcka	Flak Attack (Japan, PWB 450593 sub-board)
+floritas	Floritas (bootleg of Moon Cresta)
+floritasm	Floritas (Multivideo Spanish bootleg of Moon Cresta)
+flyboy	Fly-Boy
+flyboyb	Fly-Boy (bootleg)
+flytiger	Flying Tiger
+flytigera	Flying Tiger (set 2)
+fnkyfish	Funky Fish
+fnshark	Flyin' Shark (bootleg of Hishou Zame)
+fourplay	Four Play
+freekckb	Free Kick (bootleg)
+freekick	Free Kick
+freekicka	Free Kick (NS6201-A 1987.9)
+freekickb1	Free Kick (bootleg set 1)
+freekickb2	Free Kick (bootleg set 2)
+freekickb3	Free Kick (bootleg set 3)
+freeze	Freeze
+frogf	Frog (Falcon bootleg)
+frogg	Frog (Galaxian hardware)
+frogger	Frogger
+froggeram	Frogger (bootleg on Amigo? hardware)
+froggereb	Frogger - New Serie 92 (bootleg)
+froggermc	Frogger (Moon Cresta hardware)
+froggers	Frog
+froggers1	Frogger (Sega set 1)
+froggers2	Frogger (Sega set 2)
+froggers3	Frogger (Sega set 3)
+froggert	Frogger (Turtles hardware)
+froggerv	Frogger (Videotron bootleg)
+froggervd	Frogger (Hermatic, bootleg on Scramble hardware from Video Dens)
+froggrmc	Frogger (modified Moon Cresta hardware)
+froggrs	Frogger (Scramble hardware)
+frogseg1	Frogger (Sega set 1)
+frogseg2	Frogger (Sega set 2)
+frontlin	Front Line
+frontlina	Front Line (FL, 5 PCB version)
+fshark	Flying Shark (World)
+fsharkb	Flying Shark (World, bootleg)
+fsharkbt	Flying Shark (bootleg)
+fspiderb	Frog & Spiders (bootleg?)
+fstarfrc	Final Star Force (US)
+fstarfrcj	Final Star Force (Japan)
+fstarfrcja	Final Star Force (Japan, set 2)
+fstarfrcw	Final Star Force (World?)
+funkybee	Funky Bee
+funkybeeb	Funky Bee (bootleg, harder)
+funnymou	Funny Mouse
+futari10	Mushihime-Sama Futari Ver 1.0 (2006/10/23 MASTER VER.)
+futari15	Mushihime-Sama Futari Ver 1.5 (2006/12/8.MASTER VER. 1.54.)
+futari15a	Mushihime-Sama Futari Ver 1.5 (2006/12/8 MASTER VER 1.54)
+futaribl	Mushihime-Sama Futari Black Label (2009/11/27 INTERNATIONAL BL)
+futariblj	Mushihime-Sama Futari Black Label (2007/12/11 BLACK LABEL VER)
+futflash	Future Flash
+futspy	Future Spy
+fwheel	Fortune Wheel
+fx	F-X
+gaiapols	Gaiapolis (Japan ver JAF)
+gaiapolsj	Gaiapolis (ver JAF)
+gaiapolsu	Gaiapolis (ver UAF)
+galactic	Galactica - Batalha Espacial
+galactica2	Galactica-2 (bootleg of Moon Alien Part 2)
+galag88b	Galaga '88 (set 2)
+galag88j	Galaga '88 (Japan)
+galaga	Galaga (Namco)
+galaga3	Galaga 3 (set 1)
+galaga3a	Galaga 3 (set 2)
+galaga3b	Galaga 3 (GP3)
+galaga3c	Galaga 3 (set 4)
+galaga3m	Galaga 3 (Midway)
+galaga84	Galaga '84
+galaga88	Galaga '88 (set 1)
+galaga88a	Galaga '88 (02-03-88)
+galaga88j	Galaga '88 (Japan)
+galagab2	Galaga (bootleg)
+galagads	Galaga (fast shoot)
+galagamf	Galaga (Midway set 1 with fast shoot hack)
+galagamk	Galaga (Midway set 2)
+galagamw	Galaga (Midway)
+galagao	Galaga (Namco)
+galaktron	Galaktron (Petaco S.A.)
+galap1	Space Invaders Galactica
+galap2	GX Part 2 (hack of Galaxian)
+galap4	Galaxian Part 4
+galapx	Galaxian Part X
+galartic	Galaxian (Artic System bootleg)
+galaxbsf	Galaxian (bootleg)
+galaxbsf2	Galaxian (bootleg, set 3)
+galaxcirsa	Galaxian (Cirsa Spanish bootleg)
+galaxia	Galaxia
+galaxiaa	Galaxia (set 2)
+galaxiab	Galaxia (set 3)
+galaxiac	Galaxia (set 4)
+galaxiaj	Galaxian (Namco set 2)
+galaxian	Galaxian (Namco)
+galaxiana	Galaxian (Namco set 2)
+galaxianbl	Galaxian (bootleg, set 2)
+galaxianbl2	Galaxian (bootleg, set 4)
+galaxianbl3	Galaxian (Spanish bootleg)
+galaxianem	Galaxian (Electromar Spanish bootleg)
+galaxiani	Galaxian (Irem)
+galaxianiii	Galaxian III (bootleg of Galaxian)
+galaxianm	Galaxian (Midway set 1)
+galaxianmo	Galaxian (Midway set 2)
+galaxianrp	Galaxian (Rene Pierre bootleg)
+galaxiant	Galaxian (Taito)
+galaxrcgg	Galaxian Growing Galaxip / Galaxian Nave Creciente (Recreativos Covadonga Spanish bootleg)
+galaxrf	Galaxian (Recreativos Franco S.A. Spanish bootleg)
+galaxrfgg	Galaxian Growing Galaxip / Galaxian Nave Creciente (Recreativos Franco S.A. Spanish bootleg)
+galaxygn	Galaxy Gunners
+galaxygnh	Galaxy Gunners (1990 year hack)
+galaxyx	Galaxy X (bootleg of Galaxian)
+galemp	Galaxy Empire (bootleg?)
+galgame	Galaxy Game
+galivan	Galivan - Cosmo Police (12/16/1985)
+galivan2	Galivan - Cosmo Police (12/11/1985)
+galivan3	Cosmo Police Galivan (12/11/1985)
+galkamika	Kamikaze (Electrogame, Spanish bootleg of Galaxian)
+gallag	Gallag
+galmedes	Galmedes (Japan)
+galmidw	Galaxian (Midway)
+galmidwo	Galaxian (Midway, old rev)
+galmonst	Galaxy Monsters (Laguna S.A. Spanish bootleg of Space Invaders)
+galpani2	Gals Panic II (Japan?)
+galpani2e	Gals Panic II (English)
+galpani2e2	Gals Panic II (English, 2 PCB ver.)
+galpani2g	Gals Panic II (German)
+galpani2gs	Gals Panic II (Germany, single PCB)
+galpani2i	Gals Panic II (Italy, single PCB)
+galpani2i2	Gals Panic II (Italy, 2 PCB ver.)
+galpani2j	Gals Panic II (Japan)
+galpani2k	Gals Panic II (Korea, single PCB)
+galpani2t	Gals Panic II (Taiwan)
+galpani3	Gals Panic 3
+galpani3hk	Gals Panic 3 (Hong Kong)
+galpani3j	Gals Panic 3 (Japan)
+galpani3k	Gals Panic 3 (Korea)
+galpanib	Gals Panic (set 2)
+galpanic	Gals Panic
+galpanica	Gals Panic (MCU Protected)
+galpanicb	Gals Panic (ULA protected, set 1)
+galpanicc	Gals Panic (ULA protected, set 2)
+galpanicms	New Quiz (Modular System bootleg of Gals Panic)
+galsnew	Gals Panic (US, EXPRO-02 PCB)
+galsnewa	Gals Panic (Export, EXPRO-02 PCB)
+galsnewj	Gals Panic (Japan, EXPRO-02 PCB)
+galsnewk	Gals Panic (Korea, EXPRO-02 PCB)
+galsnewt	Gals Panic (Taiwan, EXPRO-02 PCB)
+galsnewu	Gals Panic (US, EXPRO-02 PCB)
+galspnbl	Gals Pinball
+galturbo	Galaxian Turbo
+galxwar2	Galaxy Wars (Universal set 2)
+galxwars	Galaxy Wars
+galxwars2	Galaxy Wars (Universal set 2)
+galxwarst	Galaxy Wars (Taito?)
+galxwarst2	Galaxy Wars (Taito)
+galxwart	Galaxy Wars (Taito?)
+gametngk	The Game Paradise - Master of Shooting! / Game Tengoku - The Game Paradise
+gangonta	Ganbare! Gonta!! 2 / Party Time: Gonta the Diver II (Japan Release)
+gaplus	Gaplus (set 1)
+gaplusa	Gaplus (set 2)
+gaplusd	Gaplus (GP2 rev D, alternate hardware)
+gapluse	Gaplus (GP7)
+gapluso	Gaplus (rev. B)
+gaplust	Gaplus (Tecfri PCB)
+gardia	Gardia
+gardiab	Gardia (bootleg)
+gardiaj	Gardia (Japan, 317-0006)
+garuka	Garuka (Japan)
+gatsbee	Gatsbee
+gbusters	Gang Busters
+gbustersa	Gang Busters (set 2)
+gcpinbal	Grand Cross
+geebee	Gee Bee
+geebeea	Gee Bee (UK)
+geebeeb	Gee Bee (F.lli Bertolino license)
+geebeeg	Gee Bee (Gremlin)
+gekiridn	Gekirindan (Ver 2.3O 1995/09/21)
+gekiridnj	Gekirindan (Ver 2.3J 1995/09/21)
+gekirido	Gekirindan (Japan)
+gekisou	Gekisou (Japan)
+gemcrush	Gemcrush (Japan, prototype)
+gemini	Gemini Wing
+geminib	Gemini Wing (bootleg)
+geminij	Gemini Wing (Japan)
+getaway	Get A Way (upright)
+gground	Gain Ground
+ggroundj	Gain Ground (Japan, 2 Players, Floppy Based, FD1094 317-0058-03b)
+ghostmun	Ghost Muncher
+ghox	Ghox
+ghoxj	Ghox (joystick)
+ghoxjo	Ghox (joystick, older)
+gigas	Gigas (MC-8123, 317-5002)
+gigasb	Gigas (bootleg)
+gigasm2	Gigas Mark II (MC-8123, 317-5002)
+gigasm2b	Gigas Mark II (bootleg)
+gmahou	Great Mahou Daisakusen (Japan 000121)
+gmgalax	Ghostmuncher Galaxian (bootleg)
+gnbarich	Gunbarich
+goindol	Goindol
+goindolj	Goindol (Japan)
+goindolk	Goindol (Korea)
+goindolu	Goindol (US)
+goldbug	Gold Bug
+gomoku	Gomoku Narabe Renju
+gondo	Gondomania (US)
+gondou	Gondomania (US)
+gorf	Gorf
+gorfpgm1	Gorf (Program 1)
+gorfpgm1f	Gorf (program 1, with French Language ROM)
+gorfpgm1g	Gorf (program 1, with German Language ROM)
+gorkans	Gorkans
+gotya	Got-Ya (12/24/1981, prototype?)
+gp2quiz	Gals Panic II - Quiz Version (Japan)
+gp2se	Gals Panic II' - Special Edition (Japan)
+grasspin	Grasspin
+grchamp	Grand Champion
+grchampa	Grand Champion (set 2)
+grchampb	Grand Champion (set 3)
+grdnstrm	Sen Jin - Guardian Storm (Korea)
+grdnstrmg	Guardian Storm (Germany)
+grdnstrmj	Sen Jing - Guardian Storm (Japan)
+grdnstrmk	Sen Jin - Guardian Storm (Korea)
+grdnstrmv	Guardian Storm (vertical)
+greenber	Green Beret (Irem)
+grescue	Galaxy Rescue
+griffon	Griffon (bootleg of Phoenix)
+griffono	Griffon (Olympia bootleg of Phoenix)
+grindsta	Grind Stormer (older set)
+grindstm	Grind Stormer (Korea)
+grindstma	Grind Stormer (older set)
+grobda	Grobda (New version)
+grobda2	Grobda (Old version set 1)
+grobda3	Grobda (Old version set 2)
+gryzor	Gryzor
+gryzor1	Gryzor (set 2)
+gseeker	Grid Seeker: Project Stormhammer (World)
+gseekerj	Grid Seeker: Project Stormhammer (Japan)
+gseekeru	Grid Seeker: Project Stormhammer (US)
+gstream	G-Stream G2020
+gteikob2	Gingateikoku No Gyakushu (bootleg set 2)
+gteikokb	Gingateikoku No Gyakushu (bootleg set 1)
+gteikoku	Gingateikoku No Gyakushu
+gteikokub	Gingateikoku no Gyakushu (bootleg set 1)
+gteikokub2	Gingateikoku no Gyakushu (bootleg set 2)
+gteikokub3	Gingateikoku no Gyakushu (bootleg set 3)
+gulfstr2	Gulf Storm (Media Shoji)
+gulfstrm	Gulf Storm
+gulfstrma	Gulf Storm (set 2)
+gulfstrmb	Gulf Storm (set 3)
+gulfstrmk	Gulf Storm (Korea)
+gulfstrmm	Gulf Storm (Media Shoji)
+gulfwar2	Gulf War II
+gulfwar2a	Gulf War II (set 2)
+gunball	Gun Ball (Japan)
+gunbird	Gun Bird (Japan)
+gunbird2	Gunbird 2
+gunbird2a	Gunbird 2 (set 2)
+gunbirdj	Gunbird (Japan)
+gunbirdk	Gunbird (Korea)
+gundeala	Gun Dealer (set 2)
+gundealr	Gun Dealer (set 1)
+gundealra	Gun Dealer (Alt Card Set)
+gundealrbl	Gun Dealer (bootleg)
+gundealrbl2	Gun Dealer (Yam! Yam!? hardware, set 2)
+gundealrt	Gun Dealer (Korea)
+gundealt	Gun Dealer (Tecmo)
+gundhara	Gundhara
+gundharac	Gundhara (Chinese, bootleg?)
+gunfronj	Gun Frontier (Japan)
+gunfront	Gun & Frontier (World)
+gunfrontj	Gun Frontier (Japan)
+gunlock	Gunlock (World)
+gunlocko	Gunlock (Ver 2.0O 1993/12/15)
+gunnail	GunNail
+gunnailb	GunNail (bootleg)
+gunnailp	GunNail (location test)
+gunsmoka	Gun.Smoke (US set 2)
+gunsmoke	Gun.Smoke (World)
+gunsmokeb	Gun.Smoke (World, 851115) (bootleg)
+gunsmokeg	Gun.Smoke (Germany, 1985-11-15, censored)
+gunsmokej	Gun.Smoke (Japan)
+gunsmokeu	Gun.Smoke (US set 1)
+gunsmokeua	Gun.Smoke (US set 2)
+gunsmokeub	Gun.Smoke (US, 851115, set 2)
+gunsmokeuc	Gun.Smoke (USA and Canada, 1985-11-15, set 2)
+gunsmokj	Gun.Smoke (Japan)
+gunsmoku	Gun.Smoke (US set 1)
+gutangtn	Guttang Gottong
+guttangt	Guttang Gottong (bootleg on Galaxian type hardware)
+guttangts3	Guttang Gottong (Sede 3 bootleg on Galaxian hardware)
+guwange	Guwange (Japan)
+guwanges	Guwange (Japan Special Ver 2000 7-7)
+guzzler	Guzzler
+guzzlers	Guzzler (Swimmer Conversion)
+gwar	Guerrilla War (US)
+gwara	Guerrilla War (Version 1)
+gwarab	Guerrilla War (Version 1, set 2)
+gwarb	Guerrilla War (bootleg)
+gwarj	Guevara (Japan)
+gyrodine	Gyrodine
+gyrodinet	Gyrodine (Taito Corporation license)
+gyruss	Gyruss (Konami)
+gyrussb	Gyruss (bootleg?)
+gyrussce	Gyruss (Centuri)
+hal21	HAL21
+hal21j	HAL21 (Japan)
+halley87	Halley's Comet '87
+halleycj	Halley's Comet (Japan set 2)
+halleys	Halley's Comet (US)
+halleysc	Halley's Comet (Japan set 1)
+halleysc87	Halley's Comet '87
+halleyscj	Halley's Comet (Japan, rev 1)
+halleyscja	Halley's Comet (Japan)
+halleyscjp	Halley's Comet (Japan, prototype)
+hamaway	Hammer Away (Japan, prototype)
+hangly	Hangly-Man (set 1)
+hangly2	Hangly-Man (set 2)
+hangly3	Hangly-Man (set 3)
+harem	Harem
+hbarrel	Heavy Barrel (US)
+hbarrelu	Heavy Barrel (US)
+hbarrelw	Heavy Barrel (World)
+headoni	Head On (Irem, M-15 Hardware)
+headonn	Head On N
+heartatk	Heart Attack
+heiankyo	Heiankyo Alien
+helifira	HeliFire (revision A)
+helifire	HeliFire (revision B)
+helifirea	HeliFire (set 2)
+herbiedk	Herbie at the Olympics (DK conversion)
+hero	Hero
+herodk	Hero in the Castle of Doom (DK conversion)
+herodku	Hero in the Castle of Doom (DK conversion not encrypted)
+hexpool	Hex Pool (Shinkai)
+hexpoola	Hex Pool (Senko)
+highroll	High Roller
+highspla	Space Fever High Splitter (set 2)
+highsplt	Space Fever High Splitter (set 1)
+highsplta	Space Fever High Splitter (set 2)
+highspltb	Space Fever High Splitter (alt Sound)
+himesiki	Himeshikibu (Japan)
+hishouza	Hishou Zame (Japan)
+hishouzab	Hishou Zame (Japan, bootleg)
+hncholms	Hunchback Olympic (Scramble hardware)
+hoccer	Hoccer (set 1)
+hoccer2	Hoccer (set 2)
+homo	Homo
+hopprobo	Hopper Robo
+horekid	Kid no Hore Hore Daisakusen
+horekidb	Kid no Hore Hore Daisakusen (bootleg)
+horekidb2	Kid no Hore Hore Daisakusen (bootleg set 2)
+horshoes	American Horseshoes (US)
+hotdogst	Hotdog Storm
+hotnight	Hot Night
+hotpinbl	Hot Pinball
+hotshock	Hot Shocker
+hotshockb	Hot Shocker (bootleg)
+hotsmash	Hot Smash
+hstenn10	Hot Shots Tennis (V1.0)
+hstennis	Hot Shots Tennis (V1.1)
+hstennis10	Hot Shots Tennis (V1.0)
+hunchbak	Hunchback
+hunchbaka	Hunchback (set 2)
+hunchbgb	Hunchback (FAR S.A. bootleg on Galaxian hardware)
+hunchbkd	Hunchback (Donkey Kong conversion)
+hunchbkg	Hunchback (Galaxian hardware)
+hunchbks	Hunchback (Scramble hardware)
+hunchbks2	Hunchback (Scramble hardware, bootleg)
+huncholy	Hunchback Olympic
+hustler	Video Hustler
+hustlerb	Video Hustler (bootleg)
+hustlerb2	Fatsy Gambler (Video Hustler bootleg)
+hustlerb3	Video Pool (Video Hustler bootleg)
+hustlerb4	Video Hustler (bootleg, set 2)
+hustlerb5	Video Hustler (bootleg, set 3)
+hustlerb6	Video Hustler (bootleg, set 4)
+hustlerd	Video Hustler (Dynamo Games)
+hwrace	High Way Race
+hyhoo	Taisen Quiz HYHOO (Japan)
+hyhoo2	Taisen Quiz HYHOO 2 (Japan)
+ibara	Ibara (2005/03/22 MASTER VER..)
+ibarablk	Ibara Kuro Black Label (2006/02/06. MASTER VER.)
+ibarablka	Ibara Kuro Black Label (2006/02/06 MASTER VER.)
+ibarao	Ibara (2005/03/22 MASTER VER..)
+igmo	IGMO
+ikari	Ikari Warriors (US)
+ikaria	Ikari Warriors (US)
+ikaria2	Ikari Warriors (US, set 2)
+ikarijp	Ikari Warriors (Japan)
+ikarijpb	Ikari Warriors (Japan bootleg)
+ikarinc	Ikari Warriors (US No Continues)
+ikariram	Rambo 3 (bootleg of Ikari, Joystick hack)
+illvelo	Illvelo (Illmatic Envelope)
+imago	Imago
+imagoa	Imago (no cocktail set)
+imgfight	Image Fight (Japan)
+imgfightj	Image Fight (Japan)
+imgfightjb	Image Fight (Japan, bootleg)
+imolagp	Imola Grand Prix
+imolagpo	Imola Grand Prix (set 2)
+indianbt	Indian Battle
+indianbtbr	Indian Battle (Brazil)
+indy800	Indy 800 [TTL]
+intrepi2	Intrepid (set 2)
+intrepid	Intrepid (set 1)
+intrepid2	Intrepid (set 2)
+intrepidb	Intrepid (Elsys bootleg, set 1)
+intrepidb2	Intrepid (Loris bootleg)
+intrepidb3	Intrepid (Elsys bootleg, set 2)
+intruder	Intruder
+invad2ct	Space Invaders II (Midway, cocktail)
+invaddlx	Space Invaders Deluxe
+invader4	Space Invaders Part Four
+invaderl	Space Invaders (Logitec)
+invadernc	Space Invaders (Nas Corp bootleg)
+invaders	Space Invaders
+invadersem	Space Invaders (Electromar, Spanish)
+invadpt2	Space Invaders Part II (Taito)
+invadpt2a	Space Invaders Part II (Taito, smaller ROMs)
+invadpt2br	Space Invaders Part II (Brazil)
+invadrmr	Space Invaders (Model Racing)
+invasioa	Invasion (bootleg, set 1, normal graphics)
+invasiob	Invasion (bootleg, set 2, no copyright)
+invasion	Invasion (Sidam)
+invasiona	Invasion (bootleg, set 1, normal graphics)
+invasiona2	UFO Robot Attack (bootleg of Invasion, older set)
+invasionb	Invasion (bootleg, set 2, no copyright)
+invasionrz	Invasion (bootleg, set 3, R Z SRL Bologna)
+invasionrza	Invasion (bootleg, set 4, R Z SRL Bologna)
+invcarht	Invinco / Car Hunt (Germany)
+invds	Invinco / Deep Scan
+invho2	Invinco / Head On 2
+invho2a	Invinco / Head On 2 (set 2)
+invinco	Invinco
+invmulti	Space Invaders Multigame (M8.03D)
+invmultim1a	Space Invaders Multigame (M8.01A)
+invmultim2a	Space Invaders Multigame (M8.02A)
+invmultim2c	Space Invaders Multigame (M8.02C)
+invmultim3a	Space Invaders Multigame (M8.03A)
+invmultip	Space Invaders Multigame (prototype)
+invmultis1a	Space Invaders Multigame (S0.81A)
+invmultis2a	Space Invaders Multigame (S0.82A)
+invmultis3a	Space Invaders Multigame (S0.83A)
+invmultit3d	Space Invaders Multigame (T8.03D)
+invqix	Space Invaders / Qix Silver Anniversary Edition (Ver. 2.03)
+invrvnga	Invader's Revenge (Dutchford)
+invrvnge	Invader's Revenge
+invrvngea	Invader's Revenge (Dutchford)
+invrvngeb	Invader's Revenge (set 3)
+invrvngedu	Invader's Revenge (Dutchford, single PCB)
+invrvngegw	Invader's Revenge (Game World, single PCB)
+ipminvad	IPM Invader
+ipminvad1	IPM Invader (Incomplete Dump)
+irion	Irion
+ixion	Ixion (prototype)
+jack	Jack the Giantkiller (set 1)
+jack2	Jack the Giantkiller (set 2)
+jack3	Jack the Giantkiller (set 3)
+jackal	Jackal (World)
+jackalbl	Jackal (bootleg, Rotary Joystick)
+jackalj	Tokushu Butai Jackal (Japan)
+jackalr	Jackal (World, Rotary Joystick)
+jackler	Jackler (Jungler bootleg)
+jackrab2	Jack Rabbit (set 2)
+jackrabs	Jack Rabbit (special)
+jackrabt	Jack Rabbit (set 1)
+jackrabt2	Jack Rabbit (set 2)
+jackrabts	Jack Rabbit (special)
+jantotsu	4nin-uchi Mahjong Jantotsu
+jcross	Jumping Cross
+jcrossa	Jumping Cross (set 2)
+jin	Jin
+jjack	Jumping Jack
+joinem	Joinem
+jollyjgr	Jolly Jogger
+jongbou	Mahjong Block Jongbou (Japan)
+jongbou2	Mahjong Block Jongbou 2 (Japan)
+josvolly	Joshi Volleyball
+journey	Journey
+joust2	Joust 2 - Survival of the Fittest (set 1)
+joust2r1	Joust 2 - Survival of the Fittest (revision 1)
+joyfulr	Joyful Road (US)
+joyman	Joyman
+jrking	Junior King (bootleg of Donkey Kong Jr.)
+jrpacman	Jr. Pac-Man
+jrpacmanf	Jr. Pac-Man (speedup hack)
+jrpacmbl	Jr. Pac-Man (Pengo hardware)
+jrpacmnf	Jr. Pac-Man (speedup hack)
+jspecter	Jatre Specter
+jspecter2	Jatre Specter (set 2)
+jspectr2	Jatre Specter (set 2)
+jumpbug	Jump Bug
+jumpbugb	Jump Bug (bootleg)
+jumpcoas	Jump Coaster
+jumpcoasa	Jump Coaster
+jumpcoast	Jump Coaster (Taito)
+jumpkun	Jump Kun (prototype)
+jumpshot	Jump Shot
+jumpshotp	Jump Shot Engineering Sample
+jungler	Jungler
+junglero	Jungler (Olympia)
+junglers	Jungler (Stern)
+jungsub	Jungler (Subelectro, bootleg on Scramble hardware)
+junofrst	Juno First
+junofrstg	Juno First (Gottlieb)
+junofstg	Juno First (Gottlieb)
+kageki	Kageki (US)
+kagekih	Kageki (hack)
+kagekij	Kageki (Japan)
+kagekiu	Kageki (US)
+kaitei	Kaitei Takara Sagashi
+kaitein	Kaitei Takara Sagashi (Namco)
+kamakazi3	Kamakazi III (superg hack)
+kamikaze	Kamikaze
+kamikazesp	Kamikaze (Euromatic S.A., Spanish bootleg of Scramble)
+kamikazp	Kamikaze (Potomac Games)
+kamikcab	Kamikaze Cabbie
+kangaroa	Kangaroo (Atari)
+kangarob	Kangaroo (bootleg)
+kangaroo	Kangaroo
+kangarooa	Kangaroo (Atari)
+kangaroob	Kangaroo (bootleg)
+kangarool	Kangaroo (Loewen-Automaten)
+kaos	Kaos
+karateda	Karate Dou (Arfyc bootleg)
+karatedo	Karate Dou (Japan)
+karatevs	Taisen Karate Dou (Japan VS version)
+kas89	Kasino '89
+kchamp	Karate Champ (US)
+kchamp2p	Karate Champ (US, 2 players)
+kchamptec	Karate Champ (Tecfri bootleg)
+kchampvs	Karate Champ (US VS version)
+kchampvs2	Karate Champ (US, VS version set 2)
+kchampvs3	Karate Champ (US VS version, set 3)
+kchampvs4	Karate Champ (US VS version, set 4)
+ket	Ketsui Kizuna Jigoku Tachi
+ket1	Ketsui: Kizuna Jigoku Tachi (2003/01/01. Master Ver.) (alt rom fill)
+keta	Ketsui Kizuna Jigoku Tachi (older)
+ketarr	Ketsui: Kizuna Jigoku Tachi (2014/07/16 ARRANGE 1.7 VER) (hack)
+ketarr10	Ketsui: Kizuna Jigoku Tachi (2012/04/17 ARRANGE VER) (hack)
+ketarr15	Ketsui: Kizuna Jigoku Tachi (2012/06/26 ARRANGE 1.5 VER) (hack)
+ketarr151	Ketsui: Kizuna Jigoku Tachi (2012/06/26 ARRANGE 1.51 VER) (hack)
+ketarrf	Ketsui: Kizuna Jigoku Tachi (2012/04/17 FAST. VER) (hack)
+ketarrs15	Ketsui: Kizuna Jigoku Tachi (2012/06/27 MR.STOIC 1.5 VER) (hack)
+ketarrs151	Ketsui: Kizuna Jigoku Tachi (2012/06/27 MR.STOIC 1.51 VER) (hack)
+ketb	Ketsui Kizuna Jigoku Tachi (first revision)
+ketbl	Ketsui: Kizuna Jigoku Tachi (2003/01/01. Master Ver., bootleg cartridge conversion)
+kick	Kick (upright)
+kicka	Kick (cocktail)
+kickc	Kick (cocktail)
+kicker	Kicker
+kickman	Kickman (upright)
+kikikai	KiKi KaiKai
+kingbalj	King & Balloon (Japan)
+kingball	King & Balloon (US)
+kingballj	King & Balloon (Japan)
+kingdmgp	Kingdom Grandprix (World)
+kingofb	King of Boxer (English)
+kingofbj	King of Boxer (Japan)
+knightb	Knight Boy
+knightba	Knight Boy (Game Corporation bootleg)
+knockout	Knock Out !!
+knockoutb	Knock Out!! (bootleg, set 2)
+knockoutc	Knock Out!! (bootleg, set 3)
+koikoi	Koi Koi Part 2
+komemokos	Komemokos (hack of 'Pac-Man (Cirsa, Spanish bootleg)')
+kong	Kong (Donkey Kong conversion on Galaxian hardware)
+kong2600	Donkey Kong (2600 graphics, hack)
+kopunch	KO Punch
+korosuke	Korosuke Roller
+kosmokil	Kosmo Killer
+krull	Krull
+krzybowl	Krazy Bowl
+ktiger	Kyukyoku Tiger (Japan)
+ktiger2	Kyukyoku Tiger 2 (Japan)
+ktiger2p	Kyukyoku Tiger (Japan, 2 Players)
+ktigera	Kyukyoku Tiger (Japan, 2 player alternate)
+kuhga	Kuhga - Operation Code 'Vapor Trail' (Japan revision 3)
+kyros	Kyros
+kyrosj	Kyros No Yakata (Japan)
+labyrunk	Labyrinth Runner (World Ver. K)
+labyrunr	Labyrinth Runner (Japan)
+labyrunrk	Labyrinth Runner (World Ver. K)
+ladybgb2	Lady Bug (bootleg set 2)
+ladybug	Lady Bug
+ladybugb	Lady Bug (bootleg)
+ladybugb2	Coccinelle (bootleg of Lady Bug)
+ladybugg	Ladybug (bootleg on Galaxian hardware)
+ladyfrog	Lady Frog
+ladykill	Lady Killer
+ladymstr	Lady Master of Kung Fu
+ladymstr2	Lady Master of Kung Fu (set 2, older)
+lagirl	LA Girl
+lagunar	Laguna Racer
+laser	Laser
+laserbas	Laser Base (set 1)
+laserbasa	Laser Base (set 2)
+lasso	Lasso
+lastday	The Last Day (set 1)
+lastdaya	The Last Day (set 2)
+lastduel	Last Duel (US set 1)
+lastduelb	Last Duel (bootleg)
+lastduelj	Last Duel (Japan)
+lastduelo	Last Duel (US Old Ver.)
+lastmisn	Last Mission (US revision 6)
+lastmisnj	Last Mission (Japan)
+lastmisno	Last Mission (US revision 5)
+lastmisnu5	Last Mission (US revision 5)
+lastmisnu6	Last Mission (US revision 6)
+lastmsnj	Last Mission (Japan)
+lastmsno	Last Mission (US revision 5)
+lazybug	Lazy Bug
+leds2011	Led Storm Rally 2011 (World)
+leds2011p	Led Storm Rally 2011 (US, prototype 12)
+leds2011u	Led Storm Rally 2011 (US)
+ledstorm	Led Storm (US)
+ledstorm2	Led Storm Rally 2011 (US)
+legion	Legion (ver 2.03)
+legionj	Chouji Meikyuu Legion (Japan ver 1.05)
+legionj2	Chouji Meikyuu Legion (Japan ver 1.05, set 2)
+legionjb	Chouji Meikyuu Legion (Japan ver 1.05, bootleg)
+legionjb2	Chouji Meikyuu Legion (Japan ver 1.05, bootleg set 2)
+legiono	Legion (ver 1.05)
+legofair	Koukuu Kihei Monogatari - The Legend of Air Cavalry
+lethalth	Lethal Thunder (World)
+levers	Levers
+lgtnfght	Lightning Fighters (US)
+lgtnfghta	Lightning Fighters (Asia)
+lgtnfghtu	Lightning Fighters (US)
+liberatb	Liberation (bootleg)
+liberate	Liberation
+liberateb	Liberation (bootleg)
+lizwiz	Lizard Wizard
+lnc	Lock'n'Chase
+locoboot	Loco-Motion (bootleg)
+locomotn	Loco-Motion
+logger	Logger
+loggerr2	Logger (Rev.2)
+looping	Looping (set 1)
+loopinga	Looping (set 2)
+loopingv	Looping (Venture Line license, set 1)
+loopingva	Looping (Venture Line license, set 2)
+losttmbh	Lost Tomb (hard)
+losttomb	Lost Tomb (easy)
+losttombh	Lost Tomb (hard)
+loverboy	Lover Boy
+lrescue	Lunar Rescue
+lrescuem	Lunar Rescue (Model Racing bootleg)
+lrescuem2	Lunar Rescue (Model Racing bootleg, set 2)
+lsasquad	Land Sea Air Squad / Riku Kai Kuu Saizensen
+lstduela	Last Duel (US set 2)
+lstduelb	Last Duel (bootleg)
+luckyrlt	Lucky Roulette Plus (6-players, Spanish)
+luctoday	Lucky Today
+lupin3	Lupin III
+lupin3a	Lupin III (set 2)
+lwings	Legendary Wings (US set 1)
+lwings2	Legendary Wings (US set 2)
+lwingsb	Legendary Wings (bootleg)
+lwingsj	Ares no Tsubasa (Japan)
+lwingsja	Ares no Tsubasa (Japan, rev. A)
+lwingsjp	Ales no Tsubasa (Japan)
+m660	Mission 660 (US)
+m660b	Mission 660 (bootleg)
+m660j	Mission 660 (Japan)
+mach9	Mach-9 (bootleg of Vulgus)
+machomou	Macho Mouse
+macross	Super Spacefortress Macross / Chou-Jikuu Yousai Macross
+macrossp	Macross Plus
+madalien	Mad Alien
+madaliena	Mad Alien (Highway Chase)
+madalienb	Mad Alien (set 2, alt gfx)
+madgear	Mad Gear (US)
+madgearj	Mad Gear (Japan)
+madshark	Mad Shark
+madsharkbl	Mad Shark (bootleg)
+mag_boob	Booby Kids (Magnet System)
+mag_day	A Day In Space (31/03/87)
+mag_time	Time Scanner (TS 2.0, Magnet System)
+mag_war	War Mission (WM 04/06/87)
+mag_wara	War Mission (WM 09/04/87)
+magspot	Magical Spot
+magspot2	Magical Spot II
+maguila	Up Maguila (bootleg of Donkey Kong Jr.)
+magworm	Magic Worm (bootleg)
+magworma	Magic Worm (bootleg of Centipede, set 2)
+mahoudai	Mahou Daisakusen (Japan)
+majest12	Majestic Twelve - The Space Invaders Part IV (Japan)
+majest12j	Majestic Twelve - The Space Invaders Part IV (Japan)
+majest12u	Majestic Twelve - The Space Invaders Part IV (US)
+majest12ua	Majestic Twelve - The Space Invaders Part IV (US, revised code)
+majest12ub	Majestic Twelve - The Space Invaders Part IV (US, earlier code base)
+maketrax	Make Trax
+maketrxb	Make Trax (set 2)
+makyosen	Makyou Senshi (Japan)
+mamonoro	Mamoru-kun wa Norowarete Shimatta!
+mandinga	Mandinga (Artemi bootleg of Amidar)
+mandingac	Mandanga (bootleg of Mandinga on Galaxian hardware, set 2)
+mandingaeg	Mandinga (Electrogame S.A. bootleg of Amidar)
+mandingarf	Mandanga (bootleg of Mandinga on Galaxian hardware, set 1)
+mandinka	Mandinka (bootleg of Amidar)
+maniach	Mania Challenge (set 1)
+maniach2	Mania Challenge (set 2)
+manybloc	Many Block
+mappy	Mappy (US)
+mappyj	Mappy (Japan)
+marinedt	Marine Date
+mariner	Mariner
+mars	Mars
+marsarf	Mars (bootleg)
+marvins	Marvin's Maze
+masterw	Master of Weapon (World)
+masterwj	Master of Weapon (Japan)
+masterwu	Master of Weapon (US)
+matmania	Mat Mania
+mazeinv	Maze Invaders (prototype)
+mazinger	Mazinger Z
+mazingerj	Mazinger Z (Japan)
+mbrush	Magic Brush
+mcwars	Macro-Cosm Wars (bootleg of Galaxian)
+megadon	Megadon
+megaforc	Mega Force
+megaforcu	Mega Force (US)
+megaznik	Mega Zone (Kosuka)
+megazone	Mega Zone
+megazonea	Mega Zone (Konami set 2)
+megazoneb	Mega Zone (Kosuka set 1)
+megazonec	Mega Zone (Kosuka set 2)
+megazoneh	Mega Zone (program code H)
+megazonei	Mega Zone (Interlogic / Kosuka)
+megazonej	Mega Zone (program code J)
+megrescu	Megumi Rescue
+mercenario	Mercenario (Commando bootleg)
+mercs	Mercs (World)
+mercsc	Senjo no Ookami II (T-Chi)
+mercsj	Senjo no Ookami II (Japan)
+mercsu	Mercs (US)
+mercsua	Mercs (US 900608)
+mercsur1	Mercs (USA 900302)
+merlinmm	Merlins Money Maze
+metafox	Meta Fox
+meteor	Meteoroids
+meteora	Meteor (Alca bootleg of Moon Cresta)
+metlfrzr	Metal Freezer
+metlhawk	Metal Hawk (Japan)
+metlhawkj	Metal Hawk (Japan)
+mgolf	Atari Mini Golf (prototype)
+micon2	Micon-Kit Part II
+mightguy	Mighty Guy
+mikie	Mikie
+mikiehs	Mikie (High School Graffiti)
+mikiej	Shinnyuushain Tooru-kun
+mikiek	Shin-ip Sawon - Seok Dol-i
+millipdd	Millipede Dux (hack)
+milliped	Millipede
+millpac	Millpac
+mimonkey	Mighty Monkey
+mimonkeyug	Mighty Monkey (U.Games bootleg)
+mimonsco	Mighty Monkey (bootleg on Super Cobra hardware)
+mimonscr	Mighty Monkey (bootleg on Scramble hardware)
+mimonscra	Mighty Monkey (Kaina Games, bootleg on Scramble hardware)
+minefld	Minefield
+minefldfe	Minefield (The Logicshop, bootleg)
+mirax	Mirax
+miraxa	Mirax (set 2)
+misncrft	Mission Craft (version 2.4)
+misncrfta	Mission Craft (version 2.4)
+mjleague	Major League
+mlander	Moon Lander (bootleg of Lunar Rescue)
+mltiwars	Multi Wars (bootleg of UniWar S)
+mmagic	Monkey Magic
+mmonkey	Minky Monkey
+mmonkeyj	Minky Monkey (Japan)
+mmpork	Muchi Muchi Pork! (2007/ 4/17 MASTER VER.)
+mnchmobl	Munch Mobile (Japan)
+moegonta	Moeyo Gonta!! (Japan)
+mofflott	Maze of Flott (Japan)
+moguchan	Moguchan
+monkeyd	Monkey Donkey
+monsterb	Monster Bash
+monsterb2	Monster Bash (2 board version)
+montecar	Monte Carlo
+monymony	Money Money
+monymony2	Money Money (set 2)
+monzagp	Monza GP
+monzagpb	Monza GP (bootleg)
+moonal2	Moon Alien Part 2
+moonal2b	Moon Alien Part 2 (older version)
+moonaln	Moon Alien
+moonbase	Moon Base
+moonbasea	Moon Base (set 2)
+mooncmw	Moon War (Moon Cresta bootleg)
+mooncptc	Moon Cresta (Petaco S.A. Spanish bootleg)
+mooncrecm	Moon Cresta (Centromatic Spanish bootleg)
+mooncreg	Moon Cresta (Electrogame S.A. Spanish bootleg)
+mooncreg2	Moon Cresta (Electrogame S.A. Spanish bootleg, set 2)
+mooncrgx	Moon Cresta (bootleg on Galaxian hardware)
+mooncrs2	Moon Cresta (bootleg set 2)
+mooncrs3	Moon Cresta (bootleg set 3)
+mooncrs4	Moon Crest (Moon Cresta bootleg)
+mooncrs5	Moon Cresta (bootleg set 4)
+mooncrsa	Moon Cresta (Nichibutsu, old rev)
+mooncrsb	Moon Cresta (bootleg set 1)
+mooncrsg	Moon Cresta (Gremlin)
+mooncrsl	Cresta Mundo (Laguna S.A. Spanish Moon Cresta bootleg)
+mooncrst	Moon Cresta (Nichibutsu)
+mooncrstg	Moon Cresta (Gremlin)
+mooncrsto	Moon Cresta (Nichibutsu, old rev)
+mooncrstso	Moon Cresta (SegaSA / Sonic)
+mooncrstu	Moon Cresta (Nichibutsu USA, unencrypted)
+mooncrstuk	Moon Cresta (Nichibutsu UK)
+mooncrstuku	Moon Cresta (Nichibutsu UK, unencrypted)
+mooncrstuu	Moon Cresta (Nichibutsu USA, unencrypted)
+mooncrsu	Moon Cresta (Nichibutsu, unencrypted)
+moonqsr	Moon Quasar
+moonwar	Moonwar
+moonwara	Moonwar (older)
+motorace	MotoRace USA
+motos	Motos
+mototour	MotoTour / Zippy Race (Tecfri license)
+mototoura	MotoTour / Zippy Race (Assa version of Tecfri license)
+mouncrst	Moune Creste (Jeutel French bootleg of Moon Cresta)
+mouser	Mouser
+mouserc	Mouser (Cosmos)
+mplanets	Mad Planets
+mplanetsuk	Mad Planets (UK)
+mplanuk	Mad Planets (UK)
+mrdo	Mr. Do! (Universal)
+mrdobl	Mr. Do! (bootleg)
+mrdofabr	Mr. Do! (Fabremar bootleg)
+mrdofix	Mr. Do! (bugfixed)
+mrdot	Mr. Do! (Taito)
+mrdoy	Mr. Do! (Yukidaruma)
+mrdu	Mr. Du!
+mrflea	The Amazing Adventures of Mr. F. Lea
+mrjong	Mr. Jong (Japan)
+mrkougar	Mr. Kougar
+mrkougar2	Mr. Kougar (earlier)
+mrkougb	Mr. Kougar (bootleg)
+mrkougb2	Mr. Kougar (bootleg set 2)
+mrkougr2	Mr. Kougar (earlier)
+mrlo	Mr. Lo!
+mrsdyna	Mrs. Dynamite
+mrtnt	Mr. TNT
+mrviking	Mister Viking
+mrvikingj	Mister Viking (315-5041, Japan)
+mrvikngj	Mister Viking (Japan)
+mschamp	Ms. Pacman Champion Edition / Super Zola Pac Gal
+mschamps	Ms. Pacman Champion Edition / Super Zola-Puc Gal
+msheartb	Ms. Pac-Man Heart Burn
+msisaac	Metal Soldier Isaac II
+msjiken	Mahjong Satsujin Jiken (Japan 881017)
+mspacii	Ms. Pac-Man II (Orca bootleg set 1)
+mspacii2	Ms. Pac-Man II (Orca bootleg set 2)
+mspackpls	Miss Packman Plus
+mspacmab	Ms. Pac-Man (bootleg)
+mspacmab2	Ms. Pac-Man (bootleg, set 2)
+mspacmab3	Ms. Pac-Man (bootleg, set 3)
+mspacmab4	Ms. Pac-Man (bootleg, set 4)
+mspacman	Ms. Pac-Man
+mspacmanbcc	Come-Cocos (Ms. Pac-Man) ('Made in Greece' Tecnausa bootleg)
+mspacmanbco	Come-Cocos (Ms. Pac-Man) (Cocamatic bootleg)
+mspacmanbg	Ms. Pac-Man ('Made in Greece' bootleg)
+mspacmanbg2	Ms. Pac-Man ('Made in Greece' bootleg, set 2)
+mspacmanbgc	Ms. Pac-Man ('Made in Greece' Enavi bootleg)
+mspacmanbgd	Miss Pukman ('Made in Greece' Datamat bootleg)
+mspacmanbhe	Come-Cocos (Ms. Pac-Man) ('Made in Greece' Herle SA bootleg)
+mspacmanbi	Ms. Pac-Man (Impeuropex bootleg)
+mspacmanblt	Come-Cocos (Ms. Pac-Man) ('Made in Greece' Triunvi bootleg)
+mspacmanblt2	Come-Cocos (Ms. Pac-Man) ('Made in Greece' Triunvi bootleg, set 2)
+mspacmancr	Ms. Pac-Man (bootleg on Crush Roller Hardware)
+mspacmanlai	Ms. Pac-Man (Leisure and Allied bootleg)
+mspacmat	Ms. Pac Attack
+mspacmbe	Ms. Pac-Man (bootleg, (encrypted))
+mspacmbmc	Ms. Pac-Man (Marti Colls bootleg)
+mspacmbn	Ms. Pac-Man (Novatronic bootleg)
+mspacmnf	Ms. Pac-Man (speedup hack)
+mspacpls	Ms. Pac-Man Plus
+mspactwin	Ms. Pac-Man Twin (Argentina)
+mspuzzle	Miss Puzzle
+mspuzzlea	Miss Puzzle (Nudes, less explicit)
+mspuzzleb	Miss Puzzle (Nudes, more explicit)
+mspuzzlen	Miss Puzzle (Nudes)
+multiped	Multipede (Centipede/Millipede multigame kit)
+mushisam	Mushihime-Sama (2004/10/12.MASTER VER.)
+mushisama	Mushihime-Sama (2004/10/12 MASTER VER.)
+mushisamb	Mushihime-Sama (2004/10/12 MASTER VER)
+musicbal	Music Ball
+mustache	Mustache Boy
+mustachei	Mustache Boy (Italy)
+mutacion	Mutacion (Explomatic Spanish bootleg of Moon Cresta)
+mv1sfx	Special Effects (Maygay, MV1 Video, set 1)
+mv1sfx2	Special Effects V2 (Maygay, MV1 Video)
+mv1sfxa	Special Effects (Maygay, MV1 Video, set 2)
+mx5000	MX5000
+myqbert	Mello Yello Q*bert
+myststno	Mysterious Stones - Dr. Kick in Adventure
+mystston	Mysterious Stones
+myststono	Mysterious Stones - Dr. Kick in Adventure
+myststonoi	Mysterious Stones - Dr. Kick in Adventure (Itisa PCB)
+naughtya	Naughty Boy (bootleg)
+naughtyb	Naughty Boy
+naughtyba	Naughty Boy (bootleg)
+naughtybb	Naughty Boy (bootleg, set 2)
+naughtybc	Naughty Boy (Cinematronics)
+naughtyc	Naughty Boy (Cinematronics)
+navalone	Navalone
+navarone	Navarone
+ncentury	New Century (Spanish bootleg of Scramble)
+ncv1	Namco Classics Collection Vol.1
+ncv1j	Namco Classics Collection Vol.1 (Japan set 1)
+ncv1j2	Namco Classics Collection Vol.1 (Japan set 2)
+ncv2	Namco Classics Collection Vol.2
+ncv2j	Namco Classics Collection Vol.2 (Japan)
+nebulbee	Nebulous Bee
+nebulray	Nebulas Ray (World)
+nebulrayj	Nebulas Ray (Japan, NR1)
+nebulrayp	Nebulas Ray (prototype)
+nebulryj	Nebulas Ray (Japan)
+neobattl	SD Gundam Neo Battling (Japan)
+netwars	Net Wars
+newfant	New Fantasia
+newfanta	New Fantasia (1994 copyright)
+newpuc2	Newpuc2
+newpuc2b	Newpuc2 (set 2)
+newpuckx	New Puck-X
+newsin7	New Sinbad 7
+newsin7a	New Sinbad 7 (set 2)
+nextfase	Next Fase (bootleg of Phoenix)
+nibbler	Nibbler (set 1)
+nibbler6	Nibbler (rev 6)
+nibbler7	Nibbler (rev 7)
+nibbler8	Nibbler (rev 8)
+nibblera	Nibbler (set 2)
+nibblero	Nibbler (Olympia)
+nibblerp	Nibbler (Pioneer Balloon conversion)
+nightmare	Night Mare (Spain)
+ninjemak	Ninja Emaki (US)
+nitrobal	Nitro Ball (US)
+nitrobala	Nitro Ball (World, set 2)
+nitrobalb	Nitro Ball (World, set 3)
+nmouse	Naughty Mouse (set 1)
+nmouseb	Naughty Mouse (set 2)
+noahsark	Noah's Ark
+nob	Noboranka (Japan)
+nobb	Noboranka (Japan, bootleg)
+noboranb	Noboranka (Japan)
+nomnlnd	No Man's Land
+nomnlndg	No Man's Land (Gottlieb)
+nost	Nostradamus
+nostj	Nostradamus (Japan)
+nostk	Nostradamus (Korea)
+nrallyv	New Rally X (Vertical Screen)
+nsub	N-Sub (upright)
+numcrash	Number Crash
+nunchaku	Nunchackun
+nyny	New York New York
+nynyg	New York New York (Gottlieb)
+offensiv	Offensive (Spanish bootleg of Scramble)
+ohpaipee	Oh! Paipee (Japan 890227)
+oigas	Oigas (bootleg)
+olibochu	Oli-Boo-Chu
+olibug	Oli Bug (bootleg of Jump Bug)
+olmandingc	Olivmandingo (Spanish bootleg of Mandinga on Galaxian hardware, set 2)
+olmandingo	Olivmandingo (Spanish bootleg of Mandinga on Galaxian hardware, set 1)
+omega	Omega
+omegaa	Omega (earlier)
+omegab	Omega (bootleg?)
+omegaf	Omega Fighter
+omegafs	Omega Fighter Special
+omni	Omni
+ooparts	OOPArts (Japan, Prototype)
+orbite	Orbite (prototype)
+orbitron	Orbitron
+ottopz	Otto Project PZ
+outline	Outline
+outzone	Out Zone
+outzonea	Out Zone (set 2)
+outzoneb	Out Zone (set 3, prototype?)
+outzonec	Out Zone (set 4)
+outzonecv	Out Zone (Zero Wing TP-015 PCB conversion)
+outzoneh	Out Zone (harder)
+overdriv	Over Drive
+overdriva	Over Drive (set 2)
+overdrivb	Over Drive (set 3)
+ozmawar2	Ozma Wars (set 2)
+ozmawars	Ozma Wars
+ozmawars2	Ozma Wars (set 2)
+ozmawarsmr	Ozma Wars (Model Racing bootleg)
+ozon1	Ozon I
+pac90	Pac-Man (bootleg on World Cup '90 hardware)
+pacgal	Pac-Gal
+pacgal2	Pac-Gal (set 2)
+pacheart	Pac-Man (Hearts)
+pachifev	Pachifever
+packbang	Pack'n Bang Bang (prototype)
+packbangp	Pack'n Bang Bang (prototype)
+packetman	Packetman
+pacman	PuckMan (Japan set 1)
+pacmanbl	Pac-Man (bootleg on Galaxian hardware)
+pacmanbla	Pac-Man (Galaxian hardware, set 2)
+pacmanblb	Pac-Man (Moon Alien 'AL-10A1' hardware)
+pacmanblc	Pac-Man (Calfesa, Spanish bootleg on Galaxian hardware)
+pacmanblci	Pac-Man (Cirsa, Spanish bootleg on Galaxian hardware)
+pacmanblv	Pac-Man (Video Dens, Spanish bootleg on Galaxian hardware)
+pacmanf	Pac-Man (speedup hack)
+pacmanfm	Pac Man (FAMARE S.A. bootleg of Puck Man)
+pacmania	Pac-Mania
+pacmaniaj	Pac-Mania (Japan)
+pacmaniao	Pac-Mania (111187 sound program)
+pacmanij	Pac-Mania (Japan)
+pacmanjpm	Pac-Man (JPM bootleg)
+pacmanpe	Come Come (Petaco SA bootleg of Puck Man)
+pacmanso	Pac-Man (SegaSA / Sonic)
+pacmansp	Puck Man (Spanish, 'Made in Greece' bootleg)
+pacmanug	Pac Man (U.Games bootleg of Puck Man)
+pacmanvg	Pac-Man (Video Game SA bootleg)
+pacminer	Pac Manic Miner Man
+pacmod	Pac-Man (Midway, harder)
+pacnchmp	Pac-Man & Chomp Chomp
+pacnpal	Pac & Pal
+pacnpal2	Pac & Pal (older)
+pacominv	Pacom Invader
+pacominva	Pacom Invader (set 2)
+pacplus	Pac-Man Plus
+pacuman	Pacu-Man (Spanish bootleg of Puck Man)
+paddle2	Paddle 2
+paddlema	Paddle Mania
+painter	Painter (hack of Crush Roller)
+paintrlr	Paint Roller
+pairlove	Pairs Love
+pajaroes	Pajaro del Espacio (Spanish bootleg of UniWar S)
+pandoras	Pandora's Palace
+panic	Space Panic (set 1)
+panic2	Space Panic (set 2)
+panic3	Space Panic (set 3)
+panic4	Space Panic (set 4)
+panicger	Space Panic (German)
+panich	Space Panic (harder)
+panicr	Panic Road
+panicrg	Panic Road (Germany)
+panther	Panther
+paprazzi	Paparazzi
+para2dx	Paradise 2 Deluxe
+paradise	Paradise
+paradisea	Paradise (set 2)
+paradisee	Paradise (Escape)
+paradlx	Paradise Deluxe
+passht4b	Passing Shot (4 Players) (bootleg)
+passsht	Passing Shot (2 Players)
+passsht16a	Passing Shot (Japan, 4 Players, System 16A, FD1094 317-0071)
+passshta	Passing Shot (World, 4 Players, FD1094 317-0074)
+passshtad	Passing Shot (World, 4 Players) (bootleg of FD1094 317-0074 set)
+passshtb	Passing Shot (2 Players) (bootleg)
+passshtd	Passing Shot (World, 2 Players) (bootleg of FD1094 317-0080 set)
+passshtj	Passing Shot (Japan, 4 Players, FD1094 317-0070)
+passshtjd	Passing Shot (Japan, 4 Players) (bootleg of FD1094 317-0070 set)
+pbactio2	Pinball Action (set 2)
+pbaction	Pinball Action (set 1)
+pbaction2	Pinball Action (set 2)
+pbaction3	Pinball Action (set 3, encrypted)
+pbaction4	Pinball Action (set 4, encrypted)
+pbaction5	Pinball Action (set 5, encrypted)
+pbactiont	Pinball Action (Tecfri license)
+pballoon	Pioneer Balloon
+pballoonr	Pioneer Balloon (Rock-Ola license)
+peggle	Peggle (Joystick, v1.0)
+pegglet	Peggle (Trackball, v1.0)
+pengo	Pengo (set 1)
+pengo2	Pengo (set 2)
+pengo2u	Pengo (set 2 not encrypted)
+pengo3u	Pengo (set 3 not encrypted)
+pengo4	Pengo (set 4)
+pengoa	Pengo (World, 315-5010 type, set 1)
+pengob	Pengo (bootleg)
+pengoc	Pengo (World, 315-5010 type, set 3)
+pengoj	Pengo (Japan, not encrypted)
+pengoja	Pengo (Japan, 315-5010 type, rev C)
+pengojb	Pengo (Japan, 315-5007 type, rev A)
+pengojbl	Pengo (Japan, bootleg)
+pengojpm	Pengo (bootleg on Pac-Man hardware, set 1)
+pengomc1	Pengo (Marti Colls bootleg on Pac-Man hardware, set 1)
+pengomc2	Pengo (Marti Colls bootleg on Pac-Man hardware, set 2)
+pengopac	Pengo (bootleg on Pac-Man hardware, set 2)
+penta	Penta
+percuss	The Percussor
+perestro	Perestroika Girls
+perestrof	Perestroika Girls (Fuuki license)
+perfrman	Performan (Japan)
+perfrmanu	Performan (US)
+perfrmau	Performan (US)
+phelios	Phelios (Japan)
+pheliosj	Phelios (Japan)
+phoenix	Phoenix (Amstar)
+phoenix2	Phoenix (Amstar, set 2)
+phoenix3	Phoenix (T.P.N.)
+phoenixa	Phoenix (Centuri)
+phoenixass	Phoenix (Assa, Spanish bootleg)
+phoenixb	Phoenix (Centuri, set 2)
+phoenixc	Phoenix (IRECSA, G.G.I Corp)
+phoenixc2	Phoenix (Irecsa / G.G.I Corp, set 2)
+phoenixc3	Phoenix (Irecsa / G.G.I Corp, set 3)
+phoenixc4	Phoenix (Irecsa / G.G.I Corp, set 4)
+phoenixdal	Phoenix (D&L bootleg)
+phoenixgu	Phoenix (G. Universal Video bootleg)
+phoenixha	Phoenix (Hellomat Automaten bootleg)
+phoenixi	Phoenix (IDI bootleg)
+phoenixj	Phoenix (Taito Japan)
+phoenixs	Phoenix (Spanish bootleg)
+phoenixt	Phoenix (Taito)
+phoenxp2	Phoenix Part 2
+phozon	Phozon
+phozons	Phozon (Sidam)
+phrcrazev	Phraze Craze (Sex Kit, Vertical)
+pickin	Pickin'
+pignewt	Pig Newton (version C)
+pignewta	Pig Newton (version A)
+pinbo	Pinbo
+pinboa	Pinbo (set 2)
+pinbos	Pinbo (Strike)
+pinguinos	Pinguinos (Spanish bootleg on Pac-Man hardware)
+pinkswts	Pink Sweets: Ibara Sorekara (2006/04/06 MASTER VER....)
+pinkswtsa	Pink Sweets: Ibara Sorekara (2006/04/06 MASTER VER...)
+pinkswtsb	Pink Sweets: Ibara Sorekara (2006/04/06 MASTER VER.)
+pinkswtssc	Pink Sweets: Suicide Club (2017/10/31 SUICIDECLUB VER., bootleg)
+pinkswtsx	Pink Sweets: Ibara Sorekara (2006/xx/xx MASTER VER.)
+piranha	Piranha
+piranhah	Piranha (hack)
+piranhao	Piranha (older)
+piratesh	Pirate Ship (ver UAA)
+pisces	Pisces
+piscesb	Pisces (bootleg)
+pitnrun	Pit & Run
+pitnruna	Pit & Run (set 2)
+pitnrunb	Pit & Run - F-1 Race (set 3)
+playball	PlayBall! (prototype)
+pleiadbl	Pleiads (bootleg)
+pleiadce	Pleiads (Centuri)
+pleiads	Pleiads (Tehkan)
+pleiadsb2	Pleiads (bootleg set 2)
+pleiadsi	Pleiads (Irecsa)
+pleiadsia	Pleiads (Irecsa, set 2)
+pleiadsn	Pleiads (Niemer S.A.)
+pleiadss	Pleiads (Spanish bootleg)
+plgirls	Play Girls
+plgirls2	Play Girls 2
+plgirls2b	Play Girls 2 (bootleg)
+plusalph	Plus Alpha
+plygonet	Polygonet Commanders (ver UAA)
+pntnpuzl	Paint & Puzzle
+pokrdice	Poker Dice
+polaris	Polaris (set 1)
+polarisa	Polaris (set 2)
+polarisb	Polaris (first revision)
+polarisbr	Polaris (Brazil)
+polariso	Polaris (Original version)
+pollux	Pollux (set 1)
+polluxa	Pollux (set 2)
+polluxa2	Pollux (set 3)
+polluxn	Pollux (Japan, NTC license)
+polynetw	Poly-Net Warriors (ver JAA)
+pootan	Pootan
+pooyan	Pooyan
+pooyans	Pooyan (Stern)
+popeyeman	Popeye-Man
+popflama	Pop Flamer (set 2)
+popflamb	Pop Flamer (hack?)
+popflame	Pop Flamer (set 1)
+popflamea	Pop Flamer (not protected)
+popflameb	Pop Flamer (hack?)
+popflamen	Pop Flamer (bootleg on Naughty Boy PCB)
+popper	Popper
+porky	Porky
+porter	Port Man (bootleg on Moon Cresta hardware)
+portera	El Estivador (Spanish bootleg of Port Man on Galaxian hardware)
+portman	Port Man
+portmanj	Port Man (Japan)
+portrait	Portraits
+portraita	Portraits (set 2)
+poundfor	Pound for Pound (World)
+poundforj	Pound for Pound (Japan)
+poundforu	Pound for Pound (US)
+poundfou	Pound for Pound (US)
+ppking	Ping-Pong King
+pprobe	Planet Probe (prototype?)
+progolf	18 Holes Pro Golf (set 1)
+progolfa	18 Holes Pro Golf (set 2)
+progress	Progress
+promutrv	Progressive Music Trivia (Question set 1)
+promutrva	Progressive Music Trivia (Question set 2)
+promutrvb	Progressive Music Trivia (Question set 3)
+promutrvc	Progressive Music Trivia (Question set 4)
+proneon	Project Neon (Caravan Edition, prealpha v0.4.19)
+prosoccr	Pro Soccer
+prosport	Prosport
+prosporta	Pro Sports - Bowling, Tennis, and Golf (alternate)
+protenn	Pro Tennis (Japan)
+protennb	Tennis (bootleg of Pro Tennis)
+prtytime	Party Time: Gonta the Diver II / Ganbare! Gonta!! 2 (World Release)
+psurge	Power Surge
+psychic5	Psychic 5
+psychic5j	Psychic 5 (Japan)
+pturn	Parallel Turn
+puckman	New Puck-X
+puckmana	PuckMan (Japan set 2)
+puckmanb	Puck Man (bootleg set 1)
+puckmanf	PuckMan (Japan set 1 with speedup hack)
+puckmanh	Puckman (Falcom?)
+puckmod	PuckMan (harder?)
+pulsar	Pulsar
+punchkid	Punching Kid (Japan)
+pushover	Push Over (Summit Coin)
+puzlclub	Puzzle Club (Japan prototype)
+pwrflip	Power Flipper Pinball Shooting (v1.33)
+pzlestar	Puzzle Star (Sang Ho Soft)
+qbert	Q*bert (US)
+qberta	Q*bert (US set 2)
+qbertj	Q*bert (Japan)
+qbertjp	Q*bert (Japan)
+qbertqub	Q*bert's Qubes
+qberttst	Q*bert (early test version)
+qbtrktst	Q*bert Board Input Test Rom
+qix	Qix (set 1)
+qix2	Qix II (Tournament)
+qixa	Qix (set 2)
+qixb	Qix (set 3)
+qixo	Qix (set 3, earlier)
+quaak	Quaak (bootleg of Frogger)
+quantum	Quantum (rev 2)
+quantum1	Quantum (rev 1)
+quantump	Quantum (prototype)
+quarterb	Quarterback
+quarterba	Quarterback (set 2)
+quarterbc	Quarterback (rev 1, cocktail)
+quartrba	Quarterback (set 2)
+quasar	Quasar
+quasara	Quasar (Alternate)
+quester	Quester (Japan)
+questers	Quester Special Edition (Japan)
+quizpun	Quiz Punch
+quizpun2	Quiz Punch 2
+qwak	Qwak (prototype)
+r2dtank	R2D Tank
+r2dx_v33	Raiden II / DX (newer V33 PCB)
+r2dx_v33_r2	Raiden II New / Raiden DX (newer V33 PCB) (Raiden II EEPROM)
+raaspec	Spectrum I+
+rackemup	Rack 'em Up
+radarscp	Radar Scope
+radarscp1	Radar Scope (TRS01)
+radarscpc	Radar Scope (TRS02?, rev. C)
+radarzn1	Radar Zone (Rev.1)
+radarznt	Radar Zone (Tuni)
+radarzon	Radar Zone
+radarzon1	Radar Zone (Rev.1)
+radarzont	Radar Zone (Tuni)
+radirgya	Radirgy (Rev A) (GDL-0032A)
+raflesia	Rafflesia
+raflesiau	Rafflesia (not encrypted)
+raiden	Raiden
+raiden2	Raiden 2
+raiden2au	Raiden II (Australia)
+raiden2dx	Raiden II (harder, Raiden DX hardware)
+raiden2e	Raiden II (set 6, Easy Version)
+raiden2ea	Raiden II (easy version, Japan?)
+raiden2eg	Raiden II (easier, Germany)
+raiden2es	Raiden II (Spain)
+raiden2eu	Raiden II (easy version, US set 2)
+raiden2eua	Raiden II (easy version, US set 1)
+raiden2eub	Raiden II (easier, US set 3)
+raiden2eup	Raiden II (easier, US, prototype? 11-16)
+raiden2f	Raiden II (set 7)
+raiden2g	Raiden II (easy version, Germany)
+raiden2hk	Raiden II (Hong Kong)
+raiden2i	Raiden II (Italy)
+raiden2j	Raiden II (Japan)
+raiden2k	Raiden II (harder, Korea)
+raiden2nl	Raiden II (Holland)
+raiden2sw	Raiden II (Switzerland)
+raiden2u	Raiden II (US, set 2)
+raidena	Raiden (Alternate Hardware)
+raidenb	Raiden (set 3)
+raidendx	Raiden DX (UK)
+raidendxa1	Raiden DX (Hong Kong, set 1)
+raidendxa2	Raiden DX (Hong Kong, set 2)
+raidendxch	Raiden DX (China)
+raidendxg	Raiden DX (Germany)
+raidendxj	Raiden DX (Japan)
+raidendxja	Raiden DX (Japan, set 2)
+raidendxk	Raiden DX (Korea)
+raidendxnl	Raiden DX (Holland)
+raidendxpt	Raiden DX (Portugal)
+raidendxu	Raiden DX (US)
+raidenj	Raiden (Japan)
+raidenk	Raiden (Korea)
+raidenkb	Raiden (Korea, bootleg)
+raidenm	Raiden (Modular System)
+raident	Raiden (Taiwan)
+raidenu	Raiden (US, SEI8904 + SEI9008 PCBs)
+raidenua	Raiden (US set 2)
+raidenub	Raiden (US set 3, newer hardware)
+raiders	Raiders
+raidersr3	Raiders (Rev.3)
+rallybik	Rally Bike / Dash Yarou
+rallyxeg	Rally X (Video Game bootleg)
+raphero	Rapid Hero (Japan?)
+rapheroa	Rapid Hero (Media Trading)
+rayforce	Rayforce (US)
+rayforcej	Ray Force (Ver 2.3J 1994/01/20)
+rayforcj	Rayforce (Japan)
+razmataz	Razzmatazz
+rcasino	Royal Casino
+rcasino1	Royal Casino (D-2608208A1-1, Larger Board)
+rcasino2	Royal Casino (D-2608208A1-1, Smaller Board, set 2)
+rcasinoo	Royal Casino (D-2608208A1-1, Smaller Board)
+rcirulet	Ruleta RCI (6-players, Spanish)
+rcorsair	Red Corsair
+rdft	Raiden Fighters (Japan set 1)
+rdft2	Raiden Fighters 2
+rdft22kc	Raiden Fighters 2 - 2000 (China)
+rdft2a	Raiden Fighters 2 (Asia, Metrotainment license, SPI)
+rdft2a2	Raiden Fighters 2 (Asia, Dream Island license, SPI)
+rdft2aa	Raiden Fighters 2 - Operation Hell Dive (Korea)
+rdft2it	Raiden Fighters 2 - Operation Hell Dive (Italy)
+rdft2j	Raiden Fighters 2 (Japan, SPI)
+rdft2j2	Raiden Fighters 2 (Japan set 2, SPI)
+rdft2ja	Raiden Fighters 2 - Operation Hell Dive (Japan set 2)
+rdft2jb	Raiden Fighters 2 - Operation Hell Dive (Japan set 3)
+rdft2jc	Raiden Fighters 2 - Operation Hell Dive (Japan set 4)
+rdft2s	Raiden Fighters 2 - Operation Hell Dive (Switzerland)
+rdft2t	Raiden Fighters 2 (Taiwan, SPI)
+rdft2u	Raiden Fighters 2 (USA, SPI)
+rdft2us	Raiden Fighters 2.1 (US, Single Board)
+rdfta	Raiden Fighters (Austria)
+rdftadi	Raiden Fighters (Korea)
+rdftam	Raiden Fighters (Hong Kong)
+rdftau	Raiden Fighters (Australia)
+rdftauge	Raiden Fighters (Evaluation Software For Show, Germany)
+rdftgb	Raiden Fighters (Great Britain)
+rdftgr	Raiden Fighters (Greece)
+rdftit	Raiden Fighters (Italy)
+rdftj	Raiden Fighters (Japan set 2)
+rdftja	Raiden Fighters (Japan set 2)
+rdftjb	Raiden Fighters (Japan set 3)
+rdfts	Raiden Fighters (Taiwan, single board)
+rdftu	Raiden Fighters (US)
+rdftua	Raiden Fighters (US, newer)
+re800ea	Ruleta RE-800 (earlier, no attract)
+re800v1	Ruleta RE-800 (v1.0)
+re800v3	Ruleta RE-800 (v3.0)
+re900	Ruleta RE-900
+reaktor	Reaktor (Track & Field conversion)
+redalert	Red Alert
+redbird	Red Bird (bootleg of Space Firebird)
+redclash	Red Clash
+redclasha	Red Clash (set 2)
+redclashk	Red Clash (Kaneko)
+redclashs	Red Clash (Suntronics)
+redclasht	Red Clash (Tehkan, set 1)
+redclashta	Red Clash (Tehkan, set 2)
+redclask	Red Clash (Kaneko)
+redfoxwp2	Red Fox War Planes II (China, set 1)
+redfoxwp2a	Red Fox War Planes II (China, set 2)
+redhawk	Red Hawk (US)
+redhawke	Red Hawk (Excellent Co., Ltd)
+redhawkk	Red Hawk (Korea)
+redlin2p	Redline Racer (2 players)
+redline	Red Line (v808, encrypted)
+redrobin	Red Robin
+redufo	Defend the Terra Attack on the Red UFO (bootleg)
+redufob	Defend the Terra Attack on the Red UFO (bootleg)
+redufob2	Defend the Terra Attack on the Red UFO (bootleg, set 2)
+redufob3	Defend the Terra Attack on the Red UFO (bootleg, set 3)
+regulus	Regulus
+reguluso	Regulus (Old Ver.)
+regulusu	Regulus (not encrypted)
+repulse	Repulse
+resclunar	Rescate Lunar (Spanish bootleg of Lunar Rescue)
+rescue	Rescue
+rescueb	Rescue (bootleg)
+rescuefe	Rescue (Free Enterprise Games, bootleg)
+retofin1	Return of the Invaders (bootleg set 1)
+retofin2	Return of the Invaders (bootleg set 2)
+retofinv	Return of the Invaders
+retofinv1	Return of the Invaders (bootleg set 1)
+retofinv2	Return of the Invaders (bootleg set 2)
+retofinvb	Return of the Invaders (bootleg w/MCU)
+retofinvb1	Return of the Invaders (bootleg no MCU set 1)
+retofinvb2	Return of the Invaders (bootleg no MCU set 2)
+retofinvb3	Return of the Invaders (bootleg no MCU set 3)
+revenger	Revenger
+revngr84	Revenger '84 (newer)
+rfjet	Raiden Fighters Jet
+rfjet2kc	Raiden Fighters Jet - 2000 (China)
+rfjeta	Raiden Fighters Jet (Asia)
+rfjetj	Raiden Fighters Jet (Japan)
+rfjets	Raiden Fighters Jet (US, single board)
+rfjetsa	Raiden Fighters Jet (US, single board, test version?)
+rfjett	Raiden Fighters Jet (Taiwan)
+rfjetu	Raiden Fighters Jet (US)
+ridleofp	Riddle of Pythagoras (Japan)
+ringfgt	Ring Fighter (set 1)
+ringfgt2	Ring Fighter (set 2)
+ringkin2	Ring King (set 2)
+ringkin3	Ring King (set 3)
+ringking	Ring King (set 1)
+ringking2	Ring King (US set 2)
+ringking3	Ring King (US set 3)
+ringkingw	Ring King (US, Wood Place Inc.)
+roadf	Road Fighter (set 1)
+roadf2	Road Fighter (set 2)
+roadf3	Road Fighter (set 3, conversion hack on Hyper Sports PCB)
+roadfh	Road Fighter (bootleg GX330 conversion)
+roadfu	Road Fighter (set 3, unencrypted)
+rockduck	Rock Duck (prototype?)
+rockn	Rock'n Tread (Japan)
+rockn2	Rock'n Tread 2 (Japan)
+rockn3	Rock'n 3 (Japan)
+rockn4	Rock'n 4 (Japan)
+rockna	Rock'n Tread (Japan, alternate)
+rocktrv2	MTV Rock-N-Roll Trivia (Part 2)
+rocnrope	Roc'n Rope
+rocnropek	Roc'n Rope (Kosuka)
+rocnropk	Roc'n Rope (Kosuka)
+rollace	Roller Aces (set 1)
+rollace2	Roller Aces (set 2)
+rollingc	Rolling Crash / Moon Base
+rompers	Rompers (Japan)
+romperso	Rompers (Japan old version)
+ron2	Futari Mahjong Ron II
+ropeman	Ropeman (bootleg of Roc'n Rope)
+rotaryf	Rotary Fighter
+roundup	Round-Up
+route16	Route 16
+route16a	Route 16 (set 2)
+route16b	Route 16 (bootleg)
+route16bl	Route 16 (bootleg)
+route16c	Route 16 (set 3, bootleg?)
+route16d	Route 16 (Sun Electronics, set 2)
+routex	Route X (bootleg)
+routexa	Route X (bootleg, set 2)
+rshark	R-Shark
+rtriv	Romar Triv
+rugrats	Rug Rats
+rumba	Rumba Lumber
+runaways	Runaway (Sun Electronics, Japan)
+rundeep	Run Deep
+rushcrsh	Rush & Crash (Japan)
+ryujin	Ryu Jin (Japan)
+ryujina	Ryu Jin (Japan, ET910000A PCB)
+s1945	Strikers 1945
+s1945a	Strikers 1945 (Japan / World)
+s1945bl	Strikers 1945 (Hong Kong, bootleg)
+s1945ii	Strikers 1945 II
+s1945iii	Strikers 1945 III (World) / Strikers 1999 (Japan)
+s1945iiibl	Strikers 1945 III (World) / Strikers 1999 (Japan) (bootleg, set 1)
+s1945iiibla	Strikers 1945 III (World) / Strikers 1999 (Japan) (bootleg, set 2)
+s1945j	Strikers 1945 (Japan)
+s1945jn	Strikers 1945 (Japan, unprotected)
+s1945k	Strikers 1945 (Korea)
+s1945n	Strikers 1945 (World, unprotected)
+s1945nj	Strikers 1945 (Japan, unprotected)
+safarir	Safari Rally
+safarirj	Safari Rally (Japan)
+samesam2	Same! Same! Same! (2P Ver.)
+samesame	Same! Same! Same!
+samesame2	Same! Same! Same!
+samesamecn	Jiao! Jiao! Jiao! (China, 2P set)
+samesamenh	Same! Same! Same! (1P set, NEW VER! hack)
+samurai	Samurai (Sega)
+samuraia	Samurai Aces (World)
+samuraij	Samurai (Japan)
+sandscrp	Sand Scorpion
+sandscrpa	Sand Scorpion (Earlier)
+sandscrpb	Sand Scorpion (Chinese Title Screen, Revised Hardware)
+sasuke	Sasuke vs. Commander
+satansat	Satan of Saturn
+satansata	Satan of Saturn (set 2)
+satansatind	Satan of Saturn (Inder S.A., bootleg)
+satsf3d	Saturn: Space Fighter 3D
+saturnzi	Saturn
+savanna	Savanna (Jungler bootleg)
+savgbees	Savage Bees
+sbagman	Super Bagman
+sbagman2	Super Bagman (version 3?)
+sbagmani	Super Bagman (Itisa, Spain)
+sbagmans	Super Bagman (Stern)
+sbasketb	Super Basketball
+sbaskete	Super Basketball (version E, encrypted)
+sbasketg	Super Basketball (version G, encrypted)
+sbasketh	Super Basketball (version H, unprotected)
+sbasketo	Super Basketball (version E)
+sbasketu	Super Basketball (not encrypted)
+sbdk	Super Bike (DK conversion)
+sbhoei	Space Battle (Hoei, set 1)
+sbhoeia	Space Battle (Hoei, set 2)
+sbomber	Space Bomber (ver. B)
+sbombera	Space Bomber
+sbomberb	Space Bomber (ver. B)
+sbowling	Strike Bowling
+sbrkout	Super Breakout
+sbrkout3	Super Breakout (rev 03)
+sbrkoutc	Super Breakout (Canyon and Vertical Breakout, prototype)
+sbrkoutct	Super Breakout (Cocktail, prototype)
+sbugger	Space Bugger
+sbuggera	Space Bugger (set 2)
+schaser	Space Chaser
+schasera	Space Chaser (set 2)
+schaserb	Space Chaser (set 3)
+schaserc	Space Chaser (set 4)
+schasercv	Space Chaser (CV version)
+schaserm	Space Chaser (Model Racing bootleg)
+schasrcv	Space Chaser (CV version)
+schick	Super Chick
+scobra	Super Cobra
+scobrab	Super Cobra (bootleg)
+scobrae	Super Cobra (Stern Electronics) (encrypted, KONATEC XC-103SS CPU)
+scobrae2	Super Cobra (encrypted)
+scobrag	Super Cobra (bootleg, set 2)
+scobraggi	Super Cobra (bootleg, set 3)
+scobras	Super Cobra (Stern)
+scobrase	Super Cobra (Sega)
+scontra	Super Contra
+scontraa	Super Contra (set 2)
+scontraj	Super Contra (Japan)
+scorpion	Scorpion (set 1)
+scorpiona	Scorpion (set 2)
+scorpionb	Scorpion (set 3)
+scorpionmc	Scorpion (Moon Cresta hardware)
+scorpnmc	Scorpion (Moon Cresta hardware)
+scotrsht	Scooter Shooter
+scrabbleo	Scrabble (Spanish bootleg of Scramble)
+scramb2	Scramble (bootleg)
+scramb3	Scramble (bootleg, set 2)
+scramblb	Scramble (bootleg on Galaxian hardware)
+scramble	Scramble
+scramblebb	Scramble (bootleg?)
+scramblebf	Scramble (Karateko, French bootleg)
+scramblebun	Scramble (unknown bootleg)
+scrambleo	Scramble (Okapi bootleg)
+scrambler	Scramble (Reben S.A. Spanish bootleg)
+scrambles	Scramble (Stern Electronics)
+scrambles2	Scramble (Stern Electronics set 2)
+scrambls	Scramble (Stern)
+scrambp	Impacto (Billport S.A., Spanish bootleg of Scramble)
+scramce	Scramble (Centromatic S.A., Spanish bootleg)
+scrammr	Scramble (Model Racing, Italian bootleg)
+scrampt	Scramble (Petaco S.A., Spanish bootleg)
+scramrf	Scramble (Recreativos Franco, Spanish bootleg)
+scregg	Scrambled Egg
+scudhamm	Scud Hammer
+scudhamma	Scud Hammer (older version?)
+scyclone	Space Cyclone
+sdojak	DoDonPachi SaiDaiOuJou & Knuckles (2021-12-01)
+sdtennis	Super Doubles Tennis
+sdungeon	Space Dungeon
+sdungeona	Space Dungeon (larger roms)
+searchar	SAR - Search And Rescue (World)
+searcharj	SAR - Search And Rescue (Japan)
+searcharu	SAR - Search And Rescue (US)
+searthie	Super Earth Invasion (set 3)
+searthin	Super Earth Invasion (set 1)
+searthina	Super Earth Invasion (set 2)
+sectrzon	Sector Zone
+sectrzona	Sector Zone (set 3)
+sectrzont	Sector Zone (set 2, Tecfri hardware)
+seicross	Seicross
+seicrossa	Seicross (set 2)
+sengekij	Sengeki Striker (Japan)
+sengekis	Sengeki Striker (Asia)
+sengekisj	Sengeki Striker (Japan)
+senjyo	Senjyo
+sercharu	SAR - Search And Rescue (US)
+setaroul	Seta / Visco Roulette?
+setaroula	Super Ruleta 36 (Spanish hack of The Roulette)
+sexyboom	Sexy Boom
+sfeverbw	Space Fever (black and white)
+sfkick	Super Free Kick (set 1)
+sfkicka	Super Free Kick (set 2)
+sflush	Straight Flush
+sformula	Super Formula (Japan)
+sformulaa	Super Formula (Japan, set 2)
+shaolinb	Shao-lin's Road (set 2)
+shaolins	Shao-Lin's Road
+sheriff	Sheriff
+shienryu	Shienryu
+shippumd	Shippu Mahou Daisakusen (Japan)
+shollow	Satan's Hollow (set 1)
+shollow2	Satan's Hollow (set 2)
+shootbul	Shoot the Bull
+shors2k1	Star Horse 2001 (satellite, Rev B)
+shorse	Star Horse (satellite)
+shorsep	Star Horse Progress (satellite, Rev A)
+shorsepr	Star Horse Progress Returns (satellite)
+shtrider	Shot Rider
+shtridera	Shot Rider (Sigma license)
+shtriderb	Shot Rider (bootleg)
+shuffle	Shuffleboard
+shuttlei	Shuttle Invader
+sia2650	Super Invader Attack
+sicv	Space Invaders (CV Version)
+sicv1	Space Invaders (CV Version, smaller roms)
+sidampkr	unknown Sidam Poker
+sidewndr	Sidewinder
+silvmil	Silver Millennium
+sindbadm	Sindbad Mystery
+sinista1	Sinistar (prototype version)
+sinista2	Sinistar (revision 2)
+sinistar	Sinistar (revision 3)
+sinistar1	Sinistar (prototype version)
+sinistar2	Sinistar (revision 2)
+sinistarc	Sinistar (revision 3, cockpit)
+sinistarc2	Sinistar (revision 2, cockpit)
+sinistarp	Sinistar (AMOA-82 prototype)
+sinvasn	Space Invasion (Europe)
+sinvasnb	Space Invasion (bootleg)
+sinvemag	Super Invaders (EMAG)
+sinvemag2	Super Invaders (Emag bootleg set 2)
+sinvzen	Super Invaders (Zenitone-Microsec)
+sirio2	Sirio II (Calfesa S.L. Spanish bootleg of Moon Cresta)
+sisv	Space Invaders (SV Version)
+sisv1	Space Invaders (SV Version rev 1)
+sisv2	Space Invaders (SV Version 2)
+sisv3	Space Invaders (SV Version rev 3)
+sitv	Space Invaders (TV Version)
+sitv1	Space Invaders (TV Version rev 1)
+skullfng	Skull Fang (Europe 1.13)
+skullfnga	Skull Fang - Kuhga Gaiden (Asia 1.13)
+skullfngj	Skull Fang (Japan 1.09)
+skyadvnj	Sky Adventure (Japan)
+skyadvnt	Sky Adventure (US)
+skyadvntj	Sky Adventure (Japan)
+skyadvntu	Sky Adventure (US)
+skyadvnu	Sky Adventure (US)
+skyalert	Sky Alert
+skyarmy	Sky Army
+skybase	Sky Base
+skybump	Sky Bumper
+skychut	Sky Chuter
+skyfox	Sky Fox
+skylancr	Sky Lancer
+skylancre	Sky Lancer (Esco Trading Co license)
+skylove	Sky Love
+skyraidr	Sky Raiders
+skyshark	Sky Shark (US)
+skysharka	Sky Shark (US, set 2)
+skysharkb	Sky Shark (bootleg)
+skysmash	Sky Smasher
+skysoldr	Sky Soldiers (US)
+skysoldrbl	Sky Soldiers (bootleg)
+sl2007	Shooting Love 2007
+slapbtjp	Slap Fight (Japan bootleg)
+slapbtuk	Slap Fight (English bootleg)
+slapfigh	Slap Fight
+slapfigha	Slap Fight (Japan set 2)
+slapfighb1	Slap Fight (bootleg set 1)
+slapfighb2	Slap Fight (bootleg set 2)
+slapfighb3	Slap Fight (bootleg set 3)
+slapfighm	Slap Fight (Modular System)
+sliksh17	Slick Shot (V1.7)
+slikshot	Slick Shot (V2.2)
+slikshot16	Slick Shot (V1.6)
+slikshot17	Slick Shot (V1.7)
+slither	Slither (set 1)
+slithera	Slither (set 2)
+slspirit	Solite Spirits
+smiconk	Space Micon Kit
+smooncrs	Super Moon Cresta
+sncwgltd	Sonic Wings Limited (JAPAN)
+sngkace	Sengoku Ace (Japan)
+sngkacea	Sengoku Ace (Japan, set 2)
+solarfox	Solar Fox
+solarwar	Solar Warrior
+solfight	Solar Fight
+sonicbom	Sonic Boom
+sonicbomd	Sonic Boom (bootleg of FD1094 317-0053 set)
+sonicwi	Sonic Wings (Japan)
+sonofphx	Son of Phoenix
+sos	SOS
+spacbat2	Space Battle (bootleg set 2)
+spacbatt	Space Battle
+spacbeam	Space Beam
+spaceat2	Space Attack II
+spaceatt	Space Attack II
+spaceatt2k	Space Attack (2k roms)(bootleg of Space Invaders)
+spaceattbp	Space Attack (bproms)(bootleg of Space Invaders)
+spacebrd	Space Bird (bootleg)
+spacecho	Space Echo
+spacecho2	Space Echo (set 2)
+spacecom	Space Combat (bootleg of Space Invaders)
+spacecr	Space Cruiser
+spacedem	Space Demon
+spacefb	Space Firebird (Nintendo)
+spacefba	Space Firebird (rev. 02-a)
+spacefbb	Space Firebird (bootleg)
+spacefbe	Space Firebird (rev. 03-e set 1)
+spacefbe2	Space Firebird (rev. 03-e set 2)
+spacefbg	Space Firebird (Gremlin)
+spacefev	Space Fever (color)
+spacefevo	Space Fever (Old Ver)
+spacefevo2	Space Fever (Older Ver.)
+spacefrt	Space Fortress
+spaceg	Space Guerrilla
+spaceint	Space Intruder
+spaceintj	Space Intruder (Japan)
+spacelnc	Space Launcher
+spacempr	Space Empire (bootleg)
+spaceod	Space Odyssey
+spaceod2	Space Odyssey (version 1)
+spaceph	Space Phantoms
+spaceplt	Space Pilot
+spaceplta	Space Pilot (set 2)
+spacerng	Space Ranger (bootleg of Space Invaders)
+spacetrk	Space Trek (upright)
+spacetrkc	Space Trek (cocktail)
+spacewr3	Space War Part 3
+spacian2	T.T Spacian Part-2
+spacmiss	Space Missile - Space Fighting Game
+spactrai	Space Train
+spbactn	Super Pinball Action (US)
+spbactnj	Super Pinball Action (Japan)
+spbactnp	Super Pinball Action (prototype)
+spcdrag	Space Dragon (Moon Cresta bootleg, set 1)
+spcdraga	Space Dragon (Moon Cresta bootleg, set 2)
+spcebttl	Space Battle (Space Invaders bootleg)
+spceking	Space King
+spcewarl	Space War (Leijac)
+spcewarla	Space War (Leisure and Allied)
+spcewars	Space War (Sanritsu)
+spcforc2	Space Force (set 2)
+spcforce	Space Force
+spcfrcii	Special Forces II
+spcinv95	Space Invaders '95 - Attack Of The Lunar Loonies (World)
+spcinv95u	Space Invaders '95: The Attack Of Lunar Loonies (Ver 2.5A 1995/06/14)
+spcking2	Space King 2
+spclaser	Space Laser
+spclforc	Special Forces
+spcmission	Space Mission (SegaSA / Sonic, Spanish bootleg of Scramble)
+spcnv95u	Space Invaders '95 - Attack Of The Lunar Loonies (US)
+spcpostn	Space Position (Japan)
+spctbird	Space Thunderbird
+spctrek	Space Trek (Video Game S.A., Spanish bootleg of Scramble)
+spcwarp	Space Warp?
+spdcoin	Speed Coin (prototype)
+speakhlp	Speak & Help
+speakres	Speak & Rescue
+speakresb	Speak & Rescue (bootleg)
+spec2k	Spectrum 2000 (Euro)
+speedbal	Speed Ball
+speedbala	Speed Ball (set 2)
+spellbnd	Spellbound
+spfghmk2	Space Fighter Mark II (set 1)
+spfghmk22	Space Fighter Mark II (set 2)
+spiders	Spiders (set 1)
+spiders2	Spiders (set 2)
+spiders3	Spiders (set 3)
+spinkick	Hec's Spinkick
+spinner	Spinner
+sprglbpg	Super Glob (Pac-Man hardware) German
+sprglobp	Super Glob (Pac-Man hardware)
+springer	Springer
+sprpuzzle	Super Puzzle (Sang Ho Soft)
+sptrekct	Space Trek (cocktail)
+spyhunt	Spy Hunter
+spyhuntp	Spy Hunter (Playtronic license)
+spyhuntpr	Spy Hunter (Spain, Recreativos Franco S.A. PCB)
+spyhuntsp	Spy Hunter (Spain, Recreativos Franco S.A., Bally Midway license)
+sqbert	Faster, Harder, More Challenging Q*bert (prototype)
+sqix	Super Qix (World, Rev 2)
+sqixb1	Super Qix (bootleg set 1)
+sqixb2	Super Qix (bootleg set 2)
+sqixbl	Super Qix (bootleg)
+sqixr0	Super Qix (World/Japan, V1.0)
+sqixr1	Super Qix (World, Rev 1)
+sqixu	Super Qix (US)
+sraider	Space Raider
+srdarwin	Super Real Darwin (Japan)
+srdarwinj	Super Real Darwin (Japan)
+srdarwnj	Super Real Darwin (Japan)
+srdmissn	S.R.D. Mission
+srumbler	The Speed Rumbler (set 1)
+srumbler2	The Speed Rumbler (set 2)
+srumbler3	The Speed Rumbler (set 3)
+srumblr2	The Speed Rumbler (set 2)
+ssi	Super Space Invaders '91 (World)
+ssia	Super Space Invaders '91 (World)
+ssib	Super Space Invaders '91 (World, earlier code base)
+ssingles	Swinging Singles
+ssmissin	S.S. Mission
+ssozumo	Syusse Oozumou (Japan)
+sspacaho	Space Attack / Head On
+sspacat2	Space Attack (upright, older)
+sspacatc	Space Attack (cocktail)
+sspaceat	Space Attack (upright)
+sspaceat2	Space Attack (upright set 2)
+sspaceat3	Space Attack (upright set 3)
+sspaceatc	Space Attack (cocktail)
+sspeedr	Super Speed Race
+sspiritj	Scramble Spirits (Japan, Floppy DS3-5000-02-REV-A Based)
+sspirits	Scramble Spirits
+sspirtfc	Scramble Spirits (World, Floppy Based, FD1094 317-0058-02c)
+ssrj	Super Speed Race Junior (Japan)
+sstarbtl	Super Star Battle
+sstarcrs	Super Star Crest
+sstingry	Super Stingray
+sstrangr	Space Stranger
+sstrangr2	Space Stranger 2
+sstrike	Super Strike Bowling
+sstriker	Sorcer Striker (World)
+sstrikera	Sorcer Striker (World, alt)
+sstrikerk	Sorcer Striker (Korea)
+sstrngr2	Space Stranger 2
+stagger1	Stagger I (Japan)
+starfght	Star Fighter
+starfgmc	Starfighter (Moon Cresta bootleg)
+starfigh	Star Fighter (v1)
+starforc	Star Force
+starforca	Star Force (encrypted, set 2)
+starforcb	Star Force (encrypted, bootleg)
+starforce	Star Force (encrypted)
+starfore	Star Force (encrypted)
+starhrcl	Star Horse (satellite)
+starhrpr	Star Horse Progress Returns (satellite)
+starhrsp	Star Horse Progress (satellite) (Rev A)
+starjack	Star Jacker (Sega)
+starjacks	Star Jacker (Stern Electronics)
+starjacs	Star Jacker (Stern)
+starrkr	Star Raker
+starspnr	Starspinner (Dutch/Nederlands)
+starw	Star Wars
+starw1	Star Wars (bootleg of Galaxy Wars, set 2)
+starwarr	Star Warrior
+statriv2v	Triv Two (Vertical)
+stera	Steraranger (Moon Cresta bootleg)
+stg	Strike Gunner S.T.G
+stinger	Stinger
+stinger2	Stinger (prototype?)
+stmblade	Storm Blade (US)
+stmbladej	Storm Blade (Japan)
+storming	Storming Party / Riku Kai Kuu Saizensen
+storminga	Storming Party / Riku Kai Kuu Saizensen (set 2)
+stratab	Strata Bowling (V3)
+stratab1	Strata Bowling (V1)
+stratabs	Strata Bowling (V1 4T, Super Strike Bowling type PCB)
+stratvox	Stratovox
+stratvoxa	Stratovox (set 2)
+stratvoxb	Stratovox (bootleg)
+streakng	Streaking
+streaknga	Streaking (set 2)
+strfbomb	Strafe Bomb
+strfight	Star Fighter (bootleg of Astro Fighter)
+striv	Super Triv
+strivf	Super Triv (French questions)
+strtheat	Street Heat - Cardinal Amusements
+strtheata	Street Heat (set 2, older?)
+strvmstr	Super Trivia Master
+stuntair	Stunt Air
+sub	Submarine
+sucasino	Super Casino
+sundance	Sundance
+supdrapo	Super Draw Poker
+supdrapoa	Super Draw Poker (set 2)
+supdrapob	Super Draw Poker (bootleg)
+superabc	Super ABC (Pac-Man multigame kit, Sep. 03 1999)
+superabco	Super ABC (Pac-Man multigame kit, Mar. 08 1999)
+superbar	Super Bar
+superbik	Superbike
+superbon	Super Bond
+superbona	Agent Super Bond (Super Cobra conversion, not encrypted)
+superbug	Super Bug
+superg	Super Galaxians
+supergs	Super Galaxians (Silver Systems)
+supergx	Super GX
+superinv	Super Invaders
+superpac	Super Pac-Man
+superpacm	Super Pac-Man (Midway)
+superpcm	Super Pac-Man (Midway)
+superqix	Super Qix
+supershp	Super Ship
+supertnk	Super Tank
+superwng	Super Wing
+superx	Super-X (NTC)
+superxm	Super-X (Mitchell)
+supinvsion	Super Invasion (Electromar, Spanish)
+supmodel	Super Model
+suprglob	Super Glob
+suprheli	Super Heli (Super Cobra bootleg)
+suprmous	Super Mouse
+suprridr	Super Rider
+suprstar	Super Stars
+supst834	Super Stars (v834, encrypted)
+supst839	Super Stars (v839, encrypted)
+survival	Survival
+swarm	Swarm
+swat	SWAT
+swipeout	Space Wipeout
+sxevious	Super Xevious
+sxeviousj	Super Xevious (Japan)
+szaxxon	Super Zaxxon
+tacscan	Tac/Scan
+tactcan2	Tactician (set 2)
+tactcian	Tactician (set 1)
+tactcian2	Tactician (set 2)
+tagteam	Tag Team Wrestling
+tail2nos	Tail to Nose - Great Championship
+tail2nosa	Tail to Nose - Great Championship
+takeoff	Take Off (bootleg of The End)
+talbot	Talbot
+tankbatt	Tank Battalion
+tankbattb	Tank Battalion (bootleg)
+tankbust	Tank Busters
+tattack	Time Attacker
+taxidriv	Taxi Driver
+taxidrvr	Taxi Driver
+tazmani2	Tazz-Mania (Strategy X hardware)
+tazmani3	Tazz-Mania (Arfyc / Rodmar bootleg)
+tazmania	Tazz-Mania (Scramble hardware)
+tazmaniet	Tazz-Mania - El Trompa (U.R.V. BBCPE bootleg)
+tazzmang	Tazz-Mania (bootleg on Galaxian hardware)
+tazzmang2	Tazz-Mania (bootleg on Galaxian hardware with Starfield)
+tcobra2	Twin Cobra II (Ver 2.1O 1995/11/30)
+tcobra2u	Twin Cobra II (Ver 2.1A 1995/11/30)
+tdfever	TouchDown Fever
+tdfever2	TouchDown Fever 2
+tdfever2b	TouchDown Fever 2 (bootleg)
+tdfeverj	TouchDown Fever (Japan)
+tdpgal	Triple Draw Poker
+tdragon	Thunder Dragon
+tdragon1	Thunder Dragon (4th Jun. 1991)
+tdragon2	Thunder Dragon 2
+tdragon2a	Thunder Dragon 2 (1st Oct. 1993)
+tdragon3h	Thunder Dragon 3 (bootleg of Thunder Dragon 2)
+tdragonb	Thunder Dragon (Bootleg)
+tdragonb2	Thunder Dragon (bootleg with reduced sound system)
+tdragonb3	Thunder Dragon (bootleg with Raiden sounds, unencrypted)
+teamqb	John Elway's Team Quarterback
+teamqb2	John Elway's Team Quarterback (set 2)
+teedoff	Tee'd Off
+teedoffj	Tee'd Off (Japan)
+telmahjn	Telephone Mahjong (Japan 890111)
+telpacfl	TelePachi Fever Lion (V1.0)
+tempall	Tempest All Levels
+temped	TempEd
+tempest	Tempest (rev 3)
+tempest1	Tempest (rev 1)
+tempest1r	Tempest (rev 1, Revised Hardware)
+tempest2	Tempest (rev 2)
+tempest3	Tempest (rev ?)
+temptube	Tempest Tubes
+temptwst	Tempest Twisted
+tenkomor	Tenkomori Shooting (TKM2/VER.A1)
+tenkomorja	Tenkomori Shooting (Japan, TKM1/VER.A1)
+tenspot	Ten Spot
+terracra	Terra Cresta (YM2203)
+terracrb	Terra Cresta (YM3526 set 2)
+terracre	Terra Cresta (YM3526 set 1)
+terracrea	Terra Cresta (YM3526 set 2)
+terracren	Terra Cresta (YM2203)
+terracreo	Terra Cresta (YM3526 set 2)
+tharierj	Task Force Harrier (Japan)
+tharrier	Task Force Harrier
+tharrierb	Task Force Harrier (Lettering bootleg)
+tharrieru	Task Force Harrier (US?)
+the26thz	The 26th Z (Japan, location test)
+thedeep	The Deep (Japan)
+theend	The End
+theendb	The End (bootleg?)
+theends	The End (Stern)
+theendss	The End (SegaSA / Sonic)
+theglob	The Glob
+theglob2	The Glob (earlier)
+theglob3	The Glob (set 3)
+theglobme	The Glob (Pacman hardware, Magic Electronics Inc. license)
+theglobp	The Glob (Pac-Man hardware)
+theglobpb	Super Glob (English conversion of sprglbpg)
+thehand	The Hand
+thehole	The Hole (bootleg of The Pit)
+thehustj	The Hustler (Japan version J)
+thehustl	The Hustler (Japan version M)
+thehustlj	The Hustler (Japan version J)
+thepit	The Pit
+thepitj	The Pit (Japan)
+thepitm	The Pit (bootleg on Moon Quasar hardware)
+thepitu1	The Pit (US set 1)
+thepitu2	The Pit (US set 2)
+thepitu3	The Pit (US set 3)
+theportr	The Porter (bootleg of Port Man)
+thndblst	Thunder Blaster (Japan)
+thunderl	Thunder & Lightning
+thunderla	Thunder & Lightning (set 2)
+thunderlbl	Thunder & Lightning (bootleg with Tetris sound)
+thunderlbl2	Thunder & Lightning (bootleg with Tetris sound, set 2)
+tictacv	Tic Tac Trivia (6221-22, U5-0 Vertical)
+tigerh	Tiger Heli (set 1)
+tigerh2	Tiger Heli (set 2)
+tigerhb1	Tiger Heli (bootleg 1)
+tigerhb2	Tiger Heli (bootleg 2)
+tigerhb3	Tiger Heli (bootleg set 3)
+tigerhb4	Tiger-Heli (bootleg set 4)
+tigerhj	Tiger Heli (Japan)
+timefgtr	Time Fighter (Time Pilot conversion on Galaxian hardware)
+timelimt	Time Limit
+timeplt	Time Pilot
+timeplta	Time Pilot (Atari)
+timepltc	Time Pilot (Centuri)
+timescan	Time Scanner (set 2, System 16B)
+timescan1	Time Scanner (set 1, System 16A, FD1089B 317-0024)
+timescan3	Time Scanner (set 3, Japan, System 16B) (FD1089B 317-0024)
+timesol1	Time Soldiers (US Rev 1)
+timesold	Time Soldiers (US Rev 3)
+timesold1	Time Soldiers (US Rev 1)
+timscanr	Time Scanner
+tinv2650	The Invaders
+tiptop	Tip Top
+tisland	Treasure Island
+titanpac	Titan (hack of Pac-Man)
+tndrcade	Thundercade / Twin Formation
+tndrcadej	Tokusyu Butai U.A.G. (Japan)
+tndrcadj	Tokusyu Butai UAG (Japan)
+tnexspce	The Next Space
+tnextspc	The Next Space
+tnextspc2	The Next Space (set 2)
+tnextspcj	The Next Space (Japan)
+tnk3	TNK III (US?)
+tnk3b	T.A.N.K. (joystick hack bootleg)
+tnk3j	Tank (Japan)
+todruaga	Tower of Druaga (set 1)
+todruagao	Tower of Druaga (Old Ver.)
+todruagas	Tower of Druaga (Sidam)
+todruago	Tower of Druaga (Old Ver.)
+tokio	Tokio / Scramble Formation
+tokiob	Tokio / Scramble Formation (bootleg)
+tokioo	Tokio / Scramble Formation (older)
+tokiou	Tokio / Scramble Formation (US)
+tokisens	Toki no Senshi - Chrono Soldier
+tokisensa	Toki no Senshi - Chrono Soldier (prototype?)
+tomahaw5	Tomahawk 777 (Revision 5)
+tomahawk	Tomahawk 777 (Revision 1)
+tomahawk1	Tomahawk 777 (rev 1)
+toobin	Toobin' (version 3)
+toobin1	Toobin' (rev 1)
+toobin2	Toobin' (version 2)
+toobin2e	Toobin' (Europe, rev 2)
+toobine	Toobin' (Europe, rev 3)
+toobing	Toobin' (German, rev 3)
+topgunbl	Top Gunner (bootleg)
+topgunr	Top Gunner (US)
+toprollr	Top Roller
+toratora	Tora Tora
+toratorab	Tora Tora (prototype?, set 2)
+torus	Torus
+toucheme	Touche Me
+touchemea	Touche Me (set 2, harder)
+tp84	Time Pilot '84 (set 1)
+tp84a	Time Pilot '84 (set 2)
+tp84b	Time Pilot '84 (set 3)
+tranqgun	Tranquilizer Gun
+travrusa	Traverse USA / Zippy Race
+travrusab	Traverse USA (bootleg)
+travrusab2	Traverse USA (bootleg, set 2)
+treahunt	Treasure Hunt (Japan?)
+tricktrp	Trick Trap (World?)
+trigon	Trigon (Japan)
+trikitri	Triki Triki (Lover Boy bootleg)
+triplep	Triple Punch
+triplepa	Triple Punch (set 2)
+tripool	Tri-Pool (Casino Tech)
+tripoola	Tri-Pool (Costal Games)
+trisport	Tri-Sports
+tron	Tron (set 1)
+tron2	Tron (set 2)
+tron3	Tron (6/17)
+tron4	Tron (6/15)
+tron5	Tron (5/12)
+tronfp	Tron (freeplay)
+tronger	Tron (Germany)
+troopy	Troopy (bootleg of Mr. Kougar)
+truxton	Truxton / Tatsujin
+truxton2	Truxton II / Tatsujin II / Tatsujin Oh (Japan)
+trvchlng	Trivia Challenge
+trvgns	Trivia Genius
+trvmstr	Trivia Master (set 1)
+trvmstra	Trivia Master (set 2)
+trvmstrb	Trivia Master (set 3)
+trvmstrc	Trivia Master (set 4)
+trvmstrd	Trivia Master (set 5)
+trvquest	Trivia Quest
+trvwz2	Trivia ? Whiz (Edition 2) (question set 1)
+trvwz2a	Trivia ? Whiz (Edition 2) (question set 2)
+trvwz3v	Trivia ? Whiz (Edition 3 - Vertical)
+trvwz4	Trivia ? Whiz (Edition 4) (question set 1)
+trvwz4a	Trivia ? Whiz (Edition 4) (question set 2)
+trvwz4v	Trivia ? Whiz (6221-13, U5-0B, Edition 4 Vertical)
+trvwz4va	Trivia ? Whiz (6221-13, U5-0B, Edition 4 Vertical Alt Sex trivia)
+trvwzv	Trivia ? Whiz (Vertical) (question set 1)
+tryout	Pro Yakyuu Nyuudan Test Tryout (JPN Ver.)
+tsamura2	Samurai Nihon-ichi (set 2)
+tsamurai	Samurai Nihon-ichi (set 1)
+tsamurai2	Samurai Nihon-ichi (set 2)
+tsamuraih	Samurai Nihon-ichi (set 3, harder)
+tst_galx	Galaxian Test ROM
+ttfitter	T.T. Fitter (Japan)
+tugboat	Tugboat
+tunhunt	Tunnel Hunt
+tunhuntc	Tunnel Hunt (Centuri)
+turbo	Turbo
+turboa	Turbo (encrypted set 1)
+turbob	Turbo (encrypted set 2)
+turbobl	Indianapolis (bootleg of Turbo)
+turboc	Turbo (encrypted, program 1363-1365 rev A)
+turbod	Turbo (encrypted, program 1363-1365)
+turboe	Turbo (encrypted, program 1363-1365)
+turbofrc	Turbo Force
+turbofrco	Turbo Force (World, set 2)
+turbofrcu	Turbo Force (US, set 1)
+turbofrcua	Turbo Force (US, set 2)
+turbotag	Turbo Tag (Prototype)
+turpin	Turpin
+turpins	Turpin (bootleg on Scramble hardware)
+turtles	Turtles
+tutankhm	Tutankham
+tutankhms	Tutankham (Stern Electronics)
+tutankst	Tutankham (Stern)
+tvgm8080	TV Game 8080
+twinbee	TwinBee
+twinbeeb	TwinBee (Bubble System)
+twincobr	Twin Cobra (World)
+twincobru	Twin Cobra (US)
+twincobu	Twin Cobra (US)
+twineag2	Twin Eagle II - The Rescue Mission
+twineagl	Twin Eagle (Japan)
+twinhawk	Twin Hawk (World)
+twinhawku	Twin Hawk (US)
+twinhwku	Twin Hawk (US)
+typhoon	Typhoon
+ultrainv	Ultra Invaders
+ultrax	Ultra X Weapons / Ultra Keibitai
+ultraxg	Ultra X Weapons / Ultra Keibitai (GAMEST review build)
+unclepoo	Uncle Poo
+uniwars	UniWar S
+uniwarsa	UniWar S (bootleg)
+unkhorse	unknown Japanese horse gambling game
+unkzilec	unknown Zilec game on Blue Print hardware
+upndown	Up'n Down
+upndownu	Up'n Down (not encrypted)
+upyoural	Up Your Alley
+usclssic	U.S. Classic
+valkyrie	Legend of the Valkyrie (Japan)
+valtric	Valtric
+vandyjal	Vandyke (Jaleco)
+vandyke	Vandyke (Japan)
+vandykeb	Vandyke (bootleg with PIC16c57)
+vandykejal	Vandyke (Jaleco, Set 1)
+vandykejal2	Vandyke (Jaleco, Set 2)
+vangrd2	Vanguard II
+vangrdce	Vanguard (Centuri)
+vanguard	Vanguard (SNK)
+vanguardc	Vanguard (Centuri)
+vanguardg	Vanguard (Germany)
+vanguardj	Vanguard (Japan)
+vanvan	Van Van Car
+vanvanb	Van-Van Car (Karateco set 2)
+vanvank	Van-Van Car (Karateco)
+vaportra	Vapor Trail - Hyper Offence Formation (World revision 1)
+vaportra3	Vapor Trail - Hyper Offence Formation (World revision 3?)
+vaportrau	Vapor Trail - Hyper Offence Formation (US)
+vaportru	Vapor Trail - Hyper Offence Formation (US)
+varth	Varth - Operation Thunderstorm (World)
+varthb	Varth: Operation Thunderstorm (bootleg, set 1)
+varthb2	Varth: Operation Thunderstorm (bootleg, set 2)
+varthb3	Varth: Operation Thunderstorm (bootleg, set 3)
+varthj	Varth - Operation Thunderstorm (Japan)
+varthjr	Varth: Operation Thunderstorm (Japan Resale Ver. 920714)
+varthr1	Varth: Operation Thunderstorm (World 920612)
+varthu	Varth - Operation Thunderstorm (US)
+vasara	Vasara
+vasara2	Vasara 2 (set 1)
+vasara2a	Vasara 2 (set 2)
+vastar	Vastar (set 1)
+vastar2	Vastar (set 2)
+vastar3	Vastar (set 3)
+vastar4	Vastar (set 4)
+vautour	Vautour (Jeutel France)
+vautourz	Vautour (bootleg of Phoenix) (Z80 CPU)
+vautourza	Vautour (bootleg of Phoenix) (Z80 CPU, single PROM)
+vbrakout	Vector Breakout [h]
+vega	Vega
+venus	Venus
+verbena	Verbena (bootleg of Carnival)
+vfive	V-Five (Japan)
+victoryc	Victory (Comsoft)
+victorycb	Victory (Comsoft) (bootleg)
+victroad	Victory Road
+videight	Video Eight
+videopin	Video Pinball
+videopina	Video Pinball (4 ROMs version)
+vimana	Vimana (set 1)
+vimana1	Vimana (old set)
+vimanaj	Vimana (Japan)
+vimanan	Vimana (Nova Apparate GMBH & Co)
+viprp1	Viper Phase 1 (World, New Version)
+viprp1h	Viper Phase 1 (New Version, Holland)
+viprp1hk	Viper Phase 1 (Hong Kong)
+viprp1j	Viper Phase 1 (Japan, New Version)
+viprp1k	Viper Phase 1 (New Version, Korea)
+viprp1oj	Viper Phase 1 (Japan)
+viprp1ot	Viper Phase 1 (Germany)
+viprp1pt	Viper Phase 1 (New Version, Portugal)
+viprp1s	Viper Phase 1 (Switzerland, New Version)
+viprp1t	Viper Phase 1 (New Version, Germany)
+viprp1u	Viper Phase 1 (USA, New Version)
+viprp1ua	Viper Phase 1 (New Version, US set 2)
+vmetal	Varia Metal
+vmetaln	Varia Metal (New Ways Trading Co.)
+volfied	Volfied (World)
+volfiedj	Volfied (Japan)
+volfiedjo	Volfied (Japan)
+volfiedo	Volfied (World)
+volfiedu	Volfied (US)
+volfieduo	Volfied (US)
+vortex	Vortex
+vpool	Video Pool (bootleg on Moon Cresta hardware)
+vroulet	Vegas Roulette
+vscaptfl	Vs. Super Captain Flag (Japan)
+vsgongf	VS Gong Fight
+vulgus	Vulgus (set 1)
+vulgus2	Vulgus (set 2)
+vulgusa	Vulgus (set 2)
+vulgusj	Vulgus (Japan?)
+waidrive	WaiWai Drive
+wallst	Wall Street
+wanted	Wanted
+wantsega	Wanted (Sega)
+warcadia	Waga Seishun no Arcadia
+warofbug	War of the Bugs
+warofbugg	War of the Bugs or Monsterous Manouvers in a Mushroom Maze (German)
+warofbugu	War of the Bugs or Monsterous Manouvers in a Mushroom Maze (US)
+warp1	Warp-1 (Japan)
+warp1bl	Warp-1 (Japan, bootleg)
+warp1t	Warp-1 (Japan, Taito license)
+warpwar2	Warp Warp (Rock-ola set 2)
+warpwarp	Warp & Warp
+warpwarpr	Warp Warp (Rock-Ola set 1)
+warpwarpr2	Warp Warp (Rock-Ola set 2)
+warpwarr	Warp Warp (Rock-ola set 1)
+waterski	Water Ski
+wavybug	Wavy Bug
+westgun2	Western Gun Part II
+wiggie	Wiggie Waggie
+wingforc	Wing Force (Japan, prototype)
+wiping	Wiping
+wivernwg	Wivern Wings
+wiz	Wiz
+wizt	Wiz (Taito)
+wizta	Wiz (Taito, set 2)
+wmatch	Water Match
+wndrplnt	Wonder Planet (Japan)
+woodpeca	Woodpecker (set 2)
+woodpeck	Woodpecker (set 1)
+worldwar	World Wars (Japan)
+wrestwar	Wrestle War
+wrestwar1	Wrestle War (set 1, Japan, FD1094 317-0090)
+wrestwar1d	Wrestle War (set 1, Japan) (bootleg of FD1094 317-0090 set)
+wrestwar2	Wrestle War (set 2, World, FD1094 317-0102)
+wrestwar2d	Wrestle War (set 2, World) (bootleg of FD1094 317-0102 set)
+wrofaero	War of Aero - Project MEIOU
+wtennis	World Tennis
+ww3	WW III
+wwester1	Wild Western (set 2)
+wwestern	Wild Western (set 1)
+wwestern1	Wild Western (set 2)
+wyvernf0	Wyvern F-0
+wyvernf0a	Wyvern F-0
+wyvernwg	Wyvern Wings
+wyvernwga	Wyvern Wings (set 2)
+x2222	X2222 (final debug?)
+x2222o	X2222 (5-level prototype)
+xevios	Xevios
+xevious	Xevious (Namco)
+xeviousa	Xevious (Atari)
+xeviousb	Xevious (Atari set 2)
+xeviousc	Xevious (Atari set 3)
+xeviousng	Xevious (Neo-Geo Conversion)
+xxmissio	XX Mission
+yamagchi	Go Go Mr. Yamaguchi / Yuke Yuke Yamaguchi-kun
+yamato	Yamato (set 1)
+yamato2	Yamato (set 2)
+yankeedo	Yankee DO!
+yellowcbb	Yellow Cab (bootleg)
+yellowcbj	Yellow Cab (Japan)
+yosakdoa	Yosaku To Donbei (set 2)
+yosakdon	Yosaku To Donbee (bootleg)
+yosakdona	Yosaku To Donbei (set 2)
+youjyudn	Youjyuden (Japan)
+youma	Youma Ninpou Chou (Japan)
+youma2	Youma Ninpou Chou (Japan, alt)
+youmab	Youma Ninpou Chou (Game Electronics bootleg, set 1)
+youmab2	Youma Ninpou Chou (Game Electronics bootleg, set 2)
+yukiwo	Yukiwo (World, prototype)
+zaryavos	Zarya Vostoka
+zarzon	Zarzon
+zaviga	Zaviga
+zavigaj	Zaviga (Japan)
+zaxxon	Zaxxon (set 1)
+zaxxon2	Zaxxon (set 2)
+zaxxon3	Zaxxon (set 3)
+zaxxonb	Jackson
+zaxxonj	Zaxxon (Japan)
+zerohour	Zero Hour
+zerohoura	Zero Hour (set 2)
+zerohouri	Zero Hour (Inder)
+zerotime	Zero Time
+zerotimed	Zero Time (Datamat)
+zerotimemc	Zero Time (Marti Colls)
+zerotimeu	Zero Time (Spanish bootleg)
+zigzag	Zig Zag (Galaxian hardware, set 1)
+zigzag2	Zig Zag (Galaxian hardware, set 2)
+zigzagb	Zig Zag (Dig Dug conversion on Galaxian hardware, bootleg set 1)
+zigzagb2	Zig Zag (Dig Dug conversion on Galaxian hardware, bootleg set 2)
+zingzip	Zing Zing Zip
+zingzipbl	Zing Zing Zip (bootleg)
+zipzap	Zip & Zap
+zipzapa	Zip & Zap (Less Explicit)
+zoar	Zoar
+zodiack	Zodiack
+zolapac	Super Zola Pac Gal
+zzyzzyx2	Zzyzzyxx (set 2)
+zzyzzyxx	Zzyzzyxx (set 1)
+zzyzzyxx2	Zzyzzyxx (set 2)
