@@ -553,3 +553,6 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 ## 47. Addendum: copying to ROCKNIX (2026-11-08)
 **Scope and authorization:** owner ("switch on copying to Rocknix"). ROCKNIX now uses the same copier as Batocera, RetroPie and Recalbox: temporary names, read-back checks, no-replace renames, journal and crash recovery scoped to the installation folder (§1–§20); over the network the share gets its id on the first copy and a different machine answering to the same name is refused (§21, ADR-046). Nothing in the copier changed; only the adapter's capability flag and placement (§46). Evidence: `rocknix_roms_folders_are_copied_to`. **Residual risk:** not tried on a real ROCKNIX device or over its Samba share.
+
+## 48. Addendum: game art and details on ROCKNIX (2026-11-08)
+**Scope and authorization:** owner ("keep working the list"). ROCKNIX joins the existing art and details step (§24 and later): new image files only, game lists edited by adding missing fields, checked, journaled and undoable. Nothing in that step changed except the list of systems. Evidence: `rocknix_game_lists_get_the_same_art_and_details`.
