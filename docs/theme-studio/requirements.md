@@ -1,5 +1,7 @@
 # Theme Studio delivery tracking
 
+**VIS-001/004 partial follow-up:** numeric rotation and opacity authoring now reuse existing source fields and history for supported leaf text/panel layers. Rotation handles, anchors, conditions, grouping and complete style resolution remain planned; native rendering is not verified.
+
 **VIS-002 partial follow-up:** back/front and one-step layer ordering now operate on flat text/panel scenes through existing undo/draft/checkpoint services. Unsupported/nested scenes are guarded. Grouping, locking and hiding remain unimplemented; native interaction QA is outstanding.
 
 First canvas increment advances PROJ-003 and VIS-001–004 with top-level text/panel creation/selection, movement, numeric sizing/properties and bounded undo/redo. This is partial visual authoring: snapping/guides, handles, grouping/z-order/lock/hide, images, advanced variants and full property/binding resolution remain later work. [Scope and QA limits](canvas.md).

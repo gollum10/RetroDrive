@@ -1,5 +1,7 @@
 # 11 | Development Roadmap and Backlog
 
+**Theme Studio transform increment prepared:** numeric rotation and opacity controls for text/panels, guarded source-preserving updates and undo/redo tests. Native visual QA, resize handles, grouping/lock/hide and assets remain future work.
+
 **Theme Studio layer-order increment prepared:** backward/forward/back/front controls for flat text/panel scenes, undo/redo and persistence tests. Nested/unknown scenes are guarded. Grouping/lock/hide, resize handles and assets remain planned; native canvas QA remains outstanding.
 
 **First Theme Studio canvas PR prepared:** text/panel creation, selection/movement, basic inspector and bounded undo/redo. Follow-ups retain resize handles, snapping/guides, grouping/z-order/locking, secure assets, richer properties and bindings. Native interaction QA is pending; native engine evidence still gates actual export. [Scope](theme-studio/canvas.md).

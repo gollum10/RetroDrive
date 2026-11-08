@@ -61,3 +61,16 @@ export function previewText(node: ThemeNode): string {
   if (node.bindings.text) return `{${node.bindings.text.source}}`;
   return (typeof node.style.text === 'string' ? node.style.text : node.name).slice(0, 500);
 }
+
+export function transformNode(node: ThemeNode, property: 'rotation' | 'opacity', value: number): ThemeNode {
+  if (!Number.isFinite(value)) return node;
+  if (property === 'rotation') {
+    if (Math.abs(value) > 36_000 || value === node.layout.rotation) return node;
+    return { ...node, layout: { ...node.layout, rotation: value } };
+  }
+  const current = node.style.opacity;
+  // Preserve future expressions and out-of-range source data read-only.
+  if (current !== undefined && (typeof current !== 'number' || !Number.isFinite(current) || current < 0 || current > 1)) return node;
+  if (value < 0 || value > 1 || value === (current ?? 1)) return node;
+  return { ...node, style: { ...node.style, opacity: value } };
+}
