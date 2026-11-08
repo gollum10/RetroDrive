@@ -23,6 +23,7 @@ mod install_helper;
 mod installations;
 mod lightguns;
 mod jobs;
+mod lakka_playlists;
 mod media;
 mod paths;
 mod reference;
@@ -866,6 +867,23 @@ async fn apply_recalbox_game(catalog: State<'_, Catalog>, active: State<'_, Acti
     result?
 }
 
+/// What adding copied games to Lakka's playlists (and box art) would do (reads only, ADR-086).
+#[tauri::command]
+async fn preview_lakka_playlists(catalog: State<'_, Catalog>, installation_id: String) -> Result<lakka_playlists::LakkaPreview, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || lakka_playlists::preview(&db::open(&db_path)?, &installation_id, None, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Add copied games to Lakka's playlists and copy their box art (as reviewed).
+#[tauri::command]
+async fn apply_lakka_playlists(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, shas: std::collections::BTreeMap<String, String>) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || lakka_playlists::apply(&db::open(&db_path)?, &installation_id, None, Some(&shas), &volumes::presence)).await.map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
 /// Recalbox settings and themes offered, with current values (reads only).
 #[tauri::command]
 async fn recalbox_options(catalog: State<'_, Catalog>, installation_id: String) -> Result<recalbox_settings::RecalboxOptions, String> {
@@ -980,7 +998,7 @@ async fn apply_batocera_theme(catalog: State<'_, Catalog>, active: State<'_, Act
 /// its own files when it closes): RetroBat yes; Batocera runs on its own machine.
 fn running_for(connection: &rusqlite::Connection, installation_id: &str) -> customizer::RunningFn<'static> {
     let adapter: String = connection.query_row("SELECT adapter_id FROM installations WHERE id = ?1", [installation_id], |r| r.get(0)).unwrap_or_default();
-    if adapter == "batocera" || adapter == "retropie" || adapter == "recalbox" || adapter == "rocknix" {
+    if adapter == "batocera" || adapter == "retropie" || adapter == "recalbox" || adapter == "rocknix" || adapter == "lakka" {
         &customizer::never_running
     } else if adapter == "esde" {
         &customizer::esde_running
@@ -1393,6 +1411,21 @@ fn run_deployment(
         }
         _ => None,
     };
+    // Lakka shows games only through playlists, so copied games are always added (ADR-086).
+    let art = match &summary {
+        Some(s) if matches!(s.status.as_str(), "completed" | "completed_with_issues" | "cancelled") && s.files_copied + s.files_replaced + s.files_identical > 0 => db::open(&db_path)
+            .ok()
+            .and_then(|connection| {
+                let adapter: String = connection.query_row("SELECT adapter_id FROM installations WHERE id = ?1", [&installation_id], |r| r.get(0)).unwrap_or_default();
+                (adapter == adapters::lakka::ID).then(|| match lakka_playlists::apply(&connection, &installation_id, Some(&s.deployment_id), None, &volumes::presence) {
+                    Ok(message) => message,
+                    Err(e) if e.starts_with("Nothing new") => "These games are already in Lakka's playlists.".to_string(),
+                    Err(e) => format!("The games weren't added to Lakka's playlists: {e} You can add them later under Customize."),
+                })
+            })
+            .or(art),
+        _ => art,
+    };
     // Controller setups (the user ticked it when confirming; ADR-065). Not tied to the
     // games, so it runs whenever the copy itself didn't fail.
     let controllers = match (&summary, setup_controllers) {
@@ -1529,6 +1562,8 @@ pub fn run() {
             preview_recalbox_settings,
             apply_recalbox_settings,
             recalbox_games,
+            preview_lakka_playlists,
+            apply_lakka_playlists,
             recalbox_game_options,
             preview_recalbox_game,
             apply_recalbox_game,

@@ -9,6 +9,7 @@ import BatoceraSettings from './BatoceraSettings';
 import RecalboxSettings from './RecalboxSettings';
 import RocknixSettings from './RocknixSettings';
 import RetroBatGameSettings from './RetroBatGameSettings';
+import LakkaPlaylists from './LakkaPlaylists';
 import GameGroups from './GameGroups';
 import RetroPieSettings from './RetroPieSettings';
 import BiosStep from './BiosStep';
@@ -91,7 +92,7 @@ function summary(spec:DesignSpec|null):string[] {
 
 export default function Customize({ installs, native, busy, notify }: { installs: CustomizeInstall[]; native: boolean; busy: boolean; notify: (text:string, error?:boolean)=>void }) {
   // Designs, themes and settings are RetroBat's; Batocera gets game art and details (settings and themes are next).
-  const targets=installs.filter(i=>i.adapter_id==='retrobat'||i.adapter_id==='batocera'||i.adapter_id==='retropie'||i.adapter_id==='esde'||i.adapter_id==='recalbox'||i.adapter_id==='rocknix');
+  const targets=installs.filter(i=>i.adapter_id==='retrobat'||i.adapter_id==='batocera'||i.adapter_id==='retropie'||i.adapter_id==='esde'||i.adapter_id==='recalbox'||i.adapter_id==='rocknix'||i.adapter_id==='lakka');
   const [targetId,setTargetId]=useState(''); const target=targets.find(i=>i.id===targetId)??targets[0];
   const [designs,setDesigns]=useState<Design[]>([]);
   const [themes,setThemes]=useState<ThemeList|null>(null); const [look,setLook]=useState<LookOptions|null>(null); const [emu,setEmu]=useState<SettingsOptions|null>(null); const [music,setMusic]=useState<MusicSetting[]|null>(null);
@@ -254,7 +255,7 @@ export default function Customize({ installs, native, busy, notify }: { installs
   // ================= designs and applying =================
   const lastApplied=apps.find(a=>a.state!=='undone');
   return <section className="panel customize">
-    <div className="section-heading"><div><h2>Customize</h2><p>{isRetroBat?'Design how RetroBat looks and behaves (theme, boot video, music, behavior, emulators), then apply a finished design. Designs are kept in RetroDrive, so you can reuse them on other drives.':target.adapter_id==='batocera'?`Batocera's settings and theme, and your box art and catalog details in its menus.`:target.adapter_id==='recalbox'?`Recalbox's settings and theme, and your box art and catalog details in its menus.`:target.adapter_id==='rocknix'?`ROCKNIX's settings (over the network), and your box art and catalog details in its menus.`:target.adapter_id==='esde'?`Your box art and catalog details in ${sysName}.`:`${sysName}'s emulator choices, and your box art and catalog details in its menus.`}</p></div>
+    <div className="section-heading"><div><h2>Customize</h2><p>{isRetroBat?'Design how RetroBat looks and behaves (theme, boot video, music, behavior, emulators), then apply a finished design. Designs are kept in RetroDrive, so you can reuse them on other drives.':target.adapter_id==='batocera'?`Batocera's settings and theme, and your box art and catalog details in its menus.`:target.adapter_id==='recalbox'?`Recalbox's settings and theme, and your box art and catalog details in its menus.`:target.adapter_id==='lakka'?`Lakka's playlists with your box art, and BIOS files on its System share.`:target.adapter_id==='rocknix'?`ROCKNIX's settings (over the network), and your box art and catalog details in its menus.`:target.adapter_id==='esde'?`Your box art and catalog details in ${sysName}.`:`${sysName}'s emulator choices, and your box art and catalog details in its menus.`}</p></div>
       {targets.length>1&&<label className="cust-pick">Apply to <select value={target.id} onChange={e=>setTargetId(e.target.value)}>{targets.map(i=><option key={i.id} value={i.id}>{i.adapter_name} · {i.path}</option>)}</select></label>}</div>
     <p className="mono cust-target">{target.adapter_name} · {target.path}{lastApplied?` · last applied: "${lastApplied.design_name}"`:''}</p>
     {!connected&&<p className="warn-text">{isRetroBat?"This RetroBat's drive isn't connected. You can still design; applying needs the drive.":`This ${sysName} isn't connected. Plug in its game drive, or start it so its network share is reachable.`}</p>}
@@ -281,14 +282,15 @@ export default function Customize({ installs, native, busy, notify }: { installs
         <li className="plan-notes">Everything else stays as it is. RetroBat's settings files are backed up first; Undo puts them back in one step. Added files are kept.</li></ul>}
       <div className="actions"><button className="primary" disabled={working||!!blocked||applyFor.preview.nothing} onClick={()=>void doApply()}>{working?'Applying…':confirm==='apply'?'Click again to apply':'Apply design'}</button><button className="ghost" disabled={working} onClick={()=>{ setApplyFor(null); setConfirm(null); }}>Not now</button></div></div>}
 
-    {(target.adapter_id==='retropie'&&target.path.startsWith('\\')||target.adapter_id==='esde')&&connected&&<BiosStep installationId={target.id} adapterId={target.adapter_id} disabled={busy} notify={notify}/>}
+    {(target.adapter_id==='retropie'&&target.path.startsWith('\\')||target.adapter_id==='esde'||target.adapter_id==='lakka')&&connected&&<BiosStep installationId={target.id} adapterId={target.adapter_id} disabled={busy} notify={notify}/>}
     {target.adapter_id==='retropie'&&connected&&<RetroPieSettings installationId={target.id} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
     {target.adapter_id==='batocera'&&connected&&<BatoceraSettings installationId={target.id} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
     {(target.adapter_id==='retrobat'||target.adapter_id==='batocera'||(target.adapter_id==='retropie'&&target.path.startsWith('\\'))||target.adapter_id==='esde'||target.adapter_id==='recalbox')&&connected&&<GameGroups installationId={target.id} adapterId={target.adapter_id} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
     {isRetroBat&&connected&&emu&&<RetroBatGameSettings installationId={target.id} emu={emu} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
     {target.adapter_id==='rocknix'&&connected&&<RocknixSettings installationId={target.id} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
     {target.adapter_id==='recalbox'&&connected&&<RecalboxSettings installationId={target.id} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
-    <div className="backups"><h3>Game art and details</h3>
+    {target.adapter_id==='lakka'&&connected&&<LakkaPlaylists installationId={target.id} disabled={busy} notify={notify}/>}
+    {target.adapter_id!=='lakka'&&<div className="backups"><h3>Game art and details</h3>
       <p className="plan-notes">Show your own box art, logos and catalog details (title, year, genre, developer, publisher) in {sysName}'s menus for the games RetroDrive copied, and mark your ★ Favorites as favorites there. {target.adapter_id!=='esde'&&<>Images are copied to each system's <span className="mono">images</span> folder as new files; {sysName}'s game lists only get what they're missing, so art {sysName} already shows is kept. </>}New copies get this automatically when you tick it while copying.{target.adapter_id==='batocera'&&' If Batocera is running, press Start → Game Settings → Update Gamelists afterwards to see the new art.'}{target.adapter_id==='recalbox'&&" If Recalbox is running, update the game lists from its menu (or restart it) afterwards to see the new art."}{target.adapter_id==='esde'&&" On ES-DE, details go into ES-DE's own game lists and pictures into its downloaded_media folder as covers and marquees, named after each game; pictures ES-DE already has are kept. Close ES-DE first."}{target.adapter_id==='retropie'&&" On RetroPie, only game lists already in its rom folders are filled in (RetroPie would otherwise stop using the list in its home folder, where any scraped art, favorites and play counts are). Restart RetroPie afterwards to see the new art."}</p>
       {art&&(art.lists_not_created.length>0||createLists)&&<div className="warn-box"><label className="check"><input type="checkbox" checked={createLists} disabled={artChecking||working} onChange={e=>void reviewArt(e.target.checked)}/> Also create game lists for {createLists?'systems without one':`${art.lists_not_created.length} system${art.lists_not_created.length===1?'':'s'} without one (${art.lists_not_created.join(', ')})`}</label>
         <small className="plan-notes">RetroPie will then use the new list instead of the one in its home folder, so any art, favorites or play counts it scraped or saved there won't show (they aren't deleted; Undo brings the old behavior back). Leave this off if you scraped on this RetroPie.</small></div>}
@@ -303,7 +305,7 @@ export default function Customize({ installs, native, busy, notify }: { installs
         {art.art_unavailable>0&&<p className="warn-text">{art.art_unavailable.toLocaleString()} games' images are on a drive that isn't connected; connect it and check again to include them.</p>}
         {working&&artProgress&&<p className="plan-notes">{artProgress.phase==='checking'?'Checking games again':'Copying images'}: {artProgress.done.toLocaleString()} of {artProgress.total.toLocaleString()}…</p>}
         <div className="actions"><button className="primary" disabled={working||!!blocked} onClick={()=>void applyArt()}>{working?'Adding…':confirm==='art'?'Click again to add':'Add art and details'}</button><button className="ghost" disabled={working} onClick={()=>{ setArt(null); setConfirm(null); }}>Not now</button></div></div>}
-    </div>
+    </div>}
 
     {apps.length>0&&<div className="backups"><h3>Applied designs</h3><div className="table-wrap"><table><thead><tr><th>When</th><th>Design</th><th>Added</th><th></th></tr></thead><tbody>{apps.map(a=><tr key={a.id}><td>{localTime(a.when)}</td><td><b>{a.design_name}</b></td><td>{a.added.length?a.added.map(x=><small key={x} className="mono">{x.replace(/\//g,'\\')}</small>):<small className="plan-notes">—</small>}</td>
       <td>{a.state==='undone'?<small>Undone</small>:<button className={confirm===`undo:${a.id}`?'primary':'ghost'} disabled={working||!!blocked} onClick={()=>void undoApp(a)} onBlur={()=>{ if(confirm===`undo:${a.id}`) setConfirm(null); }}><Undo2 size={15}/>{confirm===`undo:${a.id}`?'Click again to undo':'Undo'}</button>}</td></tr>)}</tbody></table></div></div>}

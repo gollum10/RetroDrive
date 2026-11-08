@@ -8,6 +8,7 @@
 
 pub mod batocera;
 pub mod esde;
+pub mod lakka;
 pub mod recalbox;
 pub mod retrobat;
 pub mod retropie;
@@ -187,7 +188,7 @@ pub fn catalog() -> Vec<AdapterInfo> {
 
 /// Every adapter this build ships.
 pub fn registry() -> Vec<Box<dyn PlatformAdapter>> {
-    vec![Box::new(retrobat::RetroBat), Box::new(batocera::Batocera), Box::new(retropie::RetroPie), Box::new(esde::EsDe), Box::new(recalbox::Recalbox), Box::new(rocknix::Rocknix)]
+    vec![Box::new(retrobat::RetroBat), Box::new(batocera::Batocera), Box::new(retropie::RetroPie), Box::new(esde::EsDe), Box::new(recalbox::Recalbox), Box::new(rocknix::Rocknix), Box::new(lakka::Lakka)]
 }
 
 pub fn find(id: &str) -> Option<Box<dyn PlatformAdapter>> {
