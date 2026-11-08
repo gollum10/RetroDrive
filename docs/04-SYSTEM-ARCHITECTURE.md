@@ -1,5 +1,7 @@
 # 04 | Technical Architecture
 
+**Theme Studio close protection fix:** async close handler waits for persistence and cancels only unsuccessful/duplicate requests. The installed Tauri SDK then invokes window.destroy; main capability explicitly permits it. No recursive window.close invocation or new filesystem/installation authority. Logic is isolated in theme-studio/window-close.ts and tested against the real SDK wrapper using stubbed IPC.
+
 **Theme Studio PR 4:** separate pure ThemeAdapter capability contract and empty production registry; TargetProfile distinguishes detected app release from an exact engine/fork/platform/format tuple. Read-only background discovery/report IPC accepts saved installation IDs or project intent only. [Matrix](theme-studio/target-matrix.md). No game adapter or deployment behavior changes.
 
 **Theme Studio PR 3:** React workspace components use a renderer-independent ProjectSession write queue; App invokes its leave guard. A read-only background validate_theme_document command validates raw stored source before editing. Native close waits for persistence, browser unload prompts. No changes to Customize or target writers. [Details](theme-studio/workspace.md).

@@ -21,7 +21,7 @@ async function main() {
   const errors = ts.getPreEmitDiagnostics(withAssets);
   assert.equal(errors.length, 0, ts.formatDiagnosticsWithColorAndContext(errors, { getCanonicalFileName: f => f, getCurrentDirectory: () => root, getNewLine: () => '\n' }));
   assert.equal(withAssets.emit().emitSkipped, false);
-  const { ProjectSession, project, form, record, newDocument } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  const { ProjectSession, project, form, record, newDocument, guardedWindowClose } = require(path.join(output, 'tests/theme-studio/workspace.js'));
   assert.deepEqual(project.targets, []);
   assert.equal(project.scenes[0].resolution.width, 1080);
   assert.equal(project.scenes[0].resolution.height, 1920);
@@ -75,6 +75,52 @@ async function main() {
   await assert.rejects(conflict.retry());
   assert.equal(conflict.document.metadata.name, 'Local copy');
 
+  // Exercise the installed SDK's real close-event wrapper with a permission-aware IPC stub.
+  // No actual window is closed and no running application/catalog is accessed.
+  const previousWindow = global.window;
+  const { Window } = require('@tauri-apps/api/window');
+  const permissions = JSON.parse(fs.readFileSync(path.join(root, 'src-tauri/capabilities/default.json'), 'utf8'));
+  const nativeCalls = [];
+  let simulateMissingPermission = false;
+  global.window = { __TAURI_INTERNALS__: { invoke: async (command, args) => {
+    assert.equal(command, 'plugin:window|destroy', 'the handler must not recursively request close');
+    assert.equal(args.label, 'main');
+    assert.ok(permissions.windows.includes('main') && permissions.permissions.includes('core:window:allow-destroy'), 'SDK close completion requires explicit destroy permission');
+    if (simulateMissingPermission) throw new Error('window.destroy not allowed');
+    nativeCalls.push(command);
+  } } };
+  try {
+    const appWindow = Object.create(Window.prototype); appWindow.label = 'main';
+    let dispatch;
+    appWindow.listen = async (event, callback) => { dispatch = () => callback({ event, id: 1, payload: null }); return () => {}; };
+    let releaseClose;
+    const pendingClose = new Promise(resolve => { releaseClose = resolve; });
+    const errors = [];
+    await appWindow.onCloseRequested(guardedWindowClose(() => pendingClose, error => errors.push(error)));
+    const closing = dispatch();
+    await Promise.resolve();
+    assert.equal(nativeCalls.length, 0, 'never close before save acknowledgement');
+    await dispatch();
+    assert.equal(nativeCalls.length, 0, 'duplicate close while saving must be prevented');
+    releaseClose(true); await closing;
+    assert.equal(nativeCalls.length, 1, 'one close after successful save');
+
+    let permitted = false;
+    await appWindow.onCloseRequested(guardedWindowClose(async () => permitted, error => errors.push(error)));
+    await dispatch(); assert.equal(nativeCalls.length, 1, 'failed/busy flush keeps the window open');
+    permitted = true; await dispatch();
+    assert.equal(nativeCalls.length, 2, 'closing works after retry');
+    await appWindow.onCloseRequested(guardedWindowClose(async () => { throw new Error('save failed'); }, error => errors.push(error)));
+    await dispatch(); assert.equal(nativeCalls.length, 2);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0].message, /save failed/);
+    // Demonstrate the original missing-permission failure without editing live configuration.
+    simulateMissingPermission = true;
+    await appWindow.onCloseRequested(guardedWindowClose(async () => true, error => errors.push(error)));
+    await assert.rejects(dispatch(), /window.destroy not allowed/);
+    assert.equal(nativeCalls.length, 2);
+  } finally { if (previousWindow === undefined) delete global.window; else global.window = previousWindow; }
+
   // Render actual React components without a browser/native catalog. No theme content executes.
   const originalLoad = Module._load;
   Module._load = function(request, parent, isMain) {
@@ -103,7 +149,7 @@ async function main() {
     const fallback = render('ThemeStudio', { native: false, leaveGuard: { current: null } });
     assert.match(fallback, /No emulator installation or cloud account is required/);
   } finally { Module._load = originalLoad; }
-  console.log('Theme workspace: document creation, queued saves, in-flight edits, failure/conflict protection and React rendering passed.');
+  console.log('Theme workspace: creation, queued saves, in-flight edits, failure/conflict protection, real SDK close/permission regression and React rendering passed.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => {
   assert.equal(path.dirname(output), cache); assert.ok(path.basename(output).startsWith('theme-workspace-'));

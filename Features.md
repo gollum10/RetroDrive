@@ -1,5 +1,7 @@
 # RetroDrive — Features
 
+**Theme Studio native-close fix (2026-11-08):** stop re-requesting close from its own handler; await persistence and let the SDK complete the original close with explicit main-window destroy permission. Save failures still keep the app open. SDK/permission regression tested; actual owner close/reopen recheck pending. Existing checkpoint/recovery/discard behavior was confirmed by the owner.
+
 **Theme Studio PR 4: capability foundation implemented.** Read-only target profiles, exact theme-adapter contracts, five diagnostic outcomes, source-preserving feature reports and workspace compatibility panel. Production registry remains empty: every real target is unverified; no exporter/installer is enabled. [Evidence matrix](docs/theme-studio/target-matrix.md).
 
 **Theme Studio PR 3: partial workspace implemented.** Separate project browser and no-target wizard; metadata editing, scene/layer overview, future canvas/inspector/timeline regions, autosave/checkpoints, recovery and guarded navigation. No drag-and-drop, media editing, native preview/export or installation. [Workspace behavior and verification limits](docs/theme-studio/workspace.md).

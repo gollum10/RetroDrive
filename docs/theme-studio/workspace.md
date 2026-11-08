@@ -1,5 +1,9 @@
 # Theme Studio workspace (Sprint 1 PR 3)
 
+Owner validation on 2026-11-08 confirmed creation without a target, metadata persistence, checkpoint/draft recovery and discard back to the checkpoint. Native close then failed: the handler recursively called window.close without its permission, and the SDK's close completion also requires explicit destroy permission. The fix awaits flush in the original close handler, prevents only failed/in-flight duplicate requests, and lets the SDK destroy the main window after success. The main-window capability now grants only core:window:allow-destroy in addition to prior permissions; no filesystem/installation permissions are added. A full native restart is required; retain RETRODRIVE_DATA_DIR to reopen the same test catalog.
+
+Regression tests use the installed SDK close wrapper with permission-aware IPC, verifying wait-before-close, duplicate request suppression, failed/busy/throwing flush retention, successful retry, and the original missing-permission failure. They do not close a real app. Owner recheck of actual window close/reopen remains outstanding; the reported recovery/discard success is not a claim that every manual acceptance test passed.
+
 Theme Studio is a separate sidebar workspace immediately below Customize. It uses the project service from PR 2 and does not replace Customize or its saved designs. No installed theme files are written.
 
 The browser supports paged projects, refresh, create, resume/open and explicit duplication of a saved checkpoint. The wizard offers Universal / No Target Yet by default, optional frontend/version intent, project metadata, three display presets and original starter or blank scenes. No emulator or cloud account is needed in the desktop application. The browser-only development preview cannot persist projects.
