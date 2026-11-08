@@ -43,3 +43,4 @@
 @media(max-width: 1200px) { .theme-studio .ts-editor-grid { grid-template-columns: 160px minmax(200px,1fr); } .theme-studio .ts-inspector { grid-column: 1 / -1; } }
 @media(max-width: 800px) { .theme-studio .ts-editor-grid { grid-template-columns: 1fr; } }
 @media(prefers-reduced-motion: reduce) { .theme-studio * { scroll-behavior: auto; transition: none; } }
+.ts-editor .ts-layer-order { border: 1px solid var(--border, #31465f); border-radius: 8px; padding: 10px; margin: 0 0 16px; display: grid; gap: 6px; }

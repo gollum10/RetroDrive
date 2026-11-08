@@ -21,7 +21,7 @@ async function main() {
   const errors = ts.getPreEmitDiagnostics(withAssets);
   assert.equal(errors.length, 0, ts.formatDiagnosticsWithColorAndContext(errors, { getCanonicalFileName: f => f, getCurrentDirectory: () => root, getNewLine: () => '\n' }));
   assert.equal(withAssets.emit().emitSkipped, false);
-  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor, canOrderLayers, orderLayer } = require(path.join(output, 'tests/theme-studio/workspace.js'));
   assert.deepEqual(project.targets, []);
   assert.equal(project.scenes[0].resolution.width, 1080);
   assert.equal(project.scenes[0].resolution.height, 1920);
@@ -62,6 +62,53 @@ async function main() {
   assert.equal(updateNode(nested, scene.id, added.id, node => ({ ...node, name: 'not allowed' })), nested, 'nested layers are retained read-only');
   assert.equal(previewColor('url(https://untrusted/image.svg)', '#ffffff'), '#ffffff');
   assert.equal(previewColor('00ff0080', '#ffffff'), '#00ff0080');
+
+  const layered = addNode(added.project, scene.id, 'panel').project;
+  const originalOrder = layered.scenes[0].nodes.map(node => node.id);
+  const originalLayeredJson = JSON.stringify(layered);
+  assert.equal(canOrderLayers(layered.scenes[0]), true);
+  const expectedOrders = {
+    back: [originalOrder[1], originalOrder[0], originalOrder[2]],
+    backward: [originalOrder[1], originalOrder[0], originalOrder[2]],
+    forward: [originalOrder[0], originalOrder[2], originalOrder[1]],
+    front: [originalOrder[0], originalOrder[2], originalOrder[1]],
+  };
+  for (const [action, expected] of Object.entries(expectedOrders)) {
+    const ordered = orderLayer(layered, scene.id, added.id, action);
+    assert.deepEqual(ordered.scenes[0].nodes.map(node => node.id), expected);
+    assert.deepEqual(ordered.scenes[0].nodes.find(node => node.id === added.id), layered.scenes[0].nodes[1], 'all node fields stay unchanged');
+    assert.equal(ordered.scenes[1], layered.scenes[1], 'other scenes are untouched');
+    assert.deepEqual(ordered.futureAnimation, layered.futureAnimation);
+  }
+  assert.equal(JSON.stringify(layered), originalLayeredJson);
+  const fourLayers = addNode(layered, scene.id, 'panel').project;
+  const fourIds = fourLayers.scenes[0].nodes.map(node => node.id);
+  assert.deepEqual(orderLayer(fourLayers, scene.id, fourIds[3], 'back').scenes[0].nodes.map(node => node.id), [fourIds[3], ...fourIds.slice(0, 3)]);
+  assert.deepEqual(orderLayer(fourLayers, scene.id, fourIds[0], 'front').scenes[0].nodes.map(node => node.id), [...fourIds.slice(1), fourIds[0]]);
+  assert.deepEqual(orderLayer(fourLayers, scene.id, fourIds[3], 'backward').scenes[0].nodes.map(node => node.id), [fourIds[0], fourIds[1], fourIds[3], fourIds[2]]);
+  assert.equal(orderLayer(layered, scene.id, originalOrder[0], 'backward'), layered);
+  assert.equal(orderLayer(layered, scene.id, originalOrder[2], 'forward'), layered);
+  assert.equal(orderLayer(layered, 'missing', added.id, 'front'), layered);
+  assert.equal(orderLayer(layered, scene.id, 'missing', 'front'), layered);
+  assert.equal(orderLayer(nested, scene.id, added.id, 'back'), nested);
+  const unknownLayered = JSON.parse(originalLayeredJson);
+  unknownLayered.scenes[0].nodes[0].type = 'future-widget';
+  assert.equal(orderLayer(unknownLayered, scene.id, added.id, 'back'), unknownLayered);
+  let orderStored = { ...record(), savedJson: originalLayeredJson };
+  const orderSession = new ProjectSession(orderStored, layered, async (id, revision, json, kind) => {
+    assert.equal(revision, orderStored.revision);
+    orderStored = { ...orderStored, revision: revision + 1, savedJson: kind === 'checkpoint' ? json : orderStored.savedJson, draftJson: kind === 'checkpoint' ? null : json };
+    return orderStored;
+  });
+  const frontLayered = orderLayer(layered, scene.id, added.id, 'front');
+  orderSession.edit(frontLayered, 'Change layer order');
+  await orderSession.flush();
+  assert.deepEqual(JSON.parse(orderStored.draftJson), frontLayered);
+  orderSession.undo(); await orderSession.flush();
+  assert.deepEqual(orderSession.document, layered);
+  orderSession.redo(); await orderSession.save();
+  assert.deepEqual(JSON.parse(orderStored.savedJson), frontLayered);
+  assert.equal(orderStored.draftJson, null);
 
   const history = new EditHistory();
   assert.ok(history.record(source, added.project, 'Add text'));
@@ -216,6 +263,22 @@ async function main() {
     const canvas = render('theme-studio/SceneCanvas', { scene: safeProject.project.scenes[0], selected: safeNode.id, disabled: false, onSelect() {}, onMove() {}, onEndGroup() {} });
     assert.match(canvas, /&lt;script&gt;/); assert.ok(!canvas.includes('<script>'));
     assert.ok(!canvas.includes('https://untrusted'));
+    const orderedScene = orderLayer(layered, scene.id, added.id, 'front').scenes[0];
+    const orderedCanvas = render('theme-studio/SceneCanvas', { scene: orderedScene, selected: added.id, disabled: false, onSelect() {}, onMove() {}, onEndGroup() {} });
+    const paintedIds = [...orderedCanvas.matchAll(/data-node-id="([^"]+)"/g)].map(match => match[1]);
+    assert.deepEqual(paintedIds, expectedOrders.front, 'actual SVG paint order follows source ordering');
+    let orderRequest = null;
+    const orderProps = { scene: layered.scenes[0], selected: added.id, disabled: false, onOrder(order) { orderRequest = order; } };
+    const orderControls = component('theme-studio/LayerOrderControls')(orderProps);
+    const orderButtons = orderControls.props.children.find(Array.isArray);
+    orderButtons.find(button => button.props.children === 'Bring to front').props.onClick();
+    assert.equal(orderRequest, 'front');
+    for (const overrides of [{ disabled: true }, { selected: null }, { scene: unknownLayered.scenes[0] }, { selected: originalOrder[2] }]) {
+      orderRequest = null;
+      const blockedControls = component('theme-studio/LayerOrderControls')({ ...orderProps, ...overrides });
+      blockedControls.props.children.find(Array.isArray).find(button => button.props.children === 'Bring to front').props.onClick();
+      assert.equal(orderRequest, null, 'disabled, unsupported, absent and boundary actions do not edit');
+    }
     const inspector = render('theme-studio/NodeInspector', { scene: safeProject.project.scenes[0], node: safeNode, disabled: false, onChange() {}, onEnd() {} });
     assert.match(inspector, /X position/); assert.match(inspector, /Font size/);
     const longText = { ...safeNode, style: { ...safeNode.style, text: 'A'.repeat(501) } };

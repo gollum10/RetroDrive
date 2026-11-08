@@ -44,3 +44,13 @@ These checks do not simulate actual native pointer capture, DPI scaling or keybo
 7. Resize the app and check pointer scaling and keyboard focus. Native frontend export remains unavailable.
 
 Snapping/guides, resize handles, layer grouping/reordering/lock/hide, image assets, advanced scene inheritance, library sample data, media/timeline/navigation editing, templates and actual native compilation remain later increments.
+
+## Layer ordering
+
+The Layer order controls move the selected layer one step backward/forward, or directly to the back/front. The layer list and SVG both use scene.nodes order from back to front. Boundary actions are disabled and produce no history entry. Selection stays attached to the same node ID after a move.
+
+This increment permits ordering only when every layer in the scene is a leaf text/panel node. Nested or unknown types keep ordering read-only because their stacking semantics are unresolved. Controls also block edits during copy/transition operations. Node payloads, IDs, bindings, geometry, opaque extensions and other scenes stay unchanged. No schema migration, dependency, target writer or native export behavior is added.
+
+Each order change is a separate undoable operation, autosaved through ProjectSession. Automated workspace checks cover source preservation, one-step and endpoint moves, no-op boundaries, missing selections/scenes, nested/unknown guards, actual rendered SVG order, callback guards and undo/redo through draft/checkpoint persistence. Contract checks and the production build also pass. Rust production code is unchanged and the Rust suite was not rerun for this increment.
+
+Manual QA still required: overlap a panel and text, select text in the layer list, send it behind the panel, then bring it forward. Check the list/canvas agree, selection stays on text, Undo/Redo restores each order, Save checkpoint/reopen retains the order, and Save As keeps the original independent. Verify keyboard focus and disabled controls in the native app. Native compiler ordering remains unverified.
