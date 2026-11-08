@@ -6,6 +6,8 @@ import SaveCopyForm from './SaveCopyForm';
 import SceneCanvas from './SceneCanvas';
 import NodeInspector from './NodeInspector';
 import LayerOrderControls from './LayerOrderControls';
+import AlignmentControls from './AlignmentControls';
+import { alignLayer } from './alignment';
 import { addNode, moveNode, updateNode, orderLayer } from './scene-edit';
 
 export default function ProjectOverview({ session, onClose, onCopy, onReload, blocked = false }: { session: ProjectSession; onClose: () => void; onCopy: (name: string) => void; onReload: () => void; blocked?: boolean }) {
@@ -45,6 +47,7 @@ export default function ProjectOverview({ session, onClose, onCopy, onReload, bl
       <aside className="panel ts-inspector" aria-label="Properties inspector"><h3>Properties</h3>
         <LayerOrderControls scene={scene} selected={selectedId} disabled={editorDisabled} onOrder={order => { if (selectedId) session.edit(orderLayer(session.document, scene.id, selectedId, order), 'Change layer order'); }}/>
         <NodeInspector scene={scene} node={selected} disabled={editorDisabled} onChange={(node, label, group) => session.edit(updateNode(session.document, scene.id, node.id, () => node), label, group)} onEnd={() => session.endEditGroup()}/>
+        <AlignmentControls scene={scene} node={selected} disabled={editorDisabled} onAlign={alignment => { if (selectedId) session.edit(alignLayer(session.document, scene.id, selectedId, alignment), 'Align layer'); }}/>
         <h3>Project properties</h3>
         <fieldset className="ts-property-fields" disabled={editorDisabled} onBlur={() => session.endEditGroup()}><legend className="ts-sr-only">Edit current project</legend>
         <label>Name<input maxLength={120} value={document.metadata.name} onChange={e => metadata('name', e.target.value)} /></label>

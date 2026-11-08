@@ -1,5 +1,7 @@
 # 11 | Development Roadmap and Backlog
 
+**Theme Studio canvas alignment prepared:** single-layer edge/center commands now account for rotation and preserve units, with undo/redo. Multi-selection/distribution, snapping/guides, handles, groups/lock/hide and assets remain future work; native QA is pending.
+
 **Theme Studio transform increment prepared:** numeric rotation and opacity controls for text/panels, guarded source-preserving updates and undo/redo tests. Native visual QA, resize handles, grouping/lock/hide and assets remain future work.
 
 **Theme Studio layer-order increment prepared:** backward/forward/back/front controls for flat text/panel scenes, undo/redo and persistence tests. Nested/unknown scenes are guarded. Grouping/lock/hide, resize handles and assets remain planned; native canvas QA remains outstanding.

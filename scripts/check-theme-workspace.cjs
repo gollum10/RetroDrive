@@ -21,7 +21,7 @@ async function main() {
   const errors = ts.getPreEmitDiagnostics(withAssets);
   assert.equal(errors.length, 0, ts.formatDiagnosticsWithColorAndContext(errors, { getCanonicalFileName: f => f, getCurrentDirectory: () => root, getNewLine: () => '\n' }));
   assert.equal(withAssets.emit().emitSkipped, false);
-  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor, canOrderLayers, orderLayer, transformNode } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor, canOrderLayers, orderLayer, transformNode, alignedNode, alignLayer } = require(path.join(output, 'tests/theme-studio/workspace.js'));
   assert.deepEqual(project.targets, []);
   assert.equal(project.scenes[0].resolution.width, 1080);
   assert.equal(project.scenes[0].resolution.height, 1920);
@@ -130,6 +130,52 @@ async function main() {
   transformHistory.record(moved, transformProject, 'Transform');
   assert.deepEqual(transformHistory.undo(transformProject), moved);
   assert.deepEqual(transformHistory.redo(moved), transformProject);
+
+  const alignmentNode = { ...movedNode, layout: { ...movedNode.layout, x: { value: 17, unit: '%', futureAnchor: 'kept' }, y: { value: 31, unit: 'px' }, width: { value: 200, unit: 'px' }, height: { value: 100, unit: 'px' }, rotation: 0 } };
+  const alignmentScene = { ...scene, nodes: [alignmentNode] };
+  const expectedAlignment = { left: 0, 'center-x': 440, right: 880, top: 0, 'center-y': 910, bottom: 1820 };
+  for (const [action, expected] of Object.entries(expectedAlignment)) {
+    const aligned = alignedNode(alignmentScene, alignmentNode, action);
+    const axis = ['left', 'center-x', 'right'].includes(action) ? 'x' : 'y';
+    const extent = axis === 'x' ? 1080 : 1920;
+    assert.ok(Math.abs(pixels(aligned.layout[axis], extent) - expected) < 0.00002, action);
+    assert.equal(aligned.layout.x.unit, '%'); assert.equal(aligned.layout.x.futureAnchor, 'kept');
+    assert.deepEqual(aligned.layout[axis === 'x' ? 'y' : 'x'], alignmentNode.layout[axis === 'x' ? 'y' : 'x']);
+    assert.deepEqual(aligned.style, alignmentNode.style);
+    assert.equal(alignedNode(alignmentScene, aligned, action), aligned, 'repeated alignment is a no-op');
+  }
+  for (const rotation of [90, -90, 45, 180, 360]) {
+    const rotatedNode = { ...alignmentNode, layout: { ...alignmentNode.layout, rotation } };
+    const rotatedScene = { ...alignmentScene, nodes: [rotatedNode] };
+    for (const action of Object.keys(expectedAlignment)) {
+      const aligned = alignedNode(rotatedScene, rotatedNode, action);
+      const x = pixels(aligned.layout.x, 1080); const y = pixels(aligned.layout.y, 1920);
+      const radians = rotation * Math.PI / 180;
+      const corners = [[0,0],[200,0],[0,100],[200,100]].map(([cx, cy]) => [x + cx * Math.cos(radians) - cy * Math.sin(radians), y + cx * Math.sin(radians) + cy * Math.cos(radians)]);
+      const axis = ['left', 'center-x', 'right'].includes(action) ? 0 : 1;
+      const low = Math.min(...corners.map(point => point[axis])); const high = Math.max(...corners.map(point => point[axis]));
+      const actual = action.startsWith('center') ? (low + high) / 2 : ['left', 'top'].includes(action) ? low : high;
+      const expected = action.startsWith('center') ? (axis === 0 ? 540 : 960) : ['left', 'top'].includes(action) ? 0 : axis === 0 ? 1080 : 1920;
+      assert.ok(Math.abs(actual - expected) < 0.00002, `${rotation} ${action}`);
+    }
+  }
+  assert.equal(alignLayer(nested, scene.id, added.id, 'left'), nested);
+  assert.equal(alignLayer(source, 'missing', added.id, 'left'), source);
+  assert.equal(alignLayer(source, scene.id, 'missing', 'left'), source);
+  const unknownAlign = { ...alignmentNode, type: 'future-widget' };
+  assert.equal(alignedNode({ ...alignmentScene, nodes: [unknownAlign] }, unknownAlign, 'left'), unknownAlign);
+  const hugeNode = { ...alignmentNode, layout: { ...alignmentNode.layout, x: { value: 0, unit: 'px' }, width: { value: 1_000_000, unit: '%' } } };
+  assert.equal(alignedNode({ ...alignmentScene, nodes: [hugeNode] }, hugeNode, 'right'), hugeNode, 'unrepresentable target is refused');
+  const alignSource = { ...moved, scenes: [alignmentScene, ...moved.scenes.slice(1)] };
+  const alignJson = JSON.stringify(alignSource);
+  const centered = alignLayer(alignSource, scene.id, added.id, 'center-x');
+  assert.equal(JSON.stringify(alignSource), alignJson);
+  assert.equal(centered.scenes[1], alignSource.scenes[1]);
+  assert.deepEqual(centered.futureAnimation, alignSource.futureAnimation);
+  const alignHistory = new EditHistory();
+  alignHistory.record(alignSource, centered, 'Align');
+  assert.deepEqual(alignHistory.undo(centered), alignSource);
+  assert.deepEqual(alignHistory.redo(alignSource), centered);
 
   const history = new EditHistory();
   assert.ok(history.record(source, added.project, 'Add text'));
@@ -332,6 +378,17 @@ async function main() {
     const transformedCanvas = render('theme-studio/SceneCanvas', { scene: transformProject.scenes[0], selected: added.id, disabled: false, onSelect() {}, onMove() {}, onEndGroup() {} });
     assert.match(transformedCanvas, /rotate\(-45\.5\)/);
     assert.match(transformedCanvas, /opacity="0.25"/);
+    let alignRequest = null;
+    const alignProps = { scene: alignmentScene, node: alignmentNode, disabled: false, onAlign(action) { alignRequest = action; } };
+    const alignmentControls = component('theme-studio/AlignmentControls')(alignProps);
+    alignmentControls.props.children.find(Array.isArray).find(button => button.props.children === 'Align left').props.onClick();
+    assert.equal(alignRequest, 'left');
+    for (const overrides of [{ disabled: true }, { node: null }, { node: unknownAlign }, { node: alignedNode(alignmentScene, alignmentNode, 'left') }]) {
+      alignRequest = null;
+      component('theme-studio/AlignmentControls')({ ...alignProps, ...overrides }).props.children.find(Array.isArray).find(button => button.props.children === 'Align left').props.onClick();
+      assert.equal(alignRequest, null);
+    }
+    assert.match(editor, /Align to canvas/);
     const browser = render('theme-studio/ProjectBrowser', { projects: [], busy: false, offset: 0, onNew() {}, onOpen() {}, onDuplicate() {}, onPage() {}, onRefresh() {} });
     assert.match(browser, /No projects yet/);
     let submitted = null; let cancelled = false;
