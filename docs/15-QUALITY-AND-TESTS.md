@@ -152,6 +152,22 @@ RDS-002 tests: progress reporting and final counts, batched commits giving the s
 
 Other regression tests: rescans don't create duplicates, rescanning a subfolder only affects that subfolder, manual titles survive a rescan, and stored paths never have the `\\?\` prefix.
 
+## Real hardware: read-only pass on the owner's RetroBat (2026-11-09)
+Owner authorization: "start the read-only pass on retrobat". Drive `G:\RetroBat` (RetroBat 8.3.1.1-stable-win64, 241 system folders, 56,345 files and folders). A temporary ignored test (not committed) used an in-memory catalog and called only read paths: every adapter's `detect`, RetroBat's `validate_layout`, `installations::add` (catalog only), `customizer::options`, `look_options`, `game_settings` for every system with games, `game_groups::state`, `controller_setup::for_installation`, a scan of the drive's own `roms` folder as a library, `deployment::plan_with` back onto the drive, and the art preview; plus `real_retrobat_files_parse_and_edit_cleanly` (edits in memory only). **Proof nothing was written:** a listing of every file and folder (path, size, last-write time) before and after compared equal (0 differences); RetroBat wasn't running.
+
+| Check | Result |
+|---|---|
+| Recognition | RetroBat detected (RetroBat.exe, emulationstation, retrobat.ini, roms); every other adapter (Batocera, RetroPie, ES-DE, Recalbox, ROCKNIX, Lakka) stepped aside |
+| Layout checks | All OK, version read from `system\version.info` |
+| Emulator settings | 244 systems (17 with games), 26 shader sets, 15 bezels, 25 ratios; snes offers 7 emulators; es_settings.cfg (57 entries) parsed and an in-memory edit left every other line byte for byte |
+| Look and behavior | 16 of 16 retrobat.ini options found (30 keys); 4 boot videos; 6 music tracks |
+| Settings for one game | Game lists for all 17 systems in 10–50 ms each (nes 4,885 games) |
+| Game groups | Light gun and vertical groups both on; 37 light gun games in the library after the scan |
+| Scan | 7,037 games (8,238 images, 63 skipped) in 8.2 s |
+| Plan back onto the drive | 7,035 games already in place, 0 files to copy, 2 unsupported (a "[BIOS]" zip, one unclassified file), in 0.19 s |
+
+**Found and fixed:** `roms\ps2` holds only an `images` folder, yet counted as a system with games, so it appeared in the RetroBat game picker with no games. `customizer::has_games` and `batocera_settings::systems` now use the same game listing as the game pickers (`game_names`: game lists, media folders and `_info.txt` aren't games); regression check in `options_come_from_the_install`.
+
 ## Later raw disk operations (not in starter)
 - Protect Windows system/boot and source disks.
 - Verify exact physical disk identity before raw write.
