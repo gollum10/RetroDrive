@@ -412,7 +412,7 @@ fn plan(connection: &Connection, design_id: &str, installation_id: &str, presenc
         .iter()
         // Values that already match this RetroBat aren't changes, so they aren't re-checked.
         .filter(|(k, v)| es_current.get(*k) != v.as_ref())
-        .filter_map(|(k, v)| k.rsplit_once('.').map(|(system, key)| Change { system: system.to_string(), key: key.to_string(), value: v.clone() }))
+        .filter_map(|(k, v)| k.rsplit_once('.').map(|(system, key)| Change { system: system.to_string(), key: key.to_string(), value: v.clone(), game: None }))
         .collect();
     if !changes.is_empty() {
         es_wanted.extend(customizer::validate_systems(&changes, &offer, &es_current)?);

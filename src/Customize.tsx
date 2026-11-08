@@ -8,6 +8,7 @@ import { baseName, fmtSize, localTime, shortPath } from './format';
 import BatoceraSettings from './BatoceraSettings';
 import RecalboxSettings from './RecalboxSettings';
 import RocknixSettings from './RocknixSettings';
+import RetroBatGameSettings from './RetroBatGameSettings';
 import GameGroups from './GameGroups';
 import RetroPieSettings from './RetroPieSettings';
 import BiosStep from './BiosStep';
@@ -284,6 +285,7 @@ export default function Customize({ installs, native, busy, notify }: { installs
     {target.adapter_id==='retropie'&&connected&&<RetroPieSettings installationId={target.id} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
     {target.adapter_id==='batocera'&&connected&&<BatoceraSettings installationId={target.id} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
     {(target.adapter_id==='retrobat'||target.adapter_id==='batocera'||(target.adapter_id==='retropie'&&target.path.startsWith('\\'))||target.adapter_id==='esde'||target.adapter_id==='recalbox')&&connected&&<GameGroups installationId={target.id} adapterId={target.adapter_id} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
+    {isRetroBat&&connected&&emu&&<RetroBatGameSettings installationId={target.id} emu={emu} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
     {target.adapter_id==='rocknix'&&connected&&<RocknixSettings installationId={target.id} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
     {target.adapter_id==='recalbox'&&connected&&<RecalboxSettings installationId={target.id} disabled={busy} notify={notify} onSaved={()=>void loadTarget(target.id).catch(()=>{})}/>}
     <div className="backups"><h3>Game art and details</h3>
