@@ -29,6 +29,7 @@ mod reference;
 mod recalbox_settings;
 mod restore;
 mod retropie_settings;
+mod rocknix_settings;
 mod themes;
 mod scanner;
 mod sinden_step;
@@ -857,6 +858,30 @@ async fn apply_recalbox_settings(catalog: State<'_, Catalog>, active: State<'_, 
     result?
 }
 
+/// ROCKNIX settings offered, with current values (reads only; network installs).
+#[tauri::command]
+async fn rocknix_options(catalog: State<'_, Catalog>, installation_id: String) -> Result<rocknix_settings::RocknixOptions, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || rocknix_settings::options(&db::open(&db_path)?, &installation_id, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// What ROCKNIX settings changes would do (reads only).
+#[tauri::command]
+async fn preview_rocknix_settings(catalog: State<'_, Catalog>, installation_id: String, changes: Vec<rocknix_settings::ConfChange>) -> Result<customizer::Preview, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || rocknix_settings::preview(&db::open(&db_path)?, &installation_id, &changes, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Save reviewed ROCKNIX settings (journaled, backed up, undoable).
+#[tauri::command]
+async fn apply_rocknix_settings(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, changes: Vec<rocknix_settings::ConfChange>, file_sha: String) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || rocknix_settings::apply(&db::open(&db_path)?, &installation_id, &changes, &file_sha, &volumes::presence)).await.map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
 /// Batocera settings and themes offered, with current values (reads only).
 #[tauri::command]
 async fn batocera_options(catalog: State<'_, Catalog>, installation_id: String) -> Result<batocera_settings::BatoceraOptions, String> {
@@ -1439,6 +1464,9 @@ pub fn run() {
             apply_game_groups,
             preview_recalbox_settings,
             apply_recalbox_settings,
+            rocknix_options,
+            preview_rocknix_settings,
+            apply_rocknix_settings,
             retropie_options,
             connected_controllers,
             remember_controller_type,

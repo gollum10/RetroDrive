@@ -24,7 +24,7 @@ const ID: &str = "rocknix";
 const NAME: &str = "ROCKNIX";
 
 /// ROCKNIX's system folders (`add_es_system` in its emulators package).
-const SYSTEMS: &[&str] = &[
+pub(crate) const SYSTEMS: &[&str] = &[
     "3do", "3ds", "amiga", "amigacd32", "amstradcpc", "arcade", "arduboy", "atari2600", "atari5200", "atari7800", "atari800", "atarijaguar", "atarilynx", "atarist", "atomiswave", "bbcmicro", "bk", "c128", "c16", "c64", "cdi", "channelf",
     "chip-8", "colecovision", "cps1", "cps2", "cps3", "daphne", "doom", "dreamcast", "easyrpg", "famicom", "fbn", "fds", "gameandwatch", "gamecube", "gamegear", "gb", "gba", "gbah", "gbav", "gbc", "gbch", "gbh", "genesis", "genh",
     "ggh", "gp32", "intellivision", "j2me", "macintosh", "mame", "mastersystem", "megacd", "megadrive", "megadrive-japan", "megadriveh", "megaduck", "moto", "msx", "msx2", "n64", "n64dd", "naomi", "nds", "neocd", "neogeo", "nes",
@@ -40,7 +40,7 @@ fn is_network_path(path: &str) -> bool {
 }
 
 /// The folder that holds the system folders: the root (the `games-roms` share) or its `roms`.
-fn games_folder(root: &Path) -> std::path::PathBuf {
+pub(crate) fn games_folder(root: &Path) -> std::path::PathBuf {
     if has_entry(root, "roms", true) {
         root.join("roms")
     } else {
