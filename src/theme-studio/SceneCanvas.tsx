@@ -29,7 +29,7 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
       onPointerDown={event => { if (event.target === event.currentTarget) onSelect(null); }}
       onPointerMove={event => { if (event.pointerId !== drag.current?.pointerId) return; const next = destination(event.clientX, event.clientY); if (next) setPreview(next); }}
       onPointerUp={event => { if (event.pointerId !== drag.current?.pointerId) return; const original = drag.current; const next = destination(event.clientX, event.clientY); cancel(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); if (disabled || !next) return; if (original.mode === 'resize' && 'width' in next && next.width !== undefined && next.height !== undefined) { if (Math.abs(next.width - original.width) + Math.abs(next.height - original.height) > 0.000001) onResize(next.id, next.width, next.height); } else if (Math.abs(next.x - original.x) + Math.abs(next.y - original.y) > 0.000001) onMove(next.id, next.x, next.y); }}
-      onPointerCancel={cancel} onLostPointerCapture={cancel} onBlur={() => { cancel(); onEndGroup(); }}
+      onPointerCancel={cancel} onLostPointerCapture={cancel} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) { cancel(); onEndGroup(); } }}
       onKeyUp={event => { if (event.key.startsWith('Arrow')) onEndGroup(); }}
       onKeyDown={event => {
         if ((event.ctrlKey || event.metaKey) && ['z', 'y'].includes(event.key.toLowerCase())) { cancel(); return; }
@@ -61,7 +61,7 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
         return <g transform={`translate(${x} ${y}) rotate(${node.layout.rotation})`}>
           <rect width={width} height={height} fill="none" stroke="#65b6ff" strokeWidth={2} vectorEffect="non-scaling-stroke" pointerEvents="none"/>
           {!disabled && <circle cx={width} cy={height} r={scene.resolution.width / 90} fill="#65b6ff" stroke="#101b2c" strokeWidth={2} vectorEffect="non-scaling-stroke" tabIndex={0} role="button" aria-label={`Resize ${node.name || node.type}`} style={{ cursor: 'nwse-resize' }}
-            onPointerDown={event => { if (event.button !== 0) return; event.stopPropagation(); svg.current?.focus(); const start = point(event.clientX, event.clientY); if (!start) return; drag.current = { id: node.id, pointerId: event.pointerId, x, y, startX: start.x, startY: start.y, mode: 'resize', width, height, rotation: node.layout.rotation }; svg.current?.setPointerCapture(event.pointerId); }}
+            onPointerDown={event => { if (event.button !== 0) return; event.preventDefault(); event.stopPropagation(); event.currentTarget.focus(); const start = point(event.clientX, event.clientY); if (!start) return; drag.current = { id: node.id, pointerId: event.pointerId, x, y, startX: start.x, startY: start.y, mode: 'resize', width, height, rotation: node.layout.rotation }; svg.current?.setPointerCapture(event.pointerId); }}
             onKeyDown={event => {
               if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
               event.preventDefault(); event.stopPropagation(); if (drag.current) { cancel(); return; } const step = event.shiftKey ? 10 : 1;

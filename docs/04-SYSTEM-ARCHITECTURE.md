@@ -1,5 +1,7 @@
 # 04 | Technical Architecture
 
+**Canvas focus/layout correction:** resize pointer-down prevents default focus transfer and focuses its handle; canvas blur cancels only when focus leaves the SVG subtree. Container queries now size the editor from available workspace width, accounting for the application sidebar. No source/persistence/backend changes.
+
 **Resize gestures:** SceneCanvas extends its local pointer preview to width/height; resize.ts projects canvas deltas into rotated local axes and applies immutable, unit-preserving bounded dimensions. Only pointer release commits through ProjectSession. Numeric inspector sizing remains available. No backend/schema/dependency changes.
 
 **Canvas alignment:** alignment.ts computes rotated local rectangle bounds using the same top-left pivot as SceneCanvas, then updates only the chosen position dimension through existing graph/history/persistence services. AlignmentControls guards unsupported/no-op/busy actions. No schema, backend or dependency changes.

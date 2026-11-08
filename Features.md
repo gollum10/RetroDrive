@@ -1,5 +1,7 @@
 # RetroDrive — Features
 
+**Theme Studio resize regression fix:** handle pointer-down now owns focus and internal focus changes no longer cancel gestures. Workspace-width container breakpoints keep the canvas larger in normal windows. Real headless Edge input regression checks pass; native Tauri recheck remains pending.
+
 **Theme Studio resize:** selected leaf text/panel layers now have a bottom-right resize handle and handle-focused arrow/Shift-arrow sizing. Rotated local-axis math and existing undo/save services are reused. Native pointer/keyboard QA remains pending; export stays disabled.
 
 **Theme Studio alignment:** selected leaf text/panel layers can align left/right/top/bottom or center on either canvas axis, using rotated rectangular bounds and existing undo/save services. Native visual checks remain pending; export stays disabled.

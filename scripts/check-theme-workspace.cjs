@@ -9,7 +9,7 @@ fs.mkdirSync(cache, { recursive: true });
 const output = fs.mkdtempSync(path.join(cache, 'theme-workspace-'));
 
 async function main() {
-  const files = ['tests/theme-studio/workspace.ts', 'src/App.tsx', 'src/ThemeStudio.tsx'];
+  const files = ['tests/theme-studio/workspace.ts', 'tests/theme-studio/browser.tsx', 'src/App.tsx', 'src/ThemeStudio.tsx'];
   const program = ts.createProgram(files.map(f => path.join(root, f)), {
     target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, strict: true,
     jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true, skipLibCheck: true,
