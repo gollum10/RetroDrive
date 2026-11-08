@@ -1,5 +1,7 @@
 # RetroDrive | Documentation Index
 
+**Theme Studio canvas:** [first authoring increment](theme-studio/canvas.md) documents supported text/panel editing, undo/redo and remaining native interaction checks. It does not enable frontend export.
+
 **Theme Studio PR 4:** [target evidence matrix and adapter contracts](theme-studio/target-matrix.md). Application-release detection is not native theme compatibility; all real theme exports remain disabled.
 
 **Theme Studio PR 3:** [workspace and save/recovery behavior](theme-studio/workspace.md); separate from Customize. Lifecycle/server-render tests do not replace a manual native interaction smoke test.

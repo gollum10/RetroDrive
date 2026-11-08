@@ -1,5 +1,7 @@
 # 05 | Hybrid Library Data Model
 
+**Canvas increment:** universal source stays v1.0.0 and catalog stays v27. Original text/panel additions reuse node/layout/style contracts; supported style extension fields are text, color/fill and pixel fontSize. Unknown data remains intact. Session history is transient and separate from saved checkpoint/draft JSON; undo never rewrites a checkpoint implicitly.
+
 **Catalog v27 (Theme Studio PR 2):** adds only `theme_projects(id, name, schema_version, saved_json, draft_json, revision, created_at, updated_at, saved_at)` and a recent-project index. SQL enforces source/record ID/version and indexed-name consistency, JSON validity and safe integer revision. The existing backup-first transactional migration preserves legacy tables. See [storage semantics](theme-studio/persistence.md); universal source version remains 1.0.0.
 
 **Theme Studio PR 1 (2026-11-08):** versioned universal [JSON contract](theme-studio/project-format.md), separate from legacy DesignSpec. No catalog schema version, tables, designs or migrations change. SQLite remains the planned authoritative working store in PR 2. Portable source excludes machine paths/local installation bindings; its format schema version is independent of PRAGMA user_version.

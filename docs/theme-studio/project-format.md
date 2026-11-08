@@ -1,5 +1,7 @@
 # Universal theme source contract v1
 
+The first canvas editor now interprets a safe subset of existing layout and style fields (text, color/fill, pixel fontSize), with immutable graph edits and no format/catalog migration. Unknown/nested data stays preserved; unsupported style expressions and oversized text are read-only. [Editor contract](canvas.md).
+
 PR 2 now implements the authoritative SQLite working store and background project IPC; see [persistence](persistence.md). Source schema/portability are unchanged. References below to PR 1's lack of storage describe that increment only.
 
 Sprint 1 PR 1 adds Rust models and pure validation in `src-tauri/src/theme_studio/`, matching frontend types in `src/theme-studio/types.ts`. This is a JSON source contract, not an implemented ZIP format or target exporter. The [master design](../RetroDrive_Theme_Studio_Master_Design_v1.md) remains the full specification.

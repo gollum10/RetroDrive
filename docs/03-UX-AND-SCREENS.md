@@ -1,5 +1,7 @@
 # 03 | Information Architecture and UX Specification
 
+**Theme Studio canvas increment:** Add text/Add panel, selectable layer list and SVG canvas, drag/arrow movement, numeric position/size/units, static text/color/font inspector and Undo/Redo. Save As blocks underlying edits. Only top-level text/panel nodes are editable; nested/future content is retained. [Canvas contract and QA](theme-studio/canvas.md).
+
 **Theme Studio copy clarity:** Save As opens a separate form naming the source and new copy, with explicit Create copy/Cancel copy actions. Original metadata and checkpoint saving are disabled while the form is open to avoid accidental rename; Cancel returns focus to Save As. Copy creation shows a success notice. Duplicate suggestions use (copy), (copy 2), etc., normalize legacy copy-copy suffixes and avoid names on the loaded browser page; they are suggestions, not global uniqueness guarantees. Existing project IDs/data are untouched. Controls use the workspace's dark palette.
 
 **Theme Studio PR 3:** sidebar below Customize; paged projects and original/blank wizard with explicit Universal / No Target Yet. Editor separates scenes/layers, central overview, project inspector and timeline region. Draft recovery/discard and save errors are explicit; failed persistence prevents leaving. [Workspace](theme-studio/workspace.md). Graphical manipulation/timeline editing are future increments.

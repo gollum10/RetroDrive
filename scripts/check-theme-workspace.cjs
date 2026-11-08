@@ -21,7 +21,7 @@ async function main() {
   const errors = ts.getPreEmitDiagnostics(withAssets);
   assert.equal(errors.length, 0, ts.formatDiagnosticsWithColorAndContext(errors, { getCanonicalFileName: f => f, getCurrentDirectory: () => root, getNewLine: () => '\n' }));
   assert.equal(withAssets.emit().emitSkipped, false);
-  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor } = require(path.join(output, 'tests/theme-studio/workspace.js'));
   assert.deepEqual(project.targets, []);
   assert.equal(project.scenes[0].resolution.width, 1080);
   assert.equal(project.scenes[0].resolution.height, 1920);
@@ -35,6 +35,69 @@ async function main() {
   assert.equal(suggestCopyName('QA Test', ['qa test (COPY)', 'QA Test (copy 2)']), 'QA Test (copy 3)');
   assert.equal(suggestCopyName('Copy'), 'Copy (copy)');
   assert.ok(Array.from(suggestCopyName('🎮'.repeat(120))).length <= 120);
+
+  const source = { ...project, futureAnimation: { tracks: [{ opaque: true }] } };
+  const sourceJson = JSON.stringify(source);
+  const added = addNode(source, source.scenes[0].id, 'text');
+  const second = addNode(added.project, source.scenes[1].id, 'text');
+  assert.notEqual(added.id, second.id, 'new IDs must be project-wide unique');
+  assert.equal(JSON.stringify(source), sourceJson, 'editing helpers do not mutate the source');
+  const scene = added.project.scenes[0];
+  const moved = moveNode(added.project, scene.id, added.id, 540, 960);
+  const movedNode = moved.scenes[0].nodes.find(node => node.id === added.id);
+  assert.equal(movedNode.layout.x.unit, '%');
+  assert.equal(movedNode.layout.x.value, 50);
+  assert.equal(movedNode.layout.y.value, 50);
+  assert.deepEqual(moved.futureAnimation, source.futureAnimation);
+  assert.deepEqual(moved, JSON.parse(fs.readFileSync(path.join(root, 'src-tauri/tests/fixtures/theme_studio/canvas-project.json'), 'utf8')), 'generated canvas document matches the fixture validated by Rust');
+  assert.deepEqual(pointerToScene(60, 120, { left: 10, top: 20, width: 100, height: 200 }, scene), { x: 540, y: 960 });
+  assert.equal(pointerToScene(0, 0, { left: 0, top: 0, width: 0, height: 200 }, scene), null);
+  const dimension = { value: 50, unit: '%', futureAnchor: 'preserve me' };
+  assert.equal(positionFromPixels(dimension, 540, 1080).futureAnchor, 'preserve me');
+  assert.equal(pixels(dimension, 1080), 540);
+  assert.deepEqual(moveNode(source, source.scenes[0].id, 'missing', 0, 0), source);
+  const nested = JSON.parse(JSON.stringify(added.project));
+  nested.scenes[0].nodes[0].children = [added.id];
+  assert.equal(rootNodes(nested.scenes[0]).some(node => node.id === added.id), false);
+  assert.equal(updateNode(nested, scene.id, added.id, node => ({ ...node, name: 'not allowed' })), nested, 'nested layers are retained read-only');
+  assert.equal(previewColor('url(https://untrusted/image.svg)', '#ffffff'), '#ffffff');
+  assert.equal(previewColor('00ff0080', '#ffffff'), '#00ff0080');
+
+  const history = new EditHistory();
+  assert.ok(history.record(source, added.project, 'Add text'));
+  assert.ok(history.record(added.project, moved, 'Move text', 'drag-1'));
+  const movedAgain = moveNode(moved, scene.id, added.id, 700, 800);
+  history.record(moved, movedAgain, 'Move text', 'drag-1');
+  const undidDrag = history.undo(movedAgain);
+  assert.deepEqual(undidDrag, added.project, 'a grouped operation undoes in one step');
+  assert.deepEqual(history.undo(undidDrag), source);
+  const redidAdd = history.redo(source); assert.deepEqual(redidAdd, added.project);
+  history.record(redidAdd, second.project, 'Branch edit');
+  assert.equal(history.canRedo, false, 'a new edit invalidates the redo branch');
+  const bounded = new EditHistory(1);
+  bounded.record(source, added.project, 'Add'); bounded.record(added.project, moved, 'Move');
+  const previous = bounded.undo(moved); assert.deepEqual(previous, added.project);
+  assert.equal(bounded.undo(previous), null);
+
+  // Undo during a queued write must persist the reverted source as the next revision.
+  let historyStored = record(); let unblockHistory;
+  const held = new Promise(resolve => { unblockHistory = resolve; });
+  let historyWrites = 0;
+  const historySession = new ProjectSession(historyStored, project, async (id, revision, json, kind) => {
+    if (++historyWrites === 1) await held;
+    assert.equal(revision, historyStored.revision);
+    historyStored = { ...historyStored, revision: revision + 1, savedJson: kind === 'checkpoint' ? json : historyStored.savedJson, draftJson: kind === 'checkpoint' ? null : json };
+    return historyStored;
+  });
+  const historyAdd = addNode(project, project.scenes[0].id, 'panel');
+  historySession.edit(historyAdd.project, 'Add panel');
+  const historyFlush = historySession.flush(); await Promise.resolve(); await Promise.resolve();
+  historySession.undo(); unblockHistory(); await historyFlush;
+  assert.deepEqual(JSON.parse(historyStored.draftJson), project);
+  historySession.redo(); await historySession.save();
+  historySession.undo(); await historySession.flush();
+  assert.deepEqual(JSON.parse(historyStored.savedJson), historyAdd.project, 'undo changes the draft, not the explicit checkpoint');
+  assert.deepEqual(JSON.parse(historyStored.draftJson), project);
 
   let stored = record();
   const calls = [];
@@ -146,6 +209,27 @@ async function main() {
     for (const region of ['Scenes and layers', 'Scene canvas', 'Properties inspector', 'Animation timeline']) assert.ok(editor.includes(region));
     assert.match(editor, /Autosaved|Saved checkpoint/);
     assert.match(editor, /Native support is unverified/);
+    assert.match(editor, /Add text/); assert.match(editor, /Add panel/); assert.match(editor, />Undo</);
+    const safeProject = addNode(project, project.scenes[0].id, 'text');
+    const safeNode = safeProject.project.scenes[0].nodes.find(node => node.id === safeProject.id);
+    safeNode.style.text = '<script>alert(1)</script>'; safeNode.style.color = 'url(https://untrusted)';
+    const canvas = render('theme-studio/SceneCanvas', { scene: safeProject.project.scenes[0], selected: safeNode.id, disabled: false, onSelect() {}, onMove() {}, onEndGroup() {} });
+    assert.match(canvas, /&lt;script&gt;/); assert.ok(!canvas.includes('<script>'));
+    assert.ok(!canvas.includes('https://untrusted'));
+    const inspector = render('theme-studio/NodeInspector', { scene: safeProject.project.scenes[0], node: safeNode, disabled: false, onChange() {}, onEnd() {} });
+    assert.match(inspector, /X position/); assert.match(inspector, /Font size/);
+    const longText = { ...safeNode, style: { ...safeNode.style, text: 'A'.repeat(501) } };
+    assert.match(render('theme-studio/NodeInspector', { scene: safeProject.project.scenes[0], node: longText, disabled: false, onChange() {}, onEnd() {} }), /preserved read-only/);
+    const unknownText = { ...safeNode, style: { ...safeNode.style, text: { futureExpression: 'kept' } } };
+    assert.match(render('theme-studio/NodeInspector', { scene: safeProject.project.scenes[0], node: unknownText, disabled: false, onChange() {}, onEnd() {} }), /preserved read-only/);
+    let renamedLayer;
+    const originalLayer = project.scenes[0].nodes[0];
+    const layerForm = component('theme-studio/NodeInspector')({ scene: project.scenes[0], node: originalLayer, disabled: false, onChange(node) { renamedLayer = node; }, onEnd() {} });
+    const propertyFields = layerForm.props.children.find(child => child?.type === 'fieldset');
+    const nameLabel = propertyFields.props.children.find(child => child?.type === 'label');
+    nameLabel.props.children.find(child => child?.type === 'input').props.onChange({ target: { value: 'Renamed layer' } });
+    assert.equal(renamedLayer.name, 'Renamed layer');
+    assert.equal(renamedLayer.style.text, originalLayer.name, 'renaming a legacy layer keeps its displayed caption');
     const browser = render('theme-studio/ProjectBrowser', { projects: [], busy: false, offset: 0, onNew() {}, onOpen() {}, onDuplicate() {}, onPage() {}, onRefresh() {} });
     assert.match(browser, /No projects yet/);
     let submitted = null; let cancelled = false;
@@ -174,7 +258,7 @@ async function main() {
     const fallback = render('ThemeStudio', { native: false, leaveGuard: { current: null } });
     assert.match(fallback, /No emulator installation or cloud account is required/);
   } finally { Module._load = originalLoad; }
-  console.log('Theme workspace: creation, serialized saves, close regression, copy naming/confirmation and React rendering passed.');
+  console.log('Theme workspace: creation, saves/close/copy regressions, scene editing, bounded history/in-flight undo and safe React/SVG rendering passed.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => {
   assert.equal(path.dirname(output), cache); assert.ok(path.basename(output).startsWith('theme-workspace-'));

@@ -1,5 +1,7 @@
 # Theme Studio security boundaries
 
+Canvas preview renders allowlisted SVG text/rectangles using finite validated geometry, strict hex colors, bounded text/font sizes and a system font. It never spreads arbitrary style objects, evaluates bindings/scripts, renders supplied SVG, or loads asset paths/URLs. Unknown text/color/font expressions and nested/future nodes are retained read-only. History is bounded and local to a session; no new filesystem/IPC authority. Native pointer/keyboard interaction QA remains pending. [Details](canvas.md).
+
 Native close fix grants core:window:allow-destroy to the existing main-window capability because the SDK's awaited close handler needs that command after persistence succeeds. It adds no arbitrary filesystem, shell or installation access. The handler never re-requests close; failed saves still cancel. The permission change requires a native restart. Regression tests stub native IPC and never destroy the user's running window or access their catalog.
 
 PR 4 adds pure capability analysis and read-only detection. Callers cannot supply a verified engine profile or writable path through IPC. No production adapter is enabled; reports always disable export/deploy, including truncated/unknown/unsupported cases. Detection reuses presence/layout reads and never claims a share ID or updates installation records. Exact-profile fixtures are synthetic only. [Evidence](target-matrix.md).

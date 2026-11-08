@@ -5,6 +5,28 @@ const BLANK: &str = include_str!("../../tests/fixtures/theme_studio/blank.json")
 const STARTER: &str = include_str!("../../tests/fixtures/theme_studio/starter.json");
 const FUTURE: &str = include_str!("../../tests/fixtures/theme_studio/future-extensions.json");
 
+#[test]
+fn canvas_generated_document_is_valid_and_keeps_future_fields() {
+    let source = include_str!("../../tests/fixtures/theme_studio/canvas-project.json");
+    let project = parse_project(source).unwrap();
+    let text = project.scenes[0]
+        .nodes
+        .iter()
+        .find(|n| n.id == "text-1")
+        .unwrap();
+    assert_eq!(text.layout.x.unit, "%");
+    assert_eq!(text.layout.x.value, 50.0);
+    assert_eq!(text.style["text"], serde_json::json!("Your text"));
+    assert_eq!(
+        project.extra["futureAnimation"],
+        serde_json::json!({"tracks":[{"opaque":true}]})
+    );
+    assert_eq!(
+        parse_project(&serde_json::to_string(&project).unwrap()).unwrap(),
+        project
+    );
+}
+
 fn edited(edit: impl FnOnce(&mut Value)) -> Result<ThemeProject, Vec<Issue>> {
     let mut value: Value = serde_json::from_str(STARTER).unwrap();
     edit(&mut value);
