@@ -45,7 +45,16 @@ pub struct SindenPreview {
 }
 
 fn has_program(dir: &Path) -> bool {
-    fs::read_dir(dir).map(|entries| entries.flatten().any(|e| e.file_name().to_string_lossy().eq_ignore_ascii_case(PROGRAM) && e.path().is_file())).unwrap_or(false)
+    fs::read_dir(dir)
+        .map(|entries| {
+            entries.flatten().any(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .eq_ignore_ascii_case(PROGRAM)
+                    && e.path().is_file()
+            })
+        })
+        .unwrap_or(false)
 }
 
 /// The Sinden status of every RetroBat installation (reads only).
@@ -73,11 +82,16 @@ fn files_below(dir: &Path) -> Result<Vec<(String, PathBuf, u64)>, String> {
     let mut total = 0u64;
     let mut stack = vec![(dir.to_path_buf(), String::new())];
     while let Some((folder, prefix)) = stack.pop() {
-        let entries = fs::read_dir(&folder).map_err(|e| format!("Couldn't read {}: {e}", folder.display()))?;
+        let entries = fs::read_dir(&folder)
+            .map_err(|e| format!("Couldn't read {}: {e}", folder.display()))?;
         for entry in entries.flatten() {
             let meta = fs::symlink_metadata(entry.path()).map_err(|e| e.to_string())?;
             let name = entry.file_name().to_string_lossy().to_string();
-            let rel = if prefix.is_empty() { name.clone() } else { format!("{prefix}/{name}") };
+            let rel = if prefix.is_empty() {
+                name.clone()
+            } else {
+                format!("{prefix}/{name}")
+            };
             if meta.file_type().is_symlink() {
                 continue;
             } else if meta.is_dir() {
@@ -110,12 +124,28 @@ fn plan(source: &Path, target: &Path) -> Result<(SindenPreview, Vec<(PathBuf, Pa
     if same_place(source, target) {
         return Err("That's RetroBat's own Sinden folder (or a folder inside it). Choose the folder you downloaded the Sinden software to.".into());
     }
-    let mut preview = SindenPreview { source: source.display().to_string(), target: target.display().to_string(), to_copy: 0, bytes: 0, already_there: 0, kept: Vec::new(), kept_count: 0 };
+    let mut preview = SindenPreview {
+        source: source.display().to_string(),
+        target: target.display().to_string(),
+        to_copy: 0,
+        bytes: 0,
+        already_there: 0,
+        kept: Vec::new(),
+        kept_count: 0,
+    };
     let mut copies = Vec::new();
     for (rel, src, size) in files_below(source)? {
-        let dest = rel.split('/').fold(target.to_path_buf(), |p, part| p.join(part));
+        let dest = rel
+            .split('/')
+            .fold(target.to_path_buf(), |p, part| p.join(part));
         match fs::symlink_metadata(&dest) {
-            Ok(m) if m.is_file() && m.len() == size && copier::sha256_of(&dest).ok() == copier::sha256_of(&src).ok() => preview.already_there += 1,
+            Ok(m)
+                if m.is_file()
+                    && m.len() == size
+                    && copier::sha256_of(&dest).ok() == copier::sha256_of(&src).ok() =>
+            {
+                preview.already_there += 1
+            }
             Ok(_) => {
                 preview.kept_count += 1;
                 if preview.kept.len() < LIST_LIMIT {
@@ -132,34 +162,75 @@ fn plan(source: &Path, target: &Path) -> Result<(SindenPreview, Vec<(PathBuf, Pa
     Ok((preview, copies))
 }
 
-fn target_for(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<PathBuf, String> {
-    let install = customizer::install_for(connection, installation_id, presence, &["retrobat"], "The Sinden software folder is a RetroBat feature.")?;
+fn target_for(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<PathBuf, String> {
+    let install = customizer::install_for(
+        connection,
+        installation_id,
+        presence,
+        &["retrobat"],
+        "The Sinden software folder is a RetroBat feature.",
+    )?;
     if !install.root.join("system").is_dir() {
-        return Err("This RetroBat folder has no system folder. Start RetroBat once, then try again.".into());
+        return Err(
+            "This RetroBat folder has no system folder. Start RetroBat once, then try again."
+                .into(),
+        );
     }
     Ok(sinden_dir(&install.root))
 }
 
 /// What copying the Sinden software from `source` would do (reads only).
-pub fn preview(connection: &Connection, installation_id: &str, source: &Path, presence: PresenceFn) -> Result<SindenPreview, String> {
+pub fn preview(
+    connection: &Connection,
+    installation_id: &str,
+    source: &Path,
+    presence: PresenceFn,
+) -> Result<SindenPreview, String> {
     plan(source, &target_for(connection, installation_id, presence)?).map(|(p, _)| p)
 }
 
 /// Copy the Sinden software's missing files (new files only; nothing replaced or deleted).
-pub fn apply(connection: &Connection, installation_id: &str, source: &Path, presence: PresenceFn, progress: gamelists::ProgressFn) -> Result<String, String> {
+pub fn apply(
+    connection: &Connection,
+    installation_id: &str,
+    source: &Path,
+    presence: PresenceFn,
+    progress: gamelists::ProgressFn,
+) -> Result<String, String> {
     let target = target_for(connection, installation_id, presence)?;
     let (preview, copies) = plan(source, &target)?;
     if copies.is_empty() {
         return Err("Nothing to copy: the Sinden software is already there.".into());
     }
-    let results = gamelists::parallel_map(&copies, "copying", |(src, dst)| if fs::symlink_metadata(dst).is_err() { gamelists::copy_image(src, dst) } else { Ok(()) }, progress);
+    let results = gamelists::parallel_map(
+        &copies,
+        "copying",
+        |(src, dst)| {
+            if fs::symlink_metadata(dst).is_err() {
+                gamelists::copy_image(src, dst)
+            } else {
+                Ok(())
+            }
+        },
+        progress,
+    );
     let failed: Vec<String> = results.into_iter().filter_map(Result::err).collect();
     let mut message = format!("Copied {} file(s) of the Sinden software to {}. RetroBat starts it when you play a light gun game.", copies.len() - failed.len(), preview.target);
     if preview.kept_count > 0 {
-        message.push_str(&format!(" {} different file(s) already there were kept.", preview.kept_count));
+        message.push_str(&format!(
+            " {} different file(s) already there were kept.",
+            preview.kept_count
+        ));
     }
     if let Some(first) = failed.first() {
-        message.push_str(&format!(" {} couldn't be copied (first: {first}).", failed.len()));
+        message.push_str(&format!(
+            " {} couldn't be copied (first: {first}).",
+            failed.len()
+        ));
     }
     Ok(message)
 }
@@ -188,26 +259,51 @@ mod tests {
         fs::create_dir_all(rb.join("roms/snes")).unwrap();
         let mut c = Connection::open_in_memory().unwrap();
         db::migrate(&mut c, None).unwrap();
-        let id = installations::add(&c, &rb, "retrobat", &|_: &str| VolumeProbe::unknown()).unwrap();
+        let id =
+            installations::add(&c, &rb, "retrobat", &|_: &str| VolumeProbe::unknown()).unwrap();
         let connected = |_: &str, _: Option<&str>| Presence::Connected;
 
-        assert!(preview(&c, &id, &download, &connected).unwrap_err().contains("system folder"), "RetroBat never started");
+        assert!(
+            preview(&c, &id, &download, &connected)
+                .unwrap_err()
+                .contains("system folder"),
+            "RetroBat never started"
+        );
         fs::create_dir_all(rb.join("system")).unwrap();
         assert!(!status(&c, &connected).unwrap()[0].installed);
         // The wrong folder: no Lightgun.exe.
-        assert!(preview(&c, &id, &rb, &connected).unwrap_err().contains("Lightgun.exe"));
+        assert!(preview(&c, &id, &rb, &connected)
+            .unwrap_err()
+            .contains("Lightgun.exe"));
         // A different file already there is kept.
         write(&rb, "system/tools/sinden/Lightgun.exe.config", b"<mine/>");
         let p = preview(&c, &id, &download, &connected).unwrap();
-        assert_eq!((p.to_copy, p.already_there, p.kept_count), (2, 0, 1), "{p:?}");
+        assert_eq!(
+            (p.to_copy, p.already_there, p.kept_count),
+            (2, 0, 1),
+            "{p:?}"
+        );
         let message = apply(&c, &id, &download, &connected, &|_, _, _| {}).unwrap();
-        assert!(message.contains("Copied 2 file(s)") && message.contains("kept"), "{message}");
-        assert_eq!(fs::read(rb.join("system/tools/sinden/lib/AForge.dll")).unwrap(), b"dll");
-        assert_eq!(fs::read(rb.join("system/tools/sinden/Lightgun.exe.config")).unwrap(), b"<mine/>", "not replaced");
+        assert!(
+            message.contains("Copied 2 file(s)") && message.contains("kept"),
+            "{message}"
+        );
+        assert_eq!(
+            fs::read(rb.join("system/tools/sinden/lib/AForge.dll")).unwrap(),
+            b"dll"
+        );
+        assert_eq!(
+            fs::read(rb.join("system/tools/sinden/Lightgun.exe.config")).unwrap(),
+            b"<mine/>",
+            "not replaced"
+        );
         assert!(status(&c, &connected).unwrap()[0].installed);
-        assert!(apply(&c, &id, &download, &connected, &|_, _, _| {}).unwrap_err().contains("already there"));
+        assert!(apply(&c, &id, &download, &connected, &|_, _, _| {})
+            .unwrap_err()
+            .contains("already there"));
         // Choosing RetroBat's own Sinden folder as the source is refused.
-        assert!(preview(&c, &id, &sinden_dir(&rb), &connected).unwrap_err().contains("own Sinden folder"));
+        assert!(preview(&c, &id, &sinden_dir(&rb), &connected)
+            .unwrap_err()
+            .contains("own Sinden folder"));
     }
 }
-

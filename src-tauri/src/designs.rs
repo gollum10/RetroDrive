@@ -30,14 +30,38 @@ use std::path::{Path, PathBuf};
 /// and in batocera-emulationstation's Settings.cpp/AudioManager.cpp, 2026-11-06),
 /// with their element type and allowed values.
 pub const MUSIC_SETTINGS: [(&str, &str, &str); 8] = [
-    ("audio.bgmusic", "bool", "Frontend music (play music in the menus)"),
-    ("audio.persystem", "bool", "Only play system-specific music folder"),
-    ("audio.thememusics", "bool", "Play system-specific music (from the theme)"),
+    (
+        "audio.bgmusic",
+        "bool",
+        "Frontend music (play music in the menus)",
+    ),
+    (
+        "audio.persystem",
+        "bool",
+        "Only play system-specific music folder",
+    ),
+    (
+        "audio.thememusics",
+        "bool",
+        "Play system-specific music (from the theme)",
+    ),
     ("audio.display_titles", "bool", "Show song titles"),
-    ("audio.display_titles_time", "int", "How long titles show (seconds)"),
+    (
+        "audio.display_titles_time",
+        "int",
+        "How long titles show (seconds)",
+    ),
     ("MusicVolume", "int", "Music volume (%)"),
-    ("StopMusicOnScreenSaver", "bool", "Stop music in the screensaver"),
-    ("VideoLowersMusic", "bool", "Lower music while game videos play"),
+    (
+        "StopMusicOnScreenSaver",
+        "bool",
+        "Stop music in the screensaver",
+    ),
+    (
+        "VideoLowersMusic",
+        "bool",
+        "Lower music while game videos play",
+    ),
 ];
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -121,7 +145,15 @@ pub fn list(connection: &Connection) -> Result<Vec<Design>, String> {
         .map_err(|e| e.to_string())?;
     let rows = statement
         .query_map([], |r| {
-            Ok(Design { id: r.get(0)?, name: r.get(1)?, platform: r.get(2)?, spec: parse(r.get(3)?), draft: parse(r.get(4)?), updated_at: r.get(5)?, finished_at: r.get(6)? })
+            Ok(Design {
+                id: r.get(0)?,
+                name: r.get(1)?,
+                platform: r.get(2)?,
+                spec: parse(r.get(3)?),
+                draft: parse(r.get(4)?),
+                updated_at: r.get(5)?,
+                finished_at: r.get(6)?,
+            })
         })
         .map_err(|e| e.to_string())?;
     rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
@@ -129,7 +161,11 @@ pub fn list(connection: &Connection) -> Result<Vec<Design>, String> {
 
 fn name_taken(connection: &Connection, name: &str, except: Option<&str>) -> Result<bool, String> {
     connection
-        .query_row("SELECT EXISTS (SELECT 1 FROM designs WHERE name = ?1 COLLATE NOCASE AND id IS NOT ?2)", params![name, except], |r| r.get(0))
+        .query_row(
+            "SELECT EXISTS (SELECT 1 FROM designs WHERE name = ?1 COLLATE NOCASE AND id IS NOT ?2)",
+            params![name, except],
+            |r| r.get(0),
+        )
         .map_err(|e| e.to_string())
 }
 
@@ -141,13 +177,25 @@ pub fn create(connection: &Connection, name: &str, seed: DesignSpec) -> Result<S
     }
     let id = db::new_id();
     connection
-        .execute("INSERT INTO designs (id, name, platform, draft_json) VALUES (?1, ?2, 'retrobat', ?3)", params![id, name, serde_json::to_string(&seed).map_err(|e| e.to_string())?])
+        .execute(
+            "INSERT INTO designs (id, name, platform, draft_json) VALUES (?1, ?2, 'retrobat', ?3)",
+            params![
+                id,
+                name,
+                serde_json::to_string(&seed).map_err(|e| e.to_string())?
+            ],
+        )
         .map_err(|e| e.to_string())?;
     Ok(id)
 }
 
 /// Save edits to the draft (starting one from the finished design if needed). Never touches RetroBat.
-pub fn save_draft(connection: &Connection, id: &str, name: &str, draft: &DesignSpec) -> Result<(), String> {
+pub fn save_draft(
+    connection: &Connection,
+    id: &str,
+    name: &str,
+    draft: &DesignSpec,
+) -> Result<(), String> {
     let name = clean_name(name)?;
     if name_taken(connection, &name, Some(id))? {
         return Err(format!("You already have a design called \"{name}\"."));
@@ -168,7 +216,10 @@ pub fn save_draft(connection: &Connection, id: &str, name: &str, draft: &DesignS
 fn check_shape(spec: &DesignSpec) -> Result<(), String> {
     if let Some(ThemeChoice::Remix { name, colors, .. }) = &spec.theme {
         themes::folder_for(name)?;
-        if colors.values().any(|v| !((v.len() == 6 || v.len() == 8) && v.chars().all(|c| c.is_ascii_hexdigit()))) {
+        if colors
+            .values()
+            .any(|v| !((v.len() == 6 || v.len() == 8) && v.chars().all(|c| c.is_ascii_hexdigit())))
+        {
             return Err("Theme colors must be RRGGBB or RRGGBBAA.".into());
         }
     }
@@ -176,7 +227,9 @@ fn check_shape(spec: &DesignSpec) -> Result<(), String> {
         if tracks.is_empty() {
             return Err("Choose at least one track to play, or turn menu music off.".into());
         }
-        if tracks.iter().any(|t| t.contains("..") || t.contains(['\\', ':', ';', '\n', '\r']) || t.starts_with('/')) {
+        if tracks.iter().any(|t| {
+            t.contains("..") || t.contains(['\\', ':', ';', '\n', '\r']) || t.starts_with('/')
+        }) {
             return Err("A track name isn't valid.".into());
         }
     }
@@ -192,10 +245,15 @@ fn check_shape(spec: &DesignSpec) -> Result<(), String> {
         }
     }
     for (key, value) in &spec.music {
-        let (_, kind, _) = MUSIC_SETTINGS.iter().find(|(k, _, _)| k == key).ok_or(format!("RetroDrive doesn't change {key}."))?;
+        let (_, kind, _) = MUSIC_SETTINGS
+            .iter()
+            .find(|(k, _, _)| k == key)
+            .ok_or(format!("RetroDrive doesn't change {key}."))?;
         let ok = match *kind {
             "bool" => value == "true" || value == "false",
-            _ => value.parse::<u32>().is_ok_and(|n| n <= if key == "MusicVolume" { 100 } else { 60 }),
+            _ => value
+                .parse::<u32>()
+                .is_ok_and(|n| n <= if key == "MusicVolume" { 100 } else { 60 }),
         };
         if !ok {
             return Err(format!("{value} isn't valid for {key}."));
@@ -206,7 +264,13 @@ fn check_shape(spec: &DesignSpec) -> Result<(), String> {
 
 /// Make the draft the design.
 pub fn finish(connection: &Connection, id: &str) -> Result<(), String> {
-    let draft: Option<String> = connection.query_row("SELECT draft_json FROM designs WHERE id = ?1", [id], |r| r.get(0)).optional().map_err(|e| e.to_string())?.ok_or("That design wasn't found.")?;
+    let draft: Option<String> = connection
+        .query_row("SELECT draft_json FROM designs WHERE id = ?1", [id], |r| {
+            r.get(0)
+        })
+        .optional()
+        .map_err(|e| e.to_string())?
+        .ok_or("That design wasn't found.")?;
     let spec = parse(draft).ok_or("There's nothing to finish.")?;
     check_shape(&spec)?;
     connection
@@ -217,11 +281,18 @@ pub fn finish(connection: &Connection, id: &str) -> Result<(), String> {
 
 /// Throw away the draft. A design that was never finished is removed. Returns whether the design still exists.
 pub fn abandon(connection: &Connection, id: &str) -> Result<bool, String> {
-    let finished: Option<Option<String>> = connection.query_row("SELECT spec_json FROM designs WHERE id = ?1", [id], |r| r.get(0)).optional().map_err(|e| e.to_string())?;
+    let finished: Option<Option<String>> = connection
+        .query_row("SELECT spec_json FROM designs WHERE id = ?1", [id], |r| {
+            r.get(0)
+        })
+        .optional()
+        .map_err(|e| e.to_string())?;
     match finished {
         None => Err("That design wasn't found.".into()),
         Some(None) => {
-            connection.execute("DELETE FROM designs WHERE id = ?1", [id]).map_err(|e| e.to_string())?;
+            connection
+                .execute("DELETE FROM designs WHERE id = ?1", [id])
+                .map_err(|e| e.to_string())?;
             Ok(false)
         }
         Some(Some(_)) => {
@@ -233,17 +304,32 @@ pub fn abandon(connection: &Connection, id: &str) -> Result<bool, String> {
 
 /// Delete a design from RetroDrive (nothing on any drive changes).
 pub fn delete(connection: &Connection, id: &str) -> Result<bool, String> {
-    connection.execute("DELETE FROM designs WHERE id = ?1", [id]).map(|n| n > 0).map_err(|e| e.to_string())
+    connection
+        .execute("DELETE FROM designs WHERE id = ?1", [id])
+        .map(|n| n > 0)
+        .map_err(|e| e.to_string())
 }
 
 /// A starting point from an installation's current setup (reads only).
-pub fn seed_from(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<DesignSpec, String> {
+pub fn seed_from(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<DesignSpec, String> {
     let install = customizer::install(connection, installation_id, presence)?;
-    let es = customizer::values(&customizer::entries(&customizer::read_text(&install.root.join(customizer::SETTINGS))?)?)?;
+    let es = customizer::values(&customizer::entries(&customizer::read_text(
+        &install.root.join(customizer::SETTINGS),
+    )?)?)?;
     let ini = customizer::ini_entries(&customizer::read_text(&install.root.join(customizer::INI))?);
     let on_drive = customizer::theme_folders(&install.root);
-    let theme = es.get("ThemeSet").filter(|f| on_drive.contains(f)).map(|f| ThemeChoice::Existing { folder: f.clone() });
-    let mut spec = DesignSpec { theme, ..DesignSpec::default() };
+    let theme = es
+        .get("ThemeSet")
+        .filter(|f| on_drive.contains(f))
+        .map(|f| ThemeChoice::Existing { folder: f.clone() });
+    let mut spec = DesignSpec {
+        theme,
+        ..DesignSpec::default()
+    };
     for o in customizer::ini_options() {
         let key = format!("{}.{}", o.section, o.key);
         if let Some((value, _, _)) = ini.get(&key) {
@@ -256,7 +342,8 @@ pub fn seed_from(connection: &Connection, installation_id: &str, presence: Prese
         }
     }
     if es.get("audio.useFavoriteMusic").map(String::as_str) == Some("true") {
-        spec.play_tracks = customizer::favorite_tracks(&install.root, &install.root_text).filter(|t| !t.is_empty());
+        spec.play_tracks = customizer::favorite_tracks(&install.root, &install.root_text)
+            .filter(|t| !t.is_empty());
     }
     for (name, value) in &es {
         if let Some((_, key)) = name.rsplit_once('.') {
@@ -278,11 +365,30 @@ pub struct MusicSetting {
 }
 
 /// The music settings offered, with this RetroBat's current values (reads only).
-pub fn music_settings(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<Vec<MusicSetting>, String> {
+pub fn music_settings(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<Vec<MusicSetting>, String> {
     let install = customizer::install(connection, installation_id, presence)?;
-    let es = customizer::values(&customizer::entries(&customizer::read_text(&install.root.join(customizer::SETTINGS))?)?)?;
-    let mut list: Vec<MusicSetting> = MUSIC_SETTINGS.iter().map(|(key, kind, label)| MusicSetting { key, kind, label, current: es.get(*key).cloned() }).collect();
-    list.push(MusicSetting { key: "audio.useFavoriteMusic", kind: "bool", label: "Play only songs from your favorites playlist", current: es.get("audio.useFavoriteMusic").cloned() });
+    let es = customizer::values(&customizer::entries(&customizer::read_text(
+        &install.root.join(customizer::SETTINGS),
+    )?)?)?;
+    let mut list: Vec<MusicSetting> = MUSIC_SETTINGS
+        .iter()
+        .map(|(key, kind, label)| MusicSetting {
+            key,
+            kind,
+            label,
+            current: es.get(*key).cloned(),
+        })
+        .collect();
+    list.push(MusicSetting {
+        key: "audio.useFavoriteMusic",
+        kind: "bool",
+        label: "Play only songs from your favorites playlist",
+        current: es.get("audio.useFavoriteMusic").cloned(),
+    });
     Ok(list)
 }
 
@@ -332,12 +438,34 @@ struct Plan {
 }
 
 fn finished_spec(connection: &Connection, id: &str) -> Result<(String, DesignSpec), String> {
-    let (name, spec): (String, Option<String>) = connection.query_row("SELECT name, spec_json FROM designs WHERE id = ?1", [id], |r| Ok((r.get(0)?, r.get(1)?))).optional().map_err(|e| e.to_string())?.ok_or("That design wasn't found.")?;
-    Ok((name, parse(spec).ok_or("Finish the design before applying it.")?))
+    let (name, spec): (String, Option<String>) = connection
+        .query_row(
+            "SELECT name, spec_json FROM designs WHERE id = ?1",
+            [id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?
+        .ok_or("That design wasn't found.")?;
+    Ok((
+        name,
+        parse(spec).ok_or("Finish the design before applying it.")?,
+    ))
 }
 
 fn file_name(path: &Path) -> String {
-    path.file_name().and_then(|n| n.to_str()).unwrap_or("file").chars().map(|c| if c.is_control() || r#"<>:"/\|?*"#.contains(c) { '_' } else { c }).collect()
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("file")
+        .chars()
+        .map(|c| {
+            if c.is_control() || r#"<>:"/\|?*"#.contains(c) {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect()
 }
 
 /// `add`, `already_there` (identical file), or an error when a different file has that name.
@@ -347,12 +475,26 @@ fn file_action(source: &Path, target: &Path) -> Result<&'static str, String> {
     }
     match fs::symlink_metadata(target) {
         Err(_) => Ok("add"),
-        Ok(_) if copier::sha256_of(source).ok() == copier::sha256_of(target).ok() => Ok("already_there"),
-        Ok(_) => Err(format!("A different file called {} is already in {}; rename yours in the design.", file_name(source), target.parent().map(|p| p.display().to_string()).unwrap_or_default())),
+        Ok(_) if copier::sha256_of(source).ok() == copier::sha256_of(target).ok() => {
+            Ok("already_there")
+        }
+        Ok(_) => Err(format!(
+            "A different file called {} is already in {}; rename yours in the design.",
+            file_name(source),
+            target
+                .parent()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default()
+        )),
     }
 }
 
-fn plan(connection: &Connection, design_id: &str, installation_id: &str, presence: PresenceFn) -> Result<Plan, String> {
+fn plan(
+    connection: &Connection,
+    design_id: &str,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<Plan, String> {
     let (design_name, spec) = finished_spec(connection, design_id)?;
     check_shape(&spec)?;
     let install = customizer::install(connection, installation_id, presence)?;
@@ -377,16 +519,37 @@ fn plan(connection: &Connection, design_id: &str, installation_id: &str, presenc
             theme_action = Some("existing".to_string());
             theme_folder = Some(folder.clone());
         }
-        Some(ThemeChoice::Remix { base, name, colors, images, fonts }) => {
-            let r = themes::Remix { base: base.clone(), name: name.clone(), colors: colors.clone(), images: images.clone(), fonts: fonts.clone(), design: Some(design_id.to_string()) };
+        Some(ThemeChoice::Remix {
+            base,
+            name,
+            colors,
+            images,
+            fonts,
+        }) => {
+            let r = themes::Remix {
+                base: base.clone(),
+                name: name.clone(),
+                colors: colors.clone(),
+                images: images.clone(),
+                fonts: fonts.clone(),
+                design: Some(design_id.to_string()),
+            };
             let folder = themes::folder_for(name)?;
             if !themes_on_drive.contains(base) {
-                return Err(format!("The design remixes {base}, which isn't on this RetroBat."));
+                return Err(format!(
+                    "The design remixes {base}, which isn't on this RetroBat."
+                ));
             }
-            let existing = themes_on_drive.iter().find(|t| t.eq_ignore_ascii_case(&folder)).cloned();
+            let existing = themes_on_drive
+                .iter()
+                .find(|t| t.eq_ignore_ascii_case(&folder))
+                .cloned();
             match existing {
                 Some(found) => {
-                    let dir = install.root.join("emulationstation/.emulationstation/themes").join(&found);
+                    let dir = install
+                        .root
+                        .join("emulationstation/.emulationstation/themes")
+                        .join(&found);
                     match themes::made_by(&dir) {
                         Some((d, recipe)) if d == design_id && recipe == r.recipe() => theme_action = Some("reuse".to_string()),
                         _ => return Err(format!("A different theme called {found} is already on this RetroBat; rename the theme in the design.")),
@@ -395,7 +558,12 @@ fn plan(connection: &Connection, design_id: &str, installation_id: &str, presenc
                 }
                 None => {
                     theme_action = Some("create".to_string());
-                    theme_bytes = themes::theme_bytes(&install.root.join("emulationstation/.emulationstation/themes").join(base));
+                    theme_bytes = themes::theme_bytes(
+                        &install
+                            .root
+                            .join("emulationstation/.emulationstation/themes")
+                            .join(base),
+                    );
                     theme_folder = Some(folder);
                     remix = Some(r);
                 }
@@ -412,7 +580,13 @@ fn plan(connection: &Connection, design_id: &str, installation_id: &str, presenc
         .iter()
         // Values that already match this RetroBat aren't changes, so they aren't re-checked.
         .filter(|(k, v)| es_current.get(*k) != v.as_ref())
-        .filter_map(|(k, v)| k.rsplit_once('.').map(|(system, key)| Change { system: system.to_string(), key: key.to_string(), value: v.clone() }))
+        .filter_map(|(k, v)| {
+            k.rsplit_once('.').map(|(system, key)| Change {
+                system: system.to_string(),
+                key: key.to_string(),
+                value: v.clone(),
+            })
+        })
         .collect();
     if !changes.is_empty() {
         es_wanted.extend(customizer::validate_systems(&changes, &offer, &es_current)?);
@@ -420,37 +594,68 @@ fn plan(connection: &Connection, design_id: &str, installation_id: &str, presenc
 
     // Music settings (typed) and own music.
     for (key, value) in &spec.music {
-        let kind = MUSIC_SETTINGS.iter().find(|(k, _, _)| k == key).map(|m| m.1).unwrap_or("string");
+        let kind = MUSIC_SETTINGS
+            .iter()
+            .find(|(k, _, _)| k == key)
+            .map(|m| m.1)
+            .unwrap_or("string");
         es_tags.insert(key.clone(), if kind == "bool" { "bool" } else { "int" });
         es_wanted.insert(key.clone(), Some(value.clone()));
     }
     for m in &spec.own_music {
         let folder = match &m.system {
             None => customizer::MUSIC.to_string(),
-            Some(system) if offer.systems.iter().any(|(s, _, _)| s == system) => format!("{}/{system}", customizer::MUSIC),
+            Some(system) if offer.systems.iter().any(|(s, _, _)| s == system) => {
+                format!("{}/{system}", customizer::MUSIC)
+            }
             Some(system) => return Err(format!("{system} isn't a system in this RetroBat.")),
         };
         let source = PathBuf::from(&m.path);
         let name = file_name(&source);
-        let action = file_action(&source, &crate::paths::join(&install.root_text, &format!("{folder}/{name}")))?;
-        files.push(FilePlan { name: name.clone(), folder: folder.clone(), action: action.into() });
+        let action = file_action(
+            &source,
+            &crate::paths::join(&install.root_text, &format!("{folder}/{name}")),
+        )?;
+        files.push(FilePlan {
+            name: name.clone(),
+            folder: folder.clone(),
+            action: action.into(),
+        });
         if action == "add" {
-            copies.push((source, folder, &["ogg", "mp3"][..], "Music must be .ogg or .mp3 files."));
+            copies.push((
+                source,
+                folder,
+                &["ogg", "mp3"][..],
+                "Music must be .ogg or .mp3 files.",
+            ));
         }
     }
     // Which tracks play: RetroBat's favorites playlist, plus "play only favorites".
     let (mut tracks_playing, mut tracks_left_out, mut favorites) = (None, None, None);
     if let Some(chosen) = &spec.play_tracks {
         let mut available = customizer::music_tracks(&install.root);
-        for f in files.iter().filter(|f| f.folder.starts_with(customizer::MUSIC)) {
+        for f in files
+            .iter()
+            .filter(|f| f.folder.starts_with(customizer::MUSIC))
+        {
             let sub = f.folder[customizer::MUSIC.len()..].trim_start_matches('/');
-            available.push(if sub.is_empty() { f.name.clone() } else { format!("{sub}/{}", f.name) });
+            available.push(if sub.is_empty() {
+                f.name.clone()
+            } else {
+                format!("{sub}/{}", f.name)
+            });
         }
-        if let Some(missing) = chosen.iter().find(|t| !available.iter().any(|a| a.eq_ignore_ascii_case(t))) {
-            return Err(format!("The design plays {missing}, which isn't on this RetroBat."));
+        if let Some(missing) = chosen
+            .iter()
+            .find(|t| !available.iter().any(|a| a.eq_ignore_ascii_case(t)))
+        {
+            return Err(format!(
+                "The design plays {missing}, which isn't on this RetroBat."
+            ));
         }
         let text = customizer::favorites_text(&install.root_text, chosen);
-        let current = fs::read_to_string(install.root.join(customizer::FAVORITES)).unwrap_or_default();
+        let current =
+            fs::read_to_string(install.root.join(customizer::FAVORITES)).unwrap_or_default();
         tracks_playing = Some(chosen.len());
         tracks_left_out = Some(available.len().saturating_sub(chosen.len()));
         if text != current {
@@ -467,22 +672,48 @@ fn plan(connection: &Connection, design_id: &str, installation_id: &str, presenc
         .ini
         .iter()
         .filter(|(k, v)| ini_now.get(*k).map(|e| &e.0) != Some(*v))
-        .filter_map(|(k, v)| k.split_once('.').map(|(section, key)| IniChange { section: section.into(), key: key.into(), value: v.clone() }))
+        .filter_map(|(k, v)| {
+            k.split_once('.').map(|(section, key)| IniChange {
+                section: section.into(),
+                key: key.into(),
+                value: v.clone(),
+            })
+        })
         .collect();
     let mut extra_videos = Vec::new();
     if let Some(video) = &spec.own_video {
         let source = PathBuf::from(video);
         let name = file_name(&source);
-        let action = file_action(&source, &crate::paths::join(&install.root_text, &format!("{}/{name}", customizer::VIDEOS)))?;
-        files.push(FilePlan { name: name.clone(), folder: customizer::VIDEOS.into(), action: action.into() });
+        let action = file_action(
+            &source,
+            &crate::paths::join(
+                &install.root_text,
+                &format!("{}/{name}", customizer::VIDEOS),
+            ),
+        )?;
+        files.push(FilePlan {
+            name: name.clone(),
+            folder: customizer::VIDEOS.into(),
+            action: action.into(),
+        });
         if action == "add" {
-            copies.push((source, customizer::VIDEOS.to_string(), &["mp4"][..], "Boot videos must be .mp4 files."));
+            copies.push((
+                source,
+                customizer::VIDEOS.to_string(),
+                &["mp4"][..],
+                "Boot videos must be .mp4 files.",
+            ));
         }
         extra_videos.push(name.clone());
         ini_changes.retain(|c| !(c.section == "SplashScreen" && c.key == "FileName"));
-        ini_changes.push(IniChange { section: "SplashScreen".into(), key: "FileName".into(), value: name });
+        ini_changes.push(IniChange {
+            section: "SplashScreen".into(),
+            key: "FileName".into(),
+            value: name,
+        });
     }
-    let (ini_wanted, ini_rows) = customizer::ini_validate(&install, &ini_text, &ini_changes, &extra_videos)?;
+    let (ini_wanted, ini_rows) =
+        customizer::ini_validate(&install, &ini_text, &ini_changes, &extra_videos)?;
 
     // Check both edits now, so nothing is written unless all of it can be.
     customizer::edit_typed(&es_text, &es_wanted, &es_tags)?;
@@ -490,7 +721,11 @@ fn plan(connection: &Connection, design_id: &str, installation_id: &str, presenc
         customizer::ini_edit(&ini_text, &ini_wanted)?;
     }
     let es_changes = customizer::rows(&es_wanted, &es_current);
-    let nothing = es_changes.is_empty() && ini_rows.is_empty() && copies.is_empty() && remix.is_none() && favorites.is_none();
+    let nothing = es_changes.is_empty()
+        && ini_rows.is_empty()
+        && copies.is_empty()
+        && remix.is_none()
+        && favorites.is_none();
     Ok(Plan {
         preview: DesignPreview {
             design: design_name,
@@ -520,13 +755,27 @@ fn plan(connection: &Connection, design_id: &str, installation_id: &str, presenc
 }
 
 /// Everything applying the design would do (reads only).
-pub fn preview(connection: &Connection, design_id: &str, installation_id: &str, presence: PresenceFn) -> Result<DesignPreview, String> {
+pub fn preview(
+    connection: &Connection,
+    design_id: &str,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<DesignPreview, String> {
     plan(connection, design_id, installation_id, presence).map(|p| p.preview)
 }
 
 /// Apply a finished design to an installation (see the module docs for the order).
 #[allow(clippy::too_many_arguments)]
-pub fn apply(connection: &Connection, design_id: &str, installation_id: &str, es_sha: &str, ini_sha: &str, presence: PresenceFn, running: RunningFn, free_space: themes::SpaceFn) -> Result<String, String> {
+pub fn apply(
+    connection: &Connection,
+    design_id: &str,
+    installation_id: &str,
+    es_sha: &str,
+    ini_sha: &str,
+    presence: PresenceFn,
+    running: RunningFn,
+    free_space: themes::SpaceFn,
+) -> Result<String, String> {
     if let Some(reason) = customizer::running_message(running) {
         return Err(format!("{reason} Nothing was changed."));
     }
@@ -545,31 +794,81 @@ pub fn apply(connection: &Connection, design_id: &str, installation_id: &str, es
         added.push(format!("theme {folder}"));
     }
     for (source, folder, exts, wrong) in &p.copies {
-        let name = customizer::add_file(connection, installation_id, &source.display().to_string(), presence, folder, exts, wrong)?;
+        let name = customizer::add_file(
+            connection,
+            installation_id,
+            &source.display().to_string(),
+            presence,
+            folder,
+            exts,
+            wrong,
+        )?;
         added.push(format!("{folder}/{name}"));
     }
     // 2. Settings files, es_settings.cfg first; undo it if retrobat.ini can't follow.
     let mut ids = Vec::new();
     if !p.es_wanted.is_empty() {
         let new_text = customizer::edit_typed(&p.es_text, &p.es_wanted, &p.es_tags)?;
-        let (_, id) = customizer::write_file(connection, &install, customizer::SETTINGS, &install.root.join(customizer::SETTINGS.replace('/', "\\")), &p.es_text, &new_text, customizer::rows(&p.es_wanted, &p.es_current))?;
+        let (_, id) = customizer::write_file(
+            connection,
+            &install,
+            customizer::SETTINGS,
+            &install.root.join(customizer::SETTINGS.replace('/', "\\")),
+            &p.es_text,
+            &new_text,
+            customizer::rows(&p.es_wanted, &p.es_current),
+        )?;
         ids.push(id);
     }
     let roll_back = |ids: &[i64], e: String| -> String {
-        let all = ids.iter().rev().all(|id| customizer::undo(connection, *id, presence, running).is_ok());
-        format!("{e} {}", if all { "The settings were put back as they were." } else { "Some settings were changed; undo them from Changes made." })
+        let all = ids
+            .iter()
+            .rev()
+            .all(|id| customizer::undo(connection, *id, presence, running).is_ok());
+        format!(
+            "{e} {}",
+            if all {
+                "The settings were put back as they were."
+            } else {
+                "Some settings were changed; undo them from Changes made."
+            }
+        )
     };
     if !p.ini_wanted.is_empty() {
         let new_text = customizer::ini_edit(&p.ini_text, &p.ini_wanted)?;
-        match customizer::write_file(connection, &install, customizer::INI, &install.root.join(customizer::INI), &p.ini_text, &new_text, p.ini_rows.clone()) {
+        match customizer::write_file(
+            connection,
+            &install,
+            customizer::INI,
+            &install.root.join(customizer::INI),
+            &p.ini_text,
+            &new_text,
+            p.ini_rows.clone(),
+        ) {
             Ok((_, id)) => ids.push(id),
             Err(e) => return Err(roll_back(&ids, e)),
         }
     }
     if let Some((text, current)) = &p.favorites {
         let path = install.root.join(customizer::FAVORITES.replace('/', "\\"));
-        let rows = vec![ChangeRow { system: String::new(), key: "favorites".into(), before: None, after: Some(format!("{} track(s)", p.preview.tracks_playing.unwrap_or(0))) }];
-        match customizer::write_file(connection, &install, customizer::FAVORITES, &path, current, text, rows) {
+        let rows = vec![ChangeRow {
+            system: String::new(),
+            key: "favorites".into(),
+            before: None,
+            after: Some(format!(
+                "{} track(s)",
+                p.preview.tracks_playing.unwrap_or(0)
+            )),
+        }];
+        match customizer::write_file(
+            connection,
+            &install,
+            customizer::FAVORITES,
+            &path,
+            current,
+            text,
+            rows,
+        ) {
             Ok((_, id)) => ids.push(id),
             Err(e) => return Err(roll_back(&ids, e)),
         }
@@ -580,7 +879,15 @@ pub fn apply(connection: &Connection, design_id: &str, installation_id: &str, es
             params![design_id, p.preview.design, installation_id, serde_json::to_string(&ids).unwrap_or_default(), serde_json::to_string(&added).unwrap_or_default()],
         )
         .map_err(|e| e.to_string())?;
-    Ok(format!("\"{}\" applied.{}", p.preview.design, if added.is_empty() { String::new() } else { format!(" Added: {}.", added.join(", ")) }))
+    Ok(format!(
+        "\"{}\" applied.{}",
+        p.preview.design,
+        if added.is_empty() {
+            String::new()
+        } else {
+            format!(" Added: {}.", added.join(", "))
+        }
+    ))
 }
 
 #[derive(Debug, Serialize)]
@@ -593,22 +900,41 @@ pub struct Application {
     pub when: String,
 }
 
-pub fn applications(connection: &Connection, installation_id: &str) -> Result<Vec<Application>, String> {
+pub fn applications(
+    connection: &Connection,
+    installation_id: &str,
+) -> Result<Vec<Application>, String> {
     let mut statement = connection
         .prepare("SELECT id, design_id, design_name, state, added_json, created_at FROM design_applications WHERE installation_id = ?1 ORDER BY id DESC")
         .map_err(|e| e.to_string())?;
     let rows = statement
         .query_map([installation_id], |r| {
-            Ok(Application { id: r.get(0)?, design_id: r.get(1)?, design_name: r.get(2)?, state: r.get(3)?, added: serde_json::from_str(&r.get::<_, String>(4)?).unwrap_or_default(), when: r.get(5)? })
+            Ok(Application {
+                id: r.get(0)?,
+                design_id: r.get(1)?,
+                design_name: r.get(2)?,
+                state: r.get(3)?,
+                added: serde_json::from_str(&r.get::<_, String>(4)?).unwrap_or_default(),
+                when: r.get(5)?,
+            })
         })
         .map_err(|e| e.to_string())?;
     rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
 }
 
 /// Undo a design application: its settings changes, newest first. Added files stay (never deleted).
-pub fn undo(connection: &Connection, application_id: i64, presence: PresenceFn, running: RunningFn) -> Result<String, String> {
+pub fn undo(
+    connection: &Connection,
+    application_id: i64,
+    presence: PresenceFn,
+    running: RunningFn,
+) -> Result<String, String> {
     let (ids, state, name): (String, String, String) = connection
-        .query_row("SELECT settings_change_ids, state, design_name FROM design_applications WHERE id = ?1", [application_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+        .query_row(
+            "SELECT settings_change_ids, state, design_name FROM design_applications WHERE id = ?1",
+            [application_id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
         .optional()
         .map_err(|e| e.to_string())?
         .ok_or("That application wasn't found.")?;
@@ -618,26 +944,42 @@ pub fn undo(connection: &Connection, application_id: i64, presence: PresenceFn, 
     let ids: Vec<i64> = serde_json::from_str(&ids).unwrap_or_default();
     let mut done = 0;
     for id in ids.iter().rev() {
-        let st: String = connection.query_row("SELECT state FROM settings_changes WHERE id = ?1", [id], |r| r.get(0)).map_err(|e| e.to_string())?;
+        let st: String = connection
+            .query_row(
+                "SELECT state FROM settings_changes WHERE id = ?1",
+                [id],
+                |r| r.get(0),
+            )
+            .map_err(|e| e.to_string())?;
         if st == "undone" {
             done += 1;
             continue;
         }
         if let Err(e) = customizer::undo(connection, *id, presence, running) {
-            connection.execute("UPDATE design_applications SET state = ?2 WHERE id = ?1", params![application_id, if done > 0 { "partial" } else { "applied" }]).map_err(|e| e.to_string())?;
+            connection
+                .execute(
+                    "UPDATE design_applications SET state = ?2 WHERE id = ?1",
+                    params![application_id, if done > 0 { "partial" } else { "applied" }],
+                )
+                .map_err(|e| e.to_string())?;
             return Err(e);
         }
         done += 1;
     }
-    connection.execute("UPDATE design_applications SET state = 'undone' WHERE id = ?1", [application_id]).map_err(|e| e.to_string())?;
+    connection
+        .execute(
+            "UPDATE design_applications SET state = 'undone' WHERE id = ?1",
+            [application_id],
+        )
+        .map_err(|e| e.to_string())?;
     Ok(format!("\"{name}\" undone: the previous files are back. Added theme, media and image files were kept on the drive."))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::volumes::{Presence, VolumeProbe};
     use crate::installations;
+    use crate::volumes::{Presence, VolumeProbe};
 
     fn connected(_: &str, _: Option<&str>) -> Presence {
         Presence::Connected
@@ -669,7 +1011,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("RetroBat");
         let es = root.join("emulationstation/.emulationstation");
-        for d in [es.join("themes/es-theme-test"), es.join("video"), es.join("music"), root.join("roms/snes"), root.join("system/shaders/configs/vhs")] {
+        for d in [
+            es.join("themes/es-theme-test"),
+            es.join("video"),
+            es.join("music"),
+            root.join("roms/snes"),
+            root.join("system/shaders/configs/vhs"),
+        ] {
             fs::create_dir_all(d).unwrap();
         }
         fs::write(root.join("RetroBat.exe"), b"").unwrap();
@@ -685,9 +1033,18 @@ mod tests {
         fs::write(mine.join("Boss.ogg"), b"boss").unwrap();
         let mut catalog = Connection::open_in_memory().unwrap();
         db::migrate(&mut catalog, None).unwrap();
-        let install = installations::add(&catalog, &root, "retrobat", &|_: &str| VolumeProbe::unknown()).unwrap();
+        let install = installations::add(&catalog, &root, "retrobat", &|_: &str| {
+            VolumeProbe::unknown()
+        })
+        .unwrap();
         let root = crate::paths::normalize(&root).unwrap();
-        Setup { _dir: dir, root, catalog, install, mine }
+        Setup {
+            _dir: dir,
+            root,
+            catalog,
+            install,
+            mine,
+        }
     }
 
     fn read(s: &Setup, rel: &str) -> String {
@@ -699,26 +1056,62 @@ mod tests {
         let s = setup();
         let es_before = read(&s, customizer::SETTINGS);
         let id = create(&s.catalog, "Neon Nights", DesignSpec::default()).unwrap();
-        assert!(create(&s.catalog, "neon nights", DesignSpec::default()).is_err(), "names are unique");
+        assert!(
+            create(&s.catalog, "neon nights", DesignSpec::default()).is_err(),
+            "names are unique"
+        );
         let d = &list(&s.catalog).unwrap()[0];
-        assert!(d.spec.is_none() && d.draft.is_some(), "a new design starts as a draft");
-        assert!(preview(&s.catalog, &id, &s.install, &connected).unwrap_err().contains("Finish"));
-        assert!(!abandon(&s.catalog, &id).unwrap(), "an unfinished design disappears");
+        assert!(
+            d.spec.is_none() && d.draft.is_some(),
+            "a new design starts as a draft"
+        );
+        assert!(preview(&s.catalog, &id, &s.install, &connected)
+            .unwrap_err()
+            .contains("Finish"));
+        assert!(
+            !abandon(&s.catalog, &id).unwrap(),
+            "an unfinished design disappears"
+        );
         assert!(list(&s.catalog).unwrap().is_empty());
 
         let id = create(&s.catalog, "Neon Nights", DesignSpec::default()).unwrap();
-        let spec = DesignSpec { music: [("audio.bgmusic".to_string(), "false".to_string())].into_iter().collect(), ..DesignSpec::default() };
+        let spec = DesignSpec {
+            music: [("audio.bgmusic".to_string(), "false".to_string())]
+                .into_iter()
+                .collect(),
+            ..DesignSpec::default()
+        };
         save_draft(&s.catalog, &id, "Neon Nights", &spec).unwrap();
         finish(&s.catalog, &id).unwrap();
-        let edited = DesignSpec { music: [("audio.bgmusic".to_string(), "true".to_string())].into_iter().collect(), ..DesignSpec::default() };
+        let edited = DesignSpec {
+            music: [("audio.bgmusic".to_string(), "true".to_string())]
+                .into_iter()
+                .collect(),
+            ..DesignSpec::default()
+        };
         save_draft(&s.catalog, &id, "Neon Nights", &edited).unwrap();
-        assert!(abandon(&s.catalog, &id).unwrap(), "abandoning edits keeps the finished design");
+        assert!(
+            abandon(&s.catalog, &id).unwrap(),
+            "abandoning edits keeps the finished design"
+        );
         let d = &list(&s.catalog).unwrap()[0];
         assert_eq!((d.spec.as_ref(), d.draft.as_ref()), (Some(&spec), None));
-        let bad = DesignSpec { music: [("MusicVolume".to_string(), "999".to_string())].into_iter().collect(), ..DesignSpec::default() };
+        let bad = DesignSpec {
+            music: [("MusicVolume".to_string(), "999".to_string())]
+                .into_iter()
+                .collect(),
+            ..DesignSpec::default()
+        };
         save_draft(&s.catalog, &id, "Neon Nights", &bad).unwrap();
-        assert!(finish(&s.catalog, &id).is_err(), "bad values can't be finished");
-        assert_eq!(read(&s, customizer::SETTINGS), es_before, "designing never touches RetroBat");
+        assert!(
+            finish(&s.catalog, &id).is_err(),
+            "bad values can't be finished"
+        );
+        assert_eq!(
+            read(&s, customizer::SETTINGS),
+            es_before,
+            "designing never touches RetroBat"
+        );
     }
 
     #[test]
@@ -727,38 +1120,120 @@ mod tests {
         let es_before = read(&s, customizer::SETTINGS);
         let ini_before = read(&s, customizer::INI);
         let spec = DesignSpec {
-            theme: Some(ThemeChoice::Remix { base: "es-theme-test".into(), name: "Neon Nights".into(), colors: [("baseColor".to_string(), "ff00ff".to_string())].into_iter().collect(), images: BTreeMap::new(), fonts: BTreeMap::new() }),
-            ini: [("SplashScreen.RandomVideo".to_string(), "0".to_string()), ("EmulationStation.InterfaceMode".to_string(), "1".to_string())].into_iter().collect(),
+            theme: Some(ThemeChoice::Remix {
+                base: "es-theme-test".into(),
+                name: "Neon Nights".into(),
+                colors: [("baseColor".to_string(), "ff00ff".to_string())]
+                    .into_iter()
+                    .collect(),
+                images: BTreeMap::new(),
+                fonts: BTreeMap::new(),
+            }),
+            ini: [
+                ("SplashScreen.RandomVideo".to_string(), "0".to_string()),
+                (
+                    "EmulationStation.InterfaceMode".to_string(),
+                    "1".to_string(),
+                ),
+            ]
+            .into_iter()
+            .collect(),
             own_video: Some(s.mine.join("Intro.mp4").display().to_string()),
-            music: [("audio.persystem".to_string(), "true".to_string()), ("MusicVolume".to_string(), "100".to_string())].into_iter().collect(),
-            own_music: vec![OwnMusic { path: s.mine.join("Boss.ogg").display().to_string(), system: Some("snes".into()) }],
-            systems: [("snes.emulator".to_string(), Some("libretro".to_string())), ("snes.core".to_string(), Some("bsnes".to_string())), ("nes.shaderset".to_string(), None)].into_iter().collect(),
+            music: [
+                ("audio.persystem".to_string(), "true".to_string()),
+                ("MusicVolume".to_string(), "100".to_string()),
+            ]
+            .into_iter()
+            .collect(),
+            own_music: vec![OwnMusic {
+                path: s.mine.join("Boss.ogg").display().to_string(),
+                system: Some("snes".into()),
+            }],
+            systems: [
+                ("snes.emulator".to_string(), Some("libretro".to_string())),
+                ("snes.core".to_string(), Some("bsnes".to_string())),
+                ("nes.shaderset".to_string(), None),
+            ]
+            .into_iter()
+            .collect(),
             play_tracks: None,
         };
         let id = create(&s.catalog, "Neon Nights", spec).unwrap();
         finish(&s.catalog, &id).unwrap();
 
         let p = preview(&s.catalog, &id, &s.install, &connected).unwrap();
-        assert_eq!((p.theme_action.as_deref(), p.theme_folder.as_deref()), (Some("create"), Some("Neon Nights")));
+        assert_eq!(
+            (p.theme_action.as_deref(), p.theme_folder.as_deref()),
+            (Some("create"), Some("Neon Nights"))
+        );
         assert_eq!(p.files.len(), 2);
-        assert!(p.es_changes.iter().any(|c| c.key == "ThemeSet" && c.after.as_deref() == Some("Neon Nights")));
-        assert!(p.es_changes.iter().any(|c| c.system == "nes" && c.key == "shaderset" && c.after.is_none()), "AUTO removes the setting");
-        assert!(p.ini_changes.iter().any(|c| c.key == "FileName" && c.after.as_deref() == Some("Intro.mp4")));
-        assert_eq!(read(&s, customizer::SETTINGS), es_before, "previewing changes nothing");
+        assert!(p
+            .es_changes
+            .iter()
+            .any(|c| c.key == "ThemeSet" && c.after.as_deref() == Some("Neon Nights")));
+        assert!(
+            p.es_changes
+                .iter()
+                .any(|c| c.system == "nes" && c.key == "shaderset" && c.after.is_none()),
+            "AUTO removes the setting"
+        );
+        assert!(p
+            .ini_changes
+            .iter()
+            .any(|c| c.key == "FileName" && c.after.as_deref() == Some("Intro.mp4")));
+        assert_eq!(
+            read(&s, customizer::SETTINGS),
+            es_before,
+            "previewing changes nothing"
+        );
 
-        assert!(apply(&s.catalog, &id, &s.install, &p.es_sha, &p.ini_sha, &connected, &open, &roomy).unwrap_err().contains("running"));
-        assert!(apply(&s.catalog, &id, &s.install, "stale", &p.ini_sha, &connected, &closed, &roomy).is_err());
-        apply(&s.catalog, &id, &s.install, &p.es_sha, &p.ini_sha, &connected, &closed, &roomy).unwrap();
+        assert!(apply(
+            &s.catalog, &id, &s.install, &p.es_sha, &p.ini_sha, &connected, &open, &roomy
+        )
+        .unwrap_err()
+        .contains("running"));
+        assert!(apply(
+            &s.catalog, &id, &s.install, "stale", &p.ini_sha, &connected, &closed, &roomy
+        )
+        .is_err());
+        apply(
+            &s.catalog, &id, &s.install, &p.es_sha, &p.ini_sha, &connected, &closed, &roomy,
+        )
+        .unwrap();
         let es = read(&s, customizer::SETTINGS);
         assert!(es.contains("<string name=\"ThemeSet\" value=\"Neon Nights\" />"));
-        assert!(es.contains("<bool name=\"audio.persystem\" value=\"true\" />"), "bool settings are written as <bool>");
+        assert!(
+            es.contains("<bool name=\"audio.persystem\" value=\"true\" />"),
+            "bool settings are written as <bool>"
+        );
         assert!(es.contains("<int name=\"MusicVolume\" value=\"100\" />"));
         assert!(es.contains("snes.core") && !es.contains("nes.shaderset"));
         let ini = read(&s, customizer::INI);
-        assert!(ini.contains("FileName=\"Intro.mp4\"") && ini.contains("RandomVideo=0") && ini.contains("InterfaceMode=1"));
-        assert!(s.root.join("emulationstation/.emulationstation/themes/Neon Nights/theme.xml").exists());
-        assert_eq!(fs::read(s.root.join("emulationstation/.emulationstation/video/Intro.mp4")).unwrap(), b"my intro");
-        assert_eq!(fs::read(s.root.join("emulationstation/.emulationstation/music/snes/Boss.ogg")).unwrap(), b"boss");
+        assert!(
+            ini.contains("FileName=\"Intro.mp4\"")
+                && ini.contains("RandomVideo=0")
+                && ini.contains("InterfaceMode=1")
+        );
+        assert!(s
+            .root
+            .join("emulationstation/.emulationstation/themes/Neon Nights/theme.xml")
+            .exists());
+        assert_eq!(
+            fs::read(
+                s.root
+                    .join("emulationstation/.emulationstation/video/Intro.mp4")
+            )
+            .unwrap(),
+            b"my intro"
+        );
+        assert_eq!(
+            fs::read(
+                s.root
+                    .join("emulationstation/.emulationstation/music/snes/Boss.ogg")
+            )
+            .unwrap(),
+            b"boss"
+        );
 
         // Applying again: the theme and files are recognised; nothing left to change.
         let again = preview(&s.catalog, &id, &s.install, &connected).unwrap();
@@ -769,10 +1244,22 @@ mod tests {
         let app = applications(&s.catalog, &s.install).unwrap();
         assert_eq!((app.len(), app[0].state.as_str()), (1, "applied"));
         undo(&s.catalog, app[0].id, &connected, &closed).unwrap();
-        assert_eq!(read(&s, customizer::SETTINGS), es_before, "both files back as they were");
+        assert_eq!(
+            read(&s, customizer::SETTINGS),
+            es_before,
+            "both files back as they were"
+        );
         assert_eq!(read(&s, customizer::INI), ini_before);
-        assert!(s.root.join("emulationstation/.emulationstation/video/Intro.mp4").exists(), "added files are kept");
-        assert_eq!(applications(&s.catalog, &s.install).unwrap()[0].state, "undone");
+        assert!(
+            s.root
+                .join("emulationstation/.emulationstation/video/Intro.mp4")
+                .exists(),
+            "added files are kept"
+        );
+        assert_eq!(
+            applications(&s.catalog, &s.install).unwrap()[0].state,
+            "undone"
+        );
     }
 
     #[test]
@@ -781,17 +1268,38 @@ mod tests {
         let ini_before = read(&s, customizer::INI);
         let es_before = read(&s, customizer::SETTINGS);
         // A different file with the same name as the own video is already on the drive.
-        fs::write(s.root.join("emulationstation/.emulationstation/video/Intro.mp4"), b"someone else's").unwrap();
-        let spec = DesignSpec { own_video: Some(s.mine.join("Intro.mp4").display().to_string()), music: [("audio.bgmusic".to_string(), "false".to_string())].into_iter().collect(), ..DesignSpec::default() };
+        fs::write(
+            s.root
+                .join("emulationstation/.emulationstation/video/Intro.mp4"),
+            b"someone else's",
+        )
+        .unwrap();
+        let spec = DesignSpec {
+            own_video: Some(s.mine.join("Intro.mp4").display().to_string()),
+            music: [("audio.bgmusic".to_string(), "false".to_string())]
+                .into_iter()
+                .collect(),
+            ..DesignSpec::default()
+        };
         let id = create(&s.catalog, "Clash", spec).unwrap();
         finish(&s.catalog, &id).unwrap();
-        assert!(preview(&s.catalog, &id, &s.install, &connected).unwrap_err().contains("already"));
+        assert!(preview(&s.catalog, &id, &s.install, &connected)
+            .unwrap_err()
+            .contains("already"));
         // A value this RetroBat doesn't offer.
-        let bad = DesignSpec { systems: [("snes.core".to_string(), Some("nope".to_string()))].into_iter().collect(), ..DesignSpec::default() };
+        let bad = DesignSpec {
+            systems: [("snes.core".to_string(), Some("nope".to_string()))]
+                .into_iter()
+                .collect(),
+            ..DesignSpec::default()
+        };
         let id2 = create(&s.catalog, "Bad", bad).unwrap();
         finish(&s.catalog, &id2).unwrap();
         assert!(preview(&s.catalog, &id2, &s.install, &connected).is_err());
-        assert_eq!((read(&s, customizer::INI), read(&s, customizer::SETTINGS)), (ini_before, es_before));
+        assert_eq!(
+            (read(&s, customizer::INI), read(&s, customizer::SETTINGS)),
+            (ini_before, es_before)
+        );
     }
 
     #[test]
@@ -804,20 +1312,38 @@ mod tests {
         fs::write(music.join("snes/Snes.ogg"), b"c").unwrap();
         let es_before = read(&s, customizer::SETTINGS);
         let spec = DesignSpec {
-            own_music: vec![OwnMusic { path: s.mine.join("Boss.ogg").display().to_string(), system: None }],
-            play_tracks: Some(vec!["Liked.ogg".into(), "snes/Snes.ogg".into(), "Boss.ogg".into()]),
+            own_music: vec![OwnMusic {
+                path: s.mine.join("Boss.ogg").display().to_string(),
+                system: None,
+            }],
+            play_tracks: Some(vec![
+                "Liked.ogg".into(),
+                "snes/Snes.ogg".into(),
+                "Boss.ogg".into(),
+            ]),
             ..DesignSpec::default()
         };
         let id = create(&s.catalog, "Only the good ones", spec).unwrap();
         finish(&s.catalog, &id).unwrap();
         let p = preview(&s.catalog, &id, &s.install, &connected).unwrap();
         assert_eq!((p.tracks_playing, p.tracks_left_out), (Some(3), Some(1)));
-        assert!(p.es_changes.iter().any(|c| c.system == "audio" && c.key == "useFavoriteMusic"));
-        apply(&s.catalog, &id, &s.install, &p.es_sha, &p.ini_sha, &connected, &closed, &roomy).unwrap();
+        assert!(p
+            .es_changes
+            .iter()
+            .any(|c| c.system == "audio" && c.key == "useFavoriteMusic"));
+        apply(
+            &s.catalog, &id, &s.install, &p.es_sha, &p.ini_sha, &connected, &closed, &roomy,
+        )
+        .unwrap();
         let fav = read(&s, customizer::FAVORITES);
-        assert!(fav.contains("/music/Liked.ogg;Liked\r\n") && fav.contains("/music/snes/Snes.ogg;Snes\r\n") && fav.contains("/music/Boss.ogg;Boss\r\n"));
+        assert!(
+            fav.contains("/music/Liked.ogg;Liked\r\n")
+                && fav.contains("/music/snes/Snes.ogg;Snes\r\n")
+                && fav.contains("/music/Boss.ogg;Boss\r\n")
+        );
         assert!(!fav.contains("Disliked"), "the disliked track won't play");
-        assert!(read(&s, customizer::SETTINGS).contains("<bool name=\"audio.useFavoriteMusic\" value=\"true\" />"));
+        assert!(read(&s, customizer::SETTINGS)
+            .contains("<bool name=\"audio.useFavoriteMusic\" value=\"true\" />"));
         assert!(music.join("Disliked.ogg").exists(), "nothing is deleted");
         // Undo: favorites.m3u (created) moves aside, settings come back.
         let app = applications(&s.catalog, &s.install).unwrap()[0].id;
@@ -825,10 +1351,28 @@ mod tests {
         assert!(!s.root.join(customizer::FAVORITES).exists());
         assert_eq!(read(&s, customizer::SETTINGS), es_before);
         // A track that isn't there, or no tracks at all, is refused.
-        let bad = create(&s.catalog, "Missing", DesignSpec { play_tracks: Some(vec!["Nope.ogg".into()]), ..DesignSpec::default() }).unwrap();
+        let bad = create(
+            &s.catalog,
+            "Missing",
+            DesignSpec {
+                play_tracks: Some(vec!["Nope.ogg".into()]),
+                ..DesignSpec::default()
+            },
+        )
+        .unwrap();
         finish(&s.catalog, &bad).unwrap();
-        assert!(preview(&s.catalog, &bad, &s.install, &connected).unwrap_err().contains("isn't on this RetroBat"));
-        let none = create(&s.catalog, "None", DesignSpec { play_tracks: Some(vec![]), ..DesignSpec::default() }).unwrap();
+        assert!(preview(&s.catalog, &bad, &s.install, &connected)
+            .unwrap_err()
+            .contains("isn't on this RetroBat"));
+        let none = create(
+            &s.catalog,
+            "None",
+            DesignSpec {
+                play_tracks: Some(vec![]),
+                ..DesignSpec::default()
+            },
+        )
+        .unwrap();
         assert!(finish(&s.catalog, &none).is_err());
     }
 
@@ -836,17 +1380,45 @@ mod tests {
     fn a_design_can_start_from_a_retrobats_current_setup() {
         let s = setup();
         let seed = seed_from(&s.catalog, &s.install, &connected).unwrap();
-        assert_eq!(seed.theme, Some(ThemeChoice::Existing { folder: "es-theme-test".into() }));
-        assert_eq!(seed.systems.get("nes.shaderset"), Some(&Some("vhs".to_string())));
-        assert_eq!(seed.ini.get("SplashScreen.RandomVideo").map(String::as_str), Some("1"));
+        assert_eq!(
+            seed.theme,
+            Some(ThemeChoice::Existing {
+                folder: "es-theme-test".into()
+            })
+        );
+        assert_eq!(
+            seed.systems.get("nes.shaderset"),
+            Some(&Some("vhs".to_string()))
+        );
+        assert_eq!(
+            seed.ini.get("SplashScreen.RandomVideo").map(String::as_str),
+            Some("1")
+        );
         let id = create(&s.catalog, "As it is", seed).unwrap();
         finish(&s.catalog, &id).unwrap();
-        assert!(preview(&s.catalog, &id, &s.install, &connected).unwrap().nothing, "the current setup changes nothing");
+        assert!(
+            preview(&s.catalog, &id, &s.install, &connected)
+                .unwrap()
+                .nothing,
+            "the current setup changes nothing"
+        );
         // Even when a current value isn't among the install's choices (e.g. a shader folder removed since).
         fs::remove_dir_all(s.root.join("system/shaders/configs/vhs")).unwrap();
-        assert!(preview(&s.catalog, &id, &s.install, &connected).unwrap().nothing, "unchanged values aren't re-checked");
+        assert!(
+            preview(&s.catalog, &id, &s.install, &connected)
+                .unwrap()
+                .nothing,
+            "unchanged values aren't re-checked"
+        );
         // A current theme that isn't on the drive isn't copied into the design.
-        fs::write(s.root.join(customizer::SETTINGS), ES.replace("es-theme-test", "Gone Theme")).unwrap();
-        assert_eq!(seed_from(&s.catalog, &s.install, &connected).unwrap().theme, None);
+        fs::write(
+            s.root.join(customizer::SETTINGS),
+            ES.replace("es-theme-test", "Gone Theme"),
+        )
+        .unwrap();
+        assert_eq!(
+            seed_from(&s.catalog, &s.install, &connected).unwrap().theme,
+            None
+        );
     }
 }

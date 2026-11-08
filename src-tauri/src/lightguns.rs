@@ -46,7 +46,10 @@ const NAME_WORDS: &[(&str, &[&str])] = &[
     ("aimtrak", &["aimtrak", "atrak"]),
     ("blamcon", &["blamcon"]),
     ("retroshooter", &["retro shooter"]),
-    ("fusion", &["fusion lightgun", "fusion mini", "fusion piggie"]),
+    (
+        "fusion",
+        &["fusion lightgun", "fusion mini", "fusion piggie"],
+    ),
     ("openfire", &["openfire", "firecon"]),
     ("xgunner", &["xgunner"]),
     ("onehit", &["onehit"]),
@@ -58,7 +61,8 @@ const NAME_WORDS: &[(&str, &[&str])] = &[
 const USB_IDS: &[(&str, &str, &str)] = &[("0b9a", "016a", "guncon2"), ("0b9a", "0800", "guncon3")];
 
 const RETROBAT_AUTO: &str = "RetroBat finds the gun by itself; keep it in its mouse mode.";
-const BATOCERA_AUTO: &str = "Batocera finds the gun by itself. Calibrate it once; the calibration is kept in the gun.";
+const BATOCERA_AUTO: &str =
+    "Batocera finds the gun by itself. Calibrate it once; the calibration is kept in the gun.";
 const IR_BAR: &str = "Mount the IR light bar (or LEDs) as the gun's guide shows: it's what the gun aims at, so where it sits decides how accurate the gun is.";
 
 pub fn guns() -> &'static [Gun] {
@@ -200,7 +204,8 @@ pub fn guns() -> &'static [Gun] {
 
 const RA_DEVICE: &str = "In a game, open RetroArch's menu, then Controls → Port 1 Controls → Device Type, choose the light gun the core offers (Light Gun, Zapper, Super Scope, Justifier…), and save it with Save Core Overrides so it stays.";
 const RA_CORES: &str = "Light guns work in RetroArch cores that support them, such as Genesis Plus GX (Master System, Mega Drive, Sega CD), Snes9x (Super Scope), PCSX-ReARMed or SwanStation (PlayStation), FBNeo and MAME.";
-const RA_TWO: &str = "With two guns, give each player its own gun under Port 1 / Port 2 Controls → Mouse Index.";
+const RA_TWO: &str =
+    "With two guns, give each player its own gun under Port 1 / Port 2 Controls → Mouse Index.";
 
 /// A gun's steps on RetroPie, ES-DE and Recalbox, by system (from their wikis and
 /// RetroArch's settings; RetroPie and ES-DE have no automatic gun setup, Recalbox
@@ -219,7 +224,11 @@ pub fn other_steps(id: &str) -> BTreeMap<&'static str, Vec<String>> {
     let mut esde = s(&["ES-DE starts the emulators; the gun is set up in the emulator (RetroArch, or standalone MAME, which uses the gun as a mouse).", RA_CORES, RA_DEVICE, RA_TWO]);
     if id == "sinden" {
         retropie.insert(1, "Install the Sinden software for Raspberry Pi from the Sinden website and follow its Raspberry Pi guide; it must be running when you play.".into());
-        esde.insert(1, "Run the Sinden software (Lightgun.exe) before starting ES-DE, as on any Windows PC.".into());
+        esde.insert(
+            1,
+            "Run the Sinden software (Lightgun.exe) before starting ES-DE, as on any Windows PC."
+                .into(),
+        );
     }
     if let Some(line) = gun_line {
         retropie.push(line.into());
@@ -245,11 +254,17 @@ pub fn gun(id: &str) -> Option<&'static Gun> {
 
 /// The gun a device is, from its product name or USB ID.
 pub fn identify(vid: &str, pid: &str, product: Option<&str>) -> Option<&'static Gun> {
-    if let Some((_, _, id)) = USB_IDS.iter().find(|(v, p, _)| v.eq_ignore_ascii_case(vid) && p.eq_ignore_ascii_case(pid)) {
+    if let Some((_, _, id)) = USB_IDS
+        .iter()
+        .find(|(v, p, _)| v.eq_ignore_ascii_case(vid) && p.eq_ignore_ascii_case(pid))
+    {
         return gun(id);
     }
     let name = product?.to_lowercase();
-    NAME_WORDS.iter().find(|(_, words)| words.iter().any(|w| name.contains(w))).and_then(|(id, _)| gun(id))
+    NAME_WORDS
+        .iter()
+        .find(|(_, words)| words.iter().any(|w| name.contains(w)))
+        .and_then(|(id, _)| gun(id))
 }
 
 /// A light gun plugged into this PC.
@@ -268,17 +283,29 @@ pub fn connected(remembered: &BTreeMap<String, String>) -> Vec<ConnectedGun> {
     crate::controllers::pointing_devices()
         .into_iter()
         .filter_map(|(vid, pid, product, _, _)| {
-            let mine = remembered.get(&format!("{vid}:{pid}")).and_then(|id| gun(id));
+            let mine = remembered
+                .get(&format!("{vid}:{pid}"))
+                .and_then(|id| gun(id));
             let found = mine.or_else(|| identify(&vid, &pid, product.as_deref()))?;
-            Some(ConnectedGun { remembered: mine.is_some(), gun: Some(found.clone()), vid, pid, product })
+            Some(ConnectedGun {
+                remembered: mine.is_some(),
+                gun: Some(found.clone()),
+                vid,
+                pid,
+                product,
+            })
         })
         .collect()
 }
 
 /// Guns the user confirmed: `vid:pid` (or `manual` for one chosen without a gun plugged in) → gun id.
 pub fn remembered(connection: &Connection) -> Result<BTreeMap<String, String>, String> {
-    let mut statement = connection.prepare("SELECT usb_id, gun_id FROM gun_choices").map_err(|e| e.to_string())?;
-    let rows = statement.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))).map_err(|e| e.to_string())?;
+    let mut statement = connection
+        .prepare("SELECT usb_id, gun_id FROM gun_choices")
+        .map_err(|e| e.to_string())?;
+    let rows = statement
+        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
+        .map_err(|e| e.to_string())?;
     rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
 }
 
@@ -309,14 +336,22 @@ struct GunGames {
 fn gun_games() -> &'static GunGames {
     static DB: OnceLock<GunGames> = OnceLock::new();
     DB.get_or_init(|| {
-        let mut db = GunGames { arcade: HashSet::new(), by_system: HashMap::new() };
+        let mut db = GunGames {
+            arcade: HashSet::new(),
+            by_system: HashMap::new(),
+        };
         for line in GUN_GAMES.lines().filter(|l| !l.starts_with('#')).skip(1) {
             let mut cols = line.split('\t');
-            let (Some(system), Some(id)) = (cols.next(), cols.next()) else { continue };
+            let (Some(system), Some(id)) = (cols.next(), cols.next()) else {
+                continue;
+            };
             if system == "arcade" {
                 db.arcade.insert(id.to_lowercase());
             } else {
-                db.by_system.entry(system.to_string()).or_default().push(id.to_lowercase());
+                db.by_system
+                    .entry(system.to_string())
+                    .or_default()
+                    .push(id.to_lowercase());
             }
         }
         db
@@ -346,7 +381,16 @@ fn indexed_name(name: &str) -> String {
 }
 
 /// Arcade folders (MAME short names).
-pub(crate) const ARCADE_FOLDERS: &[&str] = &["mame", "fbneo", "cps1", "cps2", "cps3", "naomi", "atomiswave", "neogeo"];
+pub(crate) const ARCADE_FOLDERS: &[&str] = &[
+    "mame",
+    "fbneo",
+    "cps1",
+    "cps2",
+    "cps3",
+    "naomi",
+    "atomiswave",
+    "neogeo",
+];
 
 /// Whether a game file is a light gun game, the way EmulationStation decides it:
 /// arcade by its exact romset name; other systems by the cleaned name equal to, or
@@ -360,9 +404,14 @@ pub fn is_gun_game(folder: &str, stem: &str) -> bool {
         "msx1" | "msx2" => "msx",
         other => other,
     };
-    let Some(ids) = db.by_system.get(system) else { return false };
+    let Some(ids) = db.by_system.get(system) else {
+        return false;
+    };
     let name = indexed_name(stem);
-    !name.is_empty() && ids.iter().any(|id| name == *id || name.contains(id.as_str()))
+    !name.is_empty()
+        && ids
+            .iter()
+            .any(|id| name == *id || name.contains(id.as_str()))
 }
 
 pub(crate) type Cache = Option<((i64, i64, i64, String), Arc<HashSet<String>>)>;
@@ -375,7 +424,11 @@ pub fn game_ids(connection: &Connection) -> Result<Arc<HashSet<String>>, String>
 
 /// Ids of the library's games for which `is_match(system folder, file stem)` holds,
 /// cached in `cache` until the library changes (light gun and vertical games).
-pub(crate) fn library_matches(connection: &Connection, cache: &Mutex<Cache>, is_match: fn(&str, &str) -> bool) -> Result<Arc<HashSet<String>>, String> {
+pub(crate) fn library_matches(
+    connection: &Connection,
+    cache: &Mutex<Cache>,
+    is_match: fn(&str, &str) -> bool,
+) -> Result<Arc<HashSet<String>>, String> {
     // Sizes plus the largest game id (random ids, so it also tells libraries apart).
     let key: (i64, i64, i64, String) = connection
         .query_row(
@@ -395,7 +448,15 @@ pub(crate) fn library_matches(connection: &Connection, cache: &Mutex<Cache>, is_
              JOIN game_files gf ON gf.release_id = r.id WHERE gf.file_role = 'primary'",
         )
         .map_err(|e| e.to_string())?;
-    let rows = statement.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))).map_err(|e| e.to_string())?;
+    let rows = statement
+        .query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
     let mut ids = HashSet::new();
     for row in rows {
         let (id, platform, filename) = row.map_err(|e| e.to_string())?;
@@ -419,21 +480,47 @@ mod tests {
 
     #[test]
     fn guns_are_recognized_by_name_and_remembered() {
-        assert_eq!(identify("2341", "8042", Some("GUN4IR Pro Micro P1")).map(|g| g.id), Some("gun4ir"));
-        assert_eq!(identify("16c0", "0f38", Some("SindenLightgun")).map(|g| g.id), Some("sinden"));
-        assert_eq!(identify("d209", "1601", Some("Ultimarc ATRAK Device #1")).map(|g| g.id), Some("aimtrak"));
-        assert_eq!(identify("0b9a", "016A", None).map(|g| g.id), Some("guncon2"));
-        assert_eq!(identify("046d", "c077", Some("USB Optical Mouse")), None, "an ordinary mouse isn't a gun");
+        assert_eq!(
+            identify("2341", "8042", Some("GUN4IR Pro Micro P1")).map(|g| g.id),
+            Some("gun4ir")
+        );
+        assert_eq!(
+            identify("16c0", "0f38", Some("SindenLightgun")).map(|g| g.id),
+            Some("sinden")
+        );
+        assert_eq!(
+            identify("d209", "1601", Some("Ultimarc ATRAK Device #1")).map(|g| g.id),
+            Some("aimtrak")
+        );
+        assert_eq!(
+            identify("0b9a", "016A", None).map(|g| g.id),
+            Some("guncon2")
+        );
+        assert_eq!(
+            identify("046d", "c077", Some("USB Optical Mouse")),
+            None,
+            "an ordinary mouse isn't a gun"
+        );
         assert_eq!(identify("1234", "5678", Some("Fusion Keyboard")), None);
-        assert!(guns().iter().all(|g| !g.setup.is_empty() && !g.retrobat.is_empty() && !g.batocera.is_empty()));
+        assert!(guns()
+            .iter()
+            .all(|g| !g.setup.is_empty() && !g.retrobat.is_empty() && !g.batocera.is_empty()));
         // Every gun has steps for RetroPie, ES-DE and Recalbox; Recalbox says plainly when it can't.
         for g in guns() {
             let o = other_steps(g.id);
-            assert!(["retropie", "esde", "recalbox"].iter().all(|s| o.get(s).is_some_and(|v| !v.is_empty())), "{}", g.id);
+            assert!(
+                ["retropie", "esde", "recalbox"]
+                    .iter()
+                    .all(|s| o.get(s).is_some_and(|v| !v.is_empty())),
+                "{}",
+                g.id
+            );
         }
         assert!(other_steps("sinden")["recalbox"][0].contains("doesn't support"));
         assert!(other_steps("wiimote")["recalbox"][0].contains("DolphinBar"));
-        assert!(other_steps("sinden")["retropie"].iter().any(|l| l.contains("border")));
+        assert!(other_steps("sinden")["retropie"]
+            .iter()
+            .any(|l| l.contains("border")));
         assert!(NAME_WORDS.iter().all(|(id, _)| gun(id).is_some()));
         let mut c = Connection::open_in_memory().unwrap();
         crate::db::migrate(&mut c, None).unwrap();
@@ -441,7 +528,13 @@ mod tests {
         remember(&c, "2341:8042", Some("gun4ir")).unwrap();
         remember(&c, "2341:8042", Some("samco")).unwrap();
         let mine = remembered(&c).unwrap();
-        assert_eq!((mine.get("manual").map(String::as_str), mine.get("2341:8042").map(String::as_str)), (Some("sinden"), Some("samco")));
+        assert_eq!(
+            (
+                mine.get("manual").map(String::as_str),
+                mine.get("2341:8042").map(String::as_str)
+            ),
+            (Some("sinden"), Some("samco"))
+        );
         assert!(remember(&c, "manual", Some("lasertag")).is_err());
         assert!(remember(&c, "nope", Some("sinden")).is_err());
         remember(&c, "manual", None).unwrap();
@@ -453,9 +546,15 @@ mod tests {
         assert!(gun_game_count() > 700, "{}", gun_game_count());
         assert_eq!(indexed_name("Duck Hunt (World) [!]"), "duckhunt");
         assert!(is_gun_game("nes", "Duck Hunt (World)"));
-        assert!(is_gun_game("nes", "Duck Hunt + Super Mario Bros (USA)"), "contains a listed name, as EmulationStation does");
+        assert!(
+            is_gun_game("nes", "Duck Hunt + Super Mario Bros (USA)"),
+            "contains a listed name, as EmulationStation does"
+        );
         assert!(!is_gun_game("nes", "Super Mario Bros (World)"));
-        assert!(!is_gun_game("snes", "Duck Hunt (World)"), "listed for another system");
+        assert!(
+            !is_gun_game("snes", "Duck Hunt (World)"),
+            "listed for another system"
+        );
         assert!(is_gun_game("mame", "2spicy") && is_gun_game("fbneo", "38ambushalley"));
         assert!(!is_gun_game("mame", "pacman"));
         assert!(is_gun_game("psx", "Area 51 (USA)"));
@@ -465,18 +564,40 @@ mod tests {
     fn the_librarys_light_gun_games_are_found() {
         use std::fs;
         let dir = tempfile::tempdir().unwrap();
-        for (folder, name) in [("nes", "Duck Hunt (World).nes"), ("nes", "Tetris (USA).nes"), ("snes", "Super Scope 6 (USA).sfc")] {
+        for (folder, name) in [
+            ("nes", "Duck Hunt (World).nes"),
+            ("nes", "Tetris (USA).nes"),
+            ("snes", "Super Scope 6 (USA).sfc"),
+        ] {
             fs::create_dir_all(dir.path().join(folder)).unwrap();
             fs::write(dir.path().join(folder).join(name), vec![0u8; 64]).unwrap();
         }
         let mut c = Connection::open_in_memory().unwrap();
         crate::db::migrate(&mut c, None).unwrap();
-        crate::scanner::scan(&mut c, dir.path(), &|_: &str| crate::volumes::VolumeProbe::unknown()).unwrap();
+        crate::scanner::scan(&mut c, dir.path(), &|_: &str| {
+            crate::volumes::VolumeProbe::unknown()
+        })
+        .unwrap();
         let ids = game_ids(&c).unwrap();
-        let titles: Vec<String> = ids.iter().map(|id| c.query_row("SELECT canonical_title FROM games WHERE id = ?1", [id], |r| r.get(0)).unwrap()).collect();
-        assert!(titles.iter().any(|t: &String| t.contains("Duck Hunt")), "{titles:?}");
+        let titles: Vec<String> = ids
+            .iter()
+            .map(|id| {
+                c.query_row(
+                    "SELECT canonical_title FROM games WHERE id = ?1",
+                    [id],
+                    |r| r.get(0),
+                )
+                .unwrap()
+            })
+            .collect();
+        assert!(
+            titles.iter().any(|t: &String| t.contains("Duck Hunt")),
+            "{titles:?}"
+        );
         assert!(!titles.iter().any(|t| t.contains("Tetris")), "{titles:?}");
-        assert!(Arc::ptr_eq(&ids, &game_ids(&c).unwrap()), "cached while the library is unchanged");
+        assert!(
+            Arc::ptr_eq(&ids, &game_ids(&c).unwrap()),
+            "cached while the library is unchanged"
+        );
     }
 }
-

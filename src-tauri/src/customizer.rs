@@ -44,7 +44,14 @@ pub(crate) const SETTINGS: &str = "emulationstation/.emulationstation/es_setting
 const SYSTEMS: &str = "emulationstation/.emulationstation/es_systems.cfg";
 const FEATURES: &str = "emulationstation/.emulationstation/es_features.cfg";
 /// Per-system settings version 1 can change (`<system>.<key>`).
-pub const KEYS: [&str; 6] = ["emulator", "core", "shaderset", "bezel", "ratio", "integerscale"];
+pub const KEYS: [&str; 6] = [
+    "emulator",
+    "core",
+    "shaderset",
+    "bezel",
+    "ratio",
+    "integerscale",
+];
 const MAX_FILE: u64 = 16 << 20;
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
@@ -148,7 +155,9 @@ pub(crate) fn unescape(text: &str) -> String {
             "gt" => Some('>'),
             "quot" => Some('"'),
             "apos" => Some('\''),
-            _ if entity.starts_with("#x") => u32::from_str_radix(&entity[2..], 16).ok().and_then(char::from_u32),
+            _ if entity.starts_with("#x") => u32::from_str_radix(&entity[2..], 16)
+                .ok()
+                .and_then(char::from_u32),
             _ if entity.starts_with('#') => entity[1..].parse().ok().and_then(char::from_u32),
             _ => None,
         };
@@ -163,7 +172,10 @@ pub(crate) fn unescape(text: &str) -> String {
 }
 
 fn escape(text: &str) -> String {
-    text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 /// Attributes of one tag's inside (`string name="a" value="b" /`).
@@ -176,7 +188,11 @@ fn attributes(tag: &str) -> HashMap<String, String> {
             i += 1;
         }
         let name_start = i;
-        while i < bytes.len() && bytes[i] != b'=' && !(bytes[i] as char).is_whitespace() && bytes[i] != b'/' {
+        while i < bytes.len()
+            && bytes[i] != b'='
+            && !(bytes[i] as char).is_whitespace()
+            && bytes[i] != b'/'
+        {
             i += 1;
         }
         let name = &tag[name_start..i];
@@ -196,8 +212,13 @@ fn attributes(tag: &str) -> HashMap<String, String> {
         }
         let quote = bytes[i];
         let value_start = i + 1;
-        let Some(len) = bytes[value_start..].iter().position(|&b| b == quote) else { break };
-        found.insert(name.to_string(), unescape(&tag[value_start..value_start + len]));
+        let Some(len) = bytes[value_start..].iter().position(|&b| b == quote) else {
+            break;
+        };
+        found.insert(
+            name.to_string(),
+            unescape(&tag[value_start..value_start + len]),
+        );
         i = value_start + len + 1;
     }
     found
@@ -210,7 +231,11 @@ pub(crate) fn entries(text: &str) -> Result<Vec<Entry>, String> {
     while let Some(offset) = text[i..].find('<') {
         let start = i + offset;
         if text[start..].starts_with("<!--") {
-            i = start + text[start..].find("-->").ok_or("An unfinished comment in es_settings.cfg.")? + 3;
+            i = start
+                + text[start..]
+                    .find("-->")
+                    .ok_or("An unfinished comment in es_settings.cfg.")?
+                + 3;
             continue;
         }
         // Find the closing '>' outside quotes.
@@ -230,14 +255,22 @@ pub(crate) fn entries(text: &str) -> Result<Vec<Entry>, String> {
             return Err("es_settings.cfg ends in the middle of an element.".into());
         }
         let inside = &text[start + 1..j];
-        let element = inside.split(|c: char| c.is_whitespace() || c == '/').next().unwrap_or("");
+        let element = inside
+            .split(|c: char| c.is_whitespace() || c == '/')
+            .next()
+            .unwrap_or("");
         if ["string", "bool", "int", "float"].contains(&element) {
             let attrs = attributes(inside);
             if let (Some(name), Some(value)) = (attrs.get("name"), attrs.get("value")) {
                 if !inside.trim_end().ends_with('/') {
                     return Err(format!("The setting {name} in es_settings.cfg isn't written the usual way, so RetroDrive won't edit the file."));
                 }
-                found.push(Entry { name: name.clone(), value: value.clone(), start, end: j + 1 });
+                found.push(Entry {
+                    name: name.clone(),
+                    value: value.clone(),
+                    start,
+                    end: j + 1,
+                });
             }
         }
         i = j + 1;
@@ -262,7 +295,10 @@ pub(crate) fn values(list: &[Entry]) -> Result<BTreeMap<String, String>, String>
     let mut map = BTreeMap::new();
     for e in list {
         if map.insert(e.name.clone(), e.value.clone()).is_some() {
-            return Err(format!("es_settings.cfg lists {} twice, so RetroDrive won't edit it.", e.name));
+            return Err(format!(
+                "es_settings.cfg lists {} twice, so RetroDrive won't edit it.",
+                e.name
+            ));
         }
     }
     Ok(map)
@@ -275,18 +311,33 @@ fn edit(text: &str, wanted: &BTreeMap<String, Option<String>>) -> Result<String,
 
 /// Like `edit`, with the element type per key (`string` when not listed): RetroBat
 /// reads `<bool>` and `<int>` settings only from elements of that type.
-pub(crate) fn edit_typed(text: &str, wanted: &BTreeMap<String, Option<String>>, tags: &BTreeMap<String, &str>) -> Result<String, String> {
+pub(crate) fn edit_typed(
+    text: &str,
+    wanted: &BTreeMap<String, Option<String>>,
+    tags: &BTreeMap<String, &str>,
+) -> Result<String, String> {
     let tag = |name: &str| -> &str { tags.get(name).copied().unwrap_or("string") };
     let list = entries(text)?;
     let before = values(&list)?;
     let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
     // Replace or remove existing entries, last first so positions stay valid.
     let mut out = text.to_string();
-    let mut existing: Vec<&Entry> = list.iter().filter(|e| wanted.contains_key(&e.name)).collect();
+    let mut existing: Vec<&Entry> = list
+        .iter()
+        .filter(|e| wanted.contains_key(&e.name))
+        .collect();
     existing.sort_by_key(|e| std::cmp::Reverse(e.start));
     for e in existing {
         match &wanted[&e.name] {
-            Some(value) => out.replace_range(e.start..e.end, &format!("<{} name=\"{}\" value=\"{}\" />", tag(&e.name), escape(&e.name), escape(value))),
+            Some(value) => out.replace_range(
+                e.start..e.end,
+                &format!(
+                    "<{} name=\"{}\" value=\"{}\" />",
+                    tag(&e.name),
+                    escape(&e.name),
+                    escape(value)
+                ),
+            ),
             None => {
                 // Remove the whole line when the element is alone on it.
                 let line_start = out[..e.start].rfind('\n').map(|p| p + 1).unwrap_or(0);
@@ -304,16 +355,27 @@ pub(crate) fn edit_typed(text: &str, wanted: &BTreeMap<String, Option<String>>, 
     }
     // Add new entries before </config>, indented like the others. ES-DE's
     // es_settings.xml has no <config> wrapper (a flat list), so there they go at the end.
-    let additions: Vec<(&String, &String)> = wanted.iter().filter(|(k, _)| !before.contains_key(*k)).filter_map(|(k, v)| v.as_ref().map(|v| (k, v))).collect();
+    let additions: Vec<(&String, &String)> = wanted
+        .iter()
+        .filter(|(k, _)| !before.contains_key(*k))
+        .filter_map(|(k, v)| v.as_ref().map(|v| (k, v)))
+        .collect();
     if !additions.is_empty() {
         let indent = list.first().map(|e| {
             let s = text[..e.start].rfind('\n').map(|p| p + 1).unwrap_or(0);
             text[s..e.start].to_string()
         });
-        let indent = indent.filter(|i| i.trim().is_empty()).unwrap_or_else(|| "\t".to_string());
+        let indent = indent
+            .filter(|i| i.trim().is_empty())
+            .unwrap_or_else(|| "\t".to_string());
         let mut block = String::new();
         for (name, value) in additions {
-            block.push_str(&format!("{indent}<{} name=\"{}\" value=\"{}\" />{newline}", tag(name), escape(name), escape(value)));
+            block.push_str(&format!(
+                "{indent}<{} name=\"{}\" value=\"{}\" />{newline}",
+                tag(name),
+                escape(name),
+                escape(value)
+            ));
         }
         match out.rfind("</config>") {
             Some(close) => {
@@ -330,23 +392,40 @@ pub(crate) fn edit_typed(text: &str, wanted: &BTreeMap<String, Option<String>>, 
                 }
                 out.push_str(&block);
             }
-            None => return Err("es_settings.cfg has no </config>, so RetroDrive won't edit it.".into()),
+            None => {
+                return Err("es_settings.cfg has no </config>, so RetroDrive won't edit it.".into())
+            }
         }
     }
     // Check the result: valid XML, wanted values in place, every other entry unchanged.
-    well_formed(&out).map_err(|e| format!("The edited settings would be {e}; nothing was changed."))?;
+    well_formed(&out)
+        .map_err(|e| format!("The edited settings would be {e}; nothing was changed."))?;
     let after = values(&entries(&out)?)?;
     for (name, value) in &before {
         if !wanted.contains_key(name) && after.get(name) != Some(value) {
-            return Err(format!("Editing would have changed {name}; nothing was changed."));
+            return Err(format!(
+                "Editing would have changed {name}; nothing was changed."
+            ));
         }
     }
     for (name, value) in wanted {
         if after.get(name) != value.as_ref() {
-            return Err(format!("Editing didn't set {name} as intended; nothing was changed."));
+            return Err(format!(
+                "Editing didn't set {name} as intended; nothing was changed."
+            ));
         }
     }
-    if after.len() != before.len() + wanted.iter().filter(|(k, v)| !before.contains_key(*k) && v.is_some()).count() - wanted.iter().filter(|(k, v)| before.contains_key(*k) && v.is_none()).count() {
+    if after.len()
+        != before.len()
+            + wanted
+                .iter()
+                .filter(|(k, v)| !before.contains_key(*k) && v.is_some())
+                .count()
+            - wanted
+                .iter()
+                .filter(|(k, v)| before.contains_key(*k) && v.is_none())
+                .count()
+    {
         return Err("Editing would have added or lost other settings; nothing was changed.".into());
     }
     Ok(out)
@@ -355,9 +434,19 @@ pub(crate) fn edit_typed(text: &str, wanted: &BTreeMap<String, Option<String>>, 
 // ---------- What the install offers ----------
 
 pub(crate) fn read_text(path: &Path) -> Result<String, String> {
-    let size = fs::metadata(path).map_err(|_| format!("{} wasn't found. Start RetroBat once so it creates it.", path.display()))?.len();
+    let size = fs::metadata(path)
+        .map_err(|_| {
+            format!(
+                "{} wasn't found. Start RetroBat once so it creates it.",
+                path.display()
+            )
+        })?
+        .len();
     if size > MAX_FILE {
-        return Err(format!("{} is unexpectedly large, so RetroDrive won't read it.", path.display()));
+        return Err(format!(
+            "{} is unexpectedly large, so RetroDrive won't read it.",
+            path.display()
+        ));
     }
     fs::read_to_string(path).map_err(|e| format!("Couldn't read {}: {e}", path.display()))
 }
@@ -366,7 +455,11 @@ fn attribute(e: &BytesStart, key: &str) -> Option<String> {
     e.attributes()
         .filter_map(Result::ok)
         .find(|a| AsRef::<str>::as_ref(&a.key) == key)
-        .and_then(|a| a.normalized_value(quick_xml::XmlVersion::Implicit1_0).ok().map(|v| v.into_owned()))
+        .and_then(|a| {
+            a.normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                .ok()
+                .map(|v| v.into_owned())
+        })
 }
 
 /// Systems, their names and emulators/cores from es_systems.cfg.
@@ -374,7 +467,8 @@ fn read_systems(path: &Path) -> Result<Vec<(String, String, Vec<EmulatorOption>)
     let text = read_text(path)?;
     let mut reader = Reader::from_str(&text);
     let mut systems = Vec::new();
-    let (mut in_system, mut field, mut name, mut full) = (false, String::new(), String::new(), String::new());
+    let (mut in_system, mut field, mut name, mut full) =
+        (false, String::new(), String::new(), String::new());
     let mut emulators: Vec<EmulatorOption> = Vec::new();
     let mut buffer = String::new();
     loop {
@@ -388,7 +482,10 @@ fn read_systems(path: &Path) -> Result<Vec<(String, String, Vec<EmulatorOption>)
                         full.clear();
                         emulators.clear();
                     }
-                    "emulator" if in_system => emulators.push(EmulatorOption { emulator: attribute(&e, "name").unwrap_or_default(), cores: Vec::new() }),
+                    "emulator" if in_system => emulators.push(EmulatorOption {
+                        emulator: attribute(&e, "name").unwrap_or_default(),
+                        cores: Vec::new(),
+                    }),
                     _ => {}
                 }
                 field = tag;
@@ -396,7 +493,10 @@ fn read_systems(path: &Path) -> Result<Vec<(String, String, Vec<EmulatorOption>)
             }
             Ok(Event::Empty(e)) => {
                 if in_system && AsRef::<str>::as_ref(&e.name()) == "emulator" {
-                    emulators.push(EmulatorOption { emulator: attribute(&e, "name").unwrap_or_default(), cores: Vec::new() });
+                    emulators.push(EmulatorOption {
+                        emulator: attribute(&e, "name").unwrap_or_default(),
+                        cores: Vec::new(),
+                    });
                 }
             }
             Ok(Event::Text(t)) => buffer.push_str(&t.xml10_content()),
@@ -425,7 +525,15 @@ fn read_systems(path: &Path) -> Result<Vec<(String, String, Vec<EmulatorOption>)
                     in_system = false;
                     if !name.is_empty() {
                         emulators.retain(|e| !e.emulator.is_empty());
-                        systems.push((name.clone(), if full.is_empty() { name.clone() } else { full.clone() }, emulators.clone()));
+                        systems.push((
+                            name.clone(),
+                            if full.is_empty() {
+                                name.clone()
+                            } else {
+                                full.clone()
+                            },
+                            emulators.clone(),
+                        ));
                     }
                 }
                 field.clear();
@@ -441,15 +549,22 @@ fn read_systems(path: &Path) -> Result<Vec<(String, String, Vec<EmulatorOption>)
 
 /// The aspect-ratio choices RetroBat offers (the shared `ratio` feature in es_features.cfg).
 fn read_ratios(path: &Path) -> Vec<Choice> {
-    let Ok(text) = read_text(path) else { return Vec::new() };
+    let Ok(text) = read_text(path) else {
+        return Vec::new();
+    };
     let mut reader = Reader::from_str(&text);
     let mut inside = false;
     let mut found = Vec::new();
     loop {
         match reader.read_event() {
-            Ok(Event::Start(e)) if AsRef::<str>::as_ref(&e.name()) == "feature" && found.is_empty() => inside = attribute(&e, "value").as_deref() == Some("ratio"),
+            Ok(Event::Start(e))
+                if AsRef::<str>::as_ref(&e.name()) == "feature" && found.is_empty() =>
+            {
+                inside = attribute(&e, "value").as_deref() == Some("ratio")
+            }
             Ok(Event::Empty(e)) if inside && AsRef::<str>::as_ref(&e.name()) == "choice" => {
-                if let (Some(label), Some(value)) = (attribute(&e, "name"), attribute(&e, "value")) {
+                if let (Some(label), Some(value)) = (attribute(&e, "name"), attribute(&e, "value"))
+                {
                     found.push(Choice { label, value });
                 }
             }
@@ -480,7 +595,15 @@ fn folders(paths: &[PathBuf]) -> Vec<String> {
 }
 
 fn has_games(root: &Path, system: &str) -> bool {
-    fs::read_dir(root.join("roms").join(system)).map(|read| read.filter_map(Result::ok).any(|e| !e.file_name().to_string_lossy().eq_ignore_ascii_case("_info.txt"))).unwrap_or(false)
+    fs::read_dir(root.join("roms").join(system))
+        .map(|read| {
+            read.filter_map(Result::ok).any(|e| {
+                !e.file_name()
+                    .to_string_lossy()
+                    .eq_ignore_ascii_case("_info.txt")
+            })
+        })
+        .unwrap_or(false)
 }
 
 pub(crate) struct Install {
@@ -490,13 +613,32 @@ pub(crate) struct Install {
     pub stable: Option<String>,
 }
 
-pub(crate) fn install(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<Install, String> {
-    install_for(connection, installation_id, presence, &["retrobat"], "Emulator settings are only available for RetroBat so far.")
+pub(crate) fn install(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<Install, String> {
+    install_for(
+        connection,
+        installation_id,
+        presence,
+        &["retrobat"],
+        "Emulator settings are only available for RetroBat so far.",
+    )
 }
 
 /// The installation, if its platform is one of `adapters` (e.g. game lists: RetroBat and Batocera).
-pub(crate) fn install_for(connection: &Connection, installation_id: &str, presence: PresenceFn, adapters: &[&str], refusal: &str) -> Result<Install, String> {
-    let located = installations::located(connection, presence, Some(installation_id))?.into_iter().next().ok_or("Installation not found")?;
+pub(crate) fn install_for(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+    adapters: &[&str],
+    refusal: &str,
+) -> Result<Install, String> {
+    let located = installations::located(connection, presence, Some(installation_id))?
+        .into_iter()
+        .next()
+        .ok_or("Installation not found")?;
     if !adapters.contains(&located.adapter_id.as_str()) {
         return Err(refusal.into());
     }
@@ -507,7 +649,12 @@ pub(crate) fn install_for(connection: &Connection, installation_id: &str, presen
         .query_row("SELECT s.stable_id FROM installations i JOIN storage_locations s ON s.id = i.storage_location_id WHERE i.id = ?1", [installation_id], |r| r.get(0))
         .map_err(|e| e.to_string())?;
     let root_text = located.root.display().to_string();
-    Ok(Install { id: located.id, root: located.root, root_text, stable })
+    Ok(Install {
+        id: located.id,
+        root: located.root,
+        root_text,
+        stable,
+    })
 }
 
 pub(crate) fn running_message(running: RunningFn) -> Option<String> {
@@ -524,16 +671,56 @@ pub(crate) struct Offer {
 
 pub(crate) fn offer(root: &Path) -> Result<Offer, String> {
     let systems = read_systems(&root.join(SYSTEMS))?;
-    let mut shaders = vec![Choice { label: "None".into(), value: "none".into() }];
-    shaders.extend(folders(&[root.join("system/shaders/configs")]).into_iter().map(|f| Choice { label: f.clone(), value: f }));
-    let mut bezels = vec![Choice { label: "None".into(), value: "none".into() }];
-    bezels.extend(folders(&[root.join("system/decorations"), root.join("decorations")]).into_iter().map(|f| Choice { label: f.clone(), value: f }));
-    let integer = vec![Choice { label: "On".into(), value: "1".into() }, Choice { label: "Off".into(), value: "0".into() }];
-    Ok(Offer { systems, shaders, bezels, ratios: read_ratios(&root.join(FEATURES)), integer })
+    let mut shaders = vec![Choice {
+        label: "None".into(),
+        value: "none".into(),
+    }];
+    shaders.extend(
+        folders(&[root.join("system/shaders/configs")])
+            .into_iter()
+            .map(|f| Choice {
+                label: f.clone(),
+                value: f,
+            }),
+    );
+    let mut bezels = vec![Choice {
+        label: "None".into(),
+        value: "none".into(),
+    }];
+    bezels.extend(
+        folders(&[root.join("system/decorations"), root.join("decorations")])
+            .into_iter()
+            .map(|f| Choice {
+                label: f.clone(),
+                value: f,
+            }),
+    );
+    let integer = vec![
+        Choice {
+            label: "On".into(),
+            value: "1".into(),
+        },
+        Choice {
+            label: "Off".into(),
+            value: "0".into(),
+        },
+    ];
+    Ok(Offer {
+        systems,
+        shaders,
+        bezels,
+        ratios: read_ratios(&root.join(FEATURES)),
+        integer,
+    })
 }
 
 /// Current settings and the choices this install offers, for every system.
-pub fn options(connection: &Connection, installation_id: &str, presence: PresenceFn, running: RunningFn) -> Result<SettingsOptions, String> {
+pub fn options(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+    running: RunningFn,
+) -> Result<SettingsOptions, String> {
     let install = install(connection, installation_id, presence)?;
     let text = read_text(&install.root.join(SETTINGS))?;
     let current = values(&entries(&text)?)?;
@@ -542,8 +729,21 @@ pub fn options(connection: &Connection, installation_id: &str, presence: Presenc
         .systems
         .into_iter()
         .map(|(system, name, emulators)| {
-            let mine = KEYS.iter().filter_map(|k| current.get(&format!("{system}.{k}")).map(|v| (k.to_string(), v.clone()))).collect();
-            SystemSettings { has_games: has_games(&install.root, &system), system, name, emulators, current: mine }
+            let mine = KEYS
+                .iter()
+                .filter_map(|k| {
+                    current
+                        .get(&format!("{system}.{k}"))
+                        .map(|v| (k.to_string(), v.clone()))
+                })
+                .collect();
+            SystemSettings {
+                has_games: has_games(&install.root, &system),
+                system,
+                name,
+                emulators,
+                current: mine,
+            }
         })
         .collect();
     Ok(SettingsOptions {
@@ -560,11 +760,18 @@ pub fn options(connection: &Connection, installation_id: &str, presence: Presenc
 
 pub(crate) fn hex_sha(bytes: &[u8]) -> String {
     use sha2::{Digest, Sha256};
-    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+    Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 /// Check every change against what the install offers; returns the entries to write.
-fn validate(changes: &[Change], offer: &Offer, current: &BTreeMap<String, String>) -> Result<BTreeMap<String, Option<String>>, String> {
+fn validate(
+    changes: &[Change],
+    offer: &Offer,
+    current: &BTreeMap<String, String>,
+) -> Result<BTreeMap<String, Option<String>>, String> {
     if changes.is_empty() {
         return Err("There are no changes to apply.".into());
     }
@@ -576,11 +783,18 @@ fn validate(changes: &[Change], offer: &Offer, current: &BTreeMap<String, String
 }
 
 /// Per-system changes checked against the install's choices; only real changes are returned (may be empty).
-pub(crate) fn validate_systems(changes: &[Change], offer: &Offer, current: &BTreeMap<String, String>) -> Result<BTreeMap<String, Option<String>>, String> {
+pub(crate) fn validate_systems(
+    changes: &[Change],
+    offer: &Offer,
+    current: &BTreeMap<String, String>,
+) -> Result<BTreeMap<String, Option<String>>, String> {
     let mut wanted: BTreeMap<String, Option<String>> = BTreeMap::new();
     for c in changes {
         if !KEYS.contains(&c.key.as_str()) {
-            return Err(format!("RetroDrive doesn't change the setting {} yet.", c.key));
+            return Err(format!(
+                "RetroDrive doesn't change the setting {} yet.",
+                c.key
+            ));
         }
         let Some((_, _, emulators)) = offer.systems.iter().find(|(s, _, _)| *s == c.system) else {
             return Err(format!("{} isn't a system in this RetroBat.", c.system));
@@ -596,7 +810,10 @@ pub(crate) fn validate_systems(changes: &[Change], offer: &Offer, current: &BTre
                 _ => false,
             };
             if !ok || value.is_empty() || value.contains(['\r', '\n']) {
-                return Err(format!("{value} isn't one of this RetroBat's choices for {} {}.", c.system, c.key));
+                return Err(format!(
+                    "{value} isn't one of this RetroBat's choices for {} {}.",
+                    c.system, c.key
+                ));
             }
         }
         wanted.insert(format!("{}.{}", c.system, c.key), c.value.clone());
@@ -610,16 +827,30 @@ pub(crate) fn validate_systems(changes: &[Change], offer: &Offer, current: &BTre
                 None => current.get(&k).cloned(),
             }
         };
-        if !changes.iter().any(|c| &c.system == system && (c.key == "emulator" || c.key == "core")) {
+        if !changes
+            .iter()
+            .any(|c| &c.system == system && (c.key == "emulator" || c.key == "core"))
+        {
             continue;
         }
         match (get("emulator"), get("core")) {
-            (None, Some(core)) => return Err(format!("{system}: the core {core} needs an emulator chosen too.")),
+            (None, Some(core)) => {
+                return Err(format!(
+                    "{system}: the core {core} needs an emulator chosen too."
+                ))
+            }
             (Some(emulator), core) => {
-                let option = emulators.iter().find(|e| e.emulator == emulator).ok_or(format!("{system}: {emulator} isn't available."))?;
+                let option = emulators
+                    .iter()
+                    .find(|e| e.emulator == emulator)
+                    .ok_or(format!("{system}: {emulator} isn't available."))?;
                 match core {
-                    Some(core) if !option.cores.contains(&core) => return Err(format!("{system}: {emulator} has no core {core}.")),
-                    None if !option.cores.is_empty() => return Err(format!("{system}: choose one of {emulator}'s cores.")),
+                    Some(core) if !option.cores.contains(&core) => {
+                        return Err(format!("{system}: {emulator} has no core {core}."))
+                    }
+                    None if !option.cores.is_empty() => {
+                        return Err(format!("{system}: choose one of {emulator}'s cores."))
+                    }
                     _ => {}
                 }
             }
@@ -631,27 +862,48 @@ pub(crate) fn validate_systems(changes: &[Change], offer: &Offer, current: &BTre
     Ok(wanted)
 }
 
-pub(crate) fn rows(wanted: &BTreeMap<String, Option<String>>, current: &BTreeMap<String, String>) -> Vec<ChangeRow> {
+pub(crate) fn rows(
+    wanted: &BTreeMap<String, Option<String>>,
+    current: &BTreeMap<String, String>,
+) -> Vec<ChangeRow> {
     wanted
         .iter()
         .map(|(k, v)| {
             let (system, key) = k.rsplit_once('.').unwrap_or(("", k));
-            ChangeRow { system: system.to_string(), key: key.to_string(), before: current.get(k).cloned(), after: v.clone() }
+            ChangeRow {
+                system: system.to_string(),
+                key: key.to_string(),
+                before: current.get(k).cloned(),
+                after: v.clone(),
+            }
         })
         .collect()
 }
 
 /// The exact before → after values, without writing anything.
-pub fn preview(connection: &Connection, installation_id: &str, changes: &[Change], presence: PresenceFn) -> Result<Preview, String> {
+pub fn preview(
+    connection: &Connection,
+    installation_id: &str,
+    changes: &[Change],
+    presence: PresenceFn,
+) -> Result<Preview, String> {
     let install = install(connection, installation_id, presence)?;
     let text = read_text(&install.root.join(SETTINGS))?;
     let current = values(&entries(&text)?)?;
     let wanted = validate(changes, &offer(&install.root)?, &current)?;
     edit(&text, &wanted)?;
-    Ok(Preview { changes: rows(&wanted, &current), file_sha: hex_sha(text.as_bytes()) })
+    Ok(Preview {
+        changes: rows(&wanted, &current),
+        file_sha: hex_sha(text.as_bytes()),
+    })
 }
 
-fn set_state(connection: &Connection, id: i64, state: &str, message: Option<&str>) -> Result<(), String> {
+fn set_state(
+    connection: &Connection,
+    id: i64,
+    state: &str,
+    message: Option<&str>,
+) -> Result<(), String> {
     connection
         .execute("UPDATE settings_changes SET state = ?2, message = COALESCE(?3, message), updated_at = CURRENT_TIMESTAMP WHERE id = ?1", params![id, state, message])
         .map(|_| ())
@@ -659,7 +911,14 @@ fn set_state(connection: &Connection, id: i64, state: &str, message: Option<&str
 }
 
 /// Write the change: new file read back, current file moved to the backup folder, new file takes its name.
-pub fn apply(connection: &Connection, installation_id: &str, changes: &[Change], expected_sha: &str, presence: PresenceFn, running: RunningFn) -> Result<String, String> {
+pub fn apply(
+    connection: &Connection,
+    installation_id: &str,
+    changes: &[Change],
+    expected_sha: &str,
+    presence: PresenceFn,
+    running: RunningFn,
+) -> Result<String, String> {
     let install = install(connection, installation_id, presence)?;
     if let Some(reason) = running_message(running) {
         return Err(format!("{reason} Nothing was changed."));
@@ -677,18 +936,46 @@ pub fn apply(connection: &Connection, installation_id: &str, changes: &[Change],
 
 /// The shared safe write: journal, new file read back, current file moved to the
 /// backup folder, new file renamed in. `wanted` must already be validated.
-fn write_settings(connection: &Connection, install: &Install, settings: &Path, text: &str, wanted: &BTreeMap<String, Option<String>>, current: &BTreeMap<String, String>) -> Result<String, String> {
+fn write_settings(
+    connection: &Connection,
+    install: &Install,
+    settings: &Path,
+    text: &str,
+    wanted: &BTreeMap<String, Option<String>>,
+    current: &BTreeMap<String, String>,
+) -> Result<String, String> {
     let new_text = edit(text, wanted)?;
-    write_file(connection, install, SETTINGS, settings, text, &new_text, rows(wanted, current)).map(|(m, _)| m)
+    write_file(
+        connection,
+        install,
+        SETTINGS,
+        settings,
+        text,
+        &new_text,
+        rows(wanted, current),
+    )
+    .map(|(m, _)| m)
 }
 
 /// Journaled, backed-up replacement of one RetroBat file (`relative` to the
 /// installation) with `new_text`. Undo and crash repair work from the journal.
-pub(crate) fn write_file(connection: &Connection, install: &Install, relative: &str, settings: &Path, text: &str, new_text: &str, changed: Vec<ChangeRow>) -> Result<(String, i64), String> {
+pub(crate) fn write_file(
+    connection: &Connection,
+    install: &Install,
+    relative: &str,
+    settings: &Path,
+    text: &str,
+    new_text: &str,
+    changed: Vec<ChangeRow>,
+) -> Result<(String, i64), String> {
     // A file that doesn't exist yet (e.g. RetroBat's favorites playlist) is created;
     // its "previous version" is no file, and undo moves it into the backup folder.
     let creating = fs::symlink_metadata(settings).is_err();
-    let old_sha = if creating { NO_FILE.to_string() } else { hex_sha(text.as_bytes()) };
+    let old_sha = if creating {
+        NO_FILE.to_string()
+    } else {
+        hex_sha(text.as_bytes())
+    };
     let new_sha = hex_sha(new_text.as_bytes());
 
     let token = db::new_id()[..8].to_string();
@@ -696,11 +983,14 @@ pub(crate) fn write_file(connection: &Connection, install: &Install, relative: &
     let temp = PathBuf::from(format!("{}{marker}", settings.display()));
     let backup_relative = format!("{BACKUP_DIR}/settings-{token}/{relative}");
     if !creating {
-        copier::ensure_folders(&install.root, &backup_relative).map_err(|e| format!("Couldn't prepare the backup folder: {e} Nothing was changed."))?;
+        copier::ensure_folders(&install.root, &backup_relative)
+            .map_err(|e| format!("Couldn't prepare the backup folder: {e} Nothing was changed."))?;
     }
     let backup = paths::join(&install.root_text, &backup_relative);
     if fs::symlink_metadata(&backup).is_ok() || fs::symlink_metadata(&temp).is_ok() {
-        return Err("RetroDrive's working file names are already taken, so nothing was changed.".into());
+        return Err(
+            "RetroDrive's working file names are already taken, so nothing was changed.".into(),
+        );
     }
 
     // Journal first.
@@ -724,7 +1014,10 @@ pub(crate) fn write_file(connection: &Connection, install: &Install, relative: &
     let id = connection.last_insert_rowid();
 
     let written = (|| -> std::io::Result<()> {
-        let mut out = OpenOptions::new().write(true).create_new(true).open(&temp)?;
+        let mut out = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp)?;
         out.write_all(new_text.as_bytes())?;
         out.sync_all()
     })();
@@ -734,7 +1027,9 @@ pub(crate) fn write_file(connection: &Connection, install: &Install, relative: &
         Err(message)
     };
     if let Err(e) = written {
-        return fail(format!("Couldn't write the new settings: {e}. Nothing was changed."));
+        return fail(format!(
+            "Couldn't write the new settings: {e}. Nothing was changed."
+        ));
     }
     match copier::sha256_of(&temp) {
         Ok(sha) if sha == new_sha => {}
@@ -748,16 +1043,29 @@ pub(crate) fn write_file(connection: &Connection, install: &Install, relative: &
     if let Err(e) = copier::rename_no_replace(&temp, settings) {
         let restored = creating || copier::rename_no_replace(&backup, settings).is_ok();
         return fail(if restored {
-            format!("Couldn't put the new settings in place ({e}), so the current ones were put back.")
+            format!(
+                "Couldn't put the new settings in place ({e}), so the current ones were put back."
+            )
         } else {
             format!("Couldn't put the new settings in place ({e}). Your settings are safe in {}; restart RetroDrive with the drive connected to put them back.", backup.display())
         });
     }
-    connection.execute("UPDATE settings_changes SET temp_path = NULL WHERE id = ?1", [id]).map_err(|e| e.to_string())?;
+    connection
+        .execute(
+            "UPDATE settings_changes SET temp_path = NULL WHERE id = ?1",
+            [id],
+        )
+        .map_err(|e| e.to_string())?;
     let message = if creating {
-        format!("{} created. Undo moves it into RetroDrive's backup folder.", relative.rsplit('/').next().unwrap_or(relative))
+        format!(
+            "{} created. Undo moves it into RetroDrive's backup folder.",
+            relative.rsplit('/').next().unwrap_or(relative)
+        )
     } else {
-        format!("{} setting(s) changed. The previous settings file is in {backup_relative}.", changed.len())
+        format!(
+            "{} setting(s) changed. The previous settings file is in {backup_relative}.",
+            changed.len()
+        )
     };
     set_state(connection, id, "applied", Some(&message))?;
     Ok((message, id))
@@ -765,11 +1073,19 @@ pub(crate) fn write_file(connection: &Connection, install: &Install, relative: &
 
 /// Theme folders RetroBat can use (`emulationstation\.emulationstation\themes` and `emulationstation\themes`).
 pub fn theme_folders(root: &Path) -> Vec<String> {
-    folders(&[root.join("emulationstation/.emulationstation/themes"), root.join("emulationstation/themes")])
+    folders(&[
+        root.join("emulationstation/.emulationstation/themes"),
+        root.join("emulationstation/themes"),
+    ])
 }
 
 /// Settings path, current text, current values and the wanted entry for a theme switch.
-type ThemeChange = (PathBuf, String, BTreeMap<String, String>, BTreeMap<String, Option<String>>);
+type ThemeChange = (
+    PathBuf,
+    String,
+    BTreeMap<String, String>,
+    BTreeMap<String, Option<String>>,
+);
 
 fn theme_change(install: &Install, theme: &str) -> Result<ThemeChange, String> {
     if !theme_folders(&install.root).iter().any(|t| t == theme) {
@@ -781,20 +1097,38 @@ fn theme_change(install: &Install, theme: &str) -> Result<ThemeChange, String> {
     if current.get("ThemeSet").map(String::as_str) == Some(theme) {
         return Err(format!("{theme} is already RetroBat's theme."));
     }
-    let wanted: BTreeMap<String, Option<String>> = [("ThemeSet".to_string(), Some(theme.to_string()))].into_iter().collect();
+    let wanted: BTreeMap<String, Option<String>> =
+        [("ThemeSet".to_string(), Some(theme.to_string()))]
+            .into_iter()
+            .collect();
     Ok((settings, text, current, wanted))
 }
 
 /// What switching RetroBat's theme would change (reads only).
-pub fn preview_theme(connection: &Connection, installation_id: &str, theme: &str, presence: PresenceFn) -> Result<Preview, String> {
+pub fn preview_theme(
+    connection: &Connection,
+    installation_id: &str,
+    theme: &str,
+    presence: PresenceFn,
+) -> Result<Preview, String> {
     let install = install(connection, installation_id, presence)?;
     let (_, text, current, wanted) = theme_change(&install, theme)?;
     edit(&text, &wanted)?;
-    Ok(Preview { changes: rows(&wanted, &current), file_sha: hex_sha(text.as_bytes()) })
+    Ok(Preview {
+        changes: rows(&wanted, &current),
+        file_sha: hex_sha(text.as_bytes()),
+    })
 }
 
 /// Make `theme` RetroBat's theme (`ThemeSet`), the same safe way as other settings; undoable.
-pub fn apply_theme(connection: &Connection, installation_id: &str, theme: &str, expected_sha: &str, presence: PresenceFn, running: RunningFn) -> Result<String, String> {
+pub fn apply_theme(
+    connection: &Connection,
+    installation_id: &str,
+    theme: &str,
+    expected_sha: &str,
+    presence: PresenceFn,
+    running: RunningFn,
+) -> Result<String, String> {
     let install = install(connection, installation_id, presence)?;
     if let Some(reason) = running_message(running) {
         return Err(format!("{reason} Nothing was changed."));
@@ -832,8 +1166,28 @@ pub struct IniOption {
     pub choices: Vec<Choice>,
 }
 
-fn opt(section: &'static str, key: &'static str, label: &'static str, help: &'static str, kind: &'static str, choices: &[(&str, &str)]) -> IniOption {
-    IniOption { section, key, label, help, kind, choices: choices.iter().map(|(v, l)| Choice { label: l.to_string(), value: v.to_string() }).collect() }
+fn opt(
+    section: &'static str,
+    key: &'static str,
+    label: &'static str,
+    help: &'static str,
+    kind: &'static str,
+    choices: &[(&str, &str)],
+) -> IniOption {
+    IniOption {
+        section,
+        key,
+        label,
+        help,
+        kind,
+        choices: choices
+            .iter()
+            .map(|(v, l)| Choice {
+                label: l.to_string(),
+                value: v.to_string(),
+            })
+            .collect(),
+    }
 }
 
 /// The options offered. Left out on purpose: Autostart (changes Windows startup),
@@ -890,11 +1244,22 @@ pub(crate) fn ini_edit(text: &str, wanted: &BTreeMap<String, String>) -> Result<
     let before = ini_entries(text);
     let mut spans: Vec<(usize, usize, String)> = Vec::new();
     for (key, value) in wanted {
-        let (old, start, end) = before.get(key).ok_or(format!("retrobat.ini has no {key}, so RetroDrive won't add it."))?;
+        let (old, start, end) = before.get(key).ok_or(format!(
+            "retrobat.ini has no {key}, so RetroDrive won't add it."
+        ))?;
         let raw = &text[*start..*end];
-        let quoted = raw.trim().starts_with('"') || key.ends_with(".FileName") || key.ends_with(".FilePath");
+        let quoted =
+            raw.trim().starts_with('"') || key.ends_with(".FileName") || key.ends_with(".FilePath");
         let _ = old;
-        spans.push((*start, *end, if quoted { format!("\"{value}\"") } else { value.clone() }));
+        spans.push((
+            *start,
+            *end,
+            if quoted {
+                format!("\"{value}\"")
+            } else {
+                value.clone()
+            },
+        ));
     }
     spans.sort_by_key(|s| std::cmp::Reverse(s.0));
     let mut out = text.to_string();
@@ -905,11 +1270,15 @@ pub(crate) fn ini_edit(text: &str, wanted: &BTreeMap<String, String>) -> Result<
     for (key, (value, _, _)) in &before {
         let expected = wanted.get(key).unwrap_or(value);
         if after.get(key).map(|a| &a.0) != Some(expected) {
-            return Err(format!("Editing retrobat.ini would have changed {key} unexpectedly; nothing was changed."));
+            return Err(format!(
+                "Editing retrobat.ini would have changed {key} unexpectedly; nothing was changed."
+            ));
         }
     }
     if after.len() != before.len() {
-        return Err("Editing retrobat.ini would have added or lost settings; nothing was changed.".into());
+        return Err(
+            "Editing retrobat.ini would have added or lost settings; nothing was changed.".into(),
+        );
     }
     Ok(out)
 }
@@ -944,36 +1313,72 @@ pub struct IniChange {
 
 pub(crate) fn videos(root: &Path) -> Vec<String> {
     let mut names: Vec<String> = fs::read_dir(root.join(VIDEOS))
-        .map(|read| read.filter_map(Result::ok).filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false)).map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.to_lowercase().ends_with(".mp4")).collect())
+        .map(|read| {
+            read.filter_map(Result::ok)
+                .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .filter(|n| n.to_lowercase().ends_with(".mp4"))
+                .collect()
+        })
         .unwrap_or_default();
     names.sort();
     names
 }
 
 /// Boot video and frontend options from retrobat.ini (reads only).
-pub fn look_options(connection: &Connection, installation_id: &str, presence: PresenceFn, running: RunningFn) -> Result<LookOptions, String> {
+pub fn look_options(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+    running: RunningFn,
+) -> Result<LookOptions, String> {
     let install = install(connection, installation_id, presence)?;
     let text = read_text(&install.root.join(INI))?;
     let entries = ini_entries(&text);
-    let options: Vec<IniOption> = ini_options().into_iter().filter(|o| entries.contains_key(&format!("{}.{}", o.section, o.key))).collect();
-    let values = options.iter().filter_map(|o| entries.get(&format!("{}.{}", o.section, o.key)).map(|v| (format!("{}.{}", o.section, o.key), v.0.clone()))).collect();
-    let default_video_folder = entries.get("SplashScreen.FilePath").map(|v| v.0.eq_ignore_ascii_case("default")).unwrap_or(true);
+    let options: Vec<IniOption> = ini_options()
+        .into_iter()
+        .filter(|o| entries.contains_key(&format!("{}.{}", o.section, o.key)))
+        .collect();
+    let values = options
+        .iter()
+        .filter_map(|o| {
+            entries
+                .get(&format!("{}.{}", o.section, o.key))
+                .map(|v| (format!("{}.{}", o.section, o.key), v.0.clone()))
+        })
+        .collect();
+    let default_video_folder = entries
+        .get("SplashScreen.FilePath")
+        .map(|v| v.0.eq_ignore_ascii_case("default"))
+        .unwrap_or(true);
     Ok(LookOptions {
         options,
         values,
         videos: videos(&install.root),
-        videos_path: install.root.join(VIDEOS.replace('/', "\\")).display().to_string(),
+        videos_path: install
+            .root
+            .join(VIDEOS.replace('/', "\\"))
+            .display()
+            .to_string(),
         default_video_folder,
         music: music_files(&install.root),
         tracks: music_tracks(&install.root),
         favorites: favorite_tracks(&install.root, &install.root_text),
-        music_path: install.root.join(MUSIC.replace('/', "\\")).display().to_string(),
+        music_path: install
+            .root
+            .join(MUSIC.replace('/', "\\"))
+            .display()
+            .to_string(),
         file_sha: hex_sha(text.as_bytes()),
         blocked: running_message(running),
     })
 }
 
-fn ini_wanted(install: &Install, text: &str, changes: &[IniChange]) -> Result<(BTreeMap<String, String>, Vec<ChangeRow>), String> {
+fn ini_wanted(
+    install: &Install,
+    text: &str,
+    changes: &[IniChange],
+) -> Result<(BTreeMap<String, String>, Vec<ChangeRow>), String> {
     let (wanted, rows) = ini_validate(install, text, changes, &[])?;
     if wanted.is_empty() {
         return Err("Those are already the current settings.".into());
@@ -983,7 +1388,12 @@ fn ini_wanted(install: &Install, text: &str, changes: &[IniChange]) -> Result<(B
 
 /// retrobat.ini changes checked against the offered options; `extra_videos` are
 /// videos that will be added before writing. Only real changes are returned.
-pub(crate) fn ini_validate(install: &Install, text: &str, changes: &[IniChange], extra_videos: &[String]) -> Result<(BTreeMap<String, String>, Vec<ChangeRow>), String> {
+pub(crate) fn ini_validate(
+    install: &Install,
+    text: &str,
+    changes: &[IniChange],
+    extra_videos: &[String],
+) -> Result<(BTreeMap<String, String>, Vec<ChangeRow>), String> {
     let entries = ini_entries(text);
     let options = ini_options();
     let mut videos = videos(&install.root);
@@ -991,7 +1401,13 @@ pub(crate) fn ini_validate(install: &Install, text: &str, changes: &[IniChange],
     let mut wanted = BTreeMap::new();
     let mut rows = Vec::new();
     for c in changes {
-        let o = options.iter().find(|o| o.section == c.section && o.key == c.key).ok_or(format!("RetroDrive doesn't change {}.{}.", c.section, c.key))?;
+        let o = options
+            .iter()
+            .find(|o| o.section == c.section && o.key == c.key)
+            .ok_or(format!(
+                "RetroDrive doesn't change {}.{}.",
+                c.section, c.key
+            ))?;
         let ok = match o.kind {
             "bool" => c.value == "0" || c.value == "1",
             "number" => c.value.len() <= 6 && c.value.parse::<u32>().is_ok_and(|n| n <= 60_000),
@@ -1004,7 +1420,12 @@ pub(crate) fn ini_validate(install: &Install, text: &str, changes: &[IniChange],
         let key = format!("{}.{}", c.section, c.key);
         let before = entries.get(&key).map(|e| e.0.clone());
         if before.as_deref() != Some(c.value.as_str()) {
-            rows.push(ChangeRow { system: c.section.clone(), key: c.key.clone(), before, after: Some(c.value.clone()) });
+            rows.push(ChangeRow {
+                system: c.section.clone(),
+                key: c.key.clone(),
+                before,
+                after: Some(c.value.clone()),
+            });
             wanted.insert(key, c.value.clone());
         }
     }
@@ -1012,16 +1433,31 @@ pub(crate) fn ini_validate(install: &Install, text: &str, changes: &[IniChange],
 }
 
 /// What a retrobat.ini change would do (reads only).
-pub fn preview_look(connection: &Connection, installation_id: &str, changes: &[IniChange], presence: PresenceFn) -> Result<Preview, String> {
+pub fn preview_look(
+    connection: &Connection,
+    installation_id: &str,
+    changes: &[IniChange],
+    presence: PresenceFn,
+) -> Result<Preview, String> {
     let install = install(connection, installation_id, presence)?;
     let text = read_text(&install.root.join(INI))?;
     let (wanted, rows) = ini_wanted(&install, &text, changes)?;
     ini_edit(&text, &wanted)?;
-    Ok(Preview { changes: rows, file_sha: hex_sha(text.as_bytes()) })
+    Ok(Preview {
+        changes: rows,
+        file_sha: hex_sha(text.as_bytes()),
+    })
 }
 
 /// Write a reviewed retrobat.ini change (same safety as es_settings.cfg; undoable).
-pub fn apply_look(connection: &Connection, installation_id: &str, changes: &[IniChange], expected_sha: &str, presence: PresenceFn, running: RunningFn) -> Result<String, String> {
+pub fn apply_look(
+    connection: &Connection,
+    installation_id: &str,
+    changes: &[IniChange],
+    expected_sha: &str,
+    presence: PresenceFn,
+    running: RunningFn,
+) -> Result<String, String> {
     let install = install(connection, installation_id, presence)?;
     if let Some(reason) = running_message(running) {
         return Err(format!("{reason} Nothing was changed."));
@@ -1037,13 +1473,39 @@ pub fn apply_look(connection: &Connection, installation_id: &str, changes: &[Ini
 }
 
 /// Copy the user's own video into RetroBat's video folder as a new file (never over one).
-pub fn add_boot_video(connection: &Connection, installation_id: &str, source: &str, presence: PresenceFn) -> Result<String, String> {
-    add_file(connection, installation_id, source, presence, VIDEOS, &["mp4"], "Boot videos must be .mp4 files.")
+pub fn add_boot_video(
+    connection: &Connection,
+    installation_id: &str,
+    source: &str,
+    presence: PresenceFn,
+) -> Result<String, String> {
+    add_file(
+        connection,
+        installation_id,
+        source,
+        presence,
+        VIDEOS,
+        &["mp4"],
+        "Boot videos must be .mp4 files.",
+    )
 }
 
 /// Copy the user's own music (.ogg or .mp3, as RetroBat's menus play) into its music folder as a new file.
-pub fn add_music(connection: &Connection, installation_id: &str, source: &str, presence: PresenceFn) -> Result<String, String> {
-    add_file(connection, installation_id, source, presence, MUSIC, &["ogg", "mp3"], "Music must be .ogg or .mp3 files.")
+pub fn add_music(
+    connection: &Connection,
+    installation_id: &str,
+    source: &str,
+    presence: PresenceFn,
+) -> Result<String, String> {
+    add_file(
+        connection,
+        installation_id,
+        source,
+        presence,
+        MUSIC,
+        &["ogg", "mp3"],
+        "Music must be .ogg or .mp3 files.",
+    )
 }
 
 /// RetroBat's favorites playlist (RetroBat 8.3.1.1 writes it here:
@@ -1053,7 +1515,10 @@ pub(crate) const FAVORITES: &str = "emulationstation/.emulationstation/music/fav
 /// Every music track, relative to the music folder (`Song.ogg`, `snes/Song.ogg`): the folder and its system subfolders.
 pub fn music_tracks(root: &Path) -> Vec<String> {
     let music = root.join(MUSIC);
-    let is_music = |n: &str| { let l = n.to_lowercase(); l.ends_with(".ogg") || l.ends_with(".mp3") };
+    let is_music = |n: &str| {
+        let l = n.to_lowercase();
+        l.ends_with(".ogg") || l.ends_with(".mp3")
+    };
     let mut found = Vec::new();
     if let Ok(read) = fs::read_dir(&music) {
         for e in read.filter_map(Result::ok) {
@@ -1062,7 +1527,10 @@ pub fn music_tracks(root: &Path) -> Vec<String> {
                 Ok(t) if t.is_file() && is_music(&name) => found.push(name),
                 Ok(t) if t.is_dir() => {
                     if let Ok(sub) = fs::read_dir(e.path()) {
-                        for f in sub.filter_map(Result::ok).filter(|f| f.file_type().map(|t| t.is_file()).unwrap_or(false)) {
+                        for f in sub
+                            .filter_map(Result::ok)
+                            .filter(|f| f.file_type().map(|t| t.is_file()).unwrap_or(false))
+                        {
                             let n = f.file_name().to_string_lossy().into_owned();
                             if is_music(&n) {
                                 found.push(format!("{name}/{n}"));
@@ -1080,7 +1548,10 @@ pub fn music_tracks(root: &Path) -> Vec<String> {
 
 /// The music folder as RetroBat writes it in favorites.m3u (`G:/RetroBat/.../music`).
 pub(crate) fn music_prefix(root_text: &str) -> String {
-    format!("{}/{MUSIC}", root_text.trim_end_matches(['\\', '/']).replace('\\', "/"))
+    format!(
+        "{}/{MUSIC}",
+        root_text.trim_end_matches(['\\', '/']).replace('\\', "/")
+    )
 }
 
 /// Tracks in RetroBat's favorites playlist, relative to the music folder (`None`: no playlist).
@@ -1090,7 +1561,11 @@ pub fn favorite_tracks(root: &Path, root_text: &str) -> Option<Vec<String>> {
     Some(
         text.lines()
             .filter_map(|l| l.split_once(';').map(|(p, _)| p.replace('\\', "/")))
-            .filter_map(|p| p.to_lowercase().starts_with(&prefix).then(|| p[prefix.len()..].to_string()))
+            .filter_map(|p| {
+                p.to_lowercase()
+                    .starts_with(&prefix)
+                    .then(|| p[prefix.len()..].to_string())
+            })
             .collect(),
     )
 }
@@ -1111,7 +1586,16 @@ pub(crate) fn favorites_text(root_text: &str, tracks: &[String]) -> String {
 /// Music files in RetroBat's music folder.
 pub fn music_files(root: &Path) -> Vec<String> {
     let mut names: Vec<String> = fs::read_dir(root.join(MUSIC))
-        .map(|read| read.filter_map(Result::ok).filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false)).map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| { let l = n.to_lowercase(); l.ends_with(".ogg") || l.ends_with(".mp3") }).collect())
+        .map(|read| {
+            read.filter_map(Result::ok)
+                .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .filter(|n| {
+                    let l = n.to_lowercase();
+                    l.ends_with(".ogg") || l.ends_with(".mp3")
+                })
+                .collect()
+        })
         .unwrap_or_default();
     names.sort();
     names
@@ -1119,29 +1603,60 @@ pub fn music_files(root: &Path) -> Vec<String> {
 
 /// Copy a user file into an installation folder as a new file: temporary name,
 /// checksum compared with the source, no-replace rename. Never replaces a file.
-pub(crate) fn add_file(connection: &Connection, installation_id: &str, source: &str, presence: PresenceFn, folder: &str, exts: &[&str], wrong_type: &str) -> Result<String, String> {
+pub(crate) fn add_file(
+    connection: &Connection,
+    installation_id: &str,
+    source: &str,
+    presence: PresenceFn,
+    folder: &str,
+    exts: &[&str],
+    wrong_type: &str,
+) -> Result<String, String> {
     let install = install(connection, installation_id, presence)?;
     let source = PathBuf::from(source);
-    if !source.extension().and_then(|e| e.to_str()).is_some_and(|e| exts.iter().any(|x| e.eq_ignore_ascii_case(x))) {
+    if !source
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| exts.iter().any(|x| e.eq_ignore_ascii_case(x)))
+    {
         return Err(wrong_type.into());
     }
-    let size = fs::metadata(&source).map_err(|e| format!("Couldn't open {}: {e}", source.display()))?.len();
+    let size = fs::metadata(&source)
+        .map_err(|e| format!("Couldn't open {}: {e}", source.display()))?
+        .len();
     if size > MAX_VIDEO {
         return Err("That file is larger than 2 GB.".into());
     }
-    let name: String = source.file_name().and_then(|n| n.to_str()).unwrap_or("video.mp4").chars().map(|c| if c.is_control() || r#"<>:"/\|?*"#.contains(c) { '_' } else { c }).collect();
+    let name: String = source
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("video.mp4")
+        .chars()
+        .map(|c| {
+            if c.is_control() || r#"<>:"/\|?*"#.contains(c) {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect();
     let relative = format!("{folder}/{name}");
     copier::ensure_folders(&install.root, &relative)?;
     let target = paths::join(&install.root.display().to_string(), &relative);
     if fs::symlink_metadata(&target).is_ok() {
-        return Err(format!("There's already a file called {name} there; rename yours first."));
+        return Err(format!(
+            "There's already a file called {name} there; rename yours first."
+        ));
     }
     let token = db::new_id()[..8].to_string();
     let marker = format!("{TEMP_MARKER}{token}");
     let temp = PathBuf::from(format!("{}{marker}", target.display()));
     let copied = (|| -> std::io::Result<()> {
         let mut input = fs::File::open(&source)?;
-        let mut out = OpenOptions::new().write(true).create_new(true).open(&temp)?;
+        let mut out = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp)?;
         std::io::copy(&mut input, &mut out)?;
         out.sync_all()
     })();
@@ -1178,7 +1693,11 @@ struct Journal {
     when: String,
 }
 
-fn journals(connection: &Connection, where_clause: &str, value: &dyn rusqlite::ToSql) -> Result<Vec<Journal>, String> {
+fn journals(
+    connection: &Connection,
+    where_clause: &str,
+    value: &dyn rusqlite::ToSql,
+) -> Result<Vec<Journal>, String> {
     let mut statement = connection
         .prepare(&format!(
             "SELECT id, file_path, root_path, stable_id, backup_path, temp_path, undo_path, old_sha, new_sha, changes_json, state, message, created_at
@@ -1208,16 +1727,23 @@ fn journals(connection: &Connection, where_clause: &str, value: &dyn rusqlite::T
 }
 
 fn on_drive(j: &Journal, presence: PresenceFn) -> bool {
-    paths::split_volume(Path::new(&j.root)).is_some_and(|(volume, _)| presence(&volume, j.stable.as_deref()) == Presence::Connected)
+    paths::split_volume(Path::new(&j.root))
+        .is_some_and(|(volume, _)| presence(&volume, j.stable.as_deref()) == Presence::Connected)
 }
 
 fn ours(j: &Journal, path: &str) -> bool {
-    let backup_root = format!("{}\\{}", j.root.trim_end_matches(['\\', '/']), BACKUP_DIR.replace('/', "\\"));
+    let backup_root = format!(
+        "{}\\{}",
+        j.root.trim_end_matches(['\\', '/']),
+        BACKUP_DIR.replace('/', "\\")
+    );
     copier::is_inside(&path.replace('/', "\\"), &backup_root)
 }
 
 fn file_sha(path: &Path) -> Option<String> {
-    fs::symlink_metadata(path).ok().filter(|m| m.is_file() && !m.file_type().is_symlink())?;
+    fs::symlink_metadata(path)
+        .ok()
+        .filter(|m| m.is_file() && !m.file_type().is_symlink())?;
     copier::sha256_of(path).ok()
 }
 
@@ -1233,8 +1759,13 @@ fn undo_block(j: &Journal, presence: PresenceFn) -> Option<String> {
         return Some("The drive isn't connected.".into());
     }
     if j.old_sha != NO_FILE {
-        let Some(backup) = j.backup.as_deref().filter(|b| ours(j, b)) else { return Some("No backup is recorded.".into()) };
-        if fs::symlink_metadata(backup).map(|m| !m.is_file()).unwrap_or(true) {
+        let Some(backup) = j.backup.as_deref().filter(|b| ours(j, b)) else {
+            return Some("No backup is recorded.".into());
+        };
+        if fs::symlink_metadata(backup)
+            .map(|m| !m.is_file())
+            .unwrap_or(true)
+        {
             return Some("The previous settings file isn't in the backup folder any more.".into());
         }
     }
@@ -1246,23 +1777,37 @@ fn undo_block(j: &Journal, presence: PresenceFn) -> Option<String> {
 }
 
 /// Settings changes made on one installation, newest first.
-pub fn history(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<Vec<HistoryRow>, String> {
-    Ok(journals(connection, "installation_id = ?1", &installation_id)?
-        .into_iter()
-        .map(|j| HistoryRow {
-            id: j.id,
-            when: j.when.clone(),
-            state: j.state.clone(),
-            changes: serde_json::from_str(&j.changes).unwrap_or_default(),
-            message: j.message.clone(),
-            blocked: undo_block(&j, presence),
-        })
-        .collect())
+pub fn history(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<Vec<HistoryRow>, String> {
+    Ok(
+        journals(connection, "installation_id = ?1", &installation_id)?
+            .into_iter()
+            .map(|j| HistoryRow {
+                id: j.id,
+                when: j.when.clone(),
+                state: j.state.clone(),
+                changes: serde_json::from_str(&j.changes).unwrap_or_default(),
+                message: j.message.clone(),
+                blocked: undo_block(&j, presence),
+            })
+            .collect(),
+    )
 }
 
 /// Put the previous settings back; the changed file moves into the backup folder.
-pub fn undo(connection: &Connection, change_id: i64, presence: PresenceFn, running: RunningFn) -> Result<String, String> {
-    let j = journals(connection, "id = ?1", &change_id)?.into_iter().next().ok_or("That change wasn't found.")?;
+pub fn undo(
+    connection: &Connection,
+    change_id: i64,
+    presence: PresenceFn,
+    running: RunningFn,
+) -> Result<String, String> {
+    let j = journals(connection, "id = ?1", &change_id)?
+        .into_iter()
+        .next()
+        .ok_or("That change wasn't found.")?;
     if let Some(reason) = running_message(running) {
         return Err(format!("{reason} Nothing was changed."));
     }
@@ -1271,19 +1816,31 @@ pub fn undo(connection: &Connection, change_id: i64, presence: PresenceFn, runni
     }
     let backup = PathBuf::from(j.backup.as_deref().unwrap_or_default());
     let settings = PathBuf::from(&j.file);
-    let file_relative = j.file.get(j.root.len()..).filter(|_| copier::is_inside(&j.file, &j.root)).unwrap_or(SETTINGS).trim_start_matches(['\\', '/']).replace('\\', "/");
+    let file_relative = j
+        .file
+        .get(j.root.len()..)
+        .filter(|_| copier::is_inside(&j.file, &j.root))
+        .unwrap_or(SETTINGS)
+        .trim_start_matches(['\\', '/'])
+        .replace('\\', "/");
     let undo_relative = format!("{BACKUP_DIR}/settings-undo-{}/{file_relative}", j.id);
-    copier::ensure_folders(Path::new(&j.root), &undo_relative).map_err(|e| format!("Couldn't prepare the backup folder: {e} Nothing was changed."))?;
+    copier::ensure_folders(Path::new(&j.root), &undo_relative)
+        .map_err(|e| format!("Couldn't prepare the backup folder: {e} Nothing was changed."))?;
     let undo_path = paths::join(&j.root, &undo_relative);
     if fs::symlink_metadata(&undo_path).is_ok() {
-        return Err(format!("{} already exists, so nothing was changed.", undo_path.display()));
+        return Err(format!(
+            "{} already exists, so nothing was changed.",
+            undo_path.display()
+        ));
     }
     connection
         .execute("UPDATE settings_changes SET state = 'undoing', undo_path = ?2, updated_at = CURRENT_TIMESTAMP WHERE id = ?1", params![j.id, undo_path.display().to_string()])
         .map_err(|e| e.to_string())?;
     if let Err(e) = copier::rename_no_replace(&settings, &undo_path) {
         set_state(connection, j.id, "applied", None)?;
-        return Err(format!("Couldn't move the current settings aside, so nothing was changed: {e}"));
+        return Err(format!(
+            "Couldn't move the current settings aside, so nothing was changed: {e}"
+        ));
     }
     if j.old_sha == NO_FILE {
         // The change created the file: moving it aside is the whole undo.
@@ -1294,11 +1851,14 @@ pub fn undo(connection: &Connection, change_id: i64, presence: PresenceFn, runni
     if let Err(e) = copier::rename_no_replace(&backup, &settings) {
         if copier::rename_no_replace(&undo_path, &settings).is_ok() {
             set_state(connection, j.id, "applied", None)?;
-            return Err(format!("Couldn't put the previous settings back, so everything was left as it was: {e}"));
+            return Err(format!(
+                "Couldn't put the previous settings back, so everything was left as it was: {e}"
+            ));
         }
         return Err(format!("Couldn't put the previous settings back ({e}). Both files are safe: {} and {}. Restart RetroDrive with the drive connected to finish.", backup.display(), undo_path.display()));
     }
-    let message = format!("Undone: the previous settings are back. The changed file is in {undo_relative}.");
+    let message =
+        format!("Undone: the previous settings are back. The changed file is in {undo_relative}.");
     set_state(connection, j.id, "undone", Some(&message))?;
     Ok(message)
 }
@@ -1312,29 +1872,67 @@ pub fn recover(connection: &Connection, presence: PresenceFn) -> Result<usize, S
             continue;
         }
         let settings = Path::new(&j.file);
-        let backup = j.backup.as_deref().filter(|b| ours(&j, b)).map(PathBuf::from);
+        let backup = j
+            .backup
+            .as_deref()
+            .filter(|b| ours(&j, b))
+            .map(PathBuf::from);
         let current = file_sha(settings);
         if j.state == "applying" {
             if current.as_deref() == Some(j.new_sha.as_str()) {
-                set_state(connection, j.id, "applied", Some("Applied (finished before an interruption)."))?;
+                set_state(
+                    connection,
+                    j.id,
+                    "applied",
+                    Some("Applied (finished before an interruption)."),
+                )?;
                 fixed += 1;
             } else if current.is_some() {
                 if let Some(temp) = j.temp.as_deref() {
-                    let marker = format!("{TEMP_MARKER}{}", Path::new(temp).file_name().and_then(|n| n.to_str()).and_then(|n| n.rsplit(TEMP_MARKER).next()).unwrap_or(""));
+                    let marker = format!(
+                        "{TEMP_MARKER}{}",
+                        Path::new(temp)
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .and_then(|n| n.rsplit(TEMP_MARKER).next())
+                            .unwrap_or("")
+                    );
                     copier::remove_own_temp(Path::new(temp), &marker);
                 }
-                set_state(connection, j.id, "failed", Some("Interrupted before the change; nothing was changed."))?;
+                set_state(
+                    connection,
+                    j.id,
+                    "failed",
+                    Some("Interrupted before the change; nothing was changed."),
+                )?;
                 fixed += 1;
             } else if j.old_sha == NO_FILE {
                 if let Some(temp) = j.temp.as_deref() {
-                    let marker = format!("{TEMP_MARKER}{}", Path::new(temp).file_name().and_then(|n| n.to_str()).and_then(|n| n.rsplit(TEMP_MARKER).next()).unwrap_or(""));
+                    let marker = format!(
+                        "{TEMP_MARKER}{}",
+                        Path::new(temp)
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .and_then(|n| n.rsplit(TEMP_MARKER).next())
+                            .unwrap_or("")
+                    );
                     copier::remove_own_temp(Path::new(temp), &marker);
                 }
-                set_state(connection, j.id, "failed", Some("Interrupted before the file was created; nothing was changed."))?;
+                set_state(
+                    connection,
+                    j.id,
+                    "failed",
+                    Some("Interrupted before the file was created; nothing was changed."),
+                )?;
                 fixed += 1;
             } else if let Some(backup) = backup.filter(|b| b.is_file()) {
                 if copier::rename_no_replace(&backup, settings).is_ok() {
-                    set_state(connection, j.id, "failed", Some("Interrupted during the change; the previous settings were put back."))?;
+                    set_state(
+                        connection,
+                        j.id,
+                        "failed",
+                        Some("Interrupted during the change; the previous settings were put back."),
+                    )?;
                     fixed += 1;
                 }
             }
@@ -1342,24 +1940,46 @@ pub fn recover(connection: &Connection, presence: PresenceFn) -> Result<usize, S
             let undo = j.undo.as_deref().filter(|u| ours(&j, u)).map(PathBuf::from);
             if j.old_sha == NO_FILE {
                 // Undoing a created file is a single move.
-                match (current.as_deref(), undo.as_ref().is_some_and(|u| u.is_file())) {
-                    (None, true) => set_state(connection, j.id, "undone", Some("Undone (finished before an interruption)."))?,
-                    (Some(sha), false) if sha == j.new_sha => set_state(connection, j.id, "applied", None)?,
+                match (
+                    current.as_deref(),
+                    undo.as_ref().is_some_and(|u| u.is_file()),
+                ) {
+                    (None, true) => set_state(
+                        connection,
+                        j.id,
+                        "undone",
+                        Some("Undone (finished before an interruption)."),
+                    )?,
+                    (Some(sha), false) if sha == j.new_sha => {
+                        set_state(connection, j.id, "applied", None)?
+                    }
                     _ => continue,
                 }
                 fixed += 1;
                 continue;
             }
-            match (current.as_deref(), undo.as_ref().is_some_and(|u| u.is_file())) {
+            match (
+                current.as_deref(),
+                undo.as_ref().is_some_and(|u| u.is_file()),
+            ) {
                 (Some(sha), _) if sha == j.old_sha => {
-                    set_state(connection, j.id, "undone", Some("Undone (finished before an interruption)."))?;
+                    set_state(
+                        connection,
+                        j.id,
+                        "undone",
+                        Some("Undone (finished before an interruption)."),
+                    )?;
                     fixed += 1;
                 }
                 (Some(sha), false) if sha == j.new_sha => {
                     set_state(connection, j.id, "applied", None)?;
                     fixed += 1;
                 }
-                (None, true) if undo.as_ref().is_some_and(|u| copier::rename_no_replace(u, settings).is_ok()) => {
+                (None, true)
+                    if undo
+                        .as_ref()
+                        .is_some_and(|u| copier::rename_no_replace(u, settings).is_ok()) =>
+                {
                     set_state(connection, j.id, "applied", None)?;
                     fixed += 1;
                 }
@@ -1377,7 +1997,11 @@ pub fn never_running() -> bool {
 
 /// Whether RetroBat's interface or launcher is running on this computer.
 pub fn retrobat_running() -> bool {
-    any_running(&["retrobat.exe", "emulationstation.exe", "emulatorlauncher.exe"])
+    any_running(&[
+        "retrobat.exe",
+        "emulationstation.exe",
+        "emulatorlauncher.exe",
+    ])
 }
 
 /// Whether ES-DE is running on this computer (it saves its game lists when it closes).
@@ -1389,7 +2013,10 @@ pub fn esde_running() -> bool {
 #[cfg(windows)]
 fn any_running(names: &[&str]) -> bool {
     use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
-    use windows_sys::Win32::System::Diagnostics::ToolHelp::{CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS};
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+        TH32CS_SNAPPROCESS,
+    };
     // SAFETY: standard ToolHelp snapshot walk; the entry's size is set before use and the handle is closed.
     unsafe {
         let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -1401,7 +2028,11 @@ fn any_running(names: &[&str]) -> bool {
         let mut found = false;
         let mut more = Process32FirstW(snapshot, &mut entry) != 0;
         while more {
-            let len = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(entry.szExeFile.len());
+            let len = entry
+                .szExeFile
+                .iter()
+                .position(|&c| c == 0)
+                .unwrap_or(entry.szExeFile.len());
             let name = String::from_utf16_lossy(&entry.szExeFile[..len]).to_lowercase();
             if names.contains(&name.as_str()) {
                 found = true;
@@ -1472,7 +2103,15 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("RetroBat");
         let es = root.join("emulationstation/.emulationstation");
-        for d in [es.clone(), root.join("roms/snes"), root.join("bios"), root.join("system/shaders/configs/crt-royale"), root.join("system/shaders/configs/scanlines"), root.join("system/decorations/arcade_1980s"), root.join("decorations/my_bezels")] {
+        for d in [
+            es.clone(),
+            root.join("roms/snes"),
+            root.join("bios"),
+            root.join("system/shaders/configs/crt-royale"),
+            root.join("system/shaders/configs/scanlines"),
+            root.join("system/decorations/arcade_1980s"),
+            root.join("decorations/my_bezels"),
+        ] {
             fs::create_dir_all(d).unwrap();
         }
         fs::write(root.join("RetroBat.exe"), b"").unwrap();
@@ -1482,13 +2121,25 @@ mod tests {
         fs::write(es.join("es_features.cfg"), FEATURES_FILE).unwrap();
         let mut catalog = Connection::open_in_memory().unwrap();
         db::migrate(&mut catalog, None).unwrap();
-        let install = installations::add(&catalog, &root, "retrobat", &|_: &str| VolumeProbe::unknown()).unwrap();
+        let install = installations::add(&catalog, &root, "retrobat", &|_: &str| {
+            VolumeProbe::unknown()
+        })
+        .unwrap();
         let root = paths::normalize(&root).unwrap();
-        Setup { _dir: dir, root, catalog, install }
+        Setup {
+            _dir: dir,
+            root,
+            catalog,
+            install,
+        }
     }
 
     fn change(system: &str, key: &str, value: Option<&str>) -> Change {
-        Change { system: system.into(), key: key.into(), value: value.map(str::to_string) }
+        Change {
+            system: system.into(),
+            key: key.into(),
+            value: value.map(str::to_string),
+        }
     }
 
     fn settings(s: &Setup) -> String {
@@ -1500,17 +2151,31 @@ mod tests {
     #[test]
     #[ignore]
     fn real_retrobat_files_parse_and_edit_cleanly() {
-        let Some(root) = std::env::var_os("RETRODRIVE_REAL_RETROBAT").map(PathBuf::from) else { return };
+        let Some(root) = std::env::var_os("RETRODRIVE_REAL_RETROBAT").map(PathBuf::from) else {
+            return;
+        };
         let systems = read_systems(&root.join(SYSTEMS)).unwrap();
         let ratios = read_ratios(&root.join(FEATURES));
         let text = read_text(&root.join(SETTINGS)).unwrap();
         let list = entries(&text).unwrap();
         well_formed(&text).unwrap();
         let snes = systems.iter().find(|(s, _, _)| s == "snes").unwrap();
-        eprintln!("systems: {}, snes emulators: {:?}", systems.len(), snes.2.iter().map(|e| format!("{} {:?}", e.emulator, e.cores)).collect::<Vec<_>>());
+        eprintln!(
+            "systems: {}, snes emulators: {:?}",
+            systems.len(),
+            snes.2
+                .iter()
+                .map(|e| format!("{} {:?}", e.emulator, e.cores))
+                .collect::<Vec<_>>()
+        );
         eprintln!("ratios: {}, settings entries: {}", ratios.len(), list.len());
         // An edit in memory only: everything else must stay byte for byte.
-        let wanted: BTreeMap<String, Option<String>> = [("snes.emulator".to_string(), Some("libretro".to_string())), ("snes.core".to_string(), Some("bsnes".to_string()))].into_iter().collect();
+        let wanted: BTreeMap<String, Option<String>> = [
+            ("snes.emulator".to_string(), Some("libretro".to_string())),
+            ("snes.core".to_string(), Some("bsnes".to_string())),
+        ]
+        .into_iter()
+        .collect();
         let out = edit(&text, &wanted).unwrap();
         let close = text.rfind("</config>").unwrap();
         assert_eq!(&out[..close], &text[..close], "existing lines untouched");
@@ -1518,12 +2183,29 @@ mod tests {
         // retrobat.ini: every offered option is found, and an in-memory edit changes only its value.
         let ini = read_text(&root.join(INI)).unwrap();
         let found = ini_entries(&ini);
-        let offered: Vec<String> = ini_options().iter().map(|o| format!("{}.{}", o.section, o.key)).filter(|k| found.contains_key(k)).collect();
-        eprintln!("retrobat.ini: {} keys, offered {}/{}: {:?}", found.len(), offered.len(), ini_options().len(), offered);
-        let wanted: BTreeMap<String, String> = [("SplashScreen.RandomVideo".to_string(), "0".to_string())].into_iter().collect();
+        let offered: Vec<String> = ini_options()
+            .iter()
+            .map(|o| format!("{}.{}", o.section, o.key))
+            .filter(|k| found.contains_key(k))
+            .collect();
+        eprintln!(
+            "retrobat.ini: {} keys, offered {}/{}: {:?}",
+            found.len(),
+            offered.len(),
+            ini_options().len(),
+            offered
+        );
+        let wanted: BTreeMap<String, String> =
+            [("SplashScreen.RandomVideo".to_string(), "0".to_string())]
+                .into_iter()
+                .collect();
         let edited = ini_edit(&ini, &wanted).unwrap();
         assert_eq!(edited.len(), ini.len());
-        eprintln!("videos: {:?}, music: {}", videos(&root), music_files(&root).len());
+        eprintln!(
+            "videos: {:?}, music: {}",
+            videos(&root),
+            music_files(&root).len()
+        );
     }
 
     #[test]
@@ -1532,15 +2214,52 @@ mod tests {
         let o = options(&s.catalog, &s.install, &connected, &closed).unwrap();
         let snes = o.systems.iter().find(|x| x.system == "snes").unwrap();
         assert!(snes.has_games);
-        assert_eq!(snes.emulators[0], EmulatorOption { emulator: "libretro".into(), cores: vec!["snes9x".into(), "bsnes".into()] });
+        assert_eq!(
+            snes.emulators[0],
+            EmulatorOption {
+                emulator: "libretro".into(),
+                cores: vec!["snes9x".into(), "bsnes".into()]
+            }
+        );
         assert_eq!(snes.emulators[1].emulator, "snes9x");
-        assert_eq!(snes.current.get("shaderset").map(String::as_str), Some("scanlines"));
-        assert!(!o.systems.iter().find(|x| x.system == "nes").unwrap().has_games);
-        assert_eq!(o.shaders.iter().map(|c| c.value.as_str()).collect::<Vec<_>>(), ["none", "crt-royale", "scanlines"]);
-        assert_eq!(o.bezels.iter().map(|c| c.value.as_str()).collect::<Vec<_>>(), ["none", "arcade_1980s", "my_bezels"]);
-        assert_eq!(o.ratios.iter().map(|c| c.value.as_str()).collect::<Vec<_>>(), ["4/3", "16/9"]);
+        assert_eq!(
+            snes.current.get("shaderset").map(String::as_str),
+            Some("scanlines")
+        );
+        assert!(
+            !o.systems
+                .iter()
+                .find(|x| x.system == "nes")
+                .unwrap()
+                .has_games
+        );
+        assert_eq!(
+            o.shaders
+                .iter()
+                .map(|c| c.value.as_str())
+                .collect::<Vec<_>>(),
+            ["none", "crt-royale", "scanlines"]
+        );
+        assert_eq!(
+            o.bezels
+                .iter()
+                .map(|c| c.value.as_str())
+                .collect::<Vec<_>>(),
+            ["none", "arcade_1980s", "my_bezels"]
+        );
+        assert_eq!(
+            o.ratios
+                .iter()
+                .map(|c| c.value.as_str())
+                .collect::<Vec<_>>(),
+            ["4/3", "16/9"]
+        );
         assert!(o.blocked.is_none());
-        assert!(options(&s.catalog, &s.install, &connected, &open).unwrap().blocked.unwrap().contains("running"));
+        assert!(options(&s.catalog, &s.install, &connected, &open)
+            .unwrap()
+            .blocked
+            .unwrap()
+            .contains("running"));
     }
 
     #[test]
@@ -1558,8 +2277,20 @@ mod tests {
             out,
             "<?xml version=\"1.0\"?>\r\n<config>\r\n\t<bool name=\"FavoritesFirst\" value=\"true\" />\r\n\t<string name=\"ScreenSaverGameInfo\" value=\"start &amp; end\" />\r\n\t<string name=\"xbox.bezel\" value=\"a &amp; b\" />\r\n\t<string name=\"snes.core\" value=\"bsnes\" />\r\n\t<string name=\"snes.emulator\" value=\"libretro\" />\r\n</config>\r\n"
         );
-        assert!(edit("<config><string name=\"a\" value=\"1\" /><string name=\"a\" value=\"2\" /></config>", &wanted).unwrap_err().contains("twice"));
-        assert!(edit("<config><string name=\"a\" value=\"1\"></string></config>", &wanted).is_err(), "unusual layouts aren't edited");
+        assert!(edit(
+            "<config><string name=\"a\" value=\"1\" /><string name=\"a\" value=\"2\" /></config>",
+            &wanted
+        )
+        .unwrap_err()
+        .contains("twice"));
+        assert!(
+            edit(
+                "<config><string name=\"a\" value=\"1\"></string></config>",
+                &wanted
+            )
+            .is_err(),
+            "unusual layouts aren't edited"
+        );
     }
 
     #[test]
@@ -1567,45 +2298,140 @@ mod tests {
         let s = setup();
         let try_one = |c: Change| preview(&s.catalog, &s.install, &[c], &connected);
         assert!(try_one(change("snes", "emulator", Some("dosbox"))).is_err());
-        assert!(try_one(change("snes", "core", Some("fceumm"))).is_err(), "a core of another system");
+        assert!(
+            try_one(change("snes", "core", Some("fceumm"))).is_err(),
+            "a core of another system"
+        );
         assert!(try_one(change("snes", "shaderset", Some("../../evil"))).is_err());
-        assert!(try_one(change("snes", "rewind", Some("1"))).is_err(), "keys outside version 1");
-        assert!(try_one(change("psx", "ratio", Some("4/3"))).is_err(), "systems this RetroBat doesn't have");
-        assert!(try_one(change("snes", "shaderset", Some("scanlines"))).unwrap_err().contains("already"));
+        assert!(
+            try_one(change("snes", "rewind", Some("1"))).is_err(),
+            "keys outside version 1"
+        );
+        assert!(
+            try_one(change("psx", "ratio", Some("4/3"))).is_err(),
+            "systems this RetroBat doesn't have"
+        );
+        assert!(try_one(change("snes", "shaderset", Some("scanlines")))
+            .unwrap_err()
+            .contains("already"));
         // Emulator and core must go together.
-        assert!(preview(&s.catalog, &s.install, &[change("snes", "emulator", Some("libretro"))], &connected).unwrap_err().contains("cores"));
-        let ok = preview(&s.catalog, &s.install, &[change("snes", "emulator", Some("libretro")), change("snes", "core", Some("bsnes"))], &connected).unwrap();
+        assert!(preview(
+            &s.catalog,
+            &s.install,
+            &[change("snes", "emulator", Some("libretro"))],
+            &connected
+        )
+        .unwrap_err()
+        .contains("cores"));
+        let ok = preview(
+            &s.catalog,
+            &s.install,
+            &[
+                change("snes", "emulator", Some("libretro")),
+                change("snes", "core", Some("bsnes")),
+            ],
+            &connected,
+        )
+        .unwrap();
         assert_eq!(ok.changes.len(), 2);
-        assert_eq!(ok.changes[0], ChangeRow { system: "snes".into(), key: "core".into(), before: None, after: Some("bsnes".into()) });
-        assert!(preview(&s.catalog, &s.install, &[change("snes", "emulator", Some("snes9x"))], &connected).is_ok(), "a standalone emulator needs no core");
+        assert_eq!(
+            ok.changes[0],
+            ChangeRow {
+                system: "snes".into(),
+                key: "core".into(),
+                before: None,
+                after: Some("bsnes".into())
+            }
+        );
+        assert!(
+            preview(
+                &s.catalog,
+                &s.install,
+                &[change("snes", "emulator", Some("snes9x"))],
+                &connected
+            )
+            .is_ok(),
+            "a standalone emulator needs no core"
+        );
     }
 
     #[test]
     fn apply_backs_up_then_changes_and_undo_puts_it_back() {
         let s = setup();
-        let changes = [change("snes", "emulator", Some("libretro")), change("snes", "core", Some("bsnes")), change("snes", "ratio", Some("4/3"))];
-        let sha = preview(&s.catalog, &s.install, &changes, &connected).unwrap().file_sha;
-        assert!(apply(&s.catalog, &s.install, &changes, &sha, &connected, &open).unwrap_err().contains("running"));
-        assert_eq!(settings(&s), SETTINGS_FILE, "nothing changed while RetroBat runs");
+        let changes = [
+            change("snes", "emulator", Some("libretro")),
+            change("snes", "core", Some("bsnes")),
+            change("snes", "ratio", Some("4/3")),
+        ];
+        let sha = preview(&s.catalog, &s.install, &changes, &connected)
+            .unwrap()
+            .file_sha;
+        assert!(
+            apply(&s.catalog, &s.install, &changes, &sha, &connected, &open)
+                .unwrap_err()
+                .contains("running")
+        );
+        assert_eq!(
+            settings(&s),
+            SETTINGS_FILE,
+            "nothing changed while RetroBat runs"
+        );
 
         apply(&s.catalog, &s.install, &changes, &sha, &connected, &closed).unwrap();
         let now = settings(&s);
-        assert!(now.contains("<string name=\"snes.core\" value=\"bsnes\" />") && now.contains("snes.ratio"));
-        let backups: Vec<PathBuf> = walkdir::WalkDir::new(s.root.join(".retrodrive/backup")).into_iter().filter_map(Result::ok).filter(|e| e.file_type().is_file()).map(|e| e.into_path()).collect();
+        assert!(
+            now.contains("<string name=\"snes.core\" value=\"bsnes\" />")
+                && now.contains("snes.ratio")
+        );
+        let backups: Vec<PathBuf> = walkdir::WalkDir::new(s.root.join(".retrodrive/backup"))
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().is_file())
+            .map(|e| e.into_path())
+            .collect();
         assert_eq!(backups.len(), 1);
-        assert_eq!(fs::read_to_string(&backups[0]).unwrap(), SETTINGS_FILE, "the previous file is kept, unchanged");
-        assert!(walkdir::WalkDir::new(&s.root).into_iter().filter_map(Result::ok).all(|e| !e.file_name().to_string_lossy().contains(TEMP_MARKER)));
+        assert_eq!(
+            fs::read_to_string(&backups[0]).unwrap(),
+            SETTINGS_FILE,
+            "the previous file is kept, unchanged"
+        );
+        assert!(walkdir::WalkDir::new(&s.root)
+            .into_iter()
+            .filter_map(Result::ok)
+            .all(|e| !e.file_name().to_string_lossy().contains(TEMP_MARKER)));
 
         // A stale review is refused.
-        assert!(apply(&s.catalog, &s.install, &[change("snes", "bezel", Some("none"))], &sha, &connected, &closed).unwrap_err().contains("changed since"));
+        assert!(apply(
+            &s.catalog,
+            &s.install,
+            &[change("snes", "bezel", Some("none"))],
+            &sha,
+            &connected,
+            &closed
+        )
+        .unwrap_err()
+        .contains("changed since"));
 
         let h = history(&s.catalog, &s.install, &connected).unwrap();
-        assert_eq!((h.len(), h[0].state.as_str(), h[0].blocked.as_deref()), (1, "applied", None));
+        assert_eq!(
+            (h.len(), h[0].state.as_str(), h[0].blocked.as_deref()),
+            (1, "applied", None)
+        );
         assert_eq!(h[0].changes.len(), 3);
         undo(&s.catalog, h[0].id, &connected, &closed).unwrap();
-        assert_eq!(settings(&s), SETTINGS_FILE, "the previous settings are back");
-        assert_eq!(history(&s.catalog, &s.install, &connected).unwrap()[0].state, "undone");
-        assert!(undo(&s.catalog, h[0].id, &connected, &closed).is_err(), "only once");
+        assert_eq!(
+            settings(&s),
+            SETTINGS_FILE,
+            "the previous settings are back"
+        );
+        assert_eq!(
+            history(&s.catalog, &s.install, &connected).unwrap()[0].state,
+            "undone"
+        );
+        assert!(
+            undo(&s.catalog, h[0].id, &connected, &closed).is_err(),
+            "only once"
+        );
     }
 
     #[test]
@@ -1614,14 +2440,52 @@ mod tests {
         let themes = s.root.join("emulationstation/.emulationstation/themes");
         fs::create_dir_all(themes.join("es-theme-carbon")).unwrap();
         fs::create_dir_all(themes.join("My Neon")).unwrap();
-        fs::write(s.root.join(SETTINGS), SETTINGS_FILE.replace("</config>", "\t<string name=\"ThemeSet\" value=\"es-theme-carbon\" />\r\n</config>")).unwrap();
+        fs::write(
+            s.root.join(SETTINGS),
+            SETTINGS_FILE.replace(
+                "</config>",
+                "\t<string name=\"ThemeSet\" value=\"es-theme-carbon\" />\r\n</config>",
+            ),
+        )
+        .unwrap();
         let before = settings(&s);
         assert!(preview_theme(&s.catalog, &s.install, "Missing", &connected).is_err());
-        assert!(preview_theme(&s.catalog, &s.install, "es-theme-carbon", &connected).unwrap_err().contains("already"));
+        assert!(
+            preview_theme(&s.catalog, &s.install, "es-theme-carbon", &connected)
+                .unwrap_err()
+                .contains("already")
+        );
         let p = preview_theme(&s.catalog, &s.install, "My Neon", &connected).unwrap();
-        assert_eq!(p.changes, [ChangeRow { system: "".into(), key: "ThemeSet".into(), before: Some("es-theme-carbon".into()), after: Some("My Neon".into()) }]);
-        assert!(apply_theme(&s.catalog, &s.install, "My Neon", &p.file_sha, &connected, &open).is_err(), "not while RetroBat runs");
-        apply_theme(&s.catalog, &s.install, "My Neon", &p.file_sha, &connected, &closed).unwrap();
+        assert_eq!(
+            p.changes,
+            [ChangeRow {
+                system: "".into(),
+                key: "ThemeSet".into(),
+                before: Some("es-theme-carbon".into()),
+                after: Some("My Neon".into())
+            }]
+        );
+        assert!(
+            apply_theme(
+                &s.catalog,
+                &s.install,
+                "My Neon",
+                &p.file_sha,
+                &connected,
+                &open
+            )
+            .is_err(),
+            "not while RetroBat runs"
+        );
+        apply_theme(
+            &s.catalog,
+            &s.install,
+            "My Neon",
+            &p.file_sha,
+            &connected,
+            &closed,
+        )
+        .unwrap();
         assert_eq!(current_theme(&s.root).as_deref(), Some("My Neon"));
         let id = history(&s.catalog, &s.install, &connected).unwrap()[0].id;
         undo(&s.catalog, id, &connected, &closed).unwrap();
@@ -1640,25 +2504,92 @@ mod tests {
         fs::write(videos.join("retrobat-space.mp4"), b"space").unwrap();
         let o = look_options(&s.catalog, &s.install, &connected, &closed).unwrap();
         assert_eq!(o.videos, ["retrobat-neon.mp4", "retrobat-space.mp4"]);
-        assert_eq!(o.values.get("SplashScreen.RandomVideo").map(String::as_str), Some("1"));
-        assert!(o.options.iter().all(|x| x.key != "Autostart"), "risky options aren't offered");
-        assert!(o.options.iter().all(|x| x.key != "WaitForVideoEnd"), "only keys the file has");
-        let ch = |section: &str, key: &str, value: &str| IniChange { section: section.into(), key: key.into(), value: value.into() };
+        assert_eq!(
+            o.values.get("SplashScreen.RandomVideo").map(String::as_str),
+            Some("1")
+        );
+        assert!(
+            o.options.iter().all(|x| x.key != "Autostart"),
+            "risky options aren't offered"
+        );
+        assert!(
+            o.options.iter().all(|x| x.key != "WaitForVideoEnd"),
+            "only keys the file has"
+        );
+        let ch = |section: &str, key: &str, value: &str| IniChange {
+            section: section.into(),
+            key: key.into(),
+            value: value.into(),
+        };
 
-        assert!(preview_look(&s.catalog, &s.install, &[ch("RetroBat", "Autostart", "1")], &connected).is_err());
-        assert!(preview_look(&s.catalog, &s.install, &[ch("SplashScreen", "FileName", "..\\..\\evil.mp4")], &connected).is_err());
-        assert!(preview_look(&s.catalog, &s.install, &[ch("EmulationStation", "InterfaceMode", "7")], &connected).is_err());
-        let changes = [ch("SplashScreen", "FileName", "retrobat-space.mp4"), ch("SplashScreen", "RandomVideo", "0"), ch("EmulationStation", "InterfaceMode", "1")];
+        assert!(preview_look(
+            &s.catalog,
+            &s.install,
+            &[ch("RetroBat", "Autostart", "1")],
+            &connected
+        )
+        .is_err());
+        assert!(preview_look(
+            &s.catalog,
+            &s.install,
+            &[ch("SplashScreen", "FileName", "..\\..\\evil.mp4")],
+            &connected
+        )
+        .is_err());
+        assert!(preview_look(
+            &s.catalog,
+            &s.install,
+            &[ch("EmulationStation", "InterfaceMode", "7")],
+            &connected
+        )
+        .is_err());
+        let changes = [
+            ch("SplashScreen", "FileName", "retrobat-space.mp4"),
+            ch("SplashScreen", "RandomVideo", "0"),
+            ch("EmulationStation", "InterfaceMode", "1"),
+        ];
         let p = preview_look(&s.catalog, &s.install, &changes, &connected).unwrap();
         assert_eq!(p.changes.len(), 3);
-        assert!(apply_look(&s.catalog, &s.install, &changes, &p.file_sha, &connected, &open).is_err());
-        apply_look(&s.catalog, &s.install, &changes, &p.file_sha, &connected, &closed).unwrap();
+        assert!(apply_look(
+            &s.catalog,
+            &s.install,
+            &changes,
+            &p.file_sha,
+            &connected,
+            &open
+        )
+        .is_err());
+        apply_look(
+            &s.catalog,
+            &s.install,
+            &changes,
+            &p.file_sha,
+            &connected,
+            &closed,
+        )
+        .unwrap();
         let now = fs::read_to_string(s.root.join(INI)).unwrap();
-        assert_eq!(now, INI_FILE.replace("FileName=\"retrobat-neon.mp4\"", "FileName=\"retrobat-space.mp4\"").replace("RandomVideo=1", "RandomVideo=0").replace("InterfaceMode=0", "InterfaceMode=1"), "only those three values changed; comments and layout kept");
+        assert_eq!(
+            now,
+            INI_FILE
+                .replace(
+                    "FileName=\"retrobat-neon.mp4\"",
+                    "FileName=\"retrobat-space.mp4\""
+                )
+                .replace("RandomVideo=1", "RandomVideo=0")
+                .replace("InterfaceMode=0", "InterfaceMode=1"),
+            "only those three values changed; comments and layout kept"
+        );
         let id = history(&s.catalog, &s.install, &connected).unwrap()[0].id;
         undo(&s.catalog, id, &connected, &closed).unwrap();
         assert_eq!(fs::read_to_string(s.root.join(INI)).unwrap(), INI_FILE);
-        assert!(walkdir::WalkDir::new(s.root.join(".retrodrive/backup")).into_iter().filter_map(Result::ok).any(|e| e.file_name() == "retrobat.ini"), "backups keep the file name");
+        assert!(
+            walkdir::WalkDir::new(s.root.join(".retrodrive/backup"))
+                .into_iter()
+                .filter_map(Result::ok)
+                .any(|e| e.file_name() == "retrobat.ini"),
+            "backups keep the file name"
+        );
     }
 
     #[test]
@@ -1672,16 +2603,60 @@ mod tests {
         fs::write(mine.join("intro.mp4"), b"mine").unwrap();
         fs::write(mine.join("Gollum Boot.mp4"), b"mine2").unwrap();
         fs::write(mine.join("x.exe"), b"no").unwrap();
-        assert!(add_boot_video(&s.catalog, &s.install, &mine.join("intro.mp4").display().to_string(), &connected).unwrap_err().contains("already"));
+        assert!(add_boot_video(
+            &s.catalog,
+            &s.install,
+            &mine.join("intro.mp4").display().to_string(),
+            &connected
+        )
+        .unwrap_err()
+        .contains("already"));
         assert_eq!(fs::read(videos.join("intro.mp4")).unwrap(), b"theirs");
-        assert!(add_boot_video(&s.catalog, &s.install, &mine.join("x.exe").display().to_string(), &connected).is_err());
-        assert_eq!(add_boot_video(&s.catalog, &s.install, &mine.join("Gollum Boot.mp4").display().to_string(), &connected).unwrap(), "Gollum Boot.mp4");
+        assert!(add_boot_video(
+            &s.catalog,
+            &s.install,
+            &mine.join("x.exe").display().to_string(),
+            &connected
+        )
+        .is_err());
+        assert_eq!(
+            add_boot_video(
+                &s.catalog,
+                &s.install,
+                &mine.join("Gollum Boot.mp4").display().to_string(),
+                &connected
+            )
+            .unwrap(),
+            "Gollum Boot.mp4"
+        );
         assert_eq!(fs::read(videos.join("Gollum Boot.mp4")).unwrap(), b"mine2");
-        assert!(fs::read_dir(&videos).unwrap().all(|e| !e.unwrap().file_name().to_string_lossy().contains(TEMP_MARKER)));
+        assert!(fs::read_dir(&videos).unwrap().all(|e| !e
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .contains(TEMP_MARKER)));
         fs::write(mine.join("Theme Song.mp3"), b"song").unwrap();
-        assert_eq!(add_music(&s.catalog, &s.install, &mine.join("Theme Song.mp3").display().to_string(), &connected).unwrap(), "Theme Song.mp3");
+        assert_eq!(
+            add_music(
+                &s.catalog,
+                &s.install,
+                &mine.join("Theme Song.mp3").display().to_string(),
+                &connected
+            )
+            .unwrap(),
+            "Theme Song.mp3"
+        );
         assert_eq!(music_files(&s.root), ["Theme Song.mp3"]);
-        assert!(add_music(&s.catalog, &s.install, &mine.join("Gollum Boot.mp4").display().to_string(), &connected).is_err(), "only music files");
+        assert!(
+            add_music(
+                &s.catalog,
+                &s.install,
+                &mine.join("Gollum Boot.mp4").display().to_string(),
+                &connected
+            )
+            .is_err(),
+            "only music files"
+        );
     }
 
     #[test]
@@ -1690,14 +2665,37 @@ mod tests {
         let install = install(&s.catalog, &s.install, &connected).unwrap();
         let path = s.root.join(FAVORITES);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
-        let text = favorites_text(&install.root_text, &["Boss.ogg".to_string(), "snes/Tune.mp3".to_string()]);
-        assert!(text.ends_with(";Tune\r\n") && text.contains("/emulationstation/.emulationstation/music/snes/Tune.mp3;Tune"));
-        let (_, id) = write_file(&s.catalog, &install, FAVORITES, &path, "", &text, Vec::new()).unwrap();
+        let text = favorites_text(
+            &install.root_text,
+            &["Boss.ogg".to_string(), "snes/Tune.mp3".to_string()],
+        );
+        assert!(
+            text.ends_with(";Tune\r\n")
+                && text.contains("/emulationstation/.emulationstation/music/snes/Tune.mp3;Tune")
+        );
+        let (_, id) = write_file(
+            &s.catalog,
+            &install,
+            FAVORITES,
+            &path,
+            "",
+            &text,
+            Vec::new(),
+        )
+        .unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), text);
-        assert_eq!(favorite_tracks(&s.root, &install.root_text).unwrap(), ["Boss.ogg", "snes/Tune.mp3"]);
+        assert_eq!(
+            favorite_tracks(&s.root, &install.root_text).unwrap(),
+            ["Boss.ogg", "snes/Tune.mp3"]
+        );
         undo(&s.catalog, id, &connected, &closed).unwrap();
         assert!(!path.exists(), "undo moves the created file away");
-        let moved: Vec<PathBuf> = walkdir::WalkDir::new(s.root.join(".retrodrive/backup")).into_iter().filter_map(Result::ok).filter(|e| e.file_name() == "favorites.m3u").map(|e| e.into_path()).collect();
+        let moved: Vec<PathBuf> = walkdir::WalkDir::new(s.root.join(".retrodrive/backup"))
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_name() == "favorites.m3u")
+            .map(|e| e.into_path())
+            .collect();
         assert_eq!(moved.len(), 1, "never deleted");
         assert_eq!(fs::read_to_string(&moved[0]).unwrap(), text);
     }
@@ -1706,14 +2704,25 @@ mod tests {
     fn undo_refuses_when_retrobat_changed_the_settings_since() {
         let s = setup();
         let changes = [change("nes", "ratio", Some("16/9"))];
-        let sha = preview(&s.catalog, &s.install, &changes, &connected).unwrap().file_sha;
+        let sha = preview(&s.catalog, &s.install, &changes, &connected)
+            .unwrap()
+            .file_sha;
         apply(&s.catalog, &s.install, &changes, &sha, &connected, &closed).unwrap();
         let id = history(&s.catalog, &s.install, &connected).unwrap()[0].id;
-        assert!(undo(&s.catalog, id, &unplugged, &closed).unwrap_err().contains("isn't connected"));
-        assert!(undo(&s.catalog, id, &connected, &open).unwrap_err().contains("running"));
-        let edited = settings(&s).replace("</config>", "\t<string name=\"LastSystem\" value=\"nes\" />\r\n</config>");
+        assert!(undo(&s.catalog, id, &unplugged, &closed)
+            .unwrap_err()
+            .contains("isn't connected"));
+        assert!(undo(&s.catalog, id, &connected, &open)
+            .unwrap_err()
+            .contains("running"));
+        let edited = settings(&s).replace(
+            "</config>",
+            "\t<string name=\"LastSystem\" value=\"nes\" />\r\n</config>",
+        );
         fs::write(s.root.join(SETTINGS), &edited).unwrap();
-        assert!(undo(&s.catalog, id, &connected, &closed).unwrap_err().contains("changed since"));
+        assert!(undo(&s.catalog, id, &connected, &closed)
+            .unwrap_err()
+            .contains("changed since"));
         assert_eq!(settings(&s), edited, "nothing was touched");
     }
 
@@ -1721,25 +2730,62 @@ mod tests {
     fn interrupted_changes_are_put_right_at_startup() {
         let s = setup();
         let changes = [change("snes", "bezel", Some("my_bezels"))];
-        let sha = preview(&s.catalog, &s.install, &changes, &connected).unwrap().file_sha;
+        let sha = preview(&s.catalog, &s.install, &changes, &connected)
+            .unwrap()
+            .file_sha;
         apply(&s.catalog, &s.install, &changes, &sha, &connected, &closed).unwrap();
-        let (id, backup, file): (i64, String, String) = s.catalog.query_row("SELECT id, backup_path, file_path FROM settings_changes", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap();
+        let (id, backup, file): (i64, String, String) = s
+            .catalog
+            .query_row(
+                "SELECT id, backup_path, file_path FROM settings_changes",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
         let changed = fs::read(&file).unwrap();
-        let state = || s.catalog.query_row("SELECT state FROM settings_changes WHERE id = ?1", [id], |r| r.get::<_, String>(0)).unwrap();
+        let state = || {
+            s.catalog
+                .query_row(
+                    "SELECT state FROM settings_changes WHERE id = ?1",
+                    [id],
+                    |r| r.get::<_, String>(0),
+                )
+                .unwrap()
+        };
 
         // Crash after the current file moved to the backup folder, before the new one arrived.
         fs::rename(&file, s.root.join("lost-new.cfg")).unwrap();
         fs::rename(&backup, &file).unwrap();
         fs::rename(&file, &backup).unwrap();
-        s.catalog.execute("UPDATE settings_changes SET state = 'applying' WHERE id = ?1", [id]).unwrap();
-        assert_eq!(recover(&s.catalog, &unplugged).unwrap(), 0, "nothing happens while the drive is away");
+        s.catalog
+            .execute(
+                "UPDATE settings_changes SET state = 'applying' WHERE id = ?1",
+                [id],
+            )
+            .unwrap();
+        assert_eq!(
+            recover(&s.catalog, &unplugged).unwrap(),
+            0,
+            "nothing happens while the drive is away"
+        );
         assert_eq!(recover(&s.catalog, &connected).unwrap(), 1);
-        assert_eq!((state().as_str(), fs::read_to_string(&file).unwrap().as_str()), ("failed", SETTINGS_FILE));
+        assert_eq!(
+            (
+                state().as_str(),
+                fs::read_to_string(&file).unwrap().as_str()
+            ),
+            ("failed", SETTINGS_FILE)
+        );
 
         // Crash after both moves of an apply: recorded as applied.
         fs::rename(&file, &backup).unwrap();
         fs::write(&file, &changed).unwrap();
-        s.catalog.execute("UPDATE settings_changes SET state = 'applying' WHERE id = ?1", [id]).unwrap();
+        s.catalog
+            .execute(
+                "UPDATE settings_changes SET state = 'applying' WHERE id = ?1",
+                [id],
+            )
+            .unwrap();
         recover(&s.catalog, &connected).unwrap();
         assert_eq!(state(), "applied");
 
@@ -1747,8 +2793,16 @@ mod tests {
         let undo_path = s.root.join(format!(".retrodrive/backup/settings-undo-{id}/emulationstation/.emulationstation/es_settings.cfg"));
         fs::create_dir_all(undo_path.parent().unwrap()).unwrap();
         fs::rename(&file, &undo_path).unwrap();
-        s.catalog.execute("UPDATE settings_changes SET state = 'undoing', undo_path = ?2 WHERE id = ?1", params![id, undo_path.display().to_string()]).unwrap();
+        s.catalog
+            .execute(
+                "UPDATE settings_changes SET state = 'undoing', undo_path = ?2 WHERE id = ?1",
+                params![id, undo_path.display().to_string()],
+            )
+            .unwrap();
         recover(&s.catalog, &connected).unwrap();
-        assert_eq!((state().as_str(), fs::read(&file).unwrap()), ("applied", changed));
+        assert_eq!(
+            (state().as_str(), fs::read(&file).unwrap()),
+            ("applied", changed)
+        );
     }
 }

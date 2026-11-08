@@ -74,19 +74,37 @@ pub struct ConfChange {
 }
 
 fn choices(list: &[(&str, &str)]) -> Vec<Choice> {
-    list.iter().map(|(label, value)| Choice { label: label.to_string(), value: value.to_string() }).collect()
+    list.iter()
+        .map(|(label, value)| Choice {
+            label: label.to_string(),
+            value: value.to_string(),
+        })
+        .collect()
 }
 
 const ON_OFF: &[(&str, &str)] = &[("On", "1"), ("Off", "0")];
 
 pub fn settings(root: &Path) -> Vec<Setting> {
-    let mut bezels = vec![("Default", "default".to_string()), ("None", "none".to_string())];
+    let mut bezels = vec![
+        ("Default", "default".to_string()),
+        ("None", "none".to_string()),
+    ];
     for folder in folders(&root.join("decorations")) {
         if folder != "default" && folder != "none" {
             bezels.push(("", folder));
         }
     }
-    let bezel_choices = bezels.iter().map(|(label, value)| Choice { label: if label.is_empty() { value.clone() } else { label.to_string() }, value: value.clone() }).collect();
+    let bezel_choices = bezels
+        .iter()
+        .map(|(label, value)| Choice {
+            label: if label.is_empty() {
+                value.clone()
+            } else {
+                label.to_string()
+            },
+            value: value.clone(),
+        })
+        .collect();
     vec![
         Setting {
             key: "ratio",
@@ -158,17 +176,36 @@ pub fn settings(root: &Path) -> Vec<Setting> {
 }
 
 pub(crate) fn folders(dir: &Path) -> Vec<String> {
-    let mut list: Vec<String> = fs::read_dir(dir).map(|r| r.filter_map(Result::ok).filter(|e| e.path().is_dir()).map(|e| e.file_name().to_string_lossy().to_string()).collect()).unwrap_or_default();
+    let mut list: Vec<String> = fs::read_dir(dir)
+        .map(|r| {
+            r.filter_map(Result::ok)
+                .filter(|e| e.path().is_dir())
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .collect()
+        })
+        .unwrap_or_default();
     list.sort_by_key(|s| s.to_lowercase());
     list
 }
 
 /// System folders under `roms` with at least one game file.
 pub(crate) fn systems(root: &Path) -> Vec<String> {
-    let skip = |name: &str| name.eq_ignore_ascii_case("_info.txt") || name.eq_ignore_ascii_case("gamelist.xml") || name.eq_ignore_ascii_case("images") || name.starts_with('.');
+    let skip = |name: &str| {
+        name.eq_ignore_ascii_case("_info.txt")
+            || name.eq_ignore_ascii_case("gamelist.xml")
+            || name.eq_ignore_ascii_case("images")
+            || name.starts_with('.')
+    };
     folders(&root.join("roms"))
         .into_iter()
-        .filter(|s| fs::read_dir(root.join("roms").join(s)).map(|r| r.filter_map(Result::ok).any(|e| !skip(&e.file_name().to_string_lossy()))).unwrap_or(false))
+        .filter(|s| {
+            fs::read_dir(root.join("roms").join(s))
+                .map(|r| {
+                    r.filter_map(Result::ok)
+                        .any(|e| !skip(&e.file_name().to_string_lossy()))
+                })
+                .unwrap_or(false)
+        })
         .collect()
 }
 
@@ -203,18 +240,36 @@ pub fn conf_edit(text: &str, wanted: &BTreeMap<String, Option<String>>) -> Resul
 
 /// `conf_edit` for any `key=value` file: `disabled` are the marks of a disabled
 /// `key=` line that a new value reactivates in place (Batocera `#`/`;`; Recalbox `;`).
-pub(crate) fn edit_conf(text: &str, wanted: &BTreeMap<String, Option<String>>, disabled: &[char], file: &str) -> Result<String, String> {
+pub(crate) fn edit_conf(
+    text: &str,
+    wanted: &BTreeMap<String, Option<String>>,
+    disabled: &[char],
+    file: &str,
+) -> Result<String, String> {
     let ending = if text.contains("\r\n") { "\r\n" } else { "\n" };
     let mut lines: Vec<String> = text.split_inclusive('\n').map(str::to_string).collect();
     for (key, value) in wanted {
         if let Some(v) = value {
             if v.contains(['\r', '\n']) {
-                return Err(format!("The value for {key} has a line break, so nothing was changed."));
+                return Err(format!(
+                    "The value for {key} has a line break, so nothing was changed."
+                ));
             }
         }
         let prefix = format!("{key}=");
-        let line_end = |l: &str| if l.ends_with("\r\n") { "\r\n" } else if l.ends_with('\n') { "\n" } else { "" }.to_string();
-        let active: Vec<usize> = (0..lines.len()).filter(|&i| active_key(&lines[i]) == Some(key.as_str())).collect();
+        let line_end = |l: &str| {
+            if l.ends_with("\r\n") {
+                "\r\n"
+            } else if l.ends_with('\n') {
+                "\n"
+            } else {
+                ""
+            }
+            .to_string()
+        };
+        let active: Vec<usize> = (0..lines.len())
+            .filter(|&i| active_key(&lines[i]) == Some(key.as_str()))
+            .collect();
         match value {
             Some(v) if !active.is_empty() => {
                 for &i in &active {
@@ -223,7 +278,10 @@ pub(crate) fn edit_conf(text: &str, wanted: &BTreeMap<String, Option<String>>, d
                 }
             }
             Some(v) => {
-                if let Some(i) = lines.iter().position(|l| l.strip_prefix(disabled).is_some_and(|rest| rest.starts_with(&prefix))) {
+                if let Some(i) = lines.iter().position(|l| {
+                    l.strip_prefix(disabled)
+                        .is_some_and(|rest| rest.starts_with(&prefix))
+                }) {
                     let end = line_end(&lines[i]);
                     lines[i] = format!("{prefix}{v}{end}");
                 } else {
@@ -247,18 +305,37 @@ pub(crate) fn edit_conf(text: &str, wanted: &BTreeMap<String, Option<String>>, d
     let (before, after) = (conf_values(text), conf_values(&out));
     for (key, value) in wanted {
         if after.get(key) != value.as_ref() {
-            return Err(format!("Editing {file} didn't set {key} as expected; nothing was changed."));
+            return Err(format!(
+                "Editing {file} didn't set {key} as expected; nothing was changed."
+            ));
         }
     }
-    let others = |m: &BTreeMap<String, String>| m.iter().filter(|(k, _)| !wanted.contains_key(*k)).map(|(k, v)| (k.clone(), v.clone())).collect::<BTreeMap<_, _>>();
+    let others = |m: &BTreeMap<String, String>| {
+        m.iter()
+            .filter(|(k, _)| !wanted.contains_key(*k))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect::<BTreeMap<_, _>>()
+    };
     if others(&before) != others(&after) {
-        return Err(format!("Editing {file} would have changed other settings; nothing was changed."));
+        return Err(format!(
+            "Editing {file} would have changed other settings; nothing was changed."
+        ));
     }
     Ok(out)
 }
 
-fn install(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<customizer::Install, String> {
-    customizer::install_for(connection, installation_id, presence, &["batocera"], "These settings are for Batocera installations.")
+fn install(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<customizer::Install, String> {
+    customizer::install_for(
+        connection,
+        installation_id,
+        presence,
+        &["batocera"],
+        "These settings are for Batocera installations.",
+    )
 }
 
 fn read(root: &Path, relative: &str, missing: &str) -> Result<String, String> {
@@ -273,13 +350,26 @@ const NO_CONF: &str = "system\\batocera.conf is missing. Start Batocera once wit
 const NO_ES: &str = "Batocera's interface settings (system\\configs\\emulationstation\\es_settings.cfg) are missing. Start Batocera once so it creates them.";
 
 /// What can be set, with the current values (reads only).
-pub fn options(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<BatoceraOptions, String> {
+pub fn options(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<BatoceraOptions, String> {
     let install = install(connection, installation_id, presence)?;
     let text = read(&install.root, CONF, NO_CONF)?;
     let es = read(&install.root, ES_SETTINGS, NO_ES).ok();
-    let theme = es.as_deref().and_then(|t| customizer::entries(t).ok()).and_then(|e| customizer::values(&e).ok()).and_then(|v| v.get("ThemeSet").cloned()).filter(|t| !t.is_empty());
+    let theme = es
+        .as_deref()
+        .and_then(|t| customizer::entries(t).ok())
+        .and_then(|e| customizer::values(&e).ok())
+        .and_then(|v| v.get("ThemeSet").cloned())
+        .filter(|t| !t.is_empty());
     let mut themes = vec![BUILTIN_THEME.to_string()];
-    themes.extend(folders(&install.root.join("themes")).into_iter().filter(|t| t != BUILTIN_THEME));
+    themes.extend(
+        folders(&install.root.join("themes"))
+            .into_iter()
+            .filter(|t| t != BUILTIN_THEME),
+    );
     Ok(BatoceraOptions {
         settings: settings(&install.root),
         systems: systems(&install.root),
@@ -293,7 +383,10 @@ pub fn options(connection: &Connection, installation_id: &str, presence: Presenc
 }
 
 /// Checked changes: known settings, known scopes, offered values.
-fn validate(root: &Path, changes: &[ConfChange]) -> Result<BTreeMap<String, Option<String>>, String> {
+fn validate(
+    root: &Path,
+    changes: &[ConfChange],
+) -> Result<BTreeMap<String, Option<String>>, String> {
     if changes.is_empty() {
         return Err("Nothing to change.".into());
     }
@@ -301,15 +394,28 @@ fn validate(root: &Path, changes: &[ConfChange]) -> Result<BTreeMap<String, Opti
     let systems = systems(root);
     let mut wanted = BTreeMap::new();
     for c in changes {
-        let (scope, key) = c.key.split_once('.').ok_or_else(|| format!("Unknown setting {}.", c.key))?;
-        let setting = offered.iter().find(|s| s.key == key).ok_or_else(|| format!("RetroDrive doesn't change {key} on Batocera."))?;
-        let scope_ok = if setting.per_system { scope == "global" || systems.iter().any(|s| s == scope) } else { scope == setting.scope };
+        let (scope, key) = c
+            .key
+            .split_once('.')
+            .ok_or_else(|| format!("Unknown setting {}.", c.key))?;
+        let setting = offered
+            .iter()
+            .find(|s| s.key == key)
+            .ok_or_else(|| format!("RetroDrive doesn't change {key} on Batocera."))?;
+        let scope_ok = if setting.per_system {
+            scope == "global" || systems.iter().any(|s| s == scope)
+        } else {
+            scope == setting.scope
+        };
         if !scope_ok {
             return Err(format!("{} can't be set for {scope}.", setting.label));
         }
         if let Some(v) = &c.value {
             if !setting.choices.iter().any(|ch| &ch.value == v) {
-                return Err(format!("{v} isn't one of Batocera's choices for {}.", setting.label));
+                return Err(format!(
+                    "{v} isn't one of Batocera's choices for {}.",
+                    setting.label
+                ));
             }
         }
         wanted.insert(c.key.clone(), c.value.clone());
@@ -317,28 +423,54 @@ fn validate(root: &Path, changes: &[ConfChange]) -> Result<BTreeMap<String, Opti
     Ok(wanted)
 }
 
-fn rows(wanted: &BTreeMap<String, Option<String>>, current: &BTreeMap<String, String>) -> Vec<ChangeRow> {
+fn rows(
+    wanted: &BTreeMap<String, Option<String>>,
+    current: &BTreeMap<String, String>,
+) -> Vec<ChangeRow> {
     wanted
         .iter()
         .map(|(key, value)| {
             let (scope, name) = key.split_once('.').unwrap_or(("global", key));
-            ChangeRow { system: if scope == "global" { "all systems".into() } else { scope.into() }, key: name.into(), before: current.get(key).cloned(), after: value.clone() }
+            ChangeRow {
+                system: if scope == "global" {
+                    "all systems".into()
+                } else {
+                    scope.into()
+                },
+                key: name.into(),
+                before: current.get(key).cloned(),
+                after: value.clone(),
+            }
         })
         .collect()
 }
 
 /// What the changes would do (reads only).
-pub fn preview(connection: &Connection, installation_id: &str, changes: &[ConfChange], presence: PresenceFn) -> Result<Preview, String> {
+pub fn preview(
+    connection: &Connection,
+    installation_id: &str,
+    changes: &[ConfChange],
+    presence: PresenceFn,
+) -> Result<Preview, String> {
     let install = install(connection, installation_id, presence)?;
     let text = read(&install.root, CONF, NO_CONF)?;
     let wanted = validate(&install.root, changes)?;
     conf_edit(&text, &wanted)?;
-    Ok(Preview { changes: rows(&wanted, &conf_values(&text)), file_sha: customizer::hex_sha(text.as_bytes()) })
+    Ok(Preview {
+        changes: rows(&wanted, &conf_values(&text)),
+        file_sha: customizer::hex_sha(text.as_bytes()),
+    })
 }
 
 /// Save reviewed changes to batocera.conf: only if it's unchanged since the review;
 /// journaled, backed up and undoable (`customizer::write_file`).
-pub fn apply(connection: &Connection, installation_id: &str, changes: &[ConfChange], expected_sha: &str, presence: PresenceFn) -> Result<String, String> {
+pub fn apply(
+    connection: &Connection,
+    installation_id: &str,
+    changes: &[ConfChange],
+    expected_sha: &str,
+    presence: PresenceFn,
+) -> Result<String, String> {
     let install = install(connection, installation_id, presence)?;
     let text = read(&install.root, CONF, NO_CONF)?;
     if customizer::hex_sha(text.as_bytes()) != expected_sha {
@@ -347,14 +479,31 @@ pub fn apply(connection: &Connection, installation_id: &str, changes: &[ConfChan
     let wanted = validate(&install.root, changes)?;
     let new_text = conf_edit(&text, &wanted)?;
     let path = install.root.join(CONF.replace('/', "\\"));
-    customizer::write_file(connection, &install, CONF, &path, &text, &new_text, rows(&wanted, &conf_values(&text)))?;
+    customizer::write_file(
+        connection,
+        &install,
+        CONF,
+        &path,
+        &text,
+        &new_text,
+        rows(&wanted, &conf_values(&text)),
+    )?;
     Ok("Saved to batocera.conf. Batocera uses these settings the next time a game starts. Undo is under \"Show every settings change\".".into())
 }
 
-type ThemeChange = (std::path::PathBuf, String, BTreeMap<String, String>, BTreeMap<String, Option<String>>);
+type ThemeChange = (
+    std::path::PathBuf,
+    String,
+    BTreeMap<String, String>,
+    BTreeMap<String, Option<String>>,
+);
 
 fn theme_change(install: &customizer::Install, theme: &str) -> Result<ThemeChange, String> {
-    if theme != BUILTIN_THEME && !folders(&install.root.join("themes")).iter().any(|t| t == theme) {
+    if theme != BUILTIN_THEME
+        && !folders(&install.root.join("themes"))
+            .iter()
+            .any(|t| t == theme)
+    {
         return Err(format!("There's no theme called {theme} on this Batocera."));
     }
     let text = read(&install.root, ES_SETTINGS, NO_ES)?;
@@ -362,27 +511,57 @@ fn theme_change(install: &customizer::Install, theme: &str) -> Result<ThemeChang
     if current.get("ThemeSet").map(String::as_str) == Some(theme) {
         return Err(format!("{theme} is already Batocera's theme."));
     }
-    let wanted: BTreeMap<String, Option<String>> = [("ThemeSet".to_string(), Some(theme.to_string()))].into_iter().collect();
-    Ok((install.root.join(ES_SETTINGS.replace('/', "\\")), text, current, wanted))
+    let wanted: BTreeMap<String, Option<String>> =
+        [("ThemeSet".to_string(), Some(theme.to_string()))]
+            .into_iter()
+            .collect();
+    Ok((
+        install.root.join(ES_SETTINGS.replace('/', "\\")),
+        text,
+        current,
+        wanted,
+    ))
 }
 
 /// What switching Batocera's theme would change (reads only).
-pub fn preview_theme(connection: &Connection, installation_id: &str, theme: &str, presence: PresenceFn) -> Result<Preview, String> {
+pub fn preview_theme(
+    connection: &Connection,
+    installation_id: &str,
+    theme: &str,
+    presence: PresenceFn,
+) -> Result<Preview, String> {
     let install = install(connection, installation_id, presence)?;
     let (_, text, current, wanted) = theme_change(&install, theme)?;
     customizer::edit_typed(&text, &wanted, &BTreeMap::new())?;
-    Ok(Preview { changes: customizer::rows(&wanted, &current), file_sha: customizer::hex_sha(text.as_bytes()) })
+    Ok(Preview {
+        changes: customizer::rows(&wanted, &current),
+        file_sha: customizer::hex_sha(text.as_bytes()),
+    })
 }
 
 /// Make `theme` Batocera's theme (`ThemeSet`); journaled, backed up and undoable.
-pub fn apply_theme(connection: &Connection, installation_id: &str, theme: &str, expected_sha: &str, presence: PresenceFn) -> Result<String, String> {
+pub fn apply_theme(
+    connection: &Connection,
+    installation_id: &str,
+    theme: &str,
+    expected_sha: &str,
+    presence: PresenceFn,
+) -> Result<String, String> {
     let install = install(connection, installation_id, presence)?;
     let (path, text, current, wanted) = theme_change(&install, theme)?;
     if customizer::hex_sha(text.as_bytes()) != expected_sha {
         return Err("Batocera's interface settings changed since you reviewed this, so nothing was changed. Review it again.".into());
     }
     let new_text = customizer::edit_typed(&text, &wanted, &BTreeMap::new())?;
-    customizer::write_file(connection, &install, ES_SETTINGS, &path, &text, &new_text, customizer::rows(&wanted, &current))?;
+    customizer::write_file(
+        connection,
+        &install,
+        ES_SETTINGS,
+        &path,
+        &text,
+        &new_text,
+        customizer::rows(&wanted, &current),
+    )?;
     Ok(if install.root_text.starts_with(r"\\") {
         format!("{theme} is set. Restart Batocera now (Start → Quit → Restart system) to see it, before changing other settings in its menu, or Batocera may save over this.")
     } else {
@@ -404,67 +583,208 @@ mod tests {
 
     #[test]
     fn edits_change_only_the_wanted_keys_like_batoceras_menu() {
-        let w = |pairs: &[(&str, Option<&str>)]| pairs.iter().map(|(k, v)| (k.to_string(), v.map(str::to_string))).collect::<BTreeMap<_, _>>();
+        let w = |pairs: &[(&str, Option<&str>)]| {
+            pairs
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.map(str::to_string)))
+                .collect::<BTreeMap<_, _>>()
+        };
         // A disabled default becomes active in place; an active line changes; AUTO removes; new keys are appended.
-        let out = conf_edit(CONF_TEXT, &w(&[("global.ratio", Some("16/9")), ("snes.smooth", None), ("audio.bgmusic", Some("0")), ("nes.rewind", Some("1"))])).unwrap();
+        let out = conf_edit(
+            CONF_TEXT,
+            &w(&[
+                ("global.ratio", Some("16/9")),
+                ("snes.smooth", None),
+                ("audio.bgmusic", Some("0")),
+                ("nes.rewind", Some("1")),
+            ]),
+        )
+        .unwrap();
         assert_eq!(out, "## Batocera settings\nsystem.hostname=BATOCERA\naudio.bgmusic=0\nglobal.ratio=16/9\n#global.shaderset=none\nsnes[\"Mario.sfc\"].ratio=4/3\nnes.rewind=1\n");
         // CRLF files keep CRLF; a file without a final newline gets one before an added line.
         let crlf = conf_edit("a=1\r\nb=2", &w(&[("c", Some("3"))])).unwrap();
         assert_eq!(crlf, "a=1\r\nb=2\r\nc=3\r\n");
-        assert!(conf_edit(CONF_TEXT, &w(&[("global.ratio", Some("4/3\nsystem.hostname=X"))])).is_err(), "no line breaks in values");
-        assert_eq!(conf_values(CONF_TEXT).get("snes.smooth").map(String::as_str), Some("1"));
-        assert!(!conf_values(CONF_TEXT).contains_key("global.ratio"), "disabled lines aren't values");
+        assert!(
+            conf_edit(
+                CONF_TEXT,
+                &w(&[("global.ratio", Some("4/3\nsystem.hostname=X"))])
+            )
+            .is_err(),
+            "no line breaks in values"
+        );
+        assert_eq!(
+            conf_values(CONF_TEXT)
+                .get("snes.smooth")
+                .map(String::as_str),
+            Some("1")
+        );
+        assert!(
+            !conf_values(CONF_TEXT).contains_key("global.ratio"),
+            "disabled lines aren't values"
+        );
     }
 
     #[test]
     fn settings_and_theme_are_reviewed_saved_and_undone() {
         let dir = tempfile::tempdir().unwrap();
         let share = dir.path().join("share");
-        for d in ["roms/snes", "roms/nes", "bios", "system/configs/emulationstation", "themes/my-theme", "decorations/arcade"] {
+        for d in [
+            "roms/snes",
+            "roms/nes",
+            "bios",
+            "system/configs/emulationstation",
+            "themes/my-theme",
+            "decorations/arcade",
+        ] {
             fs::create_dir_all(share.join(d)).unwrap();
         }
         fs::write(share.join("roms/snes/Mario.sfc"), b"m").unwrap();
         fs::write(share.join("roms/nes/_info.txt"), b"").unwrap();
         fs::write(share.join("system/batocera.conf"), CONF_TEXT).unwrap();
         let es = "<?xml version=\"1.0\"?>\n<config>\n\t<string name=\"ThemeSet\" value=\"es-theme-carbon\" />\n</config>\n";
-        fs::write(share.join("system/configs/emulationstation/es_settings.cfg"), es).unwrap();
+        fs::write(
+            share.join("system/configs/emulationstation/es_settings.cfg"),
+            es,
+        )
+        .unwrap();
         let mut catalog = Connection::open_in_memory().unwrap();
         db::migrate(&mut catalog, None).unwrap();
-        let id = installations::add(&catalog, &share, "batocera", &|_: &str| VolumeProbe::unknown()).unwrap();
+        let id = installations::add(&catalog, &share, "batocera", &|_: &str| {
+            VolumeProbe::unknown()
+        })
+        .unwrap();
 
         let o = options(&catalog, &id, &connected).unwrap();
         assert_eq!(o.systems, ["snes"], "only systems with games");
-        assert_eq!((o.theme.as_deref(), o.themes.clone()), (Some("es-theme-carbon"), vec!["es-theme-carbon".to_string(), "my-theme".to_string()]));
-        assert!(o.settings.iter().find(|s| s.key == "bezel").unwrap().choices.iter().any(|c| c.value == "arcade"), "user decorations offered");
+        assert_eq!(
+            (o.theme.as_deref(), o.themes.clone()),
+            (
+                Some("es-theme-carbon"),
+                vec!["es-theme-carbon".to_string(), "my-theme".to_string()]
+            )
+        );
+        assert!(
+            o.settings
+                .iter()
+                .find(|s| s.key == "bezel")
+                .unwrap()
+                .choices
+                .iter()
+                .any(|c| c.value == "arcade"),
+            "user decorations offered"
+        );
 
-        let change = |k: &str, v: Option<&str>| ConfChange { key: k.into(), value: v.map(str::to_string) };
-        assert!(preview(&catalog, &id, &[change("nes.ratio", Some("4/3"))], &connected).is_err(), "no games, no system");
-        assert!(preview(&catalog, &id, &[change("snes.ratio", Some("5/3"))], &connected).is_err(), "not a Batocera value");
-        assert!(preview(&catalog, &id, &[change("global.hostname", Some("x"))], &connected).is_err(), "not an offered setting");
-        assert!(preview(&catalog, &id, &[change("global.bgmusic", Some("0"))], &connected).is_err(), "menu music is audio.bgmusic");
-        assert!(preview(&catalog, &id, &[change("display.rotate", Some("1"))], &connected).is_ok(), "screen rotation is display.rotate");
-        assert!(preview(&catalog, &id, &[change("display.rotate", Some("4"))], &connected).is_err());
-        assert!(preview(&catalog, &id, &[change("global.rotate", Some("1"))], &connected).is_err());
-        let changes = [change("global.shaderset", Some("scanlines")), change("snes.smooth", None)];
+        let change = |k: &str, v: Option<&str>| ConfChange {
+            key: k.into(),
+            value: v.map(str::to_string),
+        };
+        assert!(
+            preview(
+                &catalog,
+                &id,
+                &[change("nes.ratio", Some("4/3"))],
+                &connected
+            )
+            .is_err(),
+            "no games, no system"
+        );
+        assert!(
+            preview(
+                &catalog,
+                &id,
+                &[change("snes.ratio", Some("5/3"))],
+                &connected
+            )
+            .is_err(),
+            "not a Batocera value"
+        );
+        assert!(
+            preview(
+                &catalog,
+                &id,
+                &[change("global.hostname", Some("x"))],
+                &connected
+            )
+            .is_err(),
+            "not an offered setting"
+        );
+        assert!(
+            preview(
+                &catalog,
+                &id,
+                &[change("global.bgmusic", Some("0"))],
+                &connected
+            )
+            .is_err(),
+            "menu music is audio.bgmusic"
+        );
+        assert!(
+            preview(
+                &catalog,
+                &id,
+                &[change("display.rotate", Some("1"))],
+                &connected
+            )
+            .is_ok(),
+            "screen rotation is display.rotate"
+        );
+        assert!(preview(
+            &catalog,
+            &id,
+            &[change("display.rotate", Some("4"))],
+            &connected
+        )
+        .is_err());
+        assert!(preview(
+            &catalog,
+            &id,
+            &[change("global.rotate", Some("1"))],
+            &connected
+        )
+        .is_err());
+        let changes = [
+            change("global.shaderset", Some("scanlines")),
+            change("snes.smooth", None),
+        ];
         let p = preview(&catalog, &id, &changes, &connected).unwrap();
-        assert_eq!(fs::read_to_string(share.join("system/batocera.conf")).unwrap(), CONF_TEXT, "previewing changes nothing");
-        assert!(apply(&catalog, &id, &changes, "stale", &connected).unwrap_err().contains("changed since"));
+        assert_eq!(
+            fs::read_to_string(share.join("system/batocera.conf")).unwrap(),
+            CONF_TEXT,
+            "previewing changes nothing"
+        );
+        assert!(apply(&catalog, &id, &changes, "stale", &connected)
+            .unwrap_err()
+            .contains("changed since"));
         apply(&catalog, &id, &changes, &p.file_sha, &connected).unwrap();
         let now = fs::read_to_string(share.join("system/batocera.conf")).unwrap();
-        assert!(now.contains("\nglobal.shaderset=scanlines\n") && !now.contains("snes.smooth") && now.contains("system.hostname=BATOCERA"));
+        assert!(
+            now.contains("\nglobal.shaderset=scanlines\n")
+                && !now.contains("snes.smooth")
+                && now.contains("system.hostname=BATOCERA")
+        );
 
         let t = preview_theme(&catalog, &id, "my-theme", &connected).unwrap();
         assert!(preview_theme(&catalog, &id, "missing", &connected).is_err());
         let msg = apply_theme(&catalog, &id, "my-theme", &t.file_sha, &connected).unwrap();
         assert!(msg.contains("next time it starts"), "{msg}");
-        assert_eq!(options(&catalog, &id, &connected).unwrap().theme.as_deref(), Some("my-theme"));
+        assert_eq!(
+            options(&catalog, &id, &connected).unwrap().theme.as_deref(),
+            Some("my-theme")
+        );
 
         // Undo both, newest first: files are back exactly.
         for h in customizer::history(&catalog, &id, &connected).unwrap() {
             customizer::undo(&catalog, h.id, &connected, &customizer::never_running).unwrap();
         }
-        assert_eq!(fs::read_to_string(share.join("system/batocera.conf")).unwrap(), CONF_TEXT);
-        assert_eq!(fs::read_to_string(share.join("system/configs/emulationstation/es_settings.cfg")).unwrap(), es);
+        assert_eq!(
+            fs::read_to_string(share.join("system/batocera.conf")).unwrap(),
+            CONF_TEXT
+        );
+        assert_eq!(
+            fs::read_to_string(share.join("system/configs/emulationstation/es_settings.cfg"))
+                .unwrap(),
+            es
+        );
         // Not for RetroBat installations.
         assert!(customizer::install(&catalog, &id, &connected).is_err());
     }

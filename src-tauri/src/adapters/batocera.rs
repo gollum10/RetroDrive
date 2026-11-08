@@ -26,7 +26,10 @@
 //!   system image), so the version is reported as unknown.
 
 use super::retrobat::{arcade_folder, system_folder};
-use super::{has_entry, plan_in_roms, AdapterKind, Capabilities, CheckStatus, Confidence, Detection, LayoutCheck, Placement, PlacementRequest, PlatformAdapter};
+use super::{
+    has_entry, plan_in_roms, AdapterKind, Capabilities, CheckStatus, Confidence, Detection,
+    LayoutCheck, Placement, PlacementRequest, PlatformAdapter,
+};
 use std::path::Path;
 
 pub struct Batocera;
@@ -35,18 +38,33 @@ const ID: &str = "batocera";
 const NAME: &str = "Batocera";
 
 /// Folders Batocera's first boot creates in userdata besides `roms` and `system`.
-const USERDATA_FOLDERS: &[&str] = &["bios", "saves", "screenshots", "music", "splash", "extractions", "library", "recordings", "kodi"];
+const USERDATA_FOLDERS: &[&str] = &[
+    "bios",
+    "saves",
+    "screenshots",
+    "music",
+    "splash",
+    "extractions",
+    "library",
+    "recordings",
+    "kodi",
+];
 
 fn has_conf(root: &Path) -> bool {
     has_entry(root, "system", true) && has_entry(&root.join("system"), "batocera.conf", false)
 }
 
 fn is_boot_partition(root: &Path) -> bool {
-    has_entry(root, "batocera-boot.conf", false) && has_entry(root, "boot", true) && has_entry(&root.join("boot"), "batocera", false)
+    has_entry(root, "batocera-boot.conf", false)
+        && has_entry(root, "boot", true)
+        && has_entry(&root.join("boot"), "batocera", false)
 }
 
 fn is_network_path(path: &str) -> bool {
-    let path = path.strip_prefix(r"\\?\UNC\").map(|_| r"\\").unwrap_or(path);
+    let path = path
+        .strip_prefix(r"\\?\UNC\")
+        .map(|_| r"\\")
+        .unwrap_or(path);
     path.starts_with(r"\\") || path.starts_with("//")
 }
 
@@ -57,7 +75,12 @@ pub(crate) fn is_knulli(root: &Path) -> bool {
     if text.starts_with(r"\\knulli\") || text.starts_with("//knulli/") {
         return true;
     }
-    std::fs::read_to_string(root.join("system").join("batocera.conf")).map(|c| c.lines().any(|l| l.trim().eq_ignore_ascii_case("system.hostname=KNULLI"))).unwrap_or(false)
+    std::fs::read_to_string(root.join("system").join("batocera.conf"))
+        .map(|c| {
+            c.lines()
+                .any(|l| l.trim().eq_ignore_ascii_case("system.hostname=KNULLI"))
+        })
+        .unwrap_or(false)
 }
 
 impl PlatformAdapter for Batocera {
@@ -71,11 +94,26 @@ impl PlatformAdapter for Batocera {
         AdapterKind::BootableOs
     }
     fn capabilities(&self) -> Capabilities {
-        Capabilities { detect: true, validate_layout: true, plan_placement: true, copy_games: true, install: false, write_files: false }
+        Capabilities {
+            detect: true,
+            validate_layout: true,
+            plan_placement: true,
+            copy_games: true,
+            install: false,
+            write_files: false,
+        }
     }
 
     fn detect(&self, root: &Path) -> Detection {
-        let detection = |confidence, evidence: Vec<String>, hint: Option<String>| Detection { adapter_id: ID, display_name: NAME, kind: AdapterKind::BootableOs, confidence, evidence, version: None, hint };
+        let detection = |confidence, evidence: Vec<String>, hint: Option<String>| Detection {
+            adapter_id: ID,
+            display_name: NAME,
+            kind: AdapterKind::BootableOs,
+            confidence,
+            evidence,
+            version: None,
+            hint,
+        };
 
         if is_boot_partition(root) {
             return detection(
@@ -90,7 +128,11 @@ impl PlatformAdapter for Batocera {
         }
         let roms = has_entry(root, "roms", true);
         let conf = has_conf(root);
-        let others: Vec<&str> = USERDATA_FOLDERS.iter().copied().filter(|f| has_entry(root, f, true)).collect();
+        let others: Vec<&str> = USERDATA_FOLDERS
+            .iter()
+            .copied()
+            .filter(|f| has_entry(root, f, true))
+            .collect();
         let mut evidence = Vec::new();
         if roms {
             evidence.push("roms folder found".to_string());
@@ -105,7 +147,9 @@ impl PlatformAdapter for Batocera {
             // Knulli (a Batocera-based system for handhelds) keeps Batocera's files and
             // folder names; its default batocera.conf sets system.hostname=KNULLI.
             if is_knulli(root) {
-                evidence.push("Knulli (based on Batocera): RetroDrive treats it as Batocera".to_string());
+                evidence.push(
+                    "Knulli (based on Batocera): RetroDrive treats it as Batocera".to_string(),
+                );
             }
             return detection(Confidence::Detected, evidence, None);
         }
@@ -129,7 +173,12 @@ impl PlatformAdapter for Batocera {
     }
 
     fn validate_layout(&self, root: &Path) -> Vec<LayoutCheck> {
-        let check = |id: &'static str, label: &str, ok: bool, missing: CheckStatus, found: &str, why: &str| LayoutCheck {
+        let check = |id: &'static str,
+                     label: &str,
+                     ok: bool,
+                     missing: CheckStatus,
+                     found: &str,
+                     why: &str| LayoutCheck {
             id,
             label: label.into(),
             status: if ok { CheckStatus::Ok } else { missing },
@@ -204,14 +253,26 @@ mod tests {
         }
     }
 
-    const USERDATA: &[&str] = &["roms/nes/_info.txt", "bios/", "saves/", "screenshots/", "system/batocera.conf"];
+    const USERDATA: &[&str] = &[
+        "roms/nes/_info.txt",
+        "bios/",
+        "saves/",
+        "screenshots/",
+        "system/batocera.conf",
+    ];
 
     fn request(platform: &str, ext: &str, files: &[&str]) -> PlacementRequest {
         PlacementRequest {
             title: "Saga".into(),
             platform: platform.into(),
             extension: ext.into(),
-            files: files.iter().map(|f| PlacementFile { relative_to_primary: f.to_string(), size: 1 }).collect(),
+            files: files
+                .iter()
+                .map(|f| PlacementFile {
+                    relative_to_primary: f.to_string(),
+                    size: 1,
+                })
+                .collect(),
             options: PlacementOptions::default(),
             bios_path: None,
         }
@@ -232,37 +293,74 @@ mod tests {
     fn near_misses_explain_which_folder_to_choose() {
         // Boot partition: never saved, and says where games go.
         let boot = tempfile::tempdir().unwrap();
-        make(boot.path(), &["batocera-boot.conf", "boot/batocera", "boot/batocera.board"]);
+        make(
+            boot.path(),
+            &["batocera-boot.conf", "boot/batocera", "boot/batocera.board"],
+        );
         let d = Batocera.detect(boot.path());
         assert_eq!(d.confidence, Confidence::Possible);
         assert!(d.hint.unwrap().contains("system partition"));
 
         // External game drive root: points at <drive>\batocera.
         let drive = tempfile::tempdir().unwrap();
-        make(drive.path(), &["batocera/roms/", "batocera/system/batocera.conf", "Movies/"]);
+        make(
+            drive.path(),
+            &["batocera/roms/", "batocera/system/batocera.conf", "Movies/"],
+        );
         let d = Batocera.detect(drive.path());
         assert_eq!(d.confidence, Confidence::Possible);
         assert!(d.hint.unwrap().contains("batocera"));
-        assert_eq!(Batocera.detect(&drive.path().join("batocera")).confidence, Confidence::Detected);
+        assert_eq!(
+            Batocera.detect(&drive.path().join("batocera")).confidence,
+            Confidence::Detected
+        );
 
         // Userdata folders without batocera.conf.
         let unfinished = tempfile::tempdir().unwrap();
         make(unfinished.path(), &["roms/", "bios/", "saves/"]);
-        assert_eq!(Batocera.detect(unfinished.path()).confidence, Confidence::Possible);
+        assert_eq!(
+            Batocera.detect(unfinished.path()).confidence,
+            Confidence::Possible
+        );
     }
 
     #[test]
     fn retrobat_and_unrelated_folders_are_not_batocera() {
         let empty = tempfile::tempdir().unwrap();
-        assert_eq!(Batocera.detect(empty.path()).confidence, Confidence::NotDetected);
+        assert_eq!(
+            Batocera.detect(empty.path()).confidence,
+            Confidence::NotDetected
+        );
         let roms_only = tempfile::tempdir().unwrap();
         make(roms_only.path(), &["roms/"]);
-        assert_eq!(Batocera.detect(roms_only.path()).confidence, Confidence::NotDetected);
+        assert_eq!(
+            Batocera.detect(roms_only.path()).confidence,
+            Confidence::NotDetected
+        );
         let retrobat = tempfile::tempdir().unwrap();
-        make(retrobat.path(), &["RetroBat.exe", "emulationstation/", "roms/", "bios/", "saves/", "system/batocera.conf"]);
-        assert_eq!(Batocera.detect(retrobat.path()).confidence, Confidence::NotDetected);
-        let best = crate::adapters::detect_all(retrobat.path()).into_iter().next().unwrap();
-        assert_eq!((best.adapter_id, best.confidence), ("retrobat", Confidence::Detected));
+        make(
+            retrobat.path(),
+            &[
+                "RetroBat.exe",
+                "emulationstation/",
+                "roms/",
+                "bios/",
+                "saves/",
+                "system/batocera.conf",
+            ],
+        );
+        assert_eq!(
+            Batocera.detect(retrobat.path()).confidence,
+            Confidence::NotDetected
+        );
+        let best = crate::adapters::detect_all(retrobat.path())
+            .into_iter()
+            .next()
+            .unwrap();
+        assert_eq!(
+            (best.adapter_id, best.confidence),
+            ("retrobat", Confidence::Detected)
+        );
     }
 
     #[test]
@@ -273,10 +371,22 @@ mod tests {
         let get = |id: &str| checks.iter().find(|c| c.id == id).unwrap().clone();
         assert_eq!(get("roms").status, CheckStatus::Ok);
         assert_eq!(get("config").status, CheckStatus::Ok);
-        assert_eq!(get("copying").status, CheckStatus::Ok, "a game drive copies like RetroBat");
+        assert_eq!(
+            get("copying").status,
+            CheckStatus::Ok,
+            "a game drive copies like RetroBat"
+        );
         assert!(get("copying").detail.contains("never overwrites"));
         fs::remove_dir_all(dir.path().join("roms")).unwrap();
-        assert_eq!(Batocera.validate_layout(dir.path()).iter().find(|c| c.id == "roms").unwrap().status, CheckStatus::Problem);
+        assert_eq!(
+            Batocera
+                .validate_layout(dir.path())
+                .iter()
+                .find(|c| c.id == "roms")
+                .unwrap()
+                .status,
+            CheckStatus::Problem
+        );
         assert!(is_network_path(r"\\BATOCERA\share"));
         assert!(is_network_path(r"\\?\UNC\BATOCERA\share"));
         assert!(!is_network_path(r"E:\batocera"));
@@ -285,21 +395,51 @@ mod tests {
     #[test]
     fn placement_uses_batocera_folders() {
         let plan = |p: &str, e: &str, f: &[&str]| Batocera.plan_placement(&request(p, e, f));
-        assert_eq!(plan("SNES", "sfc", &["Mario.sfc"]), Placement::Planned { system_folder: "snes".into(), destinations: vec!["roms/snes/Mario.sfc".into()] });
-        assert_eq!(plan("Genesis", "md", &["S.md"]), Placement::Planned { system_folder: "megadrive".into(), destinations: vec!["roms/megadrive/S.md".into()] });
+        assert_eq!(
+            plan("SNES", "sfc", &["Mario.sfc"]),
+            Placement::Planned {
+                system_folder: "snes".into(),
+                destinations: vec!["roms/snes/Mario.sfc".into()]
+            }
+        );
+        assert_eq!(
+            plan("Genesis", "md", &["S.md"]),
+            Placement::Planned {
+                system_folder: "megadrive".into(),
+                destinations: vec!["roms/megadrive/S.md".into()]
+            }
+        );
         assert_eq!(
             plan("PlayStation", "m3u", &["Saga.m3u", "Saga (Disc 1).cue"]),
-            Placement::Planned { system_folder: "psx".into(), destinations: vec!["roms/psx/Saga/Saga.m3u".into(), "roms/psx/Saga/Saga (Disc 1).cue".into()] }
+            Placement::Planned {
+                system_folder: "psx".into(),
+                destinations: vec![
+                    "roms/psx/Saga/Saga.m3u".into(),
+                    "roms/psx/Saga/Saga (Disc 1).cue".into()
+                ]
+            }
         );
         match plan("BIOS", "bin", &["scph.bin"]) {
-            Placement::Unsupported { reason } => assert!(reason.contains("[BIOS]"), "a BIOS file outside a bios folder: {reason}"),
+            Placement::Unsupported { reason } => assert!(
+                reason.contains("[BIOS]"),
+                "a BIOS file outside a bios folder: {reason}"
+            ),
             other => panic!("{other:?}"),
         }
         // CPS games follow the arcade choice; without one they aren't placed.
-        assert!(matches!(plan("CPS2", "zip", &["ddtod.zip"]), Placement::Unsupported { .. }));
+        assert!(matches!(
+            plan("CPS2", "zip", &["ddtod.zip"]),
+            Placement::Unsupported { .. }
+        ));
         let mut cps = request("CPS2", "zip", &["ddtod.zip"]);
         cps.options.arcade = Some(ArcadeSystem::Fbneo);
-        assert_eq!(Batocera.plan_placement(&cps), Placement::Planned { system_folder: "fbneo".into(), destinations: vec!["roms/fbneo/ddtod.zip".into()] });
+        assert_eq!(
+            Batocera.plan_placement(&cps),
+            Placement::Planned {
+                system_folder: "fbneo".into(),
+                destinations: vec!["roms/fbneo/ddtod.zip".into()]
+            }
+        );
     }
 
     #[test]
@@ -307,11 +447,27 @@ mod tests {
         let share = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(share.path().join("roms/snes")).unwrap();
         std::fs::create_dir_all(share.path().join("system")).unwrap();
-        std::fs::write(share.path().join("system/batocera.conf"), "## Set system hostname, accessible via network share.\nsystem.hostname=KNULLI\n").unwrap();
+        std::fs::write(
+            share.path().join("system/batocera.conf"),
+            "## Set system hostname, accessible via network share.\nsystem.hostname=KNULLI\n",
+        )
+        .unwrap();
         let d = Batocera.detect(share.path());
         assert_eq!(d.confidence, Confidence::Detected);
-        assert!(d.evidence.iter().any(|e| e.contains("Knulli")), "{:?}", d.evidence);
-        std::fs::write(share.path().join("system/batocera.conf"), "system.hostname=BATOCERA\n").unwrap();
-        assert!(!Batocera.detect(share.path()).evidence.iter().any(|e| e.contains("Knulli")));
+        assert!(
+            d.evidence.iter().any(|e| e.contains("Knulli")),
+            "{:?}",
+            d.evidence
+        );
+        std::fs::write(
+            share.path().join("system/batocera.conf"),
+            "system.hostname=BATOCERA\n",
+        )
+        .unwrap();
+        assert!(!Batocera
+            .detect(share.path())
+            .evidence
+            .iter()
+            .any(|e| e.contains("Knulli")));
     }
 }

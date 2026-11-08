@@ -98,8 +98,12 @@ impl Remix {
 
 /// The design id and recipe recorded in a theme RetroDrive made, if any.
 pub fn made_by(theme_dir: &Path) -> Option<(String, String)> {
-    let v: serde_json::Value = serde_json::from_str(&fs::read_to_string(theme_dir.join(MANIFEST)).ok()?).ok()?;
-    Some((v["design"].as_str()?.to_string(), v["recipe"].as_str()?.to_string()))
+    let v: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(theme_dir.join(MANIFEST)).ok()?).ok()?;
+    Some((
+        v["design"].as_str()?.to_string(),
+        v["recipe"].as_str()?.to_string(),
+    ))
 }
 
 /// Size in bytes of a theme folder (what a remix copies).
@@ -126,18 +130,28 @@ fn block(text: &str, open: &str, close: &str, from: usize) -> Option<(usize, usi
 
 /// Simple child elements of the first `<variables>` block (comments skipped).
 fn variables(text: &str) -> Vec<Var> {
-    let Some((start, end)) = block(text, "<variables>", "</variables>", 0) else { return Vec::new() };
+    let Some((start, end)) = block(text, "<variables>", "</variables>", 0) else {
+        return Vec::new();
+    };
     let mut found = Vec::new();
     let mut i = start;
     while let Some(off) = text[i..end].find('<') {
         let open = i + off;
         if text[open..].starts_with("<!--") {
-            i = text[open..].find("-->").map(|p| open + p + 3).unwrap_or(end);
+            i = text[open..]
+                .find("-->")
+                .map(|p| open + p + 3)
+                .unwrap_or(end);
             continue;
         }
-        let Some(gt) = text[open..end].find('>') else { break };
+        let Some(gt) = text[open..end].find('>') else {
+            break;
+        };
         let name = &text[open + 1..open + gt];
-        if name.is_empty() || name.starts_with('/') || name.contains(|c: char| c.is_whitespace() || c == '/') {
+        if name.is_empty()
+            || name.starts_with('/')
+            || name.contains(|c: char| c.is_whitespace() || c == '/')
+        {
             i = open + gt + 1;
             continue;
         }
@@ -149,7 +163,12 @@ fn variables(text: &str) -> Vec<Var> {
         };
         let value = &text[value_start..value_start + len];
         if !value.contains('<') {
-            found.push(Var { name: name.to_string(), value: value.trim().to_string(), start: value_start, end: value_start + len });
+            found.push(Var {
+                name: name.to_string(),
+                value: value.trim().to_string(),
+                start: value_start,
+                end: value_start + len,
+            });
         }
         i = value_start + len + close.len();
     }
@@ -161,7 +180,10 @@ fn is_color(value: &str) -> bool {
 }
 
 fn is_image(value: &str) -> bool {
-    !value.contains("${") && IMAGE_EXTS.iter().any(|e| value.to_lowercase().ends_with(&format!(".{e}")))
+    !value.contains("${")
+        && IMAGE_EXTS
+            .iter()
+            .any(|e| value.to_lowercase().ends_with(&format!(".{e}")))
 }
 
 /// A `<subset name="…">` block in theme.xml and its include files.
@@ -184,8 +206,12 @@ fn subsets(text: &str) -> Vec<Subset> {
     let mut i = 0;
     while let Some(off) = text[i..].find("<subset ") {
         let start = i + off;
-        let Some(tag_end) = text[start..].find('>').map(|p| start + p) else { break };
-        let Some(end) = text[tag_end..].find("</subset>").map(|p| tag_end + p) else { break };
+        let Some(tag_end) = text[start..].find('>').map(|p| start + p) else {
+            break;
+        };
+        let Some(end) = text[tag_end..].find("</subset>").map(|p| tag_end + p) else {
+            break;
+        };
         let name = attribute(&text[start..tag_end], "name").unwrap_or_default();
         let mut includes = Vec::new();
         let mut first_include = None;
@@ -193,15 +219,28 @@ fn subsets(text: &str) -> Vec<Subset> {
         while let Some(o) = text[j..end].find("<include") {
             let inc = j + o;
             first_include.get_or_insert(inc);
-            let Some(gt) = text[inc..end].find('>').map(|p| inc + p) else { break };
-            let Some(close) = text[gt..end].find("</include>").map(|p| gt + p) else { break };
+            let Some(gt) = text[inc..end].find('>').map(|p| inc + p) else {
+                break;
+            };
+            let Some(close) = text[gt..end].find("</include>").map(|p| gt + p) else {
+                break;
+            };
             includes.push(text[gt + 1..close].trim().to_string());
             j = close;
         }
         if let (Some(first), false) = (first_include, name.is_empty()) {
             let line_start = text[..first].rfind('\n').map(|p| p + 1).unwrap_or(first);
             let indent = text[line_start..first].to_string();
-            found.push(Subset { name, first_include: first, indent: if indent.trim().is_empty() { indent } else { "    ".into() }, includes });
+            found.push(Subset {
+                name,
+                first_include: first,
+                indent: if indent.trim().is_empty() {
+                    indent
+                } else {
+                    "    ".into()
+                },
+                includes,
+            });
         }
         i = end;
     }
@@ -210,25 +249,43 @@ fn subsets(text: &str) -> Vec<Subset> {
 
 /// Resolve a theme-relative path (`./x`, `x`, `${themePath}/x`) safely inside `theme`.
 fn inside(theme: &Path, relative: &str) -> Option<PathBuf> {
-    let clean = relative.trim().trim_start_matches("${themePath}/").trim_start_matches("./").replace('\\', "/");
-    if clean.is_empty() || clean.split('/').any(|p| p == ".." || p.contains(':')) || clean.starts_with('/') {
+    let clean = relative
+        .trim()
+        .trim_start_matches("${themePath}/")
+        .trim_start_matches("./")
+        .replace('\\', "/");
+    if clean.is_empty()
+        || clean.split('/').any(|p| p == ".." || p.contains(':'))
+        || clean.starts_with('/')
+    {
         return None;
     }
     Some(theme.join(clean))
 }
 
 fn credits(text: &str) -> Vec<String> {
-    let Some((start, end)) = block(text, "<!--", "-->", 0) else { return Vec::new() };
+    let Some((start, end)) = block(text, "<!--", "-->", 0) else {
+        return Vec::new();
+    };
     if text[..start].contains("<theme") {
         return Vec::new();
     }
-    text[start..end].lines().map(str::trim).filter(|l| !l.is_empty()).take(10).map(str::to_string).collect()
+    text[start..end]
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .take(10)
+        .map(str::to_string)
+        .collect()
 }
 
 /// Theme variables as RetroBat uses them by default: theme.xml, then the first
 /// include of each subset.
 fn effective(theme: &Path, text: &str) -> BTreeMap<String, String> {
-    let mut map: BTreeMap<String, String> = variables(text).into_iter().map(|v| (v.name, v.value)).collect();
+    let mut map: BTreeMap<String, String> = variables(text)
+        .into_iter()
+        .map(|v| (v.name, v.value))
+        .collect();
     for subset in subsets(text) {
         if let Some(path) = subset.includes.first().and_then(|p| inside(theme, p)) {
             if let Ok(included) = fs::read_to_string(path) {
@@ -244,7 +301,11 @@ fn effective(theme: &Path, text: &str) -> BTreeMap<String, String> {
 fn walk_size(dir: &Path) -> (i64, i64) {
     let mut bytes = 0;
     let mut files = 0;
-    for entry in walkdir::WalkDir::new(dir).follow_links(false).into_iter().filter_map(Result::ok) {
+    for entry in walkdir::WalkDir::new(dir)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(Result::ok)
+    {
         if entry.file_type().is_file() {
             files += 1;
             bytes += entry.metadata().map(|m| m.len() as i64).unwrap_or(0);
@@ -255,8 +316,22 @@ fn walk_size(dir: &Path) -> (i64, i64) {
 
 fn info(theme: &Path, folder: &str, active: bool, with_size: bool) -> ThemeInfo {
     let (bytes, files) = if with_size { walk_size(theme) } else { (0, 0) };
-    let remixed_from = fs::read_to_string(theme.join(MANIFEST)).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()).and_then(|v| v["base"].as_str().map(str::to_string));
-    let mut out = ThemeInfo { folder: folder.into(), path: theme.display().to_string(), active, credits: Vec::new(), variables: Vec::new(), fonts: Vec::new(), bytes, files, remixed_from, problem: None };
+    let remixed_from = fs::read_to_string(theme.join(MANIFEST))
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .and_then(|v| v["base"].as_str().map(str::to_string));
+    let mut out = ThemeInfo {
+        folder: folder.into(),
+        path: theme.display().to_string(),
+        active,
+        credits: Vec::new(),
+        variables: Vec::new(),
+        fonts: Vec::new(),
+        bytes,
+        files,
+        remixed_from,
+        problem: None,
+    };
     let Ok(text) = fs::read_to_string(theme.join("theme.xml")) else {
         out.problem = Some("No theme.xml, so it can't be remixed.".into());
         return out;
@@ -266,10 +341,22 @@ fn info(theme: &Path, folder: &str, active: bool, with_size: bool) -> ThemeInfo 
         .into_iter()
         .filter_map(|(name, value)| {
             if is_color(&value) {
-                Some(ThemeVar { name, value, kind: "color".into(), path: None })
+                Some(ThemeVar {
+                    name,
+                    value,
+                    kind: "color".into(),
+                    path: None,
+                })
             } else if is_image(&value) {
-                let path = inside(theme, &value).filter(|p| p.is_file()).map(|p| p.display().to_string());
-                Some(ThemeVar { name, value, kind: "image".into(), path })
+                let path = inside(theme, &value)
+                    .filter(|p| p.is_file())
+                    .map(|p| p.display().to_string());
+                Some(ThemeVar {
+                    name,
+                    value,
+                    kind: "image".into(),
+                    path,
+                })
             } else {
                 None
             }
@@ -279,13 +366,26 @@ fn info(theme: &Path, folder: &str, active: bool, with_size: bool) -> ThemeInfo 
         .follow_links(false)
         .into_iter()
         .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_file() && FONT_EXTS.iter().any(|x| e.path().extension().is_some_and(|ext| ext.eq_ignore_ascii_case(x))))
-        .filter_map(|e| e.path().strip_prefix(theme).ok().map(|p| p.display().to_string().replace('\\', "/")))
+        .filter(|e| {
+            e.file_type().is_file()
+                && FONT_EXTS.iter().any(|x| {
+                    e.path()
+                        .extension()
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case(x))
+                })
+        })
+        .filter_map(|e| {
+            e.path()
+                .strip_prefix(theme)
+                .ok()
+                .map(|p| p.display().to_string().replace('\\', "/"))
+        })
         .collect();
     fonts.sort();
     out.fonts = fonts;
     if out.variables.is_empty() {
-        out.problem = Some("This theme has no color or picture settings RetroDrive can change.".into());
+        out.problem =
+            Some("This theme has no color or picture settings RetroDrive can change.".into());
     }
     out
 }
@@ -294,8 +394,15 @@ struct Install {
     root: PathBuf,
 }
 
-fn install(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<Install, String> {
-    let located = installations::located(connection, presence, Some(installation_id))?.into_iter().next().ok_or("Installation not found")?;
+fn install(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<Install, String> {
+    let located = installations::located(connection, presence, Some(installation_id))?
+        .into_iter()
+        .next()
+        .ok_or("Installation not found")?;
     if located.adapter_id != "retrobat" {
         return Err("Themes are only available for RetroBat so far.".into());
     }
@@ -306,24 +413,46 @@ fn install(connection: &Connection, installation_id: &str, presence: PresenceFn)
 }
 
 /// The installation's themes with what can be changed in each.
-pub fn list(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<ThemeList, String> {
+pub fn list(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<ThemeList, String> {
     let install = install(connection, installation_id, presence)?;
     let active = crate::customizer::current_theme(&install.root);
     let dir = install.root.join(THEMES);
     let themes = crate::customizer::theme_folders(&install.root)
         .into_iter()
         .map(|folder| {
-            let path = if dir.join(&folder).is_dir() { dir.join(&folder) } else { install.root.join("emulationstation/themes").join(&folder) };
-            info(&path, &folder, active.as_deref() == Some(folder.as_str()), true)
+            let path = if dir.join(&folder).is_dir() {
+                dir.join(&folder)
+            } else {
+                install.root.join("emulationstation/themes").join(&folder)
+            };
+            info(
+                &path,
+                &folder,
+                active.as_deref() == Some(folder.as_str()),
+                true,
+            )
         })
         .collect();
-    Ok(ThemeList { installation_path: install.root.display().to_string(), themes_path: dir.display().to_string(), active, themes })
+    Ok(ThemeList {
+        installation_path: install.root.display().to_string(),
+        themes_path: dir.display().to_string(),
+        active,
+        themes,
+    })
 }
 
 /// A picture or font as a data URL, for the preview (images and fonts only, size-limited).
 pub fn preview_asset(path: &str) -> Result<String, String> {
     let path = Path::new(path);
-    let ext = path.extension().and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_lowercase)
+        .unwrap_or_default();
     let mime = match ext.as_str() {
         "png" => "image/png",
         "jpg" | "jpeg" => "image/jpeg",
@@ -333,7 +462,9 @@ pub fn preview_asset(path: &str) -> Result<String, String> {
         "otf" => "font/otf",
         _ => return Err("Only pictures and fonts can be previewed.".into()),
     };
-    let size = fs::metadata(path).map_err(|e| format!("Couldn't open {}: {e}", path.display()))?.len();
+    let size = fs::metadata(path)
+        .map_err(|e| format!("Couldn't open {}: {e}", path.display()))?
+        .len();
     if size > MAX_ASSET {
         return Err("That file is too large to preview (25 MB at most).".into());
     }
@@ -346,7 +477,9 @@ fn base64(bytes: &[u8]) -> String {
     const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
     for chunk in bytes.chunks(3) {
-        let n = (u32::from(chunk[0]) << 16) | (u32::from(*chunk.get(1).unwrap_or(&0)) << 8) | u32::from(*chunk.get(2).unwrap_or(&0));
+        let n = (u32::from(chunk[0]) << 16)
+            | (u32::from(*chunk.get(1).unwrap_or(&0)) << 8)
+            | u32::from(*chunk.get(2).unwrap_or(&0));
         for i in 0..4 {
             if i <= chunk.len() {
                 out.push(TABLE[((n >> (18 - 6 * i)) & 63) as usize] as char);
@@ -360,7 +493,10 @@ fn base64(bytes: &[u8]) -> String {
 
 /// A folder name for the new theme (letters, digits, spaces, dashes, underscores).
 pub fn folder_for(name: &str) -> Result<String, String> {
-    let cleaned: String = name.chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, ' ' | '-' | '_')).collect();
+    let cleaned: String = name
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, ' ' | '-' | '_'))
+        .collect();
     let cleaned = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
     if cleaned.is_empty() {
         return Err("Give the new theme a name (letters, numbers, spaces, - or _).".into());
@@ -373,9 +509,17 @@ pub fn folder_for(name: &str) -> Result<String, String> {
 
 fn user_file(path: &str, exts: &[&str], what: &str) -> Result<PathBuf, String> {
     let p = PathBuf::from(path);
-    let ext = p.extension().and_then(|e| e.to_str()).map(str::to_lowercase).unwrap_or_default();
+    let ext = p
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_lowercase)
+        .unwrap_or_default();
     if !exts.contains(&ext.as_str()) {
-        return Err(format!("{} isn't a {what} file ({}).", p.display(), exts.join(", ")));
+        return Err(format!(
+            "{} isn't a {what} file ({}).",
+            p.display(),
+            exts.join(", ")
+        ));
     }
     let meta = fs::metadata(&p).map_err(|e| format!("Couldn't open {}: {e}", p.display()))?;
     if !meta.is_file() || meta.len() > MAX_ASSET {
@@ -392,7 +536,8 @@ fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
         let relative = entry.path().strip_prefix(from).map_err(|e| e.to_string())?;
         let target = to.join(relative);
         if entry.file_type().is_dir() {
-            fs::create_dir(&target).map_err(|e| format!("Couldn't create {}: {e}", target.display()))?;
+            fs::create_dir(&target)
+                .map_err(|e| format!("Couldn't create {}: {e}", target.display()))?;
         } else if entry.file_type().is_file() {
             copy_new(entry.path(), &target)?;
         }
@@ -402,19 +547,31 @@ fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
 
 /// Copy a file to a name that must not exist yet.
 fn copy_new(from: &Path, to: &Path) -> Result<(), String> {
-    let mut source = fs::File::open(from).map_err(|e| format!("Couldn't read {}: {e}", from.display()))?;
-    let mut out = fs::OpenOptions::new().write(true).create_new(true).open(to).map_err(|e| format!("Couldn't create {}: {e}", to.display()))?;
-    std::io::copy(&mut source, &mut out).map_err(|e| format!("Couldn't copy {}: {e}", from.display()))?;
+    let mut source =
+        fs::File::open(from).map_err(|e| format!("Couldn't read {}: {e}", from.display()))?;
+    let mut out = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(to)
+        .map_err(|e| format!("Couldn't create {}: {e}", to.display()))?;
+    std::io::copy(&mut source, &mut out)
+        .map_err(|e| format!("Couldn't copy {}: {e}", from.display()))?;
     out.sync_all().map_err(|e| e.to_string())
 }
 
 /// Replace a file *inside RetroDrive's own unfinished copy* (never the original theme).
-fn replace_in_copy(copy_root: &Path, target: &Path, contents_from: Option<&Path>, contents: Option<&[u8]>) -> Result<(), String> {
+fn replace_in_copy(
+    copy_root: &Path,
+    target: &Path,
+    contents_from: Option<&Path>,
+    contents: Option<&[u8]>,
+) -> Result<(), String> {
     if !target.starts_with(copy_root) {
         return Err("Refused to write outside the new theme.".into());
     }
     if target.exists() {
-        fs::remove_file(target).map_err(|e| format!("Couldn't update {}: {e}", target.display()))?;
+        fs::remove_file(target)
+            .map_err(|e| format!("Couldn't update {}: {e}", target.display()))?;
     }
     match (contents_from, contents) {
         (Some(from), _) => copy_new(from, target),
@@ -433,13 +590,28 @@ fn replace_in_copy(copy_root: &Path, target: &Path, contents_from: Option<&Path>
 }
 
 fn escape(text: &str) -> String {
-    text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 /// The edited theme.xml text: changed variables, a RetroDrive entry first in each
 /// subset that sets them, and a note beside the original credits.
-fn remixed_theme_xml(text: &str, changed: &BTreeMap<String, String>, subset_files: &[(String, String)], base: &str, date: &str) -> String {
-    let mut edits: Vec<(usize, usize, String)> = variables(text).into_iter().filter_map(|v| changed.get(&v.name).map(|value| (v.start, v.end, escape(value)))).collect();
+fn remixed_theme_xml(
+    text: &str,
+    changed: &BTreeMap<String, String>,
+    subset_files: &[(String, String)],
+    base: &str,
+    date: &str,
+) -> String {
+    let mut edits: Vec<(usize, usize, String)> = variables(text)
+        .into_iter()
+        .filter_map(|v| {
+            changed
+                .get(&v.name)
+                .map(|value| (v.start, v.end, escape(value)))
+        })
+        .collect();
     for subset in subsets(text) {
         if let Some((_, file)) = subset_files.iter().find(|(name, _)| *name == subset.name) {
             let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
@@ -447,7 +619,10 @@ fn remixed_theme_xml(text: &str, changed: &BTreeMap<String, String>, subset_file
         }
     }
     let note = format!("<!-- Remixed with RetroDrive on {date} from the theme \"{}\". The original theme's credits and license below still apply. -->\n", escape(base));
-    let at = text.find("?>").map(|p| text[p..].find('\n').map(|n| p + n + 1).unwrap_or(p + 2)).unwrap_or(0);
+    let at = text
+        .find("?>")
+        .map(|p| text[p..].find('\n').map(|n| p + n + 1).unwrap_or(p + 2))
+        .unwrap_or(0);
     edits.push((at, at, note));
     edits.sort_by_key(|e| std::cmp::Reverse((e.0, e.1)));
     let mut out = text.to_string();
@@ -458,26 +633,53 @@ fn remixed_theme_xml(text: &str, changed: &BTreeMap<String, String>, subset_file
 }
 
 /// Create the remixed theme as a new folder. Returns its folder name.
-pub fn create(connection: &Connection, installation_id: &str, remix: &Remix, presence: PresenceFn, free_space: SpaceFn) -> Result<String, String> {
+pub fn create(
+    connection: &Connection,
+    installation_id: &str,
+    remix: &Remix,
+    presence: PresenceFn,
+    free_space: SpaceFn,
+) -> Result<String, String> {
     let install = install(connection, installation_id, presence)?;
     let themes_dir = install.root.join(THEMES);
     if remix.base.contains(['/', '\\', ':']) || remix.base.starts_with('.') {
         return Err("That isn't a theme folder.".into());
     }
     let base_dir = themes_dir.join(&remix.base);
-    let base_dir = if base_dir.is_dir() { base_dir } else { install.root.join("emulationstation/themes").join(&remix.base) };
-    let base_text = fs::read_to_string(base_dir.join("theme.xml")).map_err(|_| format!("{} has no theme.xml, so it can't be remixed.", remix.base))?;
+    let base_dir = if base_dir.is_dir() {
+        base_dir
+    } else {
+        install
+            .root
+            .join("emulationstation/themes")
+            .join(&remix.base)
+    };
+    let base_text = fs::read_to_string(base_dir.join("theme.xml"))
+        .map_err(|_| format!("{} has no theme.xml, so it can't be remixed.", remix.base))?;
     let folder = folder_for(&remix.name)?;
-    if crate::customizer::theme_folders(&install.root).iter().any(|t| t.eq_ignore_ascii_case(&folder)) {
-        return Err(format!("There's already a theme called {folder}. Choose another name."));
+    if crate::customizer::theme_folders(&install.root)
+        .iter()
+        .any(|t| t.eq_ignore_ascii_case(&folder))
+    {
+        return Err(format!(
+            "There's already a theme called {folder}. Choose another name."
+        ));
     }
 
     // Validate every requested change against what the base theme has.
     let base = info(&base_dir, &remix.base, false, false);
-    let kind = |name: &str| base.variables.iter().find(|v| v.name == name).map(|v| v.kind.clone());
+    let kind = |name: &str| {
+        base.variables
+            .iter()
+            .find(|v| v.name == name)
+            .map(|v| v.kind.clone())
+    };
     for (name, value) in &remix.colors {
         if kind(name).as_deref() != Some("color") || !is_color(value) {
-            return Err(format!("{name} = {value} isn't a color setting of {} (use RRGGBB or RRGGBBAA).", remix.base));
+            return Err(format!(
+                "{name} = {value} isn't a color setting of {} (use RRGGBB or RRGGBBAA).",
+                remix.base
+            ));
         }
     }
     let mut images: Vec<(String, PathBuf, String)> = Vec::new();
@@ -486,7 +688,11 @@ pub fn create(connection: &Connection, installation_id: &str, remix: &Remix, pre
             return Err(format!("{name} isn't a picture setting of {}.", remix.base));
         }
         let file = user_file(path, &["png", "jpg", "jpeg"], "picture")?;
-        let ext = file.extension().and_then(|e| e.to_str()).unwrap_or("png").to_lowercase();
+        let ext = file
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("png")
+            .to_lowercase();
         let safe: String = name.chars().filter(|c| c.is_ascii_alphanumeric()).collect();
         images.push((name.clone(), file, format!("art/retrodrive/{safe}.{ext}")));
     }
@@ -505,7 +711,11 @@ pub fn create(connection: &Connection, installation_id: &str, remix: &Remix, pre
     let (bytes, _) = walk_size(&base_dir);
     if let Some(free) = free_space(&themes_dir) {
         if free < bytes as u64 + (200 << 20) {
-            return Err(format!("There isn't enough free space on the drive for a copy of {} ({} MB).", remix.base, bytes >> 20));
+            return Err(format!(
+                "There isn't enough free space on the drive for a copy of {} ({} MB).",
+                remix.base,
+                bytes >> 20
+            ));
         }
     }
 
@@ -523,20 +733,34 @@ pub fn create(connection: &Connection, installation_id: &str, remix: &Remix, pre
         let mut defaults = effective(&base_dir, &base_text);
         defaults.extend(changed.clone());
         for subset in subsets(&base_text) {
-            let touches = subset.includes.iter().filter_map(|p| inside(&base_dir, p)).filter_map(|p| fs::read_to_string(p).ok()).any(|t| variables(&t).iter().any(|v| changed.contains_key(&v.name)));
+            let touches = subset
+                .includes
+                .iter()
+                .filter_map(|p| inside(&base_dir, p))
+                .filter_map(|p| fs::read_to_string(p).ok())
+                .any(|t| variables(&t).iter().any(|v| changed.contains_key(&v.name)));
             if !touches {
                 continue;
             }
             // The entry sets every variable the subset's own entries set, with the new values.
             let mut names: Vec<String> = Vec::new();
-            for include in subset.includes.iter().filter_map(|p| inside(&base_dir, p)).filter_map(|p| fs::read_to_string(p).ok()) {
+            for include in subset
+                .includes
+                .iter()
+                .filter_map(|p| inside(&base_dir, p))
+                .filter_map(|p| fs::read_to_string(p).ok())
+            {
                 for v in variables(&include) {
                     if !names.contains(&v.name) {
                         names.push(v.name);
                     }
                 }
             }
-            let safe: String = subset.name.chars().filter(|c| c.is_ascii_alphanumeric()).collect();
+            let safe: String = subset
+                .name
+                .chars()
+                .filter(|c| c.is_ascii_alphanumeric())
+                .collect();
             let file = format!("subsets/retrodrive/{safe}.xml");
             let mut body = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!-- Made by RetroDrive for this remix. -->\n<theme>\n  <formatVersion>7</formatVersion>\n  <variables>\n");
             for name in names {
@@ -573,22 +797,43 @@ pub fn create(connection: &Connection, installation_id: &str, remix: &Remix, pre
             "design": remix.design,
             "recipe": remix.recipe(),
         });
-        replace_in_copy(&temp, &temp.join(MANIFEST), None, Some(serde_json::to_string_pretty(&manifest).unwrap_or_default().as_bytes()))?;
-        crate::copier::rename_no_replace(&temp, &themes_dir.join(&folder)).map_err(|e| format!("Couldn't give the new theme its name: {e}"))
+        replace_in_copy(
+            &temp,
+            &temp.join(MANIFEST),
+            None,
+            Some(
+                serde_json::to_string_pretty(&manifest)
+                    .unwrap_or_default()
+                    .as_bytes(),
+            ),
+        )?;
+        crate::copier::rename_no_replace(&temp, &themes_dir.join(&folder))
+            .map_err(|e| format!("Couldn't give the new theme its name: {e}"))
     })();
     if let Err(e) = result {
         // Only RetroDrive's own unfinished copy (marked name, inside the themes folder) is removed.
-        if temp.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.ends_with(&marker)) && temp.parent() == Some(themes_dir.as_path()) {
+        if temp
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.ends_with(&marker))
+            && temp.parent() == Some(themes_dir.as_path())
+        {
             let _ = fs::remove_dir_all(&temp);
         }
-        return Err(format!("{e} The new theme wasn't created; {} is unchanged.", remix.base));
+        return Err(format!(
+            "{e} The new theme wasn't created; {} is unchanged.",
+            remix.base
+        ));
     }
     Ok(folder)
 }
 
 fn chrono_date() -> String {
     // YYYY-MM-DD from the system clock, without another dependency.
-    let days = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() / 86_400).unwrap_or(0) as i64;
+    let days = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() / 86_400)
+        .unwrap_or(0) as i64;
     let (y, m, d) = civil_from_days(days);
     format!("{y:04}-{m:02}-{d:02}")
 }
@@ -636,15 +881,29 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("RetroBat");
         let theme = root.join(THEMES).join("es-theme-test");
-        for d in [theme.join("art/fonts"), theme.join("subsets/colorsets"), theme.join("subsets/logos"), root.join("roms"), root.join("emulationstation/.emulationstation")] {
+        for d in [
+            theme.join("art/fonts"),
+            theme.join("subsets/colorsets"),
+            theme.join("subsets/logos"),
+            root.join("roms"),
+            root.join("emulationstation/.emulationstation"),
+        ] {
             fs::create_dir_all(d).unwrap();
         }
         fs::write(root.join("RetroBat.exe"), b"").unwrap();
         fs::write(root.join("emulationstation/.emulationstation/es_settings.cfg"), "<?xml version=\"1.0\"?>\n<config>\n\t<string name=\"ThemeSet\" value=\"es-theme-test\" />\n</config>\n").unwrap();
         fs::write(theme.join("theme.xml"), THEME_XML).unwrap();
         fs::write(theme.join("subsets/colorsets/blue.xml"), "<theme><variables><baseColor>3675CA</baseColor><bottomBarColor>4075D8C5</bottomBarColor><backgroundImage>./art/fiber.png</backgroundImage></variables></theme>").unwrap();
-        fs::write(theme.join("subsets/colorsets/red.xml"), "<theme><variables><baseColor>aa0000</baseColor></variables></theme>").unwrap();
-        fs::write(theme.join("subsets/logos/on.xml"), "<theme><variables><logoSize>1</logoSize></variables></theme>").unwrap();
+        fs::write(
+            theme.join("subsets/colorsets/red.xml"),
+            "<theme><variables><baseColor>aa0000</baseColor></variables></theme>",
+        )
+        .unwrap();
+        fs::write(
+            theme.join("subsets/logos/on.xml"),
+            "<theme><variables><logoSize>1</logoSize></variables></theme>",
+        )
+        .unwrap();
         fs::write(theme.join("art/fiber.png"), b"fiber").unwrap();
         fs::write(theme.join("art/fonts/Cabin-Bold.ttf"), b"cabin").unwrap();
         let files = dir.path().join("mine");
@@ -653,13 +912,28 @@ mod tests {
         fs::write(files.join("Neon.ttf"), b"my font").unwrap();
         let mut catalog = Connection::open_in_memory().unwrap();
         db::migrate(&mut catalog, None).unwrap();
-        let install = installations::add(&catalog, &root, "retrobat", &|_: &str| VolumeProbe::unknown()).unwrap();
+        let install = installations::add(&catalog, &root, "retrobat", &|_: &str| {
+            VolumeProbe::unknown()
+        })
+        .unwrap();
         let root = crate::paths::normalize(&root).unwrap();
-        Setup { _dir: dir, root, catalog, install, files }
+        Setup {
+            _dir: dir,
+            root,
+            catalog,
+            install,
+            files,
+        }
     }
 
     fn snapshot(dir: &Path) -> Vec<(PathBuf, Vec<u8>)> {
-        walkdir::WalkDir::new(dir).sort_by_file_name().into_iter().filter_map(Result::ok).filter(|e| e.file_type().is_file()).map(|e| (e.path().to_path_buf(), fs::read(e.path()).unwrap())).collect()
+        walkdir::WalkDir::new(dir)
+            .sort_by_file_name()
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().is_file())
+            .map(|e| (e.path().to_path_buf(), fs::read(e.path()).unwrap()))
+            .collect()
     }
 
     #[test]
@@ -671,11 +945,18 @@ mod tests {
         assert!(t.active);
         assert!(t.credits.iter().any(|c| c.contains("CC-BY-NC-SA")));
         let get = |n: &str| t.variables.iter().find(|v| v.name == n).cloned();
-        assert_eq!(get("baseColor").unwrap().value, "3675CA", "the first colorset applies by default");
+        assert_eq!(
+            get("baseColor").unwrap().value,
+            "3675CA",
+            "the first colorset applies by default"
+        );
         assert_eq!(get("bottomBarColor").unwrap().kind, "color");
         let bg = get("backgroundImage").unwrap();
         assert_eq!((bg.kind.as_str(), bg.path.is_some()), ("image", true));
-        assert!(get("wideScreen").is_none() && get("logosSubsetName").is_none(), "only colors and pictures");
+        assert!(
+            get("wideScreen").is_none() && get("logosSubsetName").is_none(),
+            "only colors and pictures"
+        );
         assert_eq!(t.fonts, ["art/fonts/Cabin-Bold.ttf"]);
     }
 
@@ -687,34 +968,93 @@ mod tests {
         let remix = Remix {
             base: "es-theme-test".into(),
             name: "My Neon!".into(),
-            colors: [("baseColor".to_string(), "ff00ff".to_string())].into_iter().collect(),
-            images: [("backgroundImage".to_string(), s.files.join("stars.jpg").display().to_string())].into_iter().collect(),
-            fonts: [("art/fonts/Cabin-Bold.ttf".to_string(), s.files.join("Neon.ttf").display().to_string())].into_iter().collect(),
+            colors: [("baseColor".to_string(), "ff00ff".to_string())]
+                .into_iter()
+                .collect(),
+            images: [(
+                "backgroundImage".to_string(),
+                s.files.join("stars.jpg").display().to_string(),
+            )]
+            .into_iter()
+            .collect(),
+            fonts: [(
+                "art/fonts/Cabin-Bold.ttf".to_string(),
+                s.files.join("Neon.ttf").display().to_string(),
+            )]
+            .into_iter()
+            .collect(),
             design: None,
         };
         let folder = create(&s.catalog, &s.install, &remix, &connected, &roomy).unwrap();
         assert_eq!(folder, "My Neon");
-        assert_eq!(snapshot(&original), before, "the original theme is unchanged");
+        assert_eq!(
+            snapshot(&original),
+            before,
+            "the original theme is unchanged"
+        );
         let copy = s.root.join(THEMES).join("My Neon");
         let xml = fs::read_to_string(copy.join("theme.xml")).unwrap();
         assert!(xml.contains("<baseColor>ff00ff</baseColor>"));
-        assert!(xml.contains("<backgroundImage>./art/retrodrive/backgroundImage.jpg</backgroundImage>"));
-        assert!(xml.contains("Remixed with RetroDrive") && xml.contains("CC-BY-NC-SA"), "credits kept, with a note");
+        assert!(
+            xml.contains("<backgroundImage>./art/retrodrive/backgroundImage.jpg</backgroundImage>")
+        );
+        assert!(
+            xml.contains("Remixed with RetroDrive") && xml.contains("CC-BY-NC-SA"),
+            "credits kept, with a note"
+        );
         // Our colorset comes first, so it's what RetroBat uses by default.
         let colorset = xml.find("<subset name=\"colorset\"").unwrap();
-        assert!(xml[colorset..].find("retrodrive").unwrap() < xml[colorset..].find("blue.xml").unwrap());
-        assert!(!xml[xml.find("<subset name=\"logos\"").unwrap()..].contains("retrodrive"), "untouched subsets stay as they are");
+        assert!(
+            xml[colorset..].find("retrodrive").unwrap() < xml[colorset..].find("blue.xml").unwrap()
+        );
+        assert!(
+            !xml[xml.find("<subset name=\"logos\"").unwrap()..].contains("retrodrive"),
+            "untouched subsets stay as they are"
+        );
         let ours = fs::read_to_string(copy.join("subsets/retrodrive/colorset.xml")).unwrap();
-        assert!(ours.contains("<baseColor>ff00ff</baseColor>") && ours.contains("<bottomBarColor>4075D8C5</bottomBarColor>"));
-        assert_eq!(fs::read(copy.join("art/retrodrive/backgroundImage.jpg")).unwrap(), b"my picture");
-        assert_eq!(fs::read(copy.join("art/fonts/Cabin-Bold.ttf")).unwrap(), b"my font");
-        assert_eq!(fs::read(copy.join("art/fiber.png")).unwrap(), b"fiber", "everything else is copied as is");
+        assert!(
+            ours.contains("<baseColor>ff00ff</baseColor>")
+                && ours.contains("<bottomBarColor>4075D8C5</bottomBarColor>")
+        );
+        assert_eq!(
+            fs::read(copy.join("art/retrodrive/backgroundImage.jpg")).unwrap(),
+            b"my picture"
+        );
+        assert_eq!(
+            fs::read(copy.join("art/fonts/Cabin-Bold.ttf")).unwrap(),
+            b"my font"
+        );
+        assert_eq!(
+            fs::read(copy.join("art/fiber.png")).unwrap(),
+            b"fiber",
+            "everything else is copied as is"
+        );
         let listed = list(&s.catalog, &s.install, &connected).unwrap();
-        let mine = listed.themes.iter().find(|t| t.folder == "My Neon").unwrap();
+        let mine = listed
+            .themes
+            .iter()
+            .find(|t| t.folder == "My Neon")
+            .unwrap();
         assert_eq!(mine.remixed_from.as_deref(), Some("es-theme-test"));
-        assert_eq!(mine.variables.iter().find(|v| v.name == "baseColor").unwrap().value, "ff00ff", "the remix's colors apply by default");
-        assert!(walkdir::WalkDir::new(s.root.join(THEMES)).into_iter().filter_map(Result::ok).all(|e| !e.file_name().to_string_lossy().contains(TEMP_MARKER)));
-        assert!(create(&s.catalog, &s.install, &remix, &connected, &roomy).unwrap_err().contains("already"), "names are never reused");
+        assert_eq!(
+            mine.variables
+                .iter()
+                .find(|v| v.name == "baseColor")
+                .unwrap()
+                .value,
+            "ff00ff",
+            "the remix's colors apply by default"
+        );
+        assert!(walkdir::WalkDir::new(s.root.join(THEMES))
+            .into_iter()
+            .filter_map(Result::ok)
+            .all(|e| !e.file_name().to_string_lossy().contains(TEMP_MARKER)));
+        assert!(
+            create(&s.catalog, &s.install, &remix, &connected, &roomy)
+                .unwrap_err()
+                .contains("already"),
+            "names are never reused"
+        );
     }
 
     #[test]
@@ -723,27 +1063,75 @@ mod tests {
         let themes = s.root.join(THEMES);
         let before = snapshot(&themes);
         let base = |f: fn(&mut Remix)| {
-            let mut r = Remix { base: "es-theme-test".into(), name: "X".into(), colors: [("baseColor".to_string(), "00ff00".to_string())].into_iter().collect(), ..Remix::default() };
+            let mut r = Remix {
+                base: "es-theme-test".into(),
+                name: "X".into(),
+                colors: [("baseColor".to_string(), "00ff00".to_string())]
+                    .into_iter()
+                    .collect(),
+                ..Remix::default()
+            };
             f(&mut r);
             create(&s.catalog, &s.install, &r, &connected, &roomy)
         };
         assert!(base(|r| r.base = "../../Windows".into()).is_err());
         assert!(base(|r| r.name = "  ***  ".into()).is_err());
-        assert!(base(|r| r.colors = [("baseColor".to_string(), "red".to_string())].into_iter().collect()).is_err());
-        assert!(base(|r| r.colors = [("logosSubsetName".to_string(), "00ff00".to_string())].into_iter().collect()).is_err(), "only color settings");
-        assert!(base(|r| r.fonts = [("../../evil.ttf".to_string(), "x.ttf".to_string())].into_iter().collect()).is_err());
-        assert!(base(|r| r.images = [("backgroundImage".to_string(), "C:/Windows/notepad.exe".to_string())].into_iter().collect()).is_err());
+        assert!(base(
+            |r| r.colors = [("baseColor".to_string(), "red".to_string())]
+                .into_iter()
+                .collect()
+        )
+        .is_err());
+        assert!(
+            base(
+                |r| r.colors = [("logosSubsetName".to_string(), "00ff00".to_string())]
+                    .into_iter()
+                    .collect()
+            )
+            .is_err(),
+            "only color settings"
+        );
+        assert!(base(
+            |r| r.fonts = [("../../evil.ttf".to_string(), "x.ttf".to_string())]
+                .into_iter()
+                .collect()
+        )
+        .is_err());
+        assert!(base(|r| r.images = [(
+            "backgroundImage".to_string(),
+            "C:/Windows/notepad.exe".to_string()
+        )]
+        .into_iter()
+        .collect())
+        .is_err());
         assert!(base(|r| r.colors.clear()).is_err(), "something must change");
-        let r = Remix { base: "es-theme-test".into(), name: "Big".into(), colors: [("baseColor".to_string(), "00ff00".to_string())].into_iter().collect(), ..Remix::default() };
-        assert!(create(&s.catalog, &s.install, &r, &connected, &full).unwrap_err().contains("free space"));
+        let r = Remix {
+            base: "es-theme-test".into(),
+            name: "Big".into(),
+            colors: [("baseColor".to_string(), "00ff00".to_string())]
+                .into_iter()
+                .collect(),
+            ..Remix::default()
+        };
+        assert!(create(&s.catalog, &s.install, &r, &connected, &full)
+            .unwrap_err()
+            .contains("free space"));
         assert_eq!(snapshot(&themes), before);
     }
 
     #[test]
     fn previews_only_read_pictures_and_fonts() {
         let s = setup();
-        assert!(preview_asset(&s.files.join("stars.jpg").display().to_string()).unwrap().starts_with("data:image/jpeg;base64,"));
-        assert!(preview_asset(&s.files.join("Neon.ttf").display().to_string()).unwrap().starts_with("data:font/ttf;base64,"));
+        assert!(
+            preview_asset(&s.files.join("stars.jpg").display().to_string())
+                .unwrap()
+                .starts_with("data:image/jpeg;base64,")
+        );
+        assert!(
+            preview_asset(&s.files.join("Neon.ttf").display().to_string())
+                .unwrap()
+                .starts_with("data:font/ttf;base64,")
+        );
         assert!(preview_asset(&s.root.join("RetroBat.exe").display().to_string()).is_err());
     }
 
@@ -752,18 +1140,40 @@ mod tests {
     #[test]
     #[ignore]
     fn real_theme_reads_and_remixes_in_memory() {
-        let Some(theme) = std::env::var_os("RETRODRIVE_REAL_THEME").map(PathBuf::from) else { return };
+        let Some(theme) = std::env::var_os("RETRODRIVE_REAL_THEME").map(PathBuf::from) else {
+            return;
+        };
         let t = info(&theme, "real", false, false);
         eprintln!("credits: {:?}", t.credits);
         for v in &t.variables {
-            eprintln!("  {} = {} ({}, file found: {})", v.name, v.value, v.kind, v.path.is_some());
+            eprintln!(
+                "  {} = {} ({}, file found: {})",
+                v.name,
+                v.value,
+                v.kind,
+                v.path.is_some()
+            );
         }
         eprintln!("fonts: {:?}, problem: {:?}", t.fonts, t.problem);
         let text = fs::read_to_string(theme.join("theme.xml")).unwrap();
-        let names: Vec<String> = subsets(&text).iter().map(|s| format!("{} ({} entries)", s.name, s.includes.len())).collect();
+        let names: Vec<String> = subsets(&text)
+            .iter()
+            .map(|s| format!("{} ({} entries)", s.name, s.includes.len()))
+            .collect();
         eprintln!("subsets: {names:?}");
-        let changed: BTreeMap<String, String> = [("baseColor".to_string(), "ff00ff".to_string())].into_iter().collect();
-        let out = remixed_theme_xml(&text, &changed, &[("colorset".to_string(), "subsets/retrodrive/colorset.xml".to_string())], "es-theme-carbon", "2026-11-06");
+        let changed: BTreeMap<String, String> = [("baseColor".to_string(), "ff00ff".to_string())]
+            .into_iter()
+            .collect();
+        let out = remixed_theme_xml(
+            &text,
+            &changed,
+            &[(
+                "colorset".to_string(),
+                "subsets/retrodrive/colorset.xml".to_string(),
+            )],
+            "es-theme-carbon",
+            "2026-11-06",
+        );
         let i = out.find("<subset name=\"colorset\"").unwrap();
         eprintln!("{}", &out[i..i + 260]);
         assert!(out.contains("<baseColor>ff00ff</baseColor>"));

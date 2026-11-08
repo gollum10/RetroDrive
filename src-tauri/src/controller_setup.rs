@@ -52,7 +52,12 @@ enum Plan {
     Manual(String),
     Unavailable(String),
     /// Files to add under `root` (relative path, full path, old text, new text).
-    Add { root: PathBuf, stable: Option<String>, files: Vec<(String, PathBuf, String, String)>, message: String },
+    Add {
+        root: PathBuf,
+        stable: Option<String>,
+        files: Vec<(String, PathBuf, String, String)>,
+        message: String,
+    },
 }
 
 // ---------- bundled data ----------
@@ -60,19 +65,33 @@ enum Plan {
 /// `vid:pid` (lower-case hex) from a Windows SDL GUID with the usual USB/Bluetooth layout.
 fn guid_usb(guid: &str) -> Option<(String, String)> {
     let g = guid.to_lowercase();
-    if g.len() != 32 || !g.chars().all(|c| c.is_ascii_hexdigit()) || !matches!(&g[0..4], "0300" | "0500") || &g[12..16] != "0000" || &g[20..24] != "0000" {
+    if g.len() != 32
+        || !g.chars().all(|c| c.is_ascii_hexdigit())
+        || !matches!(&g[0..4], "0300" | "0500")
+        || &g[12..16] != "0000"
+        || &g[20..24] != "0000"
+    {
         return None;
     }
-    Some((format!("{}{}", &g[10..12], &g[8..10]), format!("{}{}", &g[18..20], &g[16..18])))
+    Some((
+        format!("{}{}", &g[10..12], &g[8..10]),
+        format!("{}{}", &g[18..20], &g[16..18]),
+    ))
 }
 
 /// SDL GameControllerDB Windows lines for this controller.
 fn sdl_lines_for(vid: &str, pid: &str) -> Vec<&'static str> {
-    SDL_WINDOWS.lines().filter(|l| !l.starts_with('#') && line_is_for(l, vid, pid)).collect()
+    SDL_WINDOWS
+        .lines()
+        .filter(|l| !l.starts_with('#') && line_is_for(l, vid, pid))
+        .collect()
 }
 
 fn line_is_for(line: &str, vid: &str, pid: &str) -> bool {
-    line.split(',').next().and_then(guid_usb).is_some_and(|(v, p)| v == vid && p == pid)
+    line.split(',')
+        .next()
+        .and_then(guid_usb)
+        .is_some_and(|(v, p)| v == vid && p == pid)
 }
 
 /// One RetroArch ready-made setup file.
@@ -95,7 +114,13 @@ fn ra_files() -> &'static [RaFile] {
                 let (header, text) = chunk.split_once('\n')?;
                 let (driver, name) = header.split_once('/')?;
                 let (usb, device) = ra_fields(text);
-                Some(RaFile { driver, name, text, usb, device })
+                Some(RaFile {
+                    driver,
+                    name,
+                    text,
+                    usb,
+                    device,
+                })
             })
             .collect()
     })
@@ -117,11 +142,15 @@ fn ra_fields(text: &str) -> (Option<(String, String)>, Option<String>) {
     let mut pid = None;
     let mut device = None;
     for line in text.lines() {
-        let Some((k, v)) = line.split_once('=') else { continue };
+        let Some((k, v)) = line.split_once('=') else {
+            continue;
+        };
         match k.trim() {
             "input_vendor_id" => vid = ra_id(v),
             "input_product_id" => pid = ra_id(v),
-            "input_device" => device = Some(v.trim().trim_matches('"').to_string()).filter(|d| !d.is_empty()),
+            "input_device" => {
+                device = Some(v.trim().trim_matches('"').to_string()).filter(|d| !d.is_empty())
+            }
             _ => {}
         }
     }
@@ -129,26 +158,54 @@ fn ra_fields(text: &str) -> (Option<(String, String)>, Option<String>) {
 }
 
 fn ra_for(driver: &str, vid: &str, pid: &str) -> Vec<&'static RaFile> {
-    ra_files().iter().filter(|f| f.driver == driver && f.usb.as_ref().is_some_and(|(v, p)| v == vid && p == pid)).collect()
+    ra_files()
+        .iter()
+        .filter(|f| f.driver == driver && f.usb.as_ref().is_some_and(|(v, p)| v == vid && p == pid))
+        .collect()
 }
 
 /// Whether a folder of RetroArch setup files already has one for this controller
 /// (same USB ID, or the same device name as one of `candidates`).
 fn folder_has(dir: &Path, vid: &str, pid: &str, candidates: &[&RaFile]) -> bool {
-    let Ok(entries) = fs::read_dir(dir) else { return false };
-    entries.flatten().filter(|e| e.path().extension().is_some_and(|x| x.eq_ignore_ascii_case("cfg"))).any(|e| {
-        let text = fs::read_to_string(e.path()).unwrap_or_default();
-        let (usb, device) = ra_fields(&text);
-        usb.is_some_and(|(v, p)| v == vid && p == pid) || device.is_some_and(|d| candidates.iter().any(|c| c.device.as_deref() == Some(d.as_str())))
-    })
+    let Ok(entries) = fs::read_dir(dir) else {
+        return false;
+    };
+    entries
+        .flatten()
+        .filter(|e| {
+            e.path()
+                .extension()
+                .is_some_and(|x| x.eq_ignore_ascii_case("cfg"))
+        })
+        .any(|e| {
+            let text = fs::read_to_string(e.path()).unwrap_or_default();
+            let (usb, device) = ra_fields(&text);
+            usb.is_some_and(|(v, p)| v == vid && p == pid)
+                || device.is_some_and(|d| {
+                    candidates
+                        .iter()
+                        .any(|c| c.device.as_deref() == Some(d.as_str()))
+                })
+        })
 }
 
 /// New RetroArch files for `dir` (skipping names already taken: those are kept).
-fn ra_additions(dir: &Path, prefix: &str, candidates: &[&RaFile]) -> Vec<(String, PathBuf, String, String)> {
+fn ra_additions(
+    dir: &Path,
+    prefix: &str,
+    candidates: &[&RaFile],
+) -> Vec<(String, PathBuf, String, String)> {
     candidates
         .iter()
         .filter(|c| !dir.join(c.name).exists())
-        .map(|c| (format!("{prefix}{}", c.name), dir.join(c.name), String::new(), format!("{}\n", c.text.trim_end())))
+        .map(|c| {
+            (
+                format!("{prefix}{}", c.name),
+                dir.join(c.name),
+                String::new(),
+                format!("{}\n", c.text.trim_end()),
+            )
+        })
         .collect()
 }
 
@@ -160,14 +217,29 @@ const RETROBAT_INPUT: &str = "emulationstation/.emulationstation/es_input.cfg";
 
 fn plan_retrobat(root: &Path, stable: Option<String>, vid: &str, pid: &str, xinput: bool) -> Plan {
     if xinput {
-        return Plan::Ready("Works already: RetroBat sets up Xbox-style controllers by itself.".into());
+        return Plan::Ready(
+            "Works already: RetroBat sets up Xbox-style controllers by itself.".into(),
+        );
     }
-    let known_in = |rel: &str| fs::read_to_string(root.join(rel)).unwrap_or_default().lines().any(|l| line_is_for(l.trim(), vid, pid));
+    let known_in = |rel: &str| {
+        fs::read_to_string(root.join(rel))
+            .unwrap_or_default()
+            .lines()
+            .any(|l| line_is_for(l.trim(), vid, pid))
+    };
     if known_in(RETROBAT_SHIPPED) || known_in(RETROBAT_USER) {
-        return Plan::Ready("Works already: RetroBat knows this controller and sets it up when you plug it in.".into());
+        return Plan::Ready(
+            "Works already: RetroBat knows this controller and sets it up when you plug it in."
+                .into(),
+        );
     }
     let input = fs::read_to_string(root.join(RETROBAT_INPUT)).unwrap_or_default();
-    if input.split("deviceGUID=\"").skip(1).filter_map(|s| s.split('"').next()).any(|g| guid_usb(g).is_some_and(|(v, p)| v == vid && p == pid)) {
+    if input
+        .split("deviceGUID=\"")
+        .skip(1)
+        .filter_map(|s| s.split('"').next())
+        .any(|g| guid_usb(g).is_some_and(|(v, p)| v == vid && p == pid))
+    {
         return Plan::Ready("Already set up in RetroBat.".into());
     }
     let lines = sdl_lines_for(vid, pid);
@@ -184,7 +256,9 @@ fn plan_retrobat(root: &Path, stable: Option<String>, vid: &str, pid: &str, xinp
     if !new.is_empty() && !new.ends_with('\n') {
         new.push_str(nl);
     }
-    new.push_str(&format!("# Added by RetroDrive (from SDL GameControllerDB) for USB {vid}:{pid}{nl}"));
+    new.push_str(&format!(
+        "# Added by RetroDrive (from SDL GameControllerDB) for USB {vid}:{pid}{nl}"
+    ));
     for l in &lines {
         new.push_str(l);
         new.push_str(nl);
@@ -193,7 +267,9 @@ fn plan_retrobat(root: &Path, stable: Option<String>, vid: &str, pid: &str, xinp
         root: root.to_path_buf(),
         stable,
         files: vec![(RETROBAT_USER.into(), user, old, new)],
-        message: "RetroBat sets it up the next time it starts (or when you plug the controller in).".into(),
+        message:
+            "RetroBat sets it up the next time it starts (or when you plug the controller in)."
+                .into(),
     }
 }
 
@@ -201,10 +277,15 @@ fn plan_retropie(configs: &Path, vid: &str, pid: &str) -> Plan {
     let dir = configs.join("all").join("retroarch-joypads");
     let candidates = ra_for("udev", vid, pid);
     if !dir.is_dir() {
-        return Plan::Unavailable(format!("{} can't be reached. Make sure the Pi is on and connected.", dir.display()));
+        return Plan::Unavailable(format!(
+            "{} can't be reached. Make sure the Pi is on and connected.",
+            dir.display()
+        ));
     }
     if folder_has(&dir, vid, pid, &candidates) {
-        return Plan::Ready("Already set up: RetroPie has a setup file for this controller.".into());
+        return Plan::Ready(
+            "Already set up: RetroPie has a setup file for this controller.".into(),
+        );
     }
     let files = ra_additions(&dir, "all/retroarch-joypads/", &candidates);
     if files.is_empty() {
@@ -216,20 +297,38 @@ fn plan_retropie(configs: &Path, vid: &str, pid: &str) -> Plan {
 /// RetroArch's autoconfig folder and controller driver, from `retroarch.cfg`.
 fn retroarch_settings(ra: &Path) -> (PathBuf, String) {
     let text = fs::read_to_string(ra.join("retroarch.cfg")).unwrap_or_default();
-    let get = |key: &str| text.lines().find_map(|l| l.split_once('=').filter(|(k, _)| k.trim() == key).map(|(_, v)| v.trim().trim_matches('"').to_string()));
+    let get = |key: &str| {
+        text.lines().find_map(|l| {
+            l.split_once('=')
+                .filter(|(k, _)| k.trim() == key)
+                .map(|(_, v)| v.trim().trim_matches('"').to_string())
+        })
+    };
     let dir = match get("joypad_autoconfig_dir").as_deref() {
         None | Some("") | Some("default") => ra.join("autoconfig"),
-        Some(v) if v.starts_with(":\\") || v.starts_with(":/") => ra.join(v[2..].trim_start_matches(['\\', '/'])),
-        Some(v) if v.len() > 2 && (v.as_bytes()[1] == b':' || v.starts_with(r"\\")) => PathBuf::from(v),
+        Some(v) if v.starts_with(":\\") || v.starts_with(":/") => {
+            ra.join(v[2..].trim_start_matches(['\\', '/']))
+        }
+        Some(v) if v.len() > 2 && (v.as_bytes()[1] == b':' || v.starts_with(r"\\")) => {
+            PathBuf::from(v)
+        }
         Some(_) => ra.join("autoconfig"),
     };
-    (dir, get("input_joypad_driver").filter(|d| !d.is_empty()).unwrap_or_else(|| "xinput".into()))
+    (
+        dir,
+        get("input_joypad_driver")
+            .filter(|d| !d.is_empty())
+            .unwrap_or_else(|| "xinput".into()),
+    )
 }
 
 fn plan_retroarch(ra: &Path, vid: &str, pid: &str, xinput: bool) -> Plan {
     let (autoconfig, driver) = retroarch_settings(ra);
     if xinput && driver != "sdl2" {
-        return Plan::Ready("Works already: ES-DE and RetroArch set up Xbox-style controllers by themselves.".into());
+        return Plan::Ready(
+            "Works already: ES-DE and RetroArch set up Xbox-style controllers by themselves."
+                .into(),
+        );
     }
     // RetroArch's xinput driver hands other controllers to DirectInput.
     let files_driver = match driver.as_str() {
@@ -243,18 +342,37 @@ fn plan_retroarch(ra: &Path, vid: &str, pid: &str, xinput: bool) -> Plan {
     let dir = autoconfig.join(files_driver);
     let candidates = ra_for(files_driver, vid, pid);
     if folder_has(&dir, vid, pid, &candidates) || folder_has(&autoconfig, vid, pid, &candidates) {
-        return Plan::Ready("Already set up: RetroArch has a setup file for this controller.".into());
+        return Plan::Ready(
+            "Already set up: RetroArch has a setup file for this controller.".into(),
+        );
     }
-    let prefix = format!("{}/{files_driver}/", autoconfig.strip_prefix(ra).map(|p| p.display().to_string().replace('\\', "/")).unwrap_or_else(|_| "autoconfig".into()));
+    let prefix = format!(
+        "{}/{files_driver}/",
+        autoconfig
+            .strip_prefix(ra)
+            .map(|p| p.display().to_string().replace('\\', "/"))
+            .unwrap_or_else(|_| "autoconfig".into())
+    );
     let files = ra_additions(&dir, &prefix, &candidates);
     if files.is_empty() {
         return Plan::Manual("RetroDrive has no ready-made setup for this controller in RetroArch. In RetroArch: Settings → Input → Port 1 Controls → Set All Controls. ES-DE's own menus use any controller SDL knows.".into());
     }
-    Plan::Add { root: ra.to_path_buf(), stable: None, files, message: "RetroArch uses it from the next game you start.".into() }
+    Plan::Add {
+        root: ra.to_path_buf(),
+        stable: None,
+        files,
+        message: "RetroArch uses it from the next game you start.".into(),
+    }
 }
 
 /// The plan for one installation.
-fn plan_for(connection: &Connection, located: &installations::Located, vid: &str, pid: &str, xinput: bool) -> Plan {
+fn plan_for(
+    connection: &Connection,
+    located: &installations::Located,
+    vid: &str,
+    pid: &str,
+    xinput: bool,
+) -> Plan {
     if located.presence != Presence::Connected {
         return Plan::Unavailable("Not connected.".into());
     }
@@ -288,9 +406,20 @@ fn target(located: &installations::Located, plan: &Plan) -> SetupTarget {
         Plan::Ready(m) => ("ready", m.clone(), Vec::new()),
         Plan::Manual(m) => ("manual", m.clone(), Vec::new()),
         Plan::Unavailable(m) => ("unavailable", m.clone(), Vec::new()),
-        Plan::Add { files, message, .. } => ("add", message.clone(), files.iter().map(|f| f.0.clone()).collect()),
+        Plan::Add { files, message, .. } => (
+            "add",
+            message.clone(),
+            files.iter().map(|f| f.0.clone()).collect(),
+        ),
     };
-    SetupTarget { installation_id: located.id.clone(), adapter_id: located.adapter_id.clone(), location: located.root.display().to_string(), status, message, files }
+    SetupTarget {
+        installation_id: located.id.clone(),
+        adapter_id: located.adapter_id.clone(),
+        location: located.root.display().to_string(),
+        status,
+        message,
+        files,
+    }
 }
 
 fn usb(vid: &str, pid: &str) -> Result<(String, String), String> {
@@ -302,31 +431,81 @@ fn usb(vid: &str, pid: &str) -> Result<(String, String), String> {
 }
 
 /// Each installation's state for this controller (reads only).
-pub fn preview(connection: &Connection, vid: &str, pid: &str, xinput: bool, presence: PresenceFn) -> Result<Vec<SetupTarget>, String> {
+pub fn preview(
+    connection: &Connection,
+    vid: &str,
+    pid: &str,
+    xinput: bool,
+    presence: PresenceFn,
+) -> Result<Vec<SetupTarget>, String> {
     let (vid, pid) = usb(vid, pid)?;
-    Ok(installations::located(connection, presence, None)?.iter().map(|l| target(l, &plan_for(connection, l, &vid, &pid, xinput))).collect())
+    Ok(installations::located(connection, presence, None)?
+        .iter()
+        .map(|l| target(l, &plan_for(connection, l, &vid, &pid, xinput)))
+        .collect())
 }
 
 /// Add the setup files on the chosen installations. Each file is new, or (RetroBat's
 /// user gamecontrollerdb.txt) the same file with lines added at the end; journaled
 /// and undoable. If one fails, the ones already written are undone.
-pub fn apply(connection: &Connection, installation_ids: &[String], vid: &str, pid: &str, xinput: bool, presence: PresenceFn) -> Result<String, String> {
+pub fn apply(
+    connection: &Connection,
+    installation_ids: &[String],
+    vid: &str,
+    pid: &str,
+    xinput: bool,
+    presence: PresenceFn,
+) -> Result<String, String> {
     let (vid, pid) = usb(vid, pid)?;
     let mut ids = Vec::new();
     let mut done = Vec::new();
     for installation_id in installation_ids {
-        let located = installations::located(connection, presence, Some(installation_id))?.into_iter().next().ok_or("Installation not found")?;
-        let Plan::Add { root, stable, files, message } = plan_for(connection, &located, &vid, &pid, xinput) else { continue };
-        let install = Install { id: located.id.clone(), root_text: root.display().to_string(), root, stable };
+        let located = installations::located(connection, presence, Some(installation_id))?
+            .into_iter()
+            .next()
+            .ok_or("Installation not found")?;
+        let Plan::Add {
+            root,
+            stable,
+            files,
+            message,
+        } = plan_for(connection, &located, &vid, &pid, xinput)
+        else {
+            continue;
+        };
+        let install = Install {
+            id: located.id.clone(),
+            root_text: root.display().to_string(),
+            root,
+            stable,
+        };
         for (relative, path, old, new) in files {
             if path.parent().is_some_and(|p| !p.exists()) {
                 if let Err(e) = fs::create_dir_all(path.parent().unwrap_or(&path)) {
-                    return fail(connection, presence, &ids, format!("Couldn't create {}: {e}.", path.display()));
+                    return fail(
+                        connection,
+                        presence,
+                        &ids,
+                        format!("Couldn't create {}: {e}.", path.display()),
+                    );
                 }
             }
             let name = relative.rsplit('/').next().unwrap_or(&relative).to_string();
-            let row = ChangeRow { system: "controllers".into(), key: name.clone(), before: (!old.is_empty()).then(|| "(existing file)".into()), after: Some(format!("controller {vid}:{pid} added")) };
-            match customizer::write_file(connection, &install, &relative, &path, &old, &new, vec![row]) {
+            let row = ChangeRow {
+                system: "controllers".into(),
+                key: name.clone(),
+                before: (!old.is_empty()).then(|| "(existing file)".into()),
+                after: Some(format!("controller {vid}:{pid} added")),
+            };
+            match customizer::write_file(
+                connection,
+                &install,
+                &relative,
+                &path,
+                &old,
+                &new,
+                vec![row],
+            ) {
                 Ok((_, id)) => ids.push(id),
                 Err(e) => return fail(connection, presence, &ids, e),
             }
@@ -336,7 +515,10 @@ pub fn apply(connection: &Connection, installation_ids: &[String], vid: &str, pi
     if done.is_empty() {
         return Ok("Nothing needed setting up.".into());
     }
-    Ok(format!("Set up. {} Undo is under Customize → Show every settings change.", done.join(" ")))
+    Ok(format!(
+        "Set up. {} Undo is under Customize → Show every settings change.",
+        done.join(" ")
+    ))
 }
 
 /// What Plan and Sync tell the user about controllers for one installation (ADR-065).
@@ -352,10 +534,22 @@ pub struct InstallationControllers {
 }
 
 /// Confirmed controllers' state on one installation (reads only).
-pub fn for_installation(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<InstallationControllers, String> {
-    let located = installations::located(connection, presence, Some(installation_id))?.into_iter().next().ok_or("Installation not found")?;
+pub fn for_installation(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<InstallationControllers, String> {
+    let located = installations::located(connection, presence, Some(installation_id))?
+        .into_iter()
+        .next()
+        .ok_or("Installation not found")?;
     let confirmed = crate::controllers::confirmed(connection)?;
-    let mut out = InstallationControllers { confirmed: confirmed.len(), to_add: Vec::new(), manual: Vec::new(), manual_message: None };
+    let mut out = InstallationControllers {
+        confirmed: confirmed.len(),
+        to_add: Vec::new(),
+        manual: Vec::new(),
+        manual_message: None,
+    };
     for (vid, pid, xinput) in &confirmed {
         match plan_for(connection, &located, vid, pid, *xinput) {
             Plan::Add { .. } => out.to_add.push(crate::controllers::display_name(vid, pid)),
@@ -371,21 +565,56 @@ pub fn for_installation(connection: &Connection, installation_id: &str, presence
 
 /// After a copy (the user ticked it): set up every confirmed controller RetroDrive can
 /// set up on this installation. `None` when there was nothing to do.
-pub fn apply_for_installation(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<Option<String>, String> {
-    let located = installations::located(connection, presence, Some(installation_id))?.into_iter().next().ok_or("Installation not found")?;
+pub fn apply_for_installation(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<Option<String>, String> {
+    let located = installations::located(connection, presence, Some(installation_id))?
+        .into_iter()
+        .next()
+        .ok_or("Installation not found")?;
     let mut names = Vec::new();
     for (vid, pid, xinput) in crate::controllers::confirmed(connection)? {
-        if matches!(plan_for(connection, &located, &vid, &pid, xinput), Plan::Add { .. }) {
-            apply(connection, std::slice::from_ref(&located.id), &vid, &pid, xinput, presence)?;
+        if matches!(
+            plan_for(connection, &located, &vid, &pid, xinput),
+            Plan::Add { .. }
+        ) {
+            apply(
+                connection,
+                std::slice::from_ref(&located.id),
+                &vid,
+                &pid,
+                xinput,
+                presence,
+            )?;
             names.push(crate::controllers::display_name(&vid, &pid));
         }
     }
-    Ok((!names.is_empty()).then(|| format!("{} set up on {}. Undo is under Customize → Show every settings change.", names.join(", "), label(&located.adapter_id))))
+    Ok((!names.is_empty()).then(|| {
+        format!(
+            "{} set up on {}. Undo is under Customize → Show every settings change.",
+            names.join(", "),
+            label(&located.adapter_id)
+        )
+    }))
 }
 
-fn fail(connection: &Connection, presence: PresenceFn, ids: &[i64], e: String) -> Result<String, String> {
-    let undone = ids.iter().rev().all(|id| customizer::undo(connection, *id, presence, &customizer::never_running).is_ok());
-    Err(if ids.is_empty() || undone { format!("{e} Nothing was set up.") } else { format!("{e} Some files were added; undo them under \"Show every settings change\".") })
+fn fail(
+    connection: &Connection,
+    presence: PresenceFn,
+    ids: &[i64],
+    e: String,
+) -> Result<String, String> {
+    let undone = ids
+        .iter()
+        .rev()
+        .all(|id| customizer::undo(connection, *id, presence, &customizer::never_running).is_ok());
+    Err(if ids.is_empty() || undone {
+        format!("{e} Nothing was set up.")
+    } else {
+        format!("{e} Some files were added; undo them under \"Show every settings change\".")
+    })
 }
 
 fn label(adapter: &str) -> &'static str {
@@ -406,15 +635,32 @@ mod tests {
 
     #[test]
     fn the_bundled_setups_are_found_by_usb_id() {
-        assert_eq!(guid_usb("03000000c82d00000a31000000000000"), Some(("2dc8".into(), "310a".into())));
-        assert_eq!(guid_usb("78696e70757401000000000000000000"), None, "XInput-style GUIDs carry no USB ID");
-        assert!(!sdl_lines_for("2dc8", "310a").is_empty(), "the owner's 8BitDo Ultimate 2C");
+        assert_eq!(
+            guid_usb("03000000c82d00000a31000000000000"),
+            Some(("2dc8".into(), "310a".into()))
+        );
+        assert_eq!(
+            guid_usb("78696e70757401000000000000000000"),
+            None,
+            "XInput-style GUIDs carry no USB ID"
+        );
+        assert!(
+            !sdl_lines_for("2dc8", "310a").is_empty(),
+            "the owner's 8BitDo Ultimate 2C"
+        );
         assert!(sdl_lines_for("abcd", "dcba").is_empty());
         assert!(ra_files().len() > 700, "{}", ra_files().len());
         let udev = ra_for("udev", "2dc8", "310a");
-        assert!(udev.iter().any(|f| f.name == "8BitDo_Ultimate_2C_Wireless_Controller_USB.cfg"), "{:?}", udev.iter().map(|f| f.name).collect::<Vec<_>>());
+        assert!(
+            udev.iter()
+                .any(|f| f.name == "8BitDo_Ultimate_2C_Wireless_Controller_USB.cfg"),
+            "{:?}",
+            udev.iter().map(|f| f.name).collect::<Vec<_>>()
+        );
         assert!(udev[0].text.contains("input_vendor_id") && !udev[0].text.contains("@@ "));
-        assert!(ra_files().iter().all(|f| !f.name.is_empty() && !f.text.trim().is_empty()));
+        assert!(ra_files()
+            .iter()
+            .all(|f| !f.name.is_empty() && !f.text.trim().is_empty()));
         assert_eq!(ra_id("\"11720\""), Some("2dc8".into()));
         assert_eq!(ra_id("0x2DC8"), Some("2dc8".into()));
         assert_eq!(ra_id("x"), None);
@@ -424,52 +670,134 @@ mod tests {
     fn retrobat_gets_the_sdl_line_only_when_it_needs_it() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path();
-        assert!(matches!(plan_retrobat(root, None, "2dc8", "310a", true), Plan::Ready(_)), "Xbox-style: nothing to do");
-        assert!(matches!(plan_retrobat(root, None, "2dc8", "310a", false), Plan::Unavailable(_)), "never started");
+        assert!(
+            matches!(
+                plan_retrobat(root, None, "2dc8", "310a", true),
+                Plan::Ready(_)
+            ),
+            "Xbox-style: nothing to do"
+        );
+        assert!(
+            matches!(
+                plan_retrobat(root, None, "2dc8", "310a", false),
+                Plan::Unavailable(_)
+            ),
+            "never started"
+        );
         fs::create_dir_all(root.join("emulationstation/.emulationstation")).unwrap();
-        fs::write(root.join(RETROBAT_USER), "# mine\r\nabc,Custom,a:b0,platform:Windows,").unwrap();
-        let Plan::Add { files, .. } = plan_retrobat(root, None, "2dc8", "310a", false) else { panic!("expected add") };
+        fs::write(
+            root.join(RETROBAT_USER),
+            "# mine\r\nabc,Custom,a:b0,platform:Windows,",
+        )
+        .unwrap();
+        let Plan::Add { files, .. } = plan_retrobat(root, None, "2dc8", "310a", false) else {
+            panic!("expected add")
+        };
         let (_, _, old, new) = &files[0];
-        assert!(new.starts_with(old.as_str()), "the user's lines stay as they are");
-        assert!(new.contains("\r\n03000000c82d00000a31000000000000,8BitDo Ultimate 2C,") && new.ends_with("\r\n"));
+        assert!(
+            new.starts_with(old.as_str()),
+            "the user's lines stay as they are"
+        );
+        assert!(
+            new.contains("\r\n03000000c82d00000a31000000000000,8BitDo Ultimate 2C,")
+                && new.ends_with("\r\n")
+        );
         // Known in RetroBat's own list, or already in es_input.cfg: nothing to do.
-        fs::write(root.join(RETROBAT_SHIPPED), "03000000c82d00000a31000000000000,8BitDo Ultimate 2C,a:b0,platform:Windows,\n").unwrap();
-        assert!(matches!(plan_retrobat(root, None, "2dc8", "310a", false), Plan::Ready(_)));
+        fs::write(
+            root.join(RETROBAT_SHIPPED),
+            "03000000c82d00000a31000000000000,8BitDo Ultimate 2C,a:b0,platform:Windows,\n",
+        )
+        .unwrap();
+        assert!(matches!(
+            plan_retrobat(root, None, "2dc8", "310a", false),
+            Plan::Ready(_)
+        ));
         fs::remove_file(root.join(RETROBAT_SHIPPED)).unwrap();
         fs::write(root.join(RETROBAT_INPUT), "<inputList><inputConfig type=\"joystick\" deviceName=\"x\" deviceGUID=\"03000000c82d00000a31000000000000\"/></inputList>").unwrap();
-        assert!(matches!(plan_retrobat(root, None, "2dc8", "310a", false), Plan::Ready(_)));
+        assert!(matches!(
+            plan_retrobat(root, None, "2dc8", "310a", false),
+            Plan::Ready(_)
+        ));
         // No ready-made setup: steps in RetroBat's menu.
-        assert!(matches!(plan_retrobat(root, None, "abcd", "dcba", false), Plan::Manual(_)));
+        assert!(matches!(
+            plan_retrobat(root, None, "abcd", "dcba", false),
+            Plan::Manual(_)
+        ));
     }
 
     #[test]
     fn retropie_and_retroarch_get_new_files_and_keep_existing_ones() {
         let dir = tempfile::tempdir().unwrap();
         let configs = dir.path().join("configs");
-        assert!(matches!(plan_retropie(&configs, "2dc8", "310a"), Plan::Unavailable(_)));
+        assert!(matches!(
+            plan_retropie(&configs, "2dc8", "310a"),
+            Plan::Unavailable(_)
+        ));
         let joypads = configs.join("all/retroarch-joypads");
         fs::create_dir_all(&joypads).unwrap();
-        let Plan::Add { files, .. } = plan_retropie(&configs, "2dc8", "310a") else { panic!("expected add") };
-        assert!(files.iter().all(|(rel, path, old, new)| rel.starts_with("all/retroarch-joypads/") && !path.exists() && old.is_empty() && new.contains("11720")));
+        let Plan::Add { files, .. } = plan_retropie(&configs, "2dc8", "310a") else {
+            panic!("expected add")
+        };
+        assert!(files.iter().all(|(rel, path, old, new)| rel
+            .starts_with("all/retroarch-joypads/")
+            && !path.exists()
+            && old.is_empty()
+            && new.contains("11720")));
         // A setup the user made on the Pi (same USB ID, any file name) is respected.
-        fs::write(joypads.join("Mine.cfg"), "input_device = \"Pad\"\ninput_vendor_id = \"11720\"\ninput_product_id = \"12554\"\n").unwrap();
-        assert!(matches!(plan_retropie(&configs, "2dc8", "310a"), Plan::Ready(_)));
-        assert!(matches!(plan_retropie(&configs, "abcd", "dcba"), Plan::Manual(_)));
+        fs::write(
+            joypads.join("Mine.cfg"),
+            "input_device = \"Pad\"\ninput_vendor_id = \"11720\"\ninput_product_id = \"12554\"\n",
+        )
+        .unwrap();
+        assert!(matches!(
+            plan_retropie(&configs, "2dc8", "310a"),
+            Plan::Ready(_)
+        ));
+        assert!(matches!(
+            plan_retropie(&configs, "abcd", "dcba"),
+            Plan::Manual(_)
+        ));
 
         // RetroArch (ES-DE): a dinput file for a controller the bundle has.
         let ra = dir.path().join("RetroArch");
-        let sample = ra_files().iter().find(|f| f.driver == "dinput" && f.usb.is_some()).unwrap();
+        let sample = ra_files()
+            .iter()
+            .find(|f| f.driver == "dinput" && f.usb.is_some())
+            .unwrap();
         let (v, p) = sample.usb.clone().unwrap();
         fs::create_dir_all(&ra).unwrap();
-        assert!(matches!(plan_retroarch(&ra, &v, &p, false), Plan::Unavailable(_)), "no autoconfig folder yet");
+        assert!(
+            matches!(plan_retroarch(&ra, &v, &p, false), Plan::Unavailable(_)),
+            "no autoconfig folder yet"
+        );
         fs::create_dir_all(ra.join("autoconfig")).unwrap();
-        assert!(matches!(plan_retroarch(&ra, &v, &p, true), Plan::Ready(_)), "Xbox-style with the xinput driver");
-        let Plan::Add { files, .. } = plan_retroarch(&ra, &v, &p, false) else { panic!("expected add") };
-        assert!(files.iter().all(|(rel, ..)| rel.starts_with("autoconfig/dinput/")), "{files:?}");
-        fs::write(ra.join("retroarch.cfg"), "input_joypad_driver = \"sdl2\"\njoypad_autoconfig_dir = \":\\autoconfig\"\n").unwrap();
-        assert_eq!(retroarch_settings(&ra), (ra.join("autoconfig"), "sdl2".to_string()));
+        assert!(
+            matches!(plan_retroarch(&ra, &v, &p, true), Plan::Ready(_)),
+            "Xbox-style with the xinput driver"
+        );
+        let Plan::Add { files, .. } = plan_retroarch(&ra, &v, &p, false) else {
+            panic!("expected add")
+        };
+        assert!(
+            files
+                .iter()
+                .all(|(rel, ..)| rel.starts_with("autoconfig/dinput/")),
+            "{files:?}"
+        );
+        fs::write(
+            ra.join("retroarch.cfg"),
+            "input_joypad_driver = \"sdl2\"\njoypad_autoconfig_dir = \":\\autoconfig\"\n",
+        )
+        .unwrap();
+        assert_eq!(
+            retroarch_settings(&ra),
+            (ra.join("autoconfig"), "sdl2".to_string())
+        );
         fs::write(ra.join("retroarch.cfg"), "input_joypad_driver = \"hid\"\n").unwrap();
-        assert!(matches!(plan_retroarch(&ra, &v, &p, false), Plan::Manual(_)));
+        assert!(matches!(
+            plan_retroarch(&ra, &v, &p, false),
+            Plan::Manual(_)
+        ));
     }
 
     #[test]
@@ -482,33 +810,98 @@ mod tests {
         fs::write(root.join("retrobat.exe"), b"x").unwrap();
         let mut catalog = Connection::open_in_memory().unwrap();
         db::migrate(&mut catalog, None).unwrap();
-        let id = installations::add(&catalog, &root, "retrobat", &|_: &str| VolumeProbe::unknown()).unwrap();
+        let id = installations::add(&catalog, &root, "retrobat", &|_: &str| {
+            VolumeProbe::unknown()
+        })
+        .unwrap();
         let connected = |_: &str, _: Option<&str>| Presence::Connected;
         let before = preview(&catalog, "2DC8", "310A", false, &connected).unwrap();
         assert_eq!((before.len(), before[0].status), (1, "add"), "{before:?}");
-        let message = apply(&catalog, std::slice::from_ref(&id), "2dc8", "310a", false, &connected).unwrap();
+        let message = apply(
+            &catalog,
+            std::slice::from_ref(&id),
+            "2dc8",
+            "310a",
+            false,
+            &connected,
+        )
+        .unwrap();
         assert!(message.contains("RetroBat"), "{message}");
         let user = root.join(RETROBAT_USER);
-        assert!(fs::read_to_string(&user).unwrap().contains("8BitDo Ultimate 2C"));
-        assert_eq!(preview(&catalog, "2dc8", "310a", false, &connected).unwrap()[0].status, "ready", "a second time: nothing to do");
-        assert_eq!(apply(&catalog, std::slice::from_ref(&id), "2dc8", "310a", false, &connected).unwrap(), "Nothing needed setting up.");
-        let change: i64 = catalog.query_row("SELECT id FROM settings_changes ORDER BY id DESC LIMIT 1", [], |r| r.get(0)).unwrap();
+        assert!(fs::read_to_string(&user)
+            .unwrap()
+            .contains("8BitDo Ultimate 2C"));
+        assert_eq!(
+            preview(&catalog, "2dc8", "310a", false, &connected).unwrap()[0].status,
+            "ready",
+            "a second time: nothing to do"
+        );
+        assert_eq!(
+            apply(
+                &catalog,
+                std::slice::from_ref(&id),
+                "2dc8",
+                "310a",
+                false,
+                &connected
+            )
+            .unwrap(),
+            "Nothing needed setting up."
+        );
+        let change: i64 = catalog
+            .query_row(
+                "SELECT id FROM settings_changes ORDER BY id DESC LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         customizer::undo(&catalog, change, &connected, &customizer::never_running).unwrap();
-        assert!(!user.exists(), "undo takes the new file away (into RetroDrive's backup folder)");
+        assert!(
+            !user.exists(),
+            "undo takes the new file away (into RetroDrive's backup folder)"
+        );
         assert!(preview(&catalog, "zz", "310a", false, &connected).is_err());
 
         // Plan and Sync: nothing confirmed yet → the reminder; confirmed → set up after the copy.
-        assert_eq!(for_installation(&catalog, &id, &connected).unwrap().confirmed, 0);
+        assert_eq!(
+            for_installation(&catalog, &id, &connected)
+                .unwrap()
+                .confirmed,
+            0
+        );
         crate::controllers::remember(&catalog, "2dc8", "310a", Some("CT07"), false).unwrap();
         crate::controllers::remember(&catalog, "abcd", "dcba", Some("CT06"), false).unwrap();
         let summary = for_installation(&catalog, &id, &connected).unwrap();
-        assert_eq!((summary.confirmed, summary.to_add.len(), summary.manual.len()), (2, 1, 1), "{summary:?}");
-        assert!(summary.to_add[0].contains("8BitDo") && summary.manual_message.unwrap().contains("Configure a controller"));
-        let message = apply_for_installation(&catalog, &id, &connected).unwrap().unwrap();
-        assert!(message.contains("8BitDo") && message.contains("RetroBat"), "{message}");
-        assert!(fs::read_to_string(&user).unwrap().contains("8BitDo Ultimate 2C"));
-        assert_eq!(apply_for_installation(&catalog, &id, &connected).unwrap(), None, "nothing left to do");
+        assert_eq!(
+            (
+                summary.confirmed,
+                summary.to_add.len(),
+                summary.manual.len()
+            ),
+            (2, 1, 1),
+            "{summary:?}"
+        );
+        assert!(
+            summary.to_add[0].contains("8BitDo")
+                && summary
+                    .manual_message
+                    .unwrap()
+                    .contains("Configure a controller")
+        );
+        let message = apply_for_installation(&catalog, &id, &connected)
+            .unwrap()
+            .unwrap();
+        assert!(
+            message.contains("8BitDo") && message.contains("RetroBat"),
+            "{message}"
+        );
+        assert!(fs::read_to_string(&user)
+            .unwrap()
+            .contains("8BitDo Ultimate 2C"));
+        assert_eq!(
+            apply_for_installation(&catalog, &id, &connected).unwrap(),
+            None,
+            "nothing left to do"
+        );
     }
 }
-
-

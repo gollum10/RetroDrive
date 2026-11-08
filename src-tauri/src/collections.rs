@@ -10,9 +10,9 @@
 
 use crate::catalog::{self, GameQuery};
 use crate::db;
-use std::collections::HashSet;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
+use std::collections::HashSet;
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct Collection {
@@ -41,8 +41,12 @@ fn ensure_favorites(connection: &Connection) -> Result<(), String> {
 
 /// Primary file ids in Favorites.
 pub fn favorite_file_ids(connection: &Connection) -> Result<HashSet<String>, String> {
-    let mut statement = connection.prepare("SELECT game_file_id FROM collection_games WHERE collection_id = ?1").map_err(|e| e.to_string())?;
-    let rows = statement.query_map([FAVORITES], |r| r.get(0)).map_err(|e| e.to_string())?;
+    let mut statement = connection
+        .prepare("SELECT game_file_id FROM collection_games WHERE collection_id = ?1")
+        .map_err(|e| e.to_string())?;
+    let rows = statement
+        .query_map([FAVORITES], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
     rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
 }
 
@@ -50,29 +54,61 @@ pub fn favorite_file_ids(connection: &Connection) -> Result<HashSet<String>, Str
 pub fn set_favorite(connection: &Connection, file_id: &str, favorite: bool) -> Result<(), String> {
     ensure_favorites(connection)?;
     let ids = [file_id.to_string()];
-    if favorite { add(connection, FAVORITES, &ids) } else { remove(connection, FAVORITES, &ids) }.map(|_| ())
+    if favorite {
+        add(connection, FAVORITES, &ids)
+    } else {
+        remove(connection, FAVORITES, &ids)
+    }
+    .map(|_| ())
 }
 
-fn kind_and_rule(connection: &Connection, id: &str) -> Result<Option<(String, Option<String>)>, String> {
-    connection.query_row("SELECT kind, rule_json FROM collections WHERE id = ?1", [id], |r| Ok((r.get(0)?, r.get(1)?))).optional().map_err(|e| e.to_string())
+fn kind_and_rule(
+    connection: &Connection,
+    id: &str,
+) -> Result<Option<(String, Option<String>)>, String> {
+    connection
+        .query_row(
+            "SELECT kind, rule_json FROM collections WHERE id = ?1",
+            [id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()
+        .map_err(|e| e.to_string())
 }
 
 /// A filter as saved in a smart collection: only the filters, no paging, sorting or
 /// collection of its own.
 fn clean_rule(query: &GameQuery) -> GameQuery {
-    GameQuery { collection_id: None, offset: 0, limit: None, sort: None, left_out: false, ..query.clone() }
+    GameQuery {
+        collection_id: None,
+        offset: 0,
+        limit: None,
+        sort: None,
+        left_out: false,
+        ..query.clone()
+    }
 }
 
 /// A library query with a smart collection replaced by its saved filter (the other
 /// filters in `query` narrow it further).
 pub fn resolve(connection: &Connection, query: &GameQuery) -> Result<GameQuery, String> {
-    let Some(id) = query.collection_id.as_deref().filter(|c| !c.is_empty()) else { return Ok(query.clone()) };
-    let Some((kind, rule)) = kind_and_rule(connection, id)? else { return Ok(query.clone()) };
+    let Some(id) = query.collection_id.as_deref().filter(|c| !c.is_empty()) else {
+        return Ok(query.clone());
+    };
+    let Some((kind, rule)) = kind_and_rule(connection, id)? else {
+        return Ok(query.clone());
+    };
     if kind != "smart" {
         return Ok(query.clone());
     }
-    let rule: GameQuery = rule.and_then(|r| serde_json::from_str(&r).ok()).unwrap_or_default();
-    let pick = |mine: &Option<String>, saved: &Option<String>| mine.clone().filter(|v| !v.trim().is_empty()).or_else(|| saved.clone());
+    let rule: GameQuery = rule
+        .and_then(|r| serde_json::from_str(&r).ok())
+        .unwrap_or_default();
+    let pick = |mine: &Option<String>, saved: &Option<String>| {
+        mine.clone()
+            .filter(|v| !v.trim().is_empty())
+            .or_else(|| saved.clone())
+    };
     Ok(GameQuery {
         collection_id: None,
         text: pick(&query.text, &rule.text),
@@ -92,25 +128,49 @@ pub fn resolve(connection: &Connection, query: &GameQuery) -> Result<GameQuery, 
 }
 
 /// The primary file ids in a collection (a smart one: what its filter matches now).
-pub fn member_file_ids(connection: &Connection, id: &str, presence: catalog::PresenceFn) -> Result<HashSet<String>, String> {
+pub fn member_file_ids(
+    connection: &Connection,
+    id: &str,
+    presence: catalog::PresenceFn,
+) -> Result<HashSet<String>, String> {
     if kind_and_rule(connection, id)?.is_some_and(|(kind, _)| kind == "smart") {
-        let query = GameQuery { collection_id: Some(id.to_string()), ..GameQuery::default() };
-        return Ok(catalog::matching_file_ids(connection, &query, presence, SMART_CAP)?.into_iter().collect());
+        let query = GameQuery {
+            collection_id: Some(id.to_string()),
+            ..GameQuery::default()
+        };
+        return Ok(
+            catalog::matching_file_ids(connection, &query, presence, SMART_CAP)?
+                .into_iter()
+                .collect(),
+        );
     }
-    let mut statement = connection.prepare("SELECT game_file_id FROM collection_games WHERE collection_id = ?1").map_err(|e| e.to_string())?;
-    let rows = statement.query_map([id], |r| r.get(0)).map_err(|e| e.to_string())?;
+    let mut statement = connection
+        .prepare("SELECT game_file_id FROM collection_games WHERE collection_id = ?1")
+        .map_err(|e| e.to_string())?;
+    let rows = statement
+        .query_map([id], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
     rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
 }
 
 /// Save the current library filters as a smart collection.
-pub fn create_smart(connection: &Connection, name: &str, query: &GameQuery) -> Result<String, String> {
+pub fn create_smart(
+    connection: &Connection,
+    name: &str,
+    query: &GameQuery,
+) -> Result<String, String> {
     let rule = clean_rule(query);
     if rule == GameQuery::default() {
         return Err("Choose at least one filter (platform, genre, years, players, light gun, vertical or a search) first.".into());
     }
     let id = create(connection, name)?;
     let json = serde_json::to_string(&rule).map_err(|e| e.to_string())?;
-    connection.execute("UPDATE collections SET kind = 'smart', rule_json = ?2 WHERE id = ?1", params![id, json]).map_err(|e| e.to_string())?;
+    connection
+        .execute(
+            "UPDATE collections SET kind = 'smart', rule_json = ?2 WHERE id = ?1",
+            params![id, json],
+        )
+        .map_err(|e| e.to_string())?;
     Ok(id)
 }
 
@@ -128,7 +188,10 @@ fn clean_name(name: &str) -> Result<String, String> {
 /// All collections with their game counts (left-out games aren't counted):
 /// Favorites first, then the rest by name. A smart collection counts what its
 /// filter matches now.
-pub fn list(connection: &Connection, presence: catalog::PresenceFn) -> Result<Vec<Collection>, String> {
+pub fn list(
+    connection: &Connection,
+    presence: catalog::PresenceFn,
+) -> Result<Vec<Collection>, String> {
     ensure_favorites(connection)?;
     let mut statement = connection
         .prepare(
@@ -141,7 +204,18 @@ pub fn list(connection: &Connection, presence: catalog::PresenceFn) -> Result<Ve
         .map_err(|e| e.to_string())?;
     let rows: Vec<(Collection, Option<String>)> = statement
         .query_map([], |r| {
-            Ok((Collection { id: r.get(0)?, name: r.get(1)?, games: r.get(2)?, bytes: r.get(3)?, created_at: r.get(4)?, kind: r.get(5)?, rule: None }, r.get(6)?))
+            Ok((
+                Collection {
+                    id: r.get(0)?,
+                    name: r.get(1)?,
+                    games: r.get(2)?,
+                    bytes: r.get(3)?,
+                    created_at: r.get(4)?,
+                    kind: r.get(5)?,
+                    rule: None,
+                },
+                r.get(6)?,
+            ))
         })
         .map_err(|e| e.to_string())?
         .collect::<Result<_, _>>()
@@ -152,7 +226,8 @@ pub fn list(connection: &Connection, presence: catalog::PresenceFn) -> Result<Ve
             c.rule = rule.and_then(|r| serde_json::from_str(&r).ok());
             let ids = member_file_ids(connection, &c.id, presence)?;
             c.games = ids.len() as i64;
-            let json = serde_json::to_string(&ids.iter().collect::<Vec<_>>()).map_err(|e| e.to_string())?;
+            let json = serde_json::to_string(&ids.iter().collect::<Vec<_>>())
+                .map_err(|e| e.to_string())?;
             c.bytes = connection.query_row("SELECT COALESCE(SUM(payload_bytes), 0) FROM game_files WHERE id IN (SELECT value FROM json_each(?1))", [json], |r| r.get(0)).map_err(|e| e.to_string())?;
         }
         out.push(c);
@@ -163,13 +238,22 @@ pub fn list(connection: &Connection, presence: catalog::PresenceFn) -> Result<Ve
 pub fn create(connection: &Connection, name: &str) -> Result<String, String> {
     let name = clean_name(name)?;
     let taken: bool = connection
-        .query_row("SELECT EXISTS (SELECT 1 FROM collections WHERE name = ?1 COLLATE NOCASE)", [&name], |r| r.get(0))
+        .query_row(
+            "SELECT EXISTS (SELECT 1 FROM collections WHERE name = ?1 COLLATE NOCASE)",
+            [&name],
+            |r| r.get(0),
+        )
         .map_err(|e| e.to_string())?;
     if taken {
         return Err(format!("You already have a collection called \"{name}\"."));
     }
     let id = db::new_id();
-    connection.execute("INSERT INTO collections (id, name) VALUES (?1, ?2)", params![id, name]).map_err(|e| e.to_string())?;
+    connection
+        .execute(
+            "INSERT INTO collections (id, name) VALUES (?1, ?2)",
+            params![id, name],
+        )
+        .map_err(|e| e.to_string())?;
     Ok(id)
 }
 
@@ -179,12 +263,22 @@ pub fn rename(connection: &Connection, id: &str, name: &str) -> Result<(), Strin
     }
     let name = clean_name(name)?;
     let taken: bool = connection
-        .query_row("SELECT EXISTS (SELECT 1 FROM collections WHERE name = ?1 COLLATE NOCASE AND id <> ?2)", params![name, id], |r| r.get(0))
+        .query_row(
+            "SELECT EXISTS (SELECT 1 FROM collections WHERE name = ?1 COLLATE NOCASE AND id <> ?2)",
+            params![name, id],
+            |r| r.get(0),
+        )
         .map_err(|e| e.to_string())?;
     if taken {
         return Err(format!("You already have a collection called \"{name}\"."));
     }
-    match connection.execute("UPDATE collections SET name = ?2 WHERE id = ?1", params![id, name]).map_err(|e| e.to_string())? {
+    match connection
+        .execute(
+            "UPDATE collections SET name = ?2 WHERE id = ?1",
+            params![id, name],
+        )
+        .map_err(|e| e.to_string())?
+    {
         0 => Err("Collection not found".into()),
         _ => Ok(()),
     }
@@ -199,14 +293,31 @@ pub fn move_one(connection: &Connection, id: &str, up: bool) -> Result<(), Strin
     let mut statement = connection
         .prepare("SELECT id FROM collections WHERE kind <> 'favorites' ORDER BY position IS NULL, position, name COLLATE NOCASE")
         .map_err(|e| e.to_string())?;
-    let mut ids: Vec<String> = statement.query_map([], |r| r.get(0)).map_err(|e| e.to_string())?.collect::<Result<_, _>>().map_err(|e| e.to_string())?;
-    let at = ids.iter().position(|x| x == id).ok_or("Collection not found")?;
-    let other = if up { at.checked_sub(1) } else { Some(at + 1).filter(|n| *n < ids.len()) };
+    let mut ids: Vec<String> = statement
+        .query_map([], |r| r.get(0))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<_, _>>()
+        .map_err(|e| e.to_string())?;
+    let at = ids
+        .iter()
+        .position(|x| x == id)
+        .ok_or("Collection not found")?;
+    let other = if up {
+        at.checked_sub(1)
+    } else {
+        Some(at + 1).filter(|n| *n < ids.len())
+    };
     let Some(other) = other else { return Ok(()) };
     ids.swap(at, other);
-    let tx = connection.unchecked_transaction().map_err(|e| e.to_string())?;
+    let tx = connection
+        .unchecked_transaction()
+        .map_err(|e| e.to_string())?;
     for (n, cid) in ids.iter().enumerate() {
-        tx.execute("UPDATE collections SET position = ?2 WHERE id = ?1", params![cid, n as i64]).map_err(|e| e.to_string())?;
+        tx.execute(
+            "UPDATE collections SET position = ?2 WHERE id = ?1",
+            params![cid, n as i64],
+        )
+        .map_err(|e| e.to_string())?;
     }
     tx.commit().map_err(|e| e.to_string())
 }
@@ -216,17 +327,25 @@ pub fn delete(connection: &Connection, id: &str) -> Result<bool, String> {
     if id == FAVORITES {
         return Err("Favorites can't be deleted; unstar games to take them out.".into());
     }
-    connection.execute("DELETE FROM collections WHERE id = ?1", [id]).map(|n| n > 0).map_err(|e| e.to_string())
+    connection
+        .execute("DELETE FROM collections WHERE id = ?1", [id])
+        .map(|n| n > 0)
+        .map_err(|e| e.to_string())
 }
 
 /// Add primary game files to a collection. Returns how many were new to it.
 pub fn add(connection: &Connection, id: &str, file_ids: &[String]) -> Result<i64, String> {
     match kind_and_rule(connection, id)? {
         None => return Err("Collection not found".into()),
-        Some((kind, _)) if kind == "smart" => return Err("A smart collection fills itself from its filters, so games can't be added by hand.".into()),
+        Some((kind, _)) if kind == "smart" => return Err(
+            "A smart collection fills itself from its filters, so games can't be added by hand."
+                .into(),
+        ),
         Some(_) => {}
     }
-    let tx = connection.unchecked_transaction().map_err(|e| e.to_string())?;
+    let tx = connection
+        .unchecked_transaction()
+        .map_err(|e| e.to_string())?;
     let mut added = 0i64;
     {
         let mut insert = tx
@@ -236,7 +355,9 @@ pub fn add(connection: &Connection, id: &str, file_ids: &[String]) -> Result<i64
             )
             .map_err(|e| e.to_string())?;
         for file in file_ids {
-            added += insert.execute(params![id, file]).map_err(|e| e.to_string())? as i64;
+            added += insert
+                .execute(params![id, file])
+                .map_err(|e| e.to_string())? as i64;
         }
     }
     tx.commit().map_err(|e| e.to_string())?;
@@ -246,14 +367,22 @@ pub fn add(connection: &Connection, id: &str, file_ids: &[String]) -> Result<i64
 /// Remove games from a collection (the games stay in the library).
 pub fn remove(connection: &Connection, id: &str, file_ids: &[String]) -> Result<i64, String> {
     if kind_and_rule(connection, id)?.is_some_and(|(kind, _)| kind == "smart") {
-        return Err("A smart collection fills itself from its filters; change its filters instead.".into());
+        return Err(
+            "A smart collection fills itself from its filters; change its filters instead.".into(),
+        );
     }
-    let tx = connection.unchecked_transaction().map_err(|e| e.to_string())?;
+    let tx = connection
+        .unchecked_transaction()
+        .map_err(|e| e.to_string())?;
     let mut removed = 0i64;
     {
-        let mut delete = tx.prepare("DELETE FROM collection_games WHERE collection_id = ?1 AND game_file_id = ?2").map_err(|e| e.to_string())?;
+        let mut delete = tx
+            .prepare("DELETE FROM collection_games WHERE collection_id = ?1 AND game_file_id = ?2")
+            .map_err(|e| e.to_string())?;
         for file in file_ids {
-            removed += delete.execute(params![id, file]).map_err(|e| e.to_string())? as i64;
+            removed += delete
+                .execute(params![id, file])
+                .map_err(|e| e.to_string())? as i64;
         }
     }
     tx.commit().map_err(|e| e.to_string())?;
@@ -264,8 +393,8 @@ pub fn remove(connection: &Connection, id: &str, file_ids: &[String]) -> Result<
 mod tests {
     use super::*;
     use crate::catalog::{self, GameQuery};
-    use crate::volumes::{Presence, VolumeProbe};
     use crate::scanner;
+    use crate::volumes::{Presence, VolumeProbe};
     use std::fs;
 
     fn connected(_: &str, _: Option<&str>) -> Presence {
@@ -276,7 +405,11 @@ mod tests {
     fn collections_hold_games_without_touching_them() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("roms");
-        for (rel, body) in [("nes/Kid.nes", "k"), ("nes/Metroid.nes", "m"), ("snes/Mario.sfc", "s")] {
+        for (rel, body) in [
+            ("nes/Kid.nes", "k"),
+            ("nes/Metroid.nes", "m"),
+            ("snes/Mario.sfc", "s"),
+        ] {
             let p = root.join(rel);
             fs::create_dir_all(p.parent().unwrap()).unwrap();
             fs::write(p, body).unwrap();
@@ -289,20 +422,56 @@ mod tests {
         assert!(create(&c, "couch co-op").unwrap_err().contains("already"));
         assert!(create(&c, "   ").is_err());
 
-        let nes = catalog::matching_file_ids(&c, &GameQuery { platform: Some("NES".into()), ..GameQuery::default() }, &connected, 10_000).unwrap();
+        let nes = catalog::matching_file_ids(
+            &c,
+            &GameQuery {
+                platform: Some("NES".into()),
+                ..GameQuery::default()
+            },
+            &connected,
+            10_000,
+        )
+        .unwrap();
         assert_eq!(nes.len(), 2);
         assert_eq!(add(&c, &couch, &nes).unwrap(), 2);
-        assert_eq!(add(&c, &couch, &nes).unwrap(), 0, "adding twice keeps one entry");
-        let listed: Vec<Collection> = list(&c, &connected).unwrap().into_iter().filter(|x| x.kind != "favorites").collect();
-        assert_eq!((listed[0].name.as_str(), listed[0].games), ("Couch co-op", 2));
+        assert_eq!(
+            add(&c, &couch, &nes).unwrap(),
+            0,
+            "adding twice keeps one entry"
+        );
+        let listed: Vec<Collection> = list(&c, &connected)
+            .unwrap()
+            .into_iter()
+            .filter(|x| x.kind != "favorites")
+            .collect();
+        assert_eq!(
+            (listed[0].name.as_str(), listed[0].games),
+            ("Couch co-op", 2)
+        );
 
-        let page = catalog::query_games(&c, &GameQuery { collection_id: Some(couch.clone()), ..GameQuery::default() }, &connected).unwrap();
+        let page = catalog::query_games(
+            &c,
+            &GameQuery {
+                collection_id: Some(couch.clone()),
+                ..GameQuery::default()
+            },
+            &connected,
+        )
+        .unwrap();
         assert_eq!(page.total, 2);
         assert_eq!(remove(&c, &couch, &nes[..1]).unwrap(), 1);
         rename(&c, &couch, "Party").unwrap();
-        assert_eq!(list(&c, &connected).unwrap()[1].name, "Party", "Favorites first");
+        assert_eq!(
+            list(&c, &connected).unwrap()[1].name,
+            "Party",
+            "Favorites first"
+        );
         assert!(delete(&c, &couch).unwrap());
-        assert_eq!(catalog::library_stats(&c, &connected).unwrap().files, 3, "deleting a collection never removes games");
+        assert_eq!(
+            catalog::library_stats(&c, &connected).unwrap().files,
+            3,
+            "deleting a collection never removes games"
+        );
         assert!(root.join("nes/Kid.nes").exists());
     }
 
@@ -317,15 +486,44 @@ mod tests {
         db::migrate(&mut c, None).unwrap();
         scanner::scan(&mut c, &root, &|_: &str| VolumeProbe::unknown()).unwrap();
         let first = list(&c, &connected).unwrap();
-        assert_eq!((first[0].id.as_str(), first[0].name.as_str(), first[0].kind.as_str(), first[0].games), (FAVORITES, "Favorites", "favorites", 0));
+        assert_eq!(
+            (
+                first[0].id.as_str(),
+                first[0].name.as_str(),
+                first[0].kind.as_str(),
+                first[0].games
+            ),
+            (FAVORITES, "Favorites", "favorites", 0)
+        );
         let page = catalog::query_games(&c, &GameQuery::default(), &connected).unwrap();
-        let kid = page.rows.iter().find(|r| r.title.contains("Kid")).unwrap().file_id.clone();
+        let kid = page
+            .rows
+            .iter()
+            .find(|r| r.title.contains("Kid"))
+            .unwrap()
+            .file_id
+            .clone();
         set_favorite(&c, &kid, true).unwrap();
         set_favorite(&c, &kid, true).unwrap();
-        assert_eq!(list(&c, &connected).unwrap()[0].games, 1, "starring twice counts once");
+        assert_eq!(
+            list(&c, &connected).unwrap()[0].games,
+            1,
+            "starring twice counts once"
+        );
         let page = catalog::query_games(&c, &GameQuery::default(), &connected).unwrap();
-        assert!(page.rows.iter().all(|r| r.favorite == r.title.contains("Kid")));
-        let favs = catalog::query_games(&c, &GameQuery { collection_id: Some(FAVORITES.into()), ..GameQuery::default() }, &connected).unwrap();
+        assert!(page
+            .rows
+            .iter()
+            .all(|r| r.favorite == r.title.contains("Kid")));
+        let favs = catalog::query_games(
+            &c,
+            &GameQuery {
+                collection_id: Some(FAVORITES.into()),
+                ..GameQuery::default()
+            },
+            &connected,
+        )
+        .unwrap();
         assert_eq!(favs.rows.len(), 1);
         assert!(rename(&c, FAVORITES, "Mine").is_err() && delete(&c, FAVORITES).is_err());
         set_favorite(&c, &kid, false).unwrap();
@@ -344,23 +542,56 @@ mod tests {
         let mut c = Connection::open_in_memory().unwrap();
         db::migrate(&mut c, None).unwrap();
         scanner::scan(&mut c, &root, &|_: &str| VolumeProbe::unknown()).unwrap();
-        assert!(create_smart(&c, "Everything", &GameQuery::default()).is_err(), "needs at least one filter");
-        let nes = GameQuery { platform: Some("NES".into()), offset: 40, sort: Some("size".into()), ..GameQuery::default() };
+        assert!(
+            create_smart(&c, "Everything", &GameQuery::default()).is_err(),
+            "needs at least one filter"
+        );
+        let nes = GameQuery {
+            platform: Some("NES".into()),
+            offset: 40,
+            sort: Some("size".into()),
+            ..GameQuery::default()
+        };
         let id = create_smart(&c, "All NES", &nes).unwrap();
         let listed = list(&c, &connected).unwrap();
         let smart = listed.iter().find(|x| x.id == id).unwrap();
         assert_eq!((smart.kind.as_str(), smart.games), ("smart", 2));
-        assert_eq!(smart.rule.as_ref().map(|r| (r.offset, r.sort.clone())), Some((0, None)), "only the filters are saved");
+        assert_eq!(
+            smart.rule.as_ref().map(|r| (r.offset, r.sort.clone())),
+            Some((0, None)),
+            "only the filters are saved"
+        );
         // Viewing it applies the filter; other filters narrow it further.
-        let view = catalog::query_games(&c, &GameQuery { collection_id: Some(id.clone()), ..GameQuery::default() }, &connected).unwrap();
+        let view = catalog::query_games(
+            &c,
+            &GameQuery {
+                collection_id: Some(id.clone()),
+                ..GameQuery::default()
+            },
+            &connected,
+        )
+        .unwrap();
         assert_eq!(view.rows.len(), 2);
-        let narrowed = catalog::query_games(&c, &GameQuery { collection_id: Some(id.clone()), text: Some("Metroid".into()), ..GameQuery::default() }, &connected).unwrap();
+        let narrowed = catalog::query_games(
+            &c,
+            &GameQuery {
+                collection_id: Some(id.clone()),
+                text: Some("Metroid".into()),
+                ..GameQuery::default()
+            },
+            &connected,
+        )
+        .unwrap();
         assert_eq!(narrowed.rows.len(), 1);
         // It fills itself: a new NES game appears without adding it.
         fs::write(root.join("nes/Zelda.nes"), b"z").unwrap();
         scanner::scan(&mut c, &root, &|_: &str| VolumeProbe::unknown()).unwrap();
         assert_eq!(member_file_ids(&c, &id, &connected).unwrap().len(), 3);
-        assert!(add(&c, &id, &["x".to_string()]).is_err() && remove(&c, &id, &["x".to_string()]).is_err(), "no hand edits");
+        assert!(
+            add(&c, &id, &["x".to_string()]).is_err()
+                && remove(&c, &id, &["x".to_string()]).is_err(),
+            "no hand edits"
+        );
     }
 
     #[test]
@@ -370,18 +601,39 @@ mod tests {
         for name in ["Alpha", "Bravo", "Charlie"] {
             create(&c, name).unwrap();
         }
-        let names = |c: &Connection| list(c, &connected).unwrap().into_iter().map(|x| x.name).collect::<Vec<_>>();
-        assert_eq!(names(&c), vec!["Favorites", "Alpha", "Bravo", "Charlie"], "by name until moved");
-        let charlie = list(&c, &connected).unwrap().into_iter().find(|x| x.name == "Charlie").unwrap().id;
+        let names = |c: &Connection| {
+            list(c, &connected)
+                .unwrap()
+                .into_iter()
+                .map(|x| x.name)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            names(&c),
+            vec!["Favorites", "Alpha", "Bravo", "Charlie"],
+            "by name until moved"
+        );
+        let charlie = list(&c, &connected)
+            .unwrap()
+            .into_iter()
+            .find(|x| x.name == "Charlie")
+            .unwrap()
+            .id;
         move_one(&c, &charlie, true).unwrap();
         move_one(&c, &charlie, true).unwrap();
         assert_eq!(names(&c), vec!["Favorites", "Charlie", "Alpha", "Bravo"]);
         move_one(&c, &charlie, true).unwrap();
-        assert_eq!(names(&c), vec!["Favorites", "Charlie", "Alpha", "Bravo"], "can't pass the top (Favorites stays first)");
+        assert_eq!(
+            names(&c),
+            vec!["Favorites", "Charlie", "Alpha", "Bravo"],
+            "can't pass the top (Favorites stays first)"
+        );
         assert!(move_one(&c, FAVORITES, false).is_err());
         create(&c, "Delta").unwrap();
-        assert_eq!(names(&c).last().map(String::as_str), Some("Delta"), "new collections go at the end");
+        assert_eq!(
+            names(&c).last().map(String::as_str),
+            Some("Delta"),
+            "new collections go at the end"
+        );
     }
 }
-
-

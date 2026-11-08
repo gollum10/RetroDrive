@@ -68,7 +68,11 @@ struct Item {
     stable: Option<String>,
 }
 
-fn items(connection: &Connection, where_clause: &str, value: &dyn rusqlite::ToSql) -> Result<Vec<Item>, String> {
+fn items(
+    connection: &Connection,
+    where_clause: &str,
+    value: &dyn rusqlite::ToSql,
+) -> Result<Vec<Item>, String> {
     let mut statement = connection
         .prepare(&format!(
             "SELECT i.id, i.game_title, i.destination_path, i.backup_path, i.undo_path, i.size_bytes, i.sha256, i.state, i.updated_at,
@@ -98,11 +102,19 @@ fn items(connection: &Connection, where_clause: &str, value: &dyn rusqlite::ToSq
 }
 
 fn relative_to(path: &str, root: &str) -> String {
-    path.get(root.len()..).filter(|_| copier::is_inside(path, root)).unwrap_or(path).trim_start_matches(['\\', '/']).replace('\\', "/")
+    path.get(root.len()..)
+        .filter(|_| copier::is_inside(path, root))
+        .unwrap_or(path)
+        .trim_start_matches(['\\', '/'])
+        .replace('\\', "/")
 }
 
 fn backup_root(root: &str) -> String {
-    format!("{}\\{}", root.trim_end_matches(['\\', '/']), BACKUP_DIR.replace('/', "\\"))
+    format!(
+        "{}\\{}",
+        root.trim_end_matches(['\\', '/']),
+        BACKUP_DIR.replace('/', "\\")
+    )
 }
 
 fn inside_backup_folder(path: &str, root: &str) -> bool {
@@ -110,15 +122,26 @@ fn inside_backup_folder(path: &str, root: &str) -> bool {
 }
 
 fn connected(item: &Item, presence: PresenceFn) -> bool {
-    paths::split_volume(Path::new(&item.root)).is_some_and(|(volume, _)| presence(&volume, item.stable.as_deref()) == Presence::Connected)
+    paths::split_volume(Path::new(&item.root))
+        .is_some_and(|(volume, _)| presence(&volume, item.stable.as_deref()) == Presence::Connected)
 }
 
 fn plain_file(path: &Path) -> Option<u64> {
-    fs::symlink_metadata(path).ok().filter(|m| m.is_file() && !m.file_type().is_symlink()).map(|m| m.len())
+    fs::symlink_metadata(path)
+        .ok()
+        .filter(|m| m.is_file() && !m.file_type().is_symlink())
+        .map(|m| m.len())
 }
 
 fn folder_size(path: &Path) -> i64 {
-    walkdir::WalkDir::new(path).follow_links(false).into_iter().filter_map(Result::ok).filter(|e| e.file_type().is_file()).filter_map(|e| e.metadata().ok()).map(|m| m.len() as i64).sum()
+    walkdir::WalkDir::new(path)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file())
+        .filter_map(|e| e.metadata().ok())
+        .map(|m| m.len() as i64)
+        .sum()
 }
 
 /// Cheap checks for the list (no hashing): what would stop an undo now.
@@ -126,8 +149,12 @@ fn quick_block(item: &Item, online: bool) -> Option<String> {
     if !online {
         return Some("The drive isn't connected.".into());
     }
-    let Some(backup) = item.backup.as_deref() else { return Some("No backup is recorded.".into()) };
-    if !inside_backup_folder(backup, &item.root) || !copier::is_inside(&item.destination, &item.root) {
+    let Some(backup) = item.backup.as_deref() else {
+        return Some("No backup is recorded.".into());
+    };
+    if !inside_backup_folder(backup, &item.root)
+        || !copier::is_inside(&item.destination, &item.root)
+    {
         return Some("The recorded paths aren't inside this installation.".into());
     }
     if plain_file(Path::new(backup)).is_none() {
@@ -135,15 +162,24 @@ fn quick_block(item: &Item, online: bool) -> Option<String> {
     }
     match plain_file(Path::new(&item.destination)) {
         None => Some("There's no file in its place on the drive any more.".into()),
-        Some(len) if len as i64 != item.size => Some("The file on the drive changed since RetroDrive copied it.".into()),
+        Some(len) if len as i64 != item.size => {
+            Some("The file on the drive changed since RetroDrive copied it.".into())
+        }
         Some(_) => None,
     }
 }
 
 /// Replaced and undone files for one installation, newest first.
-pub fn list(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<BackupList, String> {
+pub fn list(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<BackupList, String> {
     let found = items(connection, "d.installation_id = ?1 AND ((i.state = 'replaced' AND i.backup_path IS NOT NULL) OR i.state IN ('undone', 'undoing'))", &installation_id)?;
-    let install = crate::installations::located(connection, presence, Some(installation_id))?.into_iter().next().ok_or("Installation not found")?;
+    let install = crate::installations::located(connection, presence, Some(installation_id))?
+        .into_iter()
+        .next()
+        .ok_or("Installation not found")?;
     let installation_path = install.root.display().to_string();
     let online = install.presence == Presence::Connected;
     let rows = found
@@ -170,13 +206,29 @@ pub fn list(connection: &Connection, installation_id: &str, presence: PresenceFn
         })
         .collect();
     let backups = install.root.join(".retrodrive").join("backup");
-    let folder_bytes = if online && backups.is_dir() { folder_size(&backups) } else { 0 };
-    Ok(BackupList { installation_path, connected: online, rows, folder_bytes })
+    let folder_bytes = if online && backups.is_dir() {
+        folder_size(&backups)
+    } else {
+        0
+    };
+    Ok(BackupList {
+        installation_path,
+        connected: online,
+        rows,
+        folder_bytes,
+    })
 }
 
 /// The installation's backup folder, if it exists (for "Open backup folder").
-pub fn backup_folder(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<PathBuf, String> {
-    let install = crate::installations::located(connection, presence, Some(installation_id))?.into_iter().next().ok_or("Installation not found")?;
+pub fn backup_folder(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<PathBuf, String> {
+    let install = crate::installations::located(connection, presence, Some(installation_id))?
+        .into_iter()
+        .next()
+        .ok_or("Installation not found")?;
     if install.presence != Presence::Connected {
         return Err("The drive isn't connected.".into());
     }
@@ -187,7 +239,14 @@ pub fn backup_folder(connection: &Connection, installation_id: &str, presence: P
     }
 }
 
-fn set(connection: &Connection, id: i64, state: &str, backup: Option<&str>, undo: Option<&str>, message: &str) -> Result<(), String> {
+fn set(
+    connection: &Connection,
+    id: i64,
+    state: &str,
+    backup: Option<&str>,
+    undo: Option<&str>,
+    message: &str,
+) -> Result<(), String> {
     connection
         .execute(
             "UPDATE deployment_items SET state = ?2, backup_path = ?3, undo_path = ?4, message = ?5, updated_at = CURRENT_TIMESTAMP WHERE id = ?1",
@@ -197,11 +256,15 @@ fn set(connection: &Connection, id: i64, state: &str, backup: Option<&str>, undo
         .map_err(|e| e.to_string())
 }
 
-const REPLACED: &str = "Replaced; the original file is in RetroDrive's backup folder on this drive.";
+const REPLACED: &str =
+    "Replaced; the original file is in RetroDrive's backup folder on this drive.";
 
 /// Undo one replace: the original goes back, RetroDrive's copy moves into the backup folder.
 pub fn undo(connection: &Connection, item_id: i64, presence: PresenceFn) -> Result<String, String> {
-    let item = items(connection, "i.id = ?1", &item_id)?.into_iter().next().ok_or("That backup wasn't found.")?;
+    let item = items(connection, "i.id = ?1", &item_id)?
+        .into_iter()
+        .next()
+        .ok_or("That backup wasn't found.")?;
     if item.state != "replaced" {
         return Err("Only a completed replace can be undone.".into());
     }
@@ -215,10 +278,16 @@ pub fn undo(connection: &Connection, item_id: i64, presence: PresenceFn) -> Resu
     if let Some(reason) = quick_block(&item, connected(&item, presence)) {
         return Err(format!("{reason} Nothing was changed."));
     }
-    let (backup, destination) = (PathBuf::from(item.backup.as_deref().unwrap_or_default()), PathBuf::from(&item.destination));
+    let (backup, destination) = (
+        PathBuf::from(item.backup.as_deref().unwrap_or_default()),
+        PathBuf::from(&item.destination),
+    );
     // The file on the drive must be exactly the one RetroDrive copied.
-    let Some(expected) = item.sha.as_deref() else { return Err("RetroDrive has no checksum for the copied file, so it can't confirm it's unchanged. Nothing was changed.".into()) };
-    let actual = copier::sha256_of(&destination).map_err(|e| format!("Couldn't read the file on the drive: {e}. Nothing was changed."))?;
+    let Some(expected) = item.sha.as_deref() else {
+        return Err("RetroDrive has no checksum for the copied file, so it can't confirm it's unchanged. Nothing was changed.".into());
+    };
+    let actual = copier::sha256_of(&destination)
+        .map_err(|e| format!("Couldn't read the file on the drive: {e}. Nothing was changed."))?;
     if actual != expected {
         return Err("The file on the drive changed since RetroDrive copied it, so it wasn't touched. Nothing was changed.".into());
     }
@@ -226,24 +295,53 @@ pub fn undo(connection: &Connection, item_id: i64, presence: PresenceFn) -> Resu
     let relative = relative_to(&item.destination, &item.root);
     let undo_relative = format!("{BACKUP_DIR}/undo-{item_id}/{relative}");
     let root_path = PathBuf::from(&item.root);
-    copier::ensure_folders(&root_path, &undo_relative).map_err(|e| format!("Couldn't prepare the backup folder: {e} Nothing was changed."))?;
+    copier::ensure_folders(&root_path, &undo_relative)
+        .map_err(|e| format!("Couldn't prepare the backup folder: {e} Nothing was changed."))?;
     let undo_path = paths::join(&item.root, &undo_relative);
     if fs::symlink_metadata(&undo_path).is_ok() {
-        return Err(format!("{} already exists, so nothing was changed.", undo_path.display()));
+        return Err(format!(
+            "{} already exists, so nothing was changed.",
+            undo_path.display()
+        ));
     }
     let backup_text = backup.display().to_string();
     let undo_text = undo_path.display().to_string();
-    set(connection, item_id, "undoing", Some(&backup_text), Some(&undo_text), "Undoing the replace.")?;
+    set(
+        connection,
+        item_id,
+        "undoing",
+        Some(&backup_text),
+        Some(&undo_text),
+        "Undoing the replace.",
+    )?;
 
     if let Err(e) = copier::rename_no_replace(&destination, &undo_path) {
-        set(connection, item_id, "replaced", Some(&backup_text), None, REPLACED)?;
-        return Err(format!("Couldn't move RetroDrive's copy aside, so nothing was changed: {e}"));
+        set(
+            connection,
+            item_id,
+            "replaced",
+            Some(&backup_text),
+            None,
+            REPLACED,
+        )?;
+        return Err(format!(
+            "Couldn't move RetroDrive's copy aside, so nothing was changed: {e}"
+        ));
     }
     if let Err(e) = copier::rename_no_replace(&backup, &destination) {
         // Put RetroDrive's copy back where it was.
         if copier::rename_no_replace(&undo_path, &destination).is_ok() {
-            set(connection, item_id, "replaced", Some(&backup_text), None, REPLACED)?;
-            return Err(format!("Couldn't move the original back, so everything was left as it was: {e}"));
+            set(
+                connection,
+                item_id,
+                "replaced",
+                Some(&backup_text),
+                None,
+                REPLACED,
+            )?;
+            return Err(format!(
+                "Couldn't move the original back, so everything was left as it was: {e}"
+            ));
         }
         return Err(format!(
             "Couldn't move the original back ({e}), and RetroDrive's copy couldn't be put back either. Both files are safe: the original is {} and RetroDrive's copy is {}. Restart RetroDrive with the drive connected to finish.",
@@ -252,7 +350,14 @@ pub fn undo(connection: &Connection, item_id: i64, presence: PresenceFn) -> Resu
         ));
     }
     let message = format!("Undone: the original is back. RetroDrive's copy is in {undo_relative}.");
-    set(connection, item_id, "undone", None, Some(&undo_text), &message)?;
+    set(
+        connection,
+        item_id,
+        "undone",
+        None,
+        Some(&undo_text),
+        &message,
+    )?;
     Ok(message)
 }
 
@@ -265,12 +370,25 @@ pub fn recover_undo(connection: &Connection, presence: PresenceFn) -> Result<usi
         if !connected(&item, presence) {
             continue;
         }
-        let (Some(backup), Some(undo)) = (item.backup.as_deref(), item.undo.as_deref()) else { continue };
-        if !inside_backup_folder(backup, &item.root) || !inside_backup_folder(undo, &item.root) || !copier::is_inside(&item.destination, &item.root) {
+        let (Some(backup), Some(undo)) = (item.backup.as_deref(), item.undo.as_deref()) else {
+            continue;
+        };
+        if !inside_backup_folder(backup, &item.root)
+            || !inside_backup_folder(undo, &item.root)
+            || !copier::is_inside(&item.destination, &item.root)
+        {
             continue; // never move anything that isn't ours
         }
-        let (backup_path, undo_path, destination) = (Path::new(backup), Path::new(undo), Path::new(&item.destination));
-        let (has_backup, has_undo, has_dest) = (plain_file(backup_path).is_some(), plain_file(undo_path).is_some(), fs::symlink_metadata(destination).is_ok());
+        let (backup_path, undo_path, destination) = (
+            Path::new(backup),
+            Path::new(undo),
+            Path::new(&item.destination),
+        );
+        let (has_backup, has_undo, has_dest) = (
+            plain_file(backup_path).is_some(),
+            plain_file(undo_path).is_some(),
+            fs::symlink_metadata(destination).is_ok(),
+        );
         match (has_dest, has_undo, has_backup) {
             // Both moves happened.
             (true, true, false) => {
@@ -281,13 +399,27 @@ pub fn recover_undo(connection: &Connection, presence: PresenceFn) -> Result<usi
             // RetroDrive's copy was moved aside but the original didn't arrive: put the copy back.
             (false, true, true) => {
                 if copier::rename_no_replace(undo_path, destination).is_ok() {
-                    set(connection, item.id, "replaced", Some(backup), None, REPLACED)?;
+                    set(
+                        connection,
+                        item.id,
+                        "replaced",
+                        Some(backup),
+                        None,
+                        REPLACED,
+                    )?;
                     fixed += 1;
                 }
             }
             // Nothing moved yet.
             (true, false, true) => {
-                set(connection, item.id, "replaced", Some(backup), None, REPLACED)?;
+                set(
+                    connection,
+                    item.id,
+                    "replaced",
+                    Some(backup),
+                    None,
+                    REPLACED,
+                )?;
                 fixed += 1;
             }
             _ => {} // unexpected: leave everything as it is for the user to check
@@ -310,7 +442,12 @@ mod tests {
         Presence::NotConnected
     }
     fn roomy(_: &Path) -> Option<crate::volumes::VolumeSpace> {
-        Some(crate::volumes::VolumeSpace { free_bytes: 500 << 30, total_bytes: 1 << 40, filesystem: Some("NTFS".into()), cluster_bytes: 4096 })
+        Some(crate::volumes::VolumeSpace {
+            free_bytes: 500 << 30,
+            total_bytes: 1 << 40,
+            filesystem: Some("NTFS".into()),
+            cluster_bytes: 4096,
+        })
     }
     fn unknown(_: &str) -> VolumeProbe {
         VolumeProbe::unknown()
@@ -339,17 +476,55 @@ mod tests {
         db::migrate(&mut catalog, None).unwrap();
         scanner::scan(&mut catalog, &library, &unknown).unwrap();
         let install = installations::add(&catalog, &root, "retrobat", &unknown).unwrap();
-        let plan = deployment::plan_with(&catalog, &install, None, None, &deployment::Choices::new(), &connected_drive, &roomy).unwrap();
+        let plan = deployment::plan_with(
+            &catalog,
+            &install,
+            None,
+            None,
+            &deployment::Choices::new(),
+            &connected_drive,
+            &roomy,
+        )
+        .unwrap();
         let key = plan.attention[0].choice.as_ref().unwrap().key.clone();
         let mut choices = deployment::Choices::new();
         choices.insert(key, deployment::Choice::Replace);
-        let plan = deployment::plan_with(&catalog, &install, None, None, &choices, &connected_drive, &roomy).unwrap();
-        let request = DeployRequest { installation_id: &install, systems: None, fingerprint: &plan.fingerprint, choices: &choices, collection: None, sync: false };
-        let summary = deploy(&catalog, None, &request, &connected_drive, &roomy, &mut Quiet).unwrap();
+        let plan = deployment::plan_with(
+            &catalog,
+            &install,
+            None,
+            None,
+            &choices,
+            &connected_drive,
+            &roomy,
+        )
+        .unwrap();
+        let request = DeployRequest {
+            installation_id: &install,
+            systems: None,
+            fingerprint: &plan.fingerprint,
+            choices: &choices,
+            collection: None,
+            sync: false,
+        };
+        let summary = deploy(
+            &catalog,
+            None,
+            &request,
+            &connected_drive,
+            &roomy,
+            &mut Quiet,
+        )
+        .unwrap();
         assert_eq!(summary.files_replaced, 1);
         // The catalog stores the full path; temp folders can be 8.3 short names (CI), so use the same form.
         let root = paths::normalize(&root).unwrap();
-        Setup { _dir: dir, root, catalog, install }
+        Setup {
+            _dir: dir,
+            root,
+            catalog,
+            install,
+        }
     }
 
     struct Quiet;
@@ -361,18 +536,39 @@ mod tests {
         let listed = list(&s.catalog, &s.install, &connected_drive).unwrap();
         assert_eq!(listed.rows.len(), 1);
         let row = &listed.rows[0];
-        assert_eq!((row.path.as_str(), row.state.as_str(), row.blocked.as_deref()), ("roms/nes/Diff.nes", "replaced", None));
+        assert_eq!(
+            (
+                row.path.as_str(),
+                row.state.as_str(),
+                row.blocked.as_deref()
+            ),
+            ("roms/nes/Diff.nes", "replaced", None)
+        );
         assert_eq!(row.backup_bytes, Some(14));
         assert!(listed.folder_bytes >= 14);
 
         undo(&s.catalog, row.item_id, &connected_drive).unwrap();
-        assert_eq!(fs::read(s.root.join("roms/nes/Diff.nes")).unwrap(), b"theirs, longer", "the original is back");
-        let kept = s.root.join(format!(".retrodrive/backup/undo-{}/roms/nes/Diff.nes", row.item_id));
-        assert_eq!(fs::read(&kept).unwrap(), b"ours", "RetroDrive's copy is kept, not deleted");
+        assert_eq!(
+            fs::read(s.root.join("roms/nes/Diff.nes")).unwrap(),
+            b"theirs, longer",
+            "the original is back"
+        );
+        let kept = s.root.join(format!(
+            ".retrodrive/backup/undo-{}/roms/nes/Diff.nes",
+            row.item_id
+        ));
+        assert_eq!(
+            fs::read(&kept).unwrap(),
+            b"ours",
+            "RetroDrive's copy is kept, not deleted"
+        );
         let after = list(&s.catalog, &s.install, &connected_drive).unwrap();
         assert_eq!(after.rows[0].state, "undone");
         assert!(after.rows[0].blocked.is_some());
-        assert!(undo(&s.catalog, row.item_id, &connected_drive).is_err(), "can't undo twice");
+        assert!(
+            undo(&s.catalog, row.item_id, &connected_drive).is_err(),
+            "can't undo twice"
+        );
     }
 
     #[test]
@@ -380,25 +576,58 @@ mod tests {
         let s = replaced();
         let id = list(&s.catalog, &s.install, &connected_drive).unwrap().rows[0].item_id;
         let snapshot = |root: &Path| -> Vec<(PathBuf, Vec<u8>)> {
-            walkdir::WalkDir::new(root).sort_by_file_name().into_iter().filter_map(Result::ok).filter(|e| e.file_type().is_file()).map(|e| (e.path().to_path_buf(), fs::read(e.path()).unwrap())).collect()
+            walkdir::WalkDir::new(root)
+                .sort_by_file_name()
+                .into_iter()
+                .filter_map(Result::ok)
+                .filter(|e| e.file_type().is_file())
+                .map(|e| (e.path().to_path_buf(), fs::read(e.path()).unwrap()))
+                .collect()
         };
 
         // Drive not connected.
-        assert!(undo(&s.catalog, id, &unplugged).unwrap_err().contains("isn't connected"));
+        assert!(undo(&s.catalog, id, &unplugged)
+            .unwrap_err()
+            .contains("isn't connected"));
         // Same size, different contents: caught by the checksum.
         fs::write(s.root.join("roms/nes/Diff.nes"), b"OURS").unwrap();
         let before = snapshot(&s.root);
-        assert!(undo(&s.catalog, id, &connected_drive).unwrap_err().contains("changed"));
+        assert!(undo(&s.catalog, id, &connected_drive)
+            .unwrap_err()
+            .contains("changed"));
         assert_eq!(snapshot(&s.root), before, "nothing was touched");
         // Backup gone.
         fs::write(s.root.join("roms/nes/Diff.nes"), b"ours").unwrap();
-        let backup = s.catalog.query_row("SELECT backup_path FROM deployment_items WHERE id = ?1", [id], |r| r.get::<_, String>(0)).unwrap();
+        let backup = s
+            .catalog
+            .query_row(
+                "SELECT backup_path FROM deployment_items WHERE id = ?1",
+                [id],
+                |r| r.get::<_, String>(0),
+            )
+            .unwrap();
         fs::rename(&backup, s.root.join("moved-away")).unwrap();
-        assert!(undo(&s.catalog, id, &connected_drive).unwrap_err().contains("isn't in the backup folder"));
+        assert!(undo(&s.catalog, id, &connected_drive)
+            .unwrap_err()
+            .contains("isn't in the backup folder"));
         // A recorded path outside the installation is never used.
-        s.catalog.execute("UPDATE deployment_items SET backup_path = ?2 WHERE id = ?1", params![id, s.root.join("moved-away").display().to_string()]).unwrap();
-        assert!(undo(&s.catalog, id, &connected_drive).unwrap_err().contains("aren't inside"));
-        let state: String = s.catalog.query_row("SELECT state FROM deployment_items WHERE id = ?1", [id], |r| r.get(0)).unwrap();
+        s.catalog
+            .execute(
+                "UPDATE deployment_items SET backup_path = ?2 WHERE id = ?1",
+                params![id, s.root.join("moved-away").display().to_string()],
+            )
+            .unwrap();
+        assert!(undo(&s.catalog, id, &connected_drive)
+            .unwrap_err()
+            .contains("aren't inside"));
+        let state: String = s
+            .catalog
+            .query_row(
+                "SELECT state FROM deployment_items WHERE id = ?1",
+                [id],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(state, "replaced");
     }
 
@@ -406,16 +635,50 @@ mod tests {
     fn an_interrupted_undo_is_finished_or_rolled_back_at_startup() {
         let s = replaced();
         let id = list(&s.catalog, &s.install, &connected_drive).unwrap().rows[0].item_id;
-        let (backup, destination): (String, String) = s.catalog.query_row("SELECT backup_path, destination_path FROM deployment_items WHERE id = ?1", [id], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
-        let undo_path = s.root.join(format!(".retrodrive/backup/undo-{id}/roms/nes/Diff.nes"));
+        let (backup, destination): (String, String) = s
+            .catalog
+            .query_row(
+                "SELECT backup_path, destination_path FROM deployment_items WHERE id = ?1",
+                [id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        let undo_path = s
+            .root
+            .join(format!(".retrodrive/backup/undo-{id}/roms/nes/Diff.nes"));
         fs::create_dir_all(undo_path.parent().unwrap()).unwrap();
-        let journal = || set(&s.catalog, id, "undoing", Some(&backup), Some(&undo_path.display().to_string()), "Undoing the replace.").unwrap();
-        let state = || s.catalog.query_row("SELECT state FROM deployment_items WHERE id = ?1", [id], |r| r.get::<_, String>(0)).unwrap();
+        let journal = || {
+            set(
+                &s.catalog,
+                id,
+                "undoing",
+                Some(&backup),
+                Some(&undo_path.display().to_string()),
+                "Undoing the replace.",
+            )
+            .unwrap()
+        };
+        let state = || {
+            s.catalog
+                .query_row(
+                    "SELECT state FROM deployment_items WHERE id = ?1",
+                    [id],
+                    |r| r.get::<_, String>(0),
+                )
+                .unwrap()
+        };
 
         // Crash after the journal entry, before any move: back to replaced.
         journal();
-        assert!(undo(&s.catalog, id, &connected_drive).is_err(), "an unfinished undo blocks a new one");
-        assert_eq!(recover_undo(&s.catalog, &unplugged).unwrap(), 0, "nothing happens while the drive is away");
+        assert!(
+            undo(&s.catalog, id, &connected_drive).is_err(),
+            "an unfinished undo blocks a new one"
+        );
+        assert_eq!(
+            recover_undo(&s.catalog, &unplugged).unwrap(),
+            0,
+            "nothing happens while the drive is away"
+        );
         assert_eq!(recover_undo(&s.catalog, &connected_drive).unwrap(), 1);
         assert_eq!(state(), "replaced");
 
@@ -423,7 +686,10 @@ mod tests {
         journal();
         fs::rename(&destination, &undo_path).unwrap();
         recover_undo(&s.catalog, &connected_drive).unwrap();
-        assert_eq!((state().as_str(), fs::read(&destination).unwrap()), ("replaced", b"ours".to_vec()));
+        assert_eq!(
+            (state().as_str(), fs::read(&destination).unwrap()),
+            ("replaced", b"ours".to_vec())
+        );
         assert!(Path::new(&backup).exists());
 
         // Crash after both moves: recorded as undone.
@@ -431,11 +697,17 @@ mod tests {
         fs::rename(&destination, &undo_path).unwrap();
         fs::rename(&backup, &destination).unwrap();
         recover_undo(&s.catalog, &connected_drive).unwrap();
-        assert_eq!((state().as_str(), fs::read(&destination).unwrap()), ("undone", b"theirs, longer".to_vec()));
+        assert_eq!(
+            (state().as_str(), fs::read(&destination).unwrap()),
+            ("undone", b"theirs, longer".to_vec())
+        );
         assert!(undo_path.exists());
 
         // The copier's own crash recovery leaves undo items alone.
-        assert_eq!(copier::cleanup_leftovers(&s.catalog, &connected_drive).unwrap(), 0);
+        assert_eq!(
+            copier::cleanup_leftovers(&s.catalog, &connected_drive).unwrap(),
+            0
+        );
         assert_eq!(fs::read(&destination).unwrap(), b"theirs, longer");
     }
 }

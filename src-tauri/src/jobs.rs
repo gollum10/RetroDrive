@@ -37,7 +37,13 @@ pub fn create(connection: &Connection, kind: &str, input: &Value) -> Result<Stri
     Ok(id)
 }
 
-pub fn event(connection: &Connection, job_id: &str, severity: &str, code: &str, detail: &Value) -> Result<(), String> {
+pub fn event(
+    connection: &Connection,
+    job_id: &str,
+    severity: &str,
+    code: &str,
+    detail: &Value,
+) -> Result<(), String> {
     connection
         .execute(
             "INSERT INTO job_events (job_id, severity, event_code, detail_json) VALUES (?1, ?2, ?3, ?4)",
@@ -81,7 +87,9 @@ pub fn recover_interrupted(connection: &Connection) -> Result<usize, String> {
         let mut statement = connection
             .prepare("SELECT id FROM jobs WHERE state = 'running'")
             .map_err(|e| e.to_string())?;
-        let rows = statement.query_map([], |r| r.get(0)).map_err(|e| e.to_string())?;
+        let rows = statement
+            .query_map([], |r| r.get(0))
+            .map_err(|e| e.to_string())?;
         rows.collect::<Result<_, _>>().map_err(|e| e.to_string())?
     };
     for id in &ids {
@@ -138,8 +146,13 @@ mod tests {
     }
 
     fn events(c: &Connection, job: &str) -> Vec<String> {
-        let mut s = c.prepare("SELECT event_code FROM job_events WHERE job_id = ?1 ORDER BY id").unwrap();
-        s.query_map([job], |r| r.get(0)).unwrap().map(Result::unwrap).collect()
+        let mut s = c
+            .prepare("SELECT event_code FROM job_events WHERE job_id = ?1 ORDER BY id")
+            .unwrap();
+        s.query_map([job], |r| r.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect()
     }
 
     #[test]
@@ -160,7 +173,14 @@ mod tests {
     fn failures_keep_the_error() {
         let c = catalog();
         let id = create(&c, KIND_SCAN, &json!({})).unwrap();
-        finish(&c, &id, "failed", None, Some(("scan_error", "disk unplugged"))).unwrap();
+        finish(
+            &c,
+            &id,
+            "failed",
+            None,
+            Some(("scan_error", "disk unplugged")),
+        )
+        .unwrap();
         let job = &recent(&c, 1).unwrap()[0];
         assert_eq!(job.state, "failed");
         assert_eq!(job.error_message.as_deref(), Some("disk unplugged"));
@@ -185,11 +205,19 @@ mod tests {
         .unwrap();
 
         assert_eq!(recover_interrupted(&c).unwrap(), 1);
-        let states: Vec<(String, String)> = recent(&c, 10).unwrap().into_iter().map(|j| (j.id, j.state)).collect();
+        let states: Vec<(String, String)> = recent(&c, 10)
+            .unwrap()
+            .into_iter()
+            .map(|j| (j.id, j.state))
+            .collect();
         assert!(states.contains(&(open_job.clone(), "interrupted".into())));
         assert!(states.contains(&(done, "completed".into())));
         assert_eq!(events(&c, &open_job).last().unwrap(), "interrupted");
-        let root_status: String = c.query_row("SELECT last_scan_status FROM indexed_roots", [], |r| r.get(0)).unwrap();
+        let root_status: String = c
+            .query_row("SELECT last_scan_status FROM indexed_roots", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
         assert_eq!(root_status, "interrupted");
         // Running recovery again is a no-op.
         assert_eq!(recover_interrupted(&c).unwrap(), 0);

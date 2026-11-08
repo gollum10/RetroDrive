@@ -18,7 +18,10 @@ use std::path::PathBuf;
 
 const KEY: &str = "CollectionSystemsAuto";
 /// (EmulationStation's collection name, what RetroDrive calls it).
-pub const GROUPS: &[(&str, &str)] = &[("lightgun", "Light gun games"), ("vertical", "Vertical arcade games")];
+pub const GROUPS: &[(&str, &str)] = &[
+    ("lightgun", "Light gun games"),
+    ("vertical", "Vertical arcade games"),
+];
 
 #[derive(Debug, Serialize)]
 pub struct Group {
@@ -40,11 +43,33 @@ pub struct GroupsState {
     pub note: Option<String>,
 }
 
-fn place(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<(customizer::Install, &'static str, PathBuf), String> {
-    let install = customizer::install_for(connection, installation_id, presence, &["retrobat", "batocera"], "Game groups are for RetroBat and Batocera so far.")?;
-    let adapter: String = connection.query_row("SELECT adapter_id FROM installations WHERE id = ?1", [installation_id], |r| r.get(0)).map_err(|e| e.to_string())?;
-    let relative = if adapter == "batocera" { crate::batocera_settings::ES_SETTINGS } else { customizer::SETTINGS };
-    let path = relative.split('/').fold(install.root.clone(), |p, part| p.join(part));
+fn place(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<(customizer::Install, &'static str, PathBuf), String> {
+    let install = customizer::install_for(
+        connection,
+        installation_id,
+        presence,
+        &["retrobat", "batocera"],
+        "Game groups are for RetroBat and Batocera so far.",
+    )?;
+    let adapter: String = connection
+        .query_row(
+            "SELECT adapter_id FROM installations WHERE id = ?1",
+            [installation_id],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    let relative = if adapter == "batocera" {
+        crate::batocera_settings::ES_SETTINGS
+    } else {
+        customizer::SETTINGS
+    };
+    let path = relative
+        .split('/')
+        .fold(install.root.clone(), |p, part| p.join(part));
     if !path.is_file() {
         return Err("The system's interface settings (es_settings.cfg) are missing. Start it once so it creates them.".into());
     }
@@ -52,12 +77,25 @@ fn place(connection: &Connection, installation_id: &str, presence: PresenceFn) -
 }
 
 fn names(value: Option<&String>) -> Vec<String> {
-    value.map(|v| v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()).unwrap_or_default()
+    value
+        .map(|v| {
+            v.split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// RetroPie and ES-DE get custom collection files instead (ADR-072).
 fn uses_files(connection: &Connection, installation_id: &str) -> bool {
-    let adapter: String = connection.query_row("SELECT adapter_id FROM installations WHERE id = ?1", [installation_id], |r| r.get(0)).unwrap_or_default();
+    let adapter: String = connection
+        .query_row(
+            "SELECT adapter_id FROM installations WHERE id = ?1",
+            [installation_id],
+            |r| r.get(0),
+        )
+        .unwrap_or_default();
     adapter == "retropie" || adapter == "esde"
 }
 
@@ -65,22 +103,46 @@ fn uses_files(connection: &Connection, installation_id: &str) -> bool {
 const RECALBOX_KEY: &str = "emulationstation.collection.lightgun";
 
 fn adapter_of(connection: &Connection, installation_id: &str) -> String {
-    connection.query_row("SELECT adapter_id FROM installations WHERE id = ?1", [installation_id], |r| r.get(0)).unwrap_or_default()
+    connection
+        .query_row(
+            "SELECT adapter_id FROM installations WHERE id = ?1",
+            [installation_id],
+            |r| r.get(0),
+        )
+        .unwrap_or_default()
 }
 
-fn recalbox_place(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<(customizer::Install, PathBuf), String> {
-    let install = customizer::install_for(connection, installation_id, presence, &["recalbox"], "This is for Recalbox.")?;
+fn recalbox_place(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<(customizer::Install, PathBuf), String> {
+    let install = customizer::install_for(
+        connection,
+        installation_id,
+        presence,
+        &["recalbox"],
+        "This is for Recalbox.",
+    )?;
     let path = install.root.join("system").join("recalbox.conf");
     if !path.is_file() {
-        return Err("system\\recalbox.conf is missing. Start Recalbox once so it creates it.".into());
+        return Err(
+            "system\\recalbox.conf is missing. Start Recalbox once so it creates it.".into(),
+        );
     }
     Ok((install, path))
 }
 
-fn recalbox_state(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<GroupsState, String> {
+fn recalbox_state(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<GroupsState, String> {
     let (install, path) = recalbox_place(connection, installation_id, presence)?;
     let text = customizer::read_text(&path)?;
-    let on = crate::batocera_settings::conf_values(&text).get(RECALBOX_KEY).is_some_and(|v| v.trim() == "1");
+    let on = crate::batocera_settings::conf_values(&text)
+        .get(RECALBOX_KEY)
+        .is_some_and(|v| v.trim() == "1");
     Ok(GroupsState {
         groups: vec![Group { id: "lightgun", label: "Light gun games", on, in_library: crate::lightguns::game_ids(connection)?.len(), copied: None }],
         file_sha: customizer::hex_sha(text.as_bytes()),
@@ -93,19 +155,46 @@ fn recalbox_change(text: &str, wanted: &BTreeMap<String, bool>) -> Result<Change
     if wanted.keys().any(|k| k != "lightgun") {
         return Err("Recalbox only has a light gun group.".into());
     }
-    let on = wanted.get("lightgun").copied().ok_or("Choose the light gun group.")?;
-    let before = crate::batocera_settings::conf_values(text).get(RECALBOX_KEY).is_some_and(|v| v.trim() == "1");
+    let on = wanted
+        .get("lightgun")
+        .copied()
+        .ok_or("Choose the light gun group.")?;
+    let before = crate::batocera_settings::conf_values(text)
+        .get(RECALBOX_KEY)
+        .is_some_and(|v| v.trim() == "1");
     if before == on {
         return Err("Nothing to change: the light gun group is already set that way.".into());
     }
     let value = if on { "1" } else { "0" };
-    let edit: BTreeMap<String, Option<String>> = [(RECALBOX_KEY.to_string(), Some(value.to_string()))].into_iter().collect();
-    let label = |b: bool| if b { "Light gun games shown" } else { "Light gun games hidden" }.to_string();
-    Ok((edit, vec![ChangeRow { system: "interface".into(), key: "game groups".into(), before: Some(label(before)), after: Some(label(on)) }]))
+    let edit: BTreeMap<String, Option<String>> =
+        [(RECALBOX_KEY.to_string(), Some(value.to_string()))]
+            .into_iter()
+            .collect();
+    let label = |b: bool| {
+        if b {
+            "Light gun games shown"
+        } else {
+            "Light gun games hidden"
+        }
+        .to_string()
+    };
+    Ok((
+        edit,
+        vec![ChangeRow {
+            system: "interface".into(),
+            key: "game groups".into(),
+            before: Some(label(before)),
+            after: Some(label(on)),
+        }],
+    ))
 }
 
 /// Which groups are on, with how many library games each would show (reads only).
-pub fn state(connection: &Connection, installation_id: &str, presence: PresenceFn) -> Result<GroupsState, String> {
+pub fn state(
+    connection: &Connection,
+    installation_id: &str,
+    presence: PresenceFn,
+) -> Result<GroupsState, String> {
     if adapter_of(connection, installation_id) == "recalbox" {
         return recalbox_state(connection, installation_id, presence);
     }
@@ -115,9 +204,22 @@ pub fn state(connection: &Connection, installation_id: &str, presence: PresenceF
     let (install, _, path) = place(connection, installation_id, presence)?;
     let text = customizer::read_text(&path)?;
     let on = names(customizer::values(&customizer::entries(&text)?)?.get(KEY));
-    let counts = [crate::lightguns::game_ids(connection)?.len(), crate::vertical::game_ids(connection)?.len()];
+    let counts = [
+        crate::lightguns::game_ids(connection)?.len(),
+        crate::vertical::game_ids(connection)?.len(),
+    ];
     Ok(GroupsState {
-        groups: GROUPS.iter().zip(counts).map(|((id, label), n)| Group { id, label, on: on.iter().any(|x| x == id), in_library: n, copied: None }).collect(),
+        groups: GROUPS
+            .iter()
+            .zip(counts)
+            .map(|((id, label), n)| Group {
+                id,
+                label,
+                on: on.iter().any(|x| x == id),
+                in_library: n,
+                copied: None,
+            })
+            .collect(),
         file_sha: customizer::hex_sha(text.as_bytes()),
         network: install.root_text.starts_with(r"\\"),
         note: None,
@@ -151,21 +253,44 @@ fn change(text: &str, wanted: &BTreeMap<String, bool>) -> Result<Change, String>
         return Err("Nothing to change: those groups are already set that way.".into());
     }
     let label = |v: &str| {
-        let shown: Vec<&str> = names(Some(&v.to_string())).iter().filter_map(|n| GROUPS.iter().find(|(g, _)| g == n).map(|(_, l)| *l)).collect();
-        if shown.is_empty() { "none of RetroDrive's groups".to_string() } else { shown.join(", ") }
+        let shown: Vec<&str> = names(Some(&v.to_string()))
+            .iter()
+            .filter_map(|n| GROUPS.iter().find(|(g, _)| g == n).map(|(_, l)| *l))
+            .collect();
+        if shown.is_empty() {
+            "none of RetroDrive's groups".to_string()
+        } else {
+            shown.join(", ")
+        }
     };
-    let row = ChangeRow { system: "interface".into(), key: "game groups".into(), before: Some(label(before.as_deref().unwrap_or(""))), after: Some(label(&after)) };
-    Ok(([(KEY.to_string(), Some(after))].into_iter().collect(), vec![row]))
+    let row = ChangeRow {
+        system: "interface".into(),
+        key: "game groups".into(),
+        before: Some(label(before.as_deref().unwrap_or(""))),
+        after: Some(label(&after)),
+    };
+    Ok((
+        [(KEY.to_string(), Some(after))].into_iter().collect(),
+        vec![row],
+    ))
 }
 
 /// What turning groups on or off would change (reads only).
-pub fn preview(connection: &Connection, installation_id: &str, wanted: &BTreeMap<String, bool>, presence: PresenceFn) -> Result<Preview, String> {
+pub fn preview(
+    connection: &Connection,
+    installation_id: &str,
+    wanted: &BTreeMap<String, bool>,
+    presence: PresenceFn,
+) -> Result<Preview, String> {
     if adapter_of(connection, installation_id) == "recalbox" {
         let (_, path) = recalbox_place(connection, installation_id, presence)?;
         let text = customizer::read_text(&path)?;
         let (edit, rows) = recalbox_change(&text, wanted)?;
         crate::batocera_settings::edit_conf(&text, &edit, &[';'], "recalbox.conf")?;
-        return Ok(Preview { changes: rows, file_sha: customizer::hex_sha(text.as_bytes()) });
+        return Ok(Preview {
+            changes: rows,
+            file_sha: customizer::hex_sha(text.as_bytes()),
+        });
     }
     if uses_files(connection, installation_id) {
         return crate::custom_collections::preview(connection, installation_id, wanted, presence);
@@ -174,12 +299,22 @@ pub fn preview(connection: &Connection, installation_id: &str, wanted: &BTreeMap
     let text = customizer::read_text(&path)?;
     let (edit, rows) = change(&text, wanted)?;
     customizer::edit_typed(&text, &edit, &BTreeMap::new())?;
-    Ok(Preview { changes: rows, file_sha: customizer::hex_sha(text.as_bytes()) })
+    Ok(Preview {
+        changes: rows,
+        file_sha: customizer::hex_sha(text.as_bytes()),
+    })
 }
 
 /// Turn the groups on or off: only if es_settings.cfg is unchanged since the review
 /// and RetroBat isn't running; journaled, backed up and undoable.
-pub fn apply(connection: &Connection, installation_id: &str, wanted: &BTreeMap<String, bool>, expected_sha: &str, presence: PresenceFn, running: RunningFn) -> Result<String, String> {
+pub fn apply(
+    connection: &Connection,
+    installation_id: &str,
+    wanted: &BTreeMap<String, bool>,
+    expected_sha: &str,
+    presence: PresenceFn,
+    running: RunningFn,
+) -> Result<String, String> {
     if adapter_of(connection, installation_id) == "recalbox" {
         let (install, path) = recalbox_place(connection, installation_id, presence)?;
         let text = customizer::read_text(&path)?;
@@ -188,11 +323,26 @@ pub fn apply(connection: &Connection, installation_id: &str, wanted: &BTreeMap<S
         }
         let (edit, rows) = recalbox_change(&text, wanted)?;
         let new_text = crate::batocera_settings::edit_conf(&text, &edit, &[';'], "recalbox.conf")?;
-        customizer::write_file(connection, &install, crate::recalbox_settings::CONF, &path, &text, &new_text, rows)?;
+        customizer::write_file(
+            connection,
+            &install,
+            crate::recalbox_settings::CONF,
+            &path,
+            &text,
+            &new_text,
+            rows,
+        )?;
         return Ok("Saved. Recalbox shows its light gun group the next time it starts. Undo is under \"Show every settings change\".".into());
     }
     if uses_files(connection, installation_id) {
-        return crate::custom_collections::apply(connection, installation_id, wanted, expected_sha, presence, running);
+        return crate::custom_collections::apply(
+            connection,
+            installation_id,
+            wanted,
+            expected_sha,
+            presence,
+            running,
+        );
     }
     let (install, relative, path) = place(connection, installation_id, presence)?;
     if let Some(reason) = customizer::running_message(running) {
@@ -204,7 +354,9 @@ pub fn apply(connection: &Connection, installation_id: &str, wanted: &BTreeMap<S
     }
     let (edit, rows) = change(&text, wanted)?;
     let new_text = customizer::edit_typed(&text, &edit, &BTreeMap::new())?;
-    customizer::write_file(connection, &install, relative, &path, &text, &new_text, rows)?;
+    customizer::write_file(
+        connection, &install, relative, &path, &text, &new_text, rows,
+    )?;
     Ok(if relative == customizer::SETTINGS {
         "Saved. RetroBat shows the groups the next time it starts. Undo is under \"Show every settings change\".".into()
     } else if install.root_text.starts_with(r"\\") {
@@ -229,12 +381,33 @@ mod tests {
 
     #[test]
     fn groups_are_added_and_removed_without_touching_the_users_collections() {
-        let w = |pairs: &[(&str, bool)]| pairs.iter().map(|(k, v)| (k.to_string(), *v)).collect::<BTreeMap<_, _>>();
+        let w = |pairs: &[(&str, bool)]| {
+            pairs
+                .iter()
+                .map(|(k, v)| (k.to_string(), *v))
+                .collect::<BTreeMap<_, _>>()
+        };
         let cur = "favorites,recent".to_string();
-        assert_eq!(new_value(Some(&cur), &w(&[("lightgun", true), ("vertical", true)])).unwrap(), "favorites,recent,lightgun,vertical");
-        assert_eq!(new_value(Some(&"favorites, lightgun ,recent".to_string()), &w(&[("lightgun", false)])).unwrap(), "favorites,recent");
-        assert_eq!(new_value(None, &w(&[("vertical", true)])).unwrap(), "vertical");
-        assert!(new_value(Some(&cur), &w(&[("all", true)])).is_err(), "only RetroDrive's two groups");
+        assert_eq!(
+            new_value(Some(&cur), &w(&[("lightgun", true), ("vertical", true)])).unwrap(),
+            "favorites,recent,lightgun,vertical"
+        );
+        assert_eq!(
+            new_value(
+                Some(&"favorites, lightgun ,recent".to_string()),
+                &w(&[("lightgun", false)])
+            )
+            .unwrap(),
+            "favorites,recent"
+        );
+        assert_eq!(
+            new_value(None, &w(&[("vertical", true)])).unwrap(),
+            "vertical"
+        );
+        assert!(
+            new_value(Some(&cur), &w(&[("all", true)])).is_err(),
+            "only RetroDrive's two groups"
+        );
 
         let dir = tempfile::tempdir().unwrap();
         let rb = dir.path().join("RetroBat");
@@ -245,22 +418,59 @@ mod tests {
         fs::write(&settings, ES).unwrap();
         let mut c = rusqlite::Connection::open_in_memory().unwrap();
         db::migrate(&mut c, None).unwrap();
-        let id = installations::add(&c, &rb, "retrobat", &|_: &str| VolumeProbe::unknown()).unwrap();
+        let id =
+            installations::add(&c, &rb, "retrobat", &|_: &str| VolumeProbe::unknown()).unwrap();
 
         let s = state(&c, &id, &connected).unwrap();
         assert!(s.groups.iter().all(|g| !g.on));
         let on = w(&[("lightgun", true), ("vertical", true)]);
         let p = preview(&c, &id, &on, &connected).unwrap();
-        assert_eq!(p.changes[0].after.as_deref(), Some("Light gun games, Vertical arcade games"));
-        assert!(apply(&c, &id, &on, &p.file_sha, &connected, &|| true).unwrap_err().contains("running"), "not while RetroBat runs");
-        apply(&c, &id, &on, &p.file_sha, &connected, &customizer::never_running).unwrap();
+        assert_eq!(
+            p.changes[0].after.as_deref(),
+            Some("Light gun games, Vertical arcade games")
+        );
+        assert!(
+            apply(&c, &id, &on, &p.file_sha, &connected, &|| true)
+                .unwrap_err()
+                .contains("running"),
+            "not while RetroBat runs"
+        );
+        apply(
+            &c,
+            &id,
+            &on,
+            &p.file_sha,
+            &connected,
+            &customizer::never_running,
+        )
+        .unwrap();
         let text = fs::read_to_string(&settings).unwrap();
-        assert!(text.contains("value=\"favorites,recent,lightgun,vertical\"") && text.contains("name=\"ThemeSet\" value=\"carbon\""), "{text}");
-        assert!(state(&c, &id, &connected).unwrap().groups.iter().all(|g| g.on));
-        assert!(preview(&c, &id, &on, &connected).unwrap_err().contains("Nothing to change"));
-        let change: i64 = c.query_row("SELECT id FROM settings_changes ORDER BY id DESC LIMIT 1", [], |r| r.get(0)).unwrap();
+        assert!(
+            text.contains("value=\"favorites,recent,lightgun,vertical\"")
+                && text.contains("name=\"ThemeSet\" value=\"carbon\""),
+            "{text}"
+        );
+        assert!(state(&c, &id, &connected)
+            .unwrap()
+            .groups
+            .iter()
+            .all(|g| g.on));
+        assert!(preview(&c, &id, &on, &connected)
+            .unwrap_err()
+            .contains("Nothing to change"));
+        let change: i64 = c
+            .query_row(
+                "SELECT id FROM settings_changes ORDER BY id DESC LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         customizer::undo(&c, change, &connected, &customizer::never_running).unwrap();
-        assert_eq!(fs::read_to_string(&settings).unwrap(), ES, "undo puts the file back");
+        assert_eq!(
+            fs::read_to_string(&settings).unwrap(),
+            ES,
+            "undo puts the file back"
+        );
     }
 
     #[test]
@@ -274,17 +484,40 @@ mod tests {
         fs::write(share.join("system/recalbox.conf"), conf).unwrap();
         let mut c = rusqlite::Connection::open_in_memory().unwrap();
         db::migrate(&mut c, None).unwrap();
-        let id = installations::add(&c, &share, "recalbox", &|_: &str| VolumeProbe::unknown()).unwrap();
+        let id =
+            installations::add(&c, &share, "recalbox", &|_: &str| VolumeProbe::unknown()).unwrap();
         let s = state(&c, &id, &connected).unwrap();
-        assert_eq!((s.groups.len(), s.groups[0].id, s.groups[0].on), (1, "lightgun", false), "only a light gun group");
-        assert!(preview(&c, &id, &[("vertical".to_string(), true)].into_iter().collect(), &connected).is_err());
+        assert_eq!(
+            (s.groups.len(), s.groups[0].id, s.groups[0].on),
+            (1, "lightgun", false),
+            "only a light gun group"
+        );
+        assert!(preview(
+            &c,
+            &id,
+            &[("vertical".to_string(), true)].into_iter().collect(),
+            &connected
+        )
+        .is_err());
         let on: BTreeMap<String, bool> = [("lightgun".to_string(), true)].into_iter().collect();
         let p = preview(&c, &id, &on, &connected).unwrap();
-        apply(&c, &id, &on, &p.file_sha, &connected, &customizer::never_running).unwrap();
-        assert_eq!(fs::read_to_string(share.join("system/recalbox.conf")).unwrap(), "## Recalbox\nglobal.ratio=auto\nemulationstation.collection.lightgun=1\n", "the disabled line is switched on in place");
+        apply(
+            &c,
+            &id,
+            &on,
+            &p.file_sha,
+            &connected,
+            &customizer::never_running,
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read_to_string(share.join("system/recalbox.conf")).unwrap(),
+            "## Recalbox\nglobal.ratio=auto\nemulationstation.collection.lightgun=1\n",
+            "the disabled line is switched on in place"
+        );
         assert!(state(&c, &id, &connected).unwrap().groups[0].on);
-        assert!(preview(&c, &id, &on, &connected).unwrap_err().contains("Nothing to change"));
+        assert!(preview(&c, &id, &on, &connected)
+            .unwrap_err()
+            .contains("Nothing to change"));
     }
 }
-
-

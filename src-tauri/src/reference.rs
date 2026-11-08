@@ -106,7 +106,10 @@ fn retrodrive_platform(label: &str) -> String {
 
 /// Lower-case, single-spaced exact key (for No-Intro / MAME names).
 fn name_key(text: &str) -> String {
-    text.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
+    text.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
 }
 
 /// Loose title key: no tags in brackets, "Title, The" == "The Title", letters and
@@ -130,7 +133,13 @@ fn title_key(text: &str) -> String {
             break;
         }
     }
-    lower.chars().filter(|c| c.is_alphanumeric() || c.is_whitespace()).collect::<String>().split_whitespace().collect::<Vec<_>>().join(" ")
+    lower
+        .chars()
+        .filter(|c| c.is_alphanumeric() || c.is_whitespace())
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Which input column feeds which field. `None` = not present.
@@ -160,7 +169,13 @@ fn map_columns(headers: &[String]) -> Columns {
             }
         };
         // Art columns are never imported (owner decision).
-        if h == "art" || h.starts_with("art ") || h.contains("box art") || h.contains("boxart") || h.contains("image") || h.contains("thumbnail") {
+        if h == "art"
+            || h.starts_with("art ")
+            || h.contains("box art")
+            || h.contains("boxart")
+            || h.contains("image")
+            || h.contains("thumbnail")
+        {
             c.ignored.push(raw.trim().to_string());
         } else if h == "game id" || h == "id" {
             set(&mut c.entry_key);
@@ -176,7 +191,10 @@ fn map_columns(headers: &[String]) -> Columns {
             set(&mut c.publisher);
         } else if h.starts_with("developer") {
             set(&mut c.developer);
-        } else if h.starts_with("source id") || (h.contains("no-intro name") && !h.contains("full")) || h.contains("rom name") {
+        } else if h.starts_with("source id")
+            || (h.contains("no-intro name") && !h.contains("full"))
+            || h.contains("rom name")
+        {
             set(&mut c.source_id);
         } else if h.starts_with("source full name") || h.contains("description") {
             set(&mut c.source_name);
@@ -198,22 +216,34 @@ fn cell_text(row: &[String], index: Option<usize>) -> Option<String> {
 fn read_table(path: &Path) -> Result<(Vec<String>, Vec<Vec<String>>), String> {
     let friendly = |e: std::io::Error| -> String {
         if e.raw_os_error() == Some(32) || e.kind() == std::io::ErrorKind::PermissionDenied {
-            format!("{} is open in another program (such as Excel). Close it there and try again.", path.display())
+            format!(
+                "{} is open in another program (such as Excel). Close it there and try again.",
+                path.display()
+            )
         } else {
             format!("Couldn't open {}: {e}", path.display())
         }
     };
     // Open first, so a locked file gets a clear message instead of a parser error.
     std::fs::File::open(path).map_err(friendly)?;
-    let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    let extension = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
     match extension.as_str() {
         "xlsx" | "xlsm" => {
-            let mut workbook: Xlsx<_> = open_workbook(path).map_err(|e| format!("Couldn't read the spreadsheet: {e}"))?;
+            let mut workbook: Xlsx<_> =
+                open_workbook(path).map_err(|e| format!("Couldn't read the spreadsheet: {e}"))?;
             let names = workbook.sheet_names().to_vec();
             // Prefer the first sheet that has a title or genre column.
             for name in names {
-                let Ok(range) = workbook.worksheet_range(&name) else { continue };
-                let mut rows = range.rows().map(|r| r.iter().map(cell_to_string).collect::<Vec<_>>());
+                let Ok(range) = workbook.worksheet_range(&name) else {
+                    continue;
+                };
+                let mut rows = range
+                    .rows()
+                    .map(|r| r.iter().map(cell_to_string).collect::<Vec<_>>());
                 let Some(header) = rows.next() else { continue };
                 let columns = map_columns(&header);
                 if columns.title.is_some() || columns.genre.is_some() {
@@ -223,12 +253,26 @@ fn read_table(path: &Path) -> Result<(Vec<String>, Vec<Vec<String>>), String> {
             Err("No sheet in this workbook has a Title column.".into())
         }
         "csv" => {
-            let mut reader = csv::ReaderBuilder::new().flexible(true).from_path(path).map_err(|e| format!("Couldn't read the CSV file: {e}"))?;
-            let header = reader.headers().map_err(|e| e.to_string())?.iter().map(|h| h.trim_start_matches('\u{feff}').to_string()).collect();
-            let rows = reader.records().filter_map(Result::ok).map(|r| r.iter().map(str::to_string).collect()).collect();
+            let mut reader = csv::ReaderBuilder::new()
+                .flexible(true)
+                .from_path(path)
+                .map_err(|e| format!("Couldn't read the CSV file: {e}"))?;
+            let header = reader
+                .headers()
+                .map_err(|e| e.to_string())?
+                .iter()
+                .map(|h| h.trim_start_matches('\u{feff}').to_string())
+                .collect();
+            let rows = reader
+                .records()
+                .filter_map(Result::ok)
+                .map(|r| r.iter().map(str::to_string).collect())
+                .collect();
             Ok((header, rows))
         }
-        other => Err(format!("RetroDrive can import .xlsx or .csv catalogs, not .{other} files.")),
+        other => Err(format!(
+            "RetroDrive can import .xlsx or .csv catalogs, not .{other} files."
+        )),
     }
 }
 
@@ -245,7 +289,11 @@ fn cell_to_string(cell: &Data) -> String {
 pub fn import(connection: &Connection, path: &Path) -> Result<ImportSummary, String> {
     let (header, rows) = read_table(path)?;
     let columns = map_columns(&header);
-    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("catalog").to_string();
+    let file_name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("catalog")
+        .to_string();
 
     // A genre supplement: Game ID + Genre, no titles.
     if columns.title.is_none() {
@@ -253,25 +301,40 @@ pub fn import(connection: &Connection, path: &Path) -> Result<ImportSummary, Str
             return Err("This file needs Title and Platform columns (a catalog), or Game ID and Genre columns (a genre supplement).".into());
         };
         let catalog: Option<String> = connection
-            .query_row("SELECT id FROM reference_catalogs ORDER BY imported_at DESC LIMIT 1", [], |r| r.get(0))
+            .query_row(
+                "SELECT id FROM reference_catalogs ORDER BY imported_at DESC LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
             .optional()
             .map_err(|e| e.to_string())?;
         let Some(catalog) = catalog else {
             return Err("Import the main catalog first; this file only adds genres to it.".into());
         };
-        let tx = connection.unchecked_transaction().map_err(|e| e.to_string())?;
+        let tx = connection
+            .unchecked_transaction()
+            .map_err(|e| e.to_string())?;
         let mut added = 0i64;
         {
             let mut update = tx
                 .prepare("UPDATE reference_entries SET genre = ?3 WHERE catalog_id = ?1 AND entry_key = ?2 AND (genre IS NULL OR genre = '')")
                 .map_err(|e| e.to_string())?;
             for row in &rows {
-                if let (Some(key), Some(genre)) = (cell_text(row, Some(key_col)), cell_text(row, Some(genre_col))) {
-                    added += update.execute(params![catalog, key, genre]).map_err(|e| e.to_string())? as i64;
+                if let (Some(key), Some(genre)) = (
+                    cell_text(row, Some(key_col)),
+                    cell_text(row, Some(genre_col)),
+                ) {
+                    added += update
+                        .execute(params![catalog, key, genre])
+                        .map_err(|e| e.to_string())? as i64;
                 }
             }
         }
-        tx.execute("UPDATE reference_catalogs SET genres_added = genres_added + ?2 WHERE id = ?1", params![catalog, added]).map_err(|e| e.to_string())?;
+        tx.execute(
+            "UPDATE reference_catalogs SET genres_added = genres_added + ?2 WHERE id = ?1",
+            params![catalog, added],
+        )
+        .map_err(|e| e.to_string())?;
         tx.commit().map_err(|e| e.to_string())?;
         let status = status(connection)?;
         return Ok(ImportSummary {
@@ -281,18 +344,27 @@ pub fn import(connection: &Connection, path: &Path) -> Result<ImportSummary, Str
             genres_added: added,
             skipped_rows: 0,
             ignored_columns: columns.ignored,
-            matched: status.as_ref().map(|s| s.matched.clone()).unwrap_or_default(),
+            matched: status
+                .as_ref()
+                .map(|s| s.matched.clone())
+                .unwrap_or_default(),
             platforms: status.map(|s| s.platforms).unwrap_or_default(),
         });
     }
 
     if columns.platform.is_none() {
-        return Err("The catalog needs a Platform (or System) column so games can be matched per system.".into());
+        return Err(
+            "The catalog needs a Platform (or System) column so games can be matched per system."
+                .into(),
+        );
     }
     let mut entries = Vec::with_capacity(rows.len());
     let mut skipped = 0i64;
     for row in &rows {
-        let (Some(title), Some(platform_label)) = (cell_text(row, columns.title), cell_text(row, columns.platform)) else {
+        let (Some(title), Some(platform_label)) = (
+            cell_text(row, columns.title),
+            cell_text(row, columns.platform),
+        ) else {
             skipped += 1;
             continue;
         };
@@ -300,7 +372,9 @@ pub fn import(connection: &Connection, path: &Path) -> Result<ImportSummary, Str
             entry_key: cell_text(row, columns.entry_key),
             title,
             platform_label,
-            year: cell_text(row, columns.year).and_then(|y| y.parse::<i64>().ok()).filter(|y| (1950..=2100).contains(y)),
+            year: cell_text(row, columns.year)
+                .and_then(|y| y.parse::<i64>().ok())
+                .filter(|y| (1950..=2100).contains(y)),
             genre: cell_text(row, columns.genre),
             publisher: cell_text(row, columns.publisher),
             developer: cell_text(row, columns.developer),
@@ -315,10 +389,17 @@ pub fn import(connection: &Connection, path: &Path) -> Result<ImportSummary, Str
     }
 
     // One catalog at a time: a new import replaces the previous one (links included).
-    let tx = connection.unchecked_transaction().map_err(|e| e.to_string())?;
-    tx.execute("DELETE FROM reference_catalogs", []).map_err(|e| e.to_string())?;
+    let tx = connection
+        .unchecked_transaction()
+        .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM reference_catalogs", [])
+        .map_err(|e| e.to_string())?;
     let catalog = db::new_id();
-    let name = Path::new(&file_name).file_stem().and_then(|s| s.to_str()).unwrap_or(&file_name).replace('_', " ");
+    let name = Path::new(&file_name)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(&file_name)
+        .replace('_', " ");
     tx.execute(
         "INSERT INTO reference_catalogs (id, name, file_name, entries) VALUES (?1, ?2, ?3, ?4)",
         params![catalog, name, file_name, entries.len() as i64],
@@ -369,7 +450,11 @@ pub fn import(connection: &Connection, path: &Path) -> Result<ImportSummary, Str
 /// Link library games to catalog entries. `all` rematches everything; otherwise
 /// only games without a link (e.g. after a scan). Returns how many links were added.
 pub fn match_games(connection: &Connection, all: bool) -> Result<i64, String> {
-    let has_catalog: bool = connection.query_row("SELECT EXISTS (SELECT 1 FROM reference_entries)", [], |r| r.get(0)).map_err(|e| e.to_string())?;
+    let has_catalog: bool = connection
+        .query_row("SELECT EXISTS (SELECT 1 FROM reference_entries)", [], |r| {
+            r.get(0)
+        })
+        .map_err(|e| e.to_string())?;
     if !has_catalog {
         return Ok(0);
     }
@@ -382,10 +467,20 @@ pub fn match_games(connection: &Connection, all: bool) -> Result<i64, String> {
             .prepare("SELECT id, platform, title, source_id, source_name, variants FROM reference_entries")
             .map_err(|e| e.to_string())?;
         let rows = statement
-            .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, Option<String>>(3)?, r.get::<_, Option<String>>(4)?, r.get::<_, Option<String>>(5)?)))
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, Option<String>>(3)?,
+                    r.get::<_, Option<String>>(4)?,
+                    r.get::<_, Option<String>>(5)?,
+                ))
+            })
             .map_err(|e| e.to_string())?;
         for row in rows {
-            let (id, platform, title, source_id, source_name, variants) = row.map_err(|e| e.to_string())?;
+            let (id, platform, title, source_id, source_name, variants) =
+                row.map_err(|e| e.to_string())?;
             for name in [source_id, source_name].into_iter().flatten() {
                 let list = by_name.entry(name_key(&name)).or_default();
                 if !list.iter().any(|(e, _)| *e == id) {
@@ -394,23 +489,40 @@ pub fn match_games(connection: &Connection, all: bool) -> Result<i64, String> {
             }
             // Clone / regional set names are only meaningful for arcade sets.
             if platform == "Arcade" {
-                for variant in variants.iter().flat_map(|v| v.split(',')).map(str::trim).filter(|v| !v.is_empty() && !v.starts_with('(')) {
-                    by_variant.entry(name_key(variant)).or_default().push((id, platform.clone()));
+                for variant in variants
+                    .iter()
+                    .flat_map(|v| v.split(','))
+                    .map(str::trim)
+                    .filter(|v| !v.is_empty() && !v.starts_with('('))
+                {
+                    by_variant
+                        .entry(name_key(variant))
+                        .or_default()
+                        .push((id, platform.clone()));
                 }
             }
-            by_title.entry((platform, title_key(&title))).or_default().push(id);
+            by_title
+                .entry((platform, title_key(&title)))
+                .or_default()
+                .push(id);
         }
     }
 
     let games: Vec<(String, String, String)> = {
-        let filter = if all { "" } else { " AND NOT EXISTS (SELECT 1 FROM game_reference gr WHERE gr.game_id = g.id)" };
+        let filter = if all {
+            ""
+        } else {
+            " AND NOT EXISTS (SELECT 1 FROM game_reference gr WHERE gr.game_id = g.id)"
+        };
         let mut statement = connection
             .prepare(&format!(
                 "SELECT g.id, g.platform, gf.filename FROM games g JOIN game_releases r ON r.game_id = g.id
                  JOIN game_files gf ON gf.release_id = r.id AND gf.file_role = 'primary' WHERE 1 = 1{filter}"
             ))
             .map_err(|e| e.to_string())?;
-        let rows = statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).map_err(|e| e.to_string())?;
+        let rows = statement
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .map_err(|e| e.to_string())?;
         rows.collect::<Result<_, _>>().map_err(|e| e.to_string())?
     };
 
@@ -418,7 +530,11 @@ pub fn match_games(connection: &Connection, all: bool) -> Result<i64, String> {
     // unique match on any system.
     let pick = |candidates: Option<&Vec<(i64, String)>>, platform: &str| -> Option<i64> {
         let list = candidates?;
-        let same: Vec<i64> = list.iter().filter(|(_, p)| p == platform).map(|(id, _)| *id).collect();
+        let same: Vec<i64> = list
+            .iter()
+            .filter(|(_, p)| p == platform)
+            .map(|(id, _)| *id)
+            .collect();
         match (same.len(), platform == "Unclassified", list.len()) {
             (1, _, _) => Some(same[0]),
             (0, true, 1) => Some(list[0].0),
@@ -426,9 +542,12 @@ pub fn match_games(connection: &Connection, all: bool) -> Result<i64, String> {
         }
     };
 
-    let tx = connection.unchecked_transaction().map_err(|e| e.to_string())?;
+    let tx = connection
+        .unchecked_transaction()
+        .map_err(|e| e.to_string())?;
     if all {
-        tx.execute("DELETE FROM game_reference", []).map_err(|e| e.to_string())?;
+        tx.execute("DELETE FROM game_reference", [])
+            .map_err(|e| e.to_string())?;
     }
     let mut added = 0i64;
     {
@@ -440,17 +559,24 @@ pub fn match_games(connection: &Connection, all: bool) -> Result<i64, String> {
             if !seen.insert(game.clone()) {
                 continue; // several primary files of one game: the first decides
             }
-            let stem = filename.rsplit_once('.').map(|(s, _)| s).unwrap_or(filename);
+            let stem = filename
+                .rsplit_once('.')
+                .map(|(s, _)| s)
+                .unwrap_or(filename);
             let key = name_key(stem);
             let found = pick(by_name.get(&key), platform)
                 .map(|id| (id, "name"))
                 .or_else(|| pick(by_variant.get(&key), platform).map(|id| (id, "variant")))
-                .or_else(|| match by_title.get(&(platform.clone(), title_key(stem))) {
-                    Some(ids) if ids.len() == 1 => Some((ids[0], "title")),
-                    _ => None,
-                });
+                .or_else(
+                    || match by_title.get(&(platform.clone(), title_key(stem))) {
+                        Some(ids) if ids.len() == 1 => Some((ids[0], "title")),
+                        _ => None,
+                    },
+                );
             if let Some((entry, method)) = found {
-                insert.execute(params![game, entry, method]).map_err(|e| e.to_string())?;
+                insert
+                    .execute(params![game, entry, method])
+                    .map_err(|e| e.to_string())?;
                 added += 1;
             }
         }
@@ -467,11 +593,17 @@ pub fn status(connection: &Connection) -> Result<Option<CatalogStatus>, String> 
         })
         .optional()
         .map_err(|e| e.to_string())?;
-    let Some((name, file_name, imported_at, entries, genres_added)) = row else { return Ok(None) };
+    let Some((name, file_name, imported_at, entries, genres_added)) = row else {
+        return Ok(None);
+    };
     let mut matched = MatchCounts::default();
     {
-        let mut statement = connection.prepare("SELECT method, COUNT(*) FROM game_reference GROUP BY method").map_err(|e| e.to_string())?;
-        let rows = statement.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))).map_err(|e| e.to_string())?;
+        let mut statement = connection
+            .prepare("SELECT method, COUNT(*) FROM game_reference GROUP BY method")
+            .map_err(|e| e.to_string())?;
+        let rows = statement
+            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))
+            .map_err(|e| e.to_string())?;
         for row in rows {
             let (method, n) = row.map_err(|e| e.to_string())?;
             match method.as_str() {
@@ -486,20 +618,46 @@ pub fn status(connection: &Connection) -> Result<Option<CatalogStatus>, String> 
         let mut statement = connection
             .prepare("SELECT g.platform, COUNT(*), COUNT(gr.game_id) FROM games g LEFT JOIN game_reference gr ON gr.game_id = g.id GROUP BY g.platform")
             .map_err(|e| e.to_string())?;
-        let rows = statement.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?))).map_err(|e| e.to_string())?;
+        let rows = statement
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, i64>(2)?,
+                ))
+            })
+            .map_err(|e| e.to_string())?;
         for row in rows {
             let (platform, games, linked) = row.map_err(|e| e.to_string())?;
             per.insert(platform, (games, linked));
         }
     }
-    let mut platforms: Vec<PlatformMatch> = per.into_iter().map(|(platform, (games, matched))| PlatformMatch { platform, games, matched }).collect();
+    let mut platforms: Vec<PlatformMatch> = per
+        .into_iter()
+        .map(|(platform, (games, matched))| PlatformMatch {
+            platform,
+            games,
+            matched,
+        })
+        .collect();
     platforms.sort_by_key(|p| std::cmp::Reverse(p.games));
-    Ok(Some(CatalogStatus { name, file_name, imported_at, entries, genres_added, matched, platforms }))
+    Ok(Some(CatalogStatus {
+        name,
+        file_name,
+        imported_at,
+        entries,
+        genres_added,
+        matched,
+        platforms,
+    }))
 }
 
 /// Remove the reference catalog and all links. The library itself is unchanged.
 pub fn remove(connection: &Connection) -> Result<bool, String> {
-    connection.execute("DELETE FROM reference_catalogs", []).map(|n| n > 0).map_err(|e| e.to_string())
+    connection
+        .execute("DELETE FROM reference_catalogs", [])
+        .map(|n| n > 0)
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -563,43 +721,115 @@ GBA-x,Golden Sun,Game Boy Advance,2001,RPG,Nintendo,Camelot,\"Golden Sun (USA, E
             "gba/Golden Sun (USA, Europe).gba",
             "gba/Unknown Homebrew.gba",
         ]);
-        let before: Vec<String> = c.prepare("SELECT canonical_title FROM games ORDER BY 1").unwrap().query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect();
-        let summary = import(&c, &write_csv(dir.path(), "uncorked_games_catalog.csv", CSV)).unwrap();
+        let before: Vec<String> = c
+            .prepare("SELECT canonical_title FROM games ORDER BY 1")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+        let summary = import(
+            &c,
+            &write_csv(dir.path(), "uncorked_games_catalog.csv", CSV),
+        )
+        .unwrap();
         assert_eq!(summary.kind, "catalog");
         assert_eq!(summary.entries, 6);
         assert_eq!(summary.skipped_rows, 1, "a row without title or system");
-        assert_eq!(summary.ignored_columns, ["Art file", "Art source"], "art columns are never imported");
+        assert_eq!(
+            summary.ignored_columns,
+            ["Art file", "Art source"],
+            "art columns are never imported"
+        );
 
-        assert_eq!(link(&c, "88games.zip").map(|l| (l.0, l.1)), Some(("'88 Games".into(), "name".into())));
-        assert_eq!(link(&c, "konami88.zip").map(|l| l.1), Some("variant".into()), "a MAME clone set");
-        assert_eq!(link(&c, "Kid Icarus (USA).zip").map(|l| l.1), Some("name".into()));
-        assert_eq!(link(&c, "Super Metroid (Japan, USA) (En).sfc").map(|l| l.1), Some("title".into()), "same title on the same system");
-        assert_eq!(link(&c, "Golden Sun (USA, Europe).gba").map(|l| (l.1, l.2)), Some(("name".into(), Some("RPG".into()))), "system names are mapped (Game Boy Advance = GBA)");
-        assert_eq!(link(&c, "Monopoly (USA).md"), None, "two Monopoly entries on Genesis: ambiguous, so not guessed");
+        assert_eq!(
+            link(&c, "88games.zip").map(|l| (l.0, l.1)),
+            Some(("'88 Games".into(), "name".into()))
+        );
+        assert_eq!(
+            link(&c, "konami88.zip").map(|l| l.1),
+            Some("variant".into()),
+            "a MAME clone set"
+        );
+        assert_eq!(
+            link(&c, "Kid Icarus (USA).zip").map(|l| l.1),
+            Some("name".into())
+        );
+        assert_eq!(
+            link(&c, "Super Metroid (Japan, USA) (En).sfc").map(|l| l.1),
+            Some("title".into()),
+            "same title on the same system"
+        );
+        assert_eq!(
+            link(&c, "Golden Sun (USA, Europe).gba").map(|l| (l.1, l.2)),
+            Some(("name".into(), Some("RPG".into()))),
+            "system names are mapped (Game Boy Advance = GBA)"
+        );
+        assert_eq!(
+            link(&c, "Monopoly (USA).md"),
+            None,
+            "two Monopoly entries on Genesis: ambiguous, so not guessed"
+        );
         assert_eq!(link(&c, "Unknown Homebrew.gba"), None);
-        assert_eq!(summary.matched, MatchCounts { by_name: 3, by_variant: 1, by_title: 1 });
+        assert_eq!(
+            summary.matched,
+            MatchCounts {
+                by_name: 3,
+                by_variant: 1,
+                by_title: 1
+            }
+        );
 
         let art: i64 = c.query_row("SELECT COUNT(*) FROM pragma_table_info('reference_entries') WHERE name LIKE '%art%'", [], |r| r.get(0)).unwrap();
         assert_eq!(art, 0, "the schema has nowhere to store art");
-        let after: Vec<String> = c.prepare("SELECT canonical_title FROM games ORDER BY 1").unwrap().query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect();
+        let after: Vec<String> = c
+            .prepare("SELECT canonical_title FROM games ORDER BY 1")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
         assert_eq!(before, after, "the library's own titles are never changed");
 
         // Genre supplement fills empty genres only.
         let genres = write_csv(dir.path(), "game_genres_supplement.csv", "\u{feff}Game ID,Genre,Source\nSNES-sm,Action-adventure,x\nNES-kid,Overwrite attempt,x\n");
         let g = import(&c, &genres).unwrap();
         assert_eq!((g.kind, g.genres_added), ("genres", 1));
-        assert_eq!(link(&c, "Super Metroid (Japan, USA) (En).sfc").unwrap().2.as_deref(), Some("Action-adventure"));
-        assert_eq!(link(&c, "Kid Icarus (USA).zip").unwrap().2.as_deref(), Some("Platform"), "existing genres are kept");
+        assert_eq!(
+            link(&c, "Super Metroid (Japan, USA) (En).sfc")
+                .unwrap()
+                .2
+                .as_deref(),
+            Some("Action-adventure")
+        );
+        assert_eq!(
+            link(&c, "Kid Icarus (USA).zip").unwrap().2.as_deref(),
+            Some("Platform"),
+            "existing genres are kept"
+        );
 
         // New games are matched after a scan; removing the catalog removes only links.
-        fs::write(dir.path().join("library/nes/Kid Icarus (USA) (Rev 1).zip"), b"rev").unwrap();
+        fs::write(
+            dir.path().join("library/nes/Kid Icarus (USA) (Rev 1).zip"),
+            b"rev",
+        )
+        .unwrap();
         let mut c = c;
         scanner::scan(&mut c, &dir.path().join("library"), &unknown).unwrap();
-        assert_eq!(match_games(&c, false).unwrap(), 1, "only the new game is matched");
-        assert_eq!(link(&c, "Kid Icarus (USA) (Rev 1).zip").map(|l| l.1), Some("title".into()));
+        assert_eq!(
+            match_games(&c, false).unwrap(),
+            1,
+            "only the new game is matched"
+        );
+        assert_eq!(
+            link(&c, "Kid Icarus (USA) (Rev 1).zip").map(|l| l.1),
+            Some("title".into())
+        );
         assert!(remove(&c).unwrap());
         assert_eq!(status(&c).unwrap().map(|s| s.entries), None);
-        let links: i64 = c.query_row("SELECT COUNT(*) FROM game_reference", [], |r| r.get(0)).unwrap();
+        let links: i64 = c
+            .query_row("SELECT COUNT(*) FROM game_reference", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(links, 0);
     }
 
@@ -608,31 +838,103 @@ GBA-x,Golden Sun,Game Boy Advance,2001,RPG,Nintendo,Camelot,\"Golden Sun (USA, E
         use crate::catalog::{query_games, GameQuery};
         use crate::volumes::Presence;
         let connected = |_: &str, _: Option<&str>| Presence::Connected;
-        let (dir, c) = library(&["arcade/konami88.zip", "nes/Kid Icarus (USA).zip", "snes/Super Metroid (Japan, USA) (En).sfc"]);
+        let (dir, c) = library(&[
+            "arcade/konami88.zip",
+            "nes/Kid Icarus (USA).zip",
+            "snes/Super Metroid (Japan, USA) (En).sfc",
+        ]);
         let shown = |q: GameQuery| -> Vec<String> {
-            query_games(&c, &GameQuery { sort: Some("title".into()), ..q }, &connected).unwrap().rows.into_iter().map(|r| r.title).collect()
+            query_games(
+                &c,
+                &GameQuery {
+                    sort: Some("title".into()),
+                    ..q
+                },
+                &connected,
+            )
+            .unwrap()
+            .rows
+            .into_iter()
+            .map(|r| r.title)
+            .collect()
         };
-        let search = |text: &str| shown(GameQuery { text: Some(text.into()), ..GameQuery::default() });
-        let letter = |l: &str| shown(GameQuery { letter: Some(l.into()), ..GameQuery::default() });
-        assert_eq!(shown(GameQuery::default()), ["Kid Icarus (USA)", "konami88", "Super Metroid (Japan, USA) (En)"], "file titles before a catalog");
+        let search = |text: &str| {
+            shown(GameQuery {
+                text: Some(text.into()),
+                ..GameQuery::default()
+            })
+        };
+        let letter = |l: &str| {
+            shown(GameQuery {
+                letter: Some(l.into()),
+                ..GameQuery::default()
+            })
+        };
+        assert_eq!(
+            shown(GameQuery::default()),
+            [
+                "Kid Icarus (USA)",
+                "konami88",
+                "Super Metroid (Japan, USA) (En)"
+            ],
+            "file titles before a catalog"
+        );
         assert!(search("88 gam").is_empty());
 
         import(&c, &write_csv(dir.path(), "catalog.csv", CSV)).unwrap();
-        let display: String = c.query_row("SELECT display_title FROM games WHERE canonical_title = 'konami88'", [], |r| r.get(0)).unwrap();
+        let display: String = c
+            .query_row(
+                "SELECT display_title FROM games WHERE canonical_title = 'konami88'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(display, "'88 Games", "a MAME clone shows its catalog title");
-        assert_eq!(shown(GameQuery::default()), ["konami88", "Kid Icarus (USA)", "Super Metroid (Japan, USA) (En)"], "sorted by '88 Games, Kid Icarus, Super Metroid");
-        assert_eq!(search("88 gam"), ["konami88"], "catalog titles are searchable");
-        assert_eq!(search("88"), ["konami88"], "short searches look at catalog titles too");
+        assert_eq!(
+            shown(GameQuery::default()),
+            [
+                "konami88",
+                "Kid Icarus (USA)",
+                "Super Metroid (Japan, USA) (En)"
+            ],
+            "sorted by '88 Games, Kid Icarus, Super Metroid"
+        );
+        assert_eq!(
+            search("88 gam"),
+            ["konami88"],
+            "catalog titles are searchable"
+        );
+        assert_eq!(
+            search("88"),
+            ["konami88"],
+            "short searches look at catalog titles too"
+        );
         assert_eq!(letter("#"), ["konami88"]);
-        assert!(letter("K").iter().all(|t| t != "konami88"), "the A-Z bar follows the shown title");
+        assert!(
+            letter("K").iter().all(|t| t != "konami88"),
+            "the A-Z bar follows the shown title"
+        );
 
         // Renaming the file title keeps the catalog title; removing the catalog brings file titles back.
-        c.execute("UPDATE games SET canonical_title = 'K88' WHERE canonical_title = 'konami88'", []).unwrap();
+        c.execute(
+            "UPDATE games SET canonical_title = 'K88' WHERE canonical_title = 'konami88'",
+            [],
+        )
+        .unwrap();
         assert_eq!(search("88 gam"), ["K88"]);
         assert!(remove(&c).unwrap());
         assert!(search("88 gam").is_empty());
-        assert_eq!(shown(GameQuery::default()), ["K88", "Kid Icarus (USA)", "Super Metroid (Japan, USA) (En)"]);
-        let stale: i64 = c.query_row("SELECT COUNT(*) FROM games WHERE display_title IS NOT canonical_title", [], |r| r.get(0)).unwrap();
+        assert_eq!(
+            shown(GameQuery::default()),
+            ["K88", "Kid Icarus (USA)", "Super Metroid (Japan, USA) (En)"]
+        );
+        let stale: i64 = c
+            .query_row(
+                "SELECT COUNT(*) FROM games WHERE display_title IS NOT canonical_title",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(stale, 0);
     }
 
@@ -640,11 +942,15 @@ GBA-x,Golden Sun,Game Boy Advance,2001,RPG,Nintendo,Camelot,\"Golden Sun (USA, E
     fn unhelpful_files_get_clear_errors() {
         let (dir, c) = library(&["nes/Kid.nes"]);
         let genres_first = write_csv(dir.path(), "g.csv", "Game ID,Genre\nX,Y\n");
-        assert!(import(&c, &genres_first).unwrap_err().contains("main catalog first"));
+        assert!(import(&c, &genres_first)
+            .unwrap_err()
+            .contains("main catalog first"));
         let no_platform = write_csv(dir.path(), "p.csv", "Title,Year\nKid,1986\n");
         assert!(import(&c, &no_platform).unwrap_err().contains("Platform"));
         let nothing = write_csv(dir.path(), "n.csv", "Foo,Bar\n1,2\n");
-        assert!(import(&c, &nothing).unwrap_err().contains("Title and Platform"));
+        assert!(import(&c, &nothing)
+            .unwrap_err()
+            .contains("Title and Platform"));
         let txt = write_csv(dir.path(), "x.txt", "hi");
         assert!(import(&c, &txt).unwrap_err().contains(".xlsx or .csv"));
     }
@@ -657,15 +963,31 @@ GBA-x,Golden Sun,Game Boy Advance,2001,RPG,Nintendo,Camelot,\"Golden Sun (USA, E
         assert_eq!(summary.entries, 2);
         assert_eq!(summary.matched.by_name, 2);
         assert!(summary.ignored_columns.iter().any(|c| c == "Art file"));
-        let year: Option<i64> = c.query_row("SELECT year FROM reference_entries WHERE title = '''88 Games'", [], |r| r.get(0)).unwrap();
-        assert_eq!(year, Some(1988), "numeric cells come through as whole numbers");
+        let year: Option<i64> = c
+            .query_row(
+                "SELECT year FROM reference_entries WHERE title = '''88 Games'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            year,
+            Some(1988),
+            "numeric cells come through as whole numbers"
+        );
     }
 
     #[test]
     fn title_keys_ignore_tags_articles_and_punctuation() {
         assert_eq!(title_key("Pyramid, The (USA) [!]"), "the pyramid");
-        assert_eq!(title_key("Jeopardy! 25th Anniversary Edition (USA)"), "jeopardy 25th anniversary edition");
-        assert_eq!(title_key("Super Metroid"), title_key("Super Metroid (Japan, USA) (En)"));
+        assert_eq!(
+            title_key("Jeopardy! 25th Anniversary Edition (USA)"),
+            "jeopardy 25th anniversary edition"
+        );
+        assert_eq!(
+            title_key("Super Metroid"),
+            title_key("Super Metroid (Japan, USA) (En)")
+        );
         assert_eq!(name_key("  Kid  Icarus (USA) "), "kid icarus (usa)");
     }
 }

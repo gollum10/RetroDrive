@@ -151,8 +151,13 @@ pub struct PlacementRequest {
 pub enum Placement {
     /// Destination paths relative to the installation root, `/`-separated, in
     /// the same order as `PlacementRequest::files`.
-    Planned { system_folder: String, destinations: Vec<String> },
-    Unsupported { reason: String },
+    Planned {
+        system_folder: String,
+        destinations: Vec<String>,
+    },
+    Unsupported {
+        reason: String,
+    },
 }
 
 pub trait PlatformAdapter: Send + Sync {
@@ -181,13 +186,26 @@ pub struct AdapterInfo {
 pub fn catalog() -> Vec<AdapterInfo> {
     registry()
         .iter()
-        .map(|a| AdapterInfo { id: a.id(), display_name: a.display_name(), kind: a.kind(), capabilities: a.capabilities(), contract_version: CONTRACT_VERSION })
+        .map(|a| AdapterInfo {
+            id: a.id(),
+            display_name: a.display_name(),
+            kind: a.kind(),
+            capabilities: a.capabilities(),
+            contract_version: CONTRACT_VERSION,
+        })
         .collect()
 }
 
 /// Every adapter this build ships.
 pub fn registry() -> Vec<Box<dyn PlatformAdapter>> {
-    vec![Box::new(retrobat::RetroBat), Box::new(batocera::Batocera), Box::new(retropie::RetroPie), Box::new(esde::EsDe), Box::new(recalbox::Recalbox), Box::new(rocknix::Rocknix)]
+    vec![
+        Box::new(retrobat::RetroBat),
+        Box::new(batocera::Batocera),
+        Box::new(retropie::RetroPie),
+        Box::new(esde::EsDe),
+        Box::new(recalbox::Recalbox),
+        Box::new(rocknix::Rocknix),
+    ]
 }
 
 pub fn find(id: &str) -> Option<Box<dyn PlatformAdapter>> {
@@ -205,13 +223,27 @@ pub fn detect_all(root: &Path) -> Vec<Detection> {
 /// The RetroBat/Batocera system folder for a catalog platform (arcade as MAME), or
 /// `None` when it has none. Used to match light gun games (ADR-066).
 pub(crate) fn batocera_folder(platform: &str, extension: &str) -> Option<&'static str> {
-    retrobat::system_folder(platform, extension, PlacementOptions { arcade: Some(ArcadeSystem::Mame), has_roms_folder: true }, "RetroBat").ok()
+    retrobat::system_folder(
+        platform,
+        extension,
+        PlacementOptions {
+            arcade: Some(ArcadeSystem::Mame),
+            has_roms_folder: true,
+        },
+        "RetroBat",
+    )
+    .ok()
 }
 
 pub(crate) fn has_entry(root: &Path, name: &str, want_dir: bool) -> bool {
-    let Ok(entries) = std::fs::read_dir(root) else { return false };
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return false;
+    };
     entries.filter_map(Result::ok).any(|e| {
-        e.file_name().to_string_lossy().eq_ignore_ascii_case(name) && e.file_type().map(|t| t.is_dir() == want_dir).unwrap_or(false)
+        e.file_name().to_string_lossy().eq_ignore_ascii_case(name)
+            && e.file_type()
+                .map(|t| t.is_dir() == want_dir)
+                .unwrap_or(false)
     })
 }
 
@@ -225,17 +257,36 @@ pub(crate) fn plan_in_roms(system: &str, request: &PlacementRequest) -> Placemen
 /// Like `plan_in_roms`, with the folder that holds the system folders (`""` when the
 /// installation folder is the roms folder itself).
 pub(crate) fn plan_in(prefix: &str, system: &str, request: &PlacementRequest) -> Placement {
-    if request.files.iter().any(|f| f.relative_to_primary.split('/').any(|part| part == ".." || part.is_empty())) {
-        return Placement::Unsupported { reason: "Its files are spread across folders, so the set can't be copied as one unit.".into() };
+    if request.files.iter().any(|f| {
+        f.relative_to_primary
+            .split('/')
+            .any(|part| part == ".." || part.is_empty())
+    }) {
+        return Placement::Unsupported {
+            reason: "Its files are spread across folders, so the set can't be copied as one unit."
+                .into(),
+        };
     }
-    let base = if request.files.len() > 1 { format!("{prefix}{system}/{}", folder_name(&request.title)) } else { format!("{prefix}{system}") };
-    Placement::Planned { system_folder: system.to_string(), destinations: request.files.iter().map(|f| format!("{base}/{}", f.relative_to_primary)).collect() }
+    let base = if request.files.len() > 1 {
+        format!("{prefix}{system}/{}", folder_name(&request.title))
+    } else {
+        format!("{prefix}{system}")
+    };
+    Placement::Planned {
+        system_folder: system.to_string(),
+        destinations: request
+            .files
+            .iter()
+            .map(|f| format!("{base}/{}", f.relative_to_primary))
+            .collect(),
+    }
 }
 
 /// Housekeeping files found in BIOS folders that aren't copied (`.gitkeep`, `.DS_Store`, …).
 pub(crate) fn is_housekeeping(path: &str) -> bool {
     let name = path.rsplit('/').next().unwrap_or(path).to_lowercase();
-    name.starts_with('.') || ["_ds_store", "thumbs.db", "desktop.ini", "_info.txt"].contains(&name.as_str())
+    name.starts_with('.')
+        || ["_ds_store", "thumbs.db", "desktop.ini", "_info.txt"].contains(&name.as_str())
 }
 
 /// BIOS files from a library `bios` folder go to the installation's BIOS folder
@@ -247,22 +298,42 @@ pub(crate) fn plan_bios(folder: &str, request: &PlacementRequest) -> Placement {
         };
     };
     if is_housekeeping(path) {
-        return Placement::Unsupported { reason: "Housekeeping files (like .gitkeep, .DS_Store or _info.txt) aren't copied.".into() };
+        return Placement::Unsupported {
+            reason: "Housekeeping files (like .gitkeep, .DS_Store or _info.txt) aren't copied."
+                .into(),
+        };
     }
-    if request.files.len() != 1 || path.split('/').any(|part| part.is_empty() || part == "." || part == "..") {
-        return Placement::Unsupported { reason: "This BIOS file's path can't be copied as it is.".into() };
+    if request.files.len() != 1
+        || path
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
+    {
+        return Placement::Unsupported {
+            reason: "This BIOS file's path can't be copied as it is.".into(),
+        };
     }
-    Placement::Planned { system_folder: "bios".into(), destinations: vec![format!("{folder}/{path}")] }
+    Placement::Planned {
+        system_folder: "bios".into(),
+        destinations: vec![format!("{folder}/{path}")],
+    }
 }
 
 /// Make a game title safe as a Windows folder name.
 pub fn folder_name(title: &str) -> String {
     let cleaned: String = title
         .chars()
-        .map(|c| if c.is_control() || r#"<>:"/\|?*"#.contains(c) { '_' } else { c })
+        .map(|c| {
+            if c.is_control() || r#"<>:"/\|?*"#.contains(c) {
+                '_'
+            } else {
+                c
+            }
+        })
         .collect();
     let trimmed = cleaned.trim().trim_end_matches(['.', ' ']).to_string();
-    let reserved = ["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "LPT1", "LPT2", "LPT3"];
+    let reserved = [
+        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "LPT1", "LPT2", "LPT3",
+    ];
     if trimmed.is_empty() || reserved.contains(&trimmed.to_uppercase().as_str()) {
         format!("_{trimmed}")
     } else {
@@ -287,7 +358,14 @@ mod tests {
             AdapterKind::Frontend
         }
         fn capabilities(&self) -> Capabilities {
-            Capabilities { detect: true, validate_layout: false, plan_placement: true, copy_games: false, install: false, write_files: false }
+            Capabilities {
+                detect: true,
+                validate_layout: false,
+                plan_placement: true,
+                copy_games: false,
+                install: false,
+                write_files: false,
+            }
         }
         fn detect(&self, root: &Path) -> Detection {
             let found = root.join("mock.marker").exists();
@@ -295,7 +373,11 @@ mod tests {
                 adapter_id: "mock",
                 display_name: "Mock",
                 kind: AdapterKind::Frontend,
-                confidence: if found { Confidence::Detected } else { Confidence::NotDetected },
+                confidence: if found {
+                    Confidence::Detected
+                } else {
+                    Confidence::NotDetected
+                },
                 evidence: vec![],
                 version: None,
                 hint: None,
@@ -307,7 +389,11 @@ mod tests {
         fn plan_placement(&self, request: &PlacementRequest) -> Placement {
             Placement::Planned {
                 system_folder: "all".into(),
-                destinations: request.files.iter().map(|f| format!("games/{}", f.relative_to_primary)).collect(),
+                destinations: request
+                    .files
+                    .iter()
+                    .map(|f| format!("games/{}", f.relative_to_primary))
+                    .collect(),
             }
         }
     }
@@ -316,18 +402,33 @@ mod tests {
     fn contract_works_through_trait_objects() {
         let dir = tempfile::tempdir().unwrap();
         let adapters: Vec<Box<dyn PlatformAdapter>> = vec![Box::new(MockAdapter)];
-        assert_eq!(adapters[0].detect(dir.path()).confidence, Confidence::NotDetected);
+        assert_eq!(
+            adapters[0].detect(dir.path()).confidence,
+            Confidence::NotDetected
+        );
         std::fs::write(dir.path().join("mock.marker"), b"").unwrap();
-        assert_eq!(adapters[0].detect(dir.path()).confidence, Confidence::Detected);
+        assert_eq!(
+            adapters[0].detect(dir.path()).confidence,
+            Confidence::Detected
+        );
         let plan = adapters[0].plan_placement(&PlacementRequest {
             title: "X".into(),
             platform: "NES".into(),
             extension: "nes".into(),
-            files: vec![PlacementFile { relative_to_primary: "X.nes".into(), size: 1 }],
+            files: vec![PlacementFile {
+                relative_to_primary: "X.nes".into(),
+                size: 1,
+            }],
             options: PlacementOptions::default(),
             bios_path: None,
         });
-        assert_eq!(plan, Placement::Planned { system_folder: "all".into(), destinations: vec!["games/X.nes".into()] });
+        assert_eq!(
+            plan,
+            Placement::Planned {
+                system_folder: "all".into(),
+                destinations: vec!["games/X.nes".into()]
+            }
+        );
     }
 
     #[test]
@@ -338,10 +439,17 @@ mod tests {
         assert_eq!(ids.len(), adapters.len());
         for adapter in &adapters {
             let caps = adapter.capabilities();
-            assert!(!caps.install && !caps.write_files, "{} must be read-only", adapter.id());
+            assert!(
+                !caps.install && !caps.write_files,
+                "{} must be read-only",
+                adapter.id()
+            );
         }
         assert!(find("retrobat").unwrap().capabilities().copy_games);
-        assert!(find("batocera").unwrap().capabilities().copy_games, "Batocera copies since its safety review (docs/18 §21)");
+        assert!(
+            find("batocera").unwrap().capabilities().copy_games,
+            "Batocera copies since its safety review (docs/18 §21)"
+        );
         let info = catalog();
         assert_eq!(info[0].kind, AdapterKind::PortableApp);
         assert_eq!(info[0].contract_version, CONTRACT_VERSION);
@@ -361,6 +469,8 @@ mod tests {
     fn detection_ranks_most_confident_first() {
         let dir = tempfile::tempdir().unwrap();
         let results = detect_all(dir.path());
-        assert!(results.windows(2).all(|w| w[0].confidence >= w[1].confidence));
+        assert!(results
+            .windows(2)
+            .all(|w| w[0].confidence >= w[1].confidence));
     }
 }
