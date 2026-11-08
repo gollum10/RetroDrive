@@ -226,3 +226,12 @@ button.small{padding:4px 10px;font-size:12.5px}
 .style-tile small{color:#b5c7dc}
 .notices{white-space:pre-wrap;font-size:11.5px;background:#0b1220;border:1px solid #24364c;border-radius:8px;padding:10px;max-height:260px;overflow:auto}
 .controller-head{flex-wrap:wrap}
+
+/* List view: cover thumbnails, star and marks (ADR-081). */
+.game-list .list-thumb{width:44px;padding-top:4px;padding-bottom:4px}
+.game-list .list-thumb img,.game-list .thumb-blank{width:36px;height:48px;border-radius:4px;object-fit:cover;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,hsl(var(--hue,210) 50% 30%),hsl(calc(var(--hue,210) + 50) 45% 14%));color:#e6eefb;font-size:11px;font-weight:700}
+.list-star{border:0;background:none;color:#7f93a8;cursor:pointer;padding:0 6px 0 0;vertical-align:middle}
+.list-star.on{color:#ffd27a}
+.list-mark{display:inline-flex;margin-left:6px;color:#ffd27a;vertical-align:middle}
+.list-detail{display:block;color:#9fb3c8;font-size:12px;margin-top:2px}
+.list-path{display:block}
