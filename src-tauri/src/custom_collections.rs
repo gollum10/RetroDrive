@@ -139,14 +139,26 @@ fn copied(connection: &Connection, place: &Place) -> Result<Vec<(String, String,
         .map_err(|e| e.to_string())?
         .collect::<Result<_, _>>()
         .map_err(|e| e.to_string())?;
-    let roms = format!("{}\\", gamelists::games_dir(&place.games_root).0.display().to_string().replace('/', "\\").trim_end_matches('\\'));
+    let roms_dir = gamelists::games_dir(&place.games_root).0;
+    let roms = format!("{}\\", roms_dir.display().to_string().replace('/', "\\").trim_end_matches('\\'));
+    // The same folder can be written two ways (e.g. a short 8.3 name such as RUNNER~1, or
+    // a different drive spelling), so fall back to the paths Windows resolves them to.
+    let canonical_roms = fs::canonicalize(&roms_dir).ok();
     let mut seen = BTreeMap::new();
     for (destination, game) in rows {
-        let d = destination.replace('/', "\\");
-        if d.len() <= roms.len() || !d[..roms.len()].eq_ignore_ascii_case(&roms) || !Path::new(&destination).is_file() {
+        if !Path::new(&destination).is_file() {
             continue;
         }
-        let inside = d[roms.len()..].replace('\\', "/");
+        let d = destination.replace('/', "\\");
+        let inside = if d.len() > roms.len() && d[..roms.len()].eq_ignore_ascii_case(&roms) {
+            d[roms.len()..].replace('\\', "/")
+        } else {
+            let resolved = canonical_roms.as_ref().and_then(|r| fs::canonicalize(&destination).ok()?.strip_prefix(r).ok().map(|p| p.to_string_lossy().replace('\\', "/")));
+            match resolved {
+                Some(inside) if !inside.is_empty() => inside,
+                _ => continue,
+            }
+        };
         if let Some((system, rel)) = inside.split_once('/') {
             seen.insert(inside.to_lowercase(), (game, system.to_string(), rel.to_string()));
         }
@@ -345,7 +357,8 @@ mod tests {
         c.execute("INSERT INTO deployments (id, installation_id, adapter_id, adapter_contract, destination_root, plan_fingerprint, status) VALUES ('d1', ?1, 'esde', 3, ?2, 'f', 'completed')", params![id, roms.display().to_string()]).unwrap();
         for (lib_name, system) in [("Duck Hunt (World).nes", "nes"), ("1941.zip", "fbneo"), ("Tetris (USA).nes", "nes")] {
             let file_id: String = c.query_row("SELECT id FROM game_files WHERE filename = ?1", [lib_name], |r| r.get(0)).unwrap();
-            let dest = roms.join(system).join(lib_name).display().to_string();
+            // One path spelled differently (as on CI, where the temp folder has a short 8.3 name).
+            let dest = if system == "nes" && lib_name.starts_with("Duck") { es.join("elsewhere").join("..").join("ROMs").join(system).join(lib_name) } else { roms.join(system).join(lib_name) }.display().to_string();
             c.execute("INSERT INTO deployment_items (deployment_id, game_index, game_title, game_file_id, source_path, destination_path, size_bytes, planned_action, state) VALUES ('d1', 0, 't', ?1, 's', ?2, 64, 'copy', 'verified')", params![file_id, dest]).unwrap();
         }
         let connected = |_: &str, _: Option<&str>| Presence::Connected;
