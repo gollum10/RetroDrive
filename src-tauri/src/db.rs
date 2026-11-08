@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 25;
+pub const SCHEMA_VERSION: i32 = 26;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -205,6 +205,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 25 {
         tx.execute_batch(SCHEMA_V25).map_err(|e| e.to_string())?;
+    }
+    if from_version < 26 {
+        tx.execute_batch(SCHEMA_V26).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -1021,6 +1024,12 @@ CREATE TABLE game_details (
     updated_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_game_details_players ON game_details(players_max);
+";
+
+/// v26 (ADR-080): the user's order of collections (`NULL` = after the ordered ones,
+/// by name; Favorites is always first).
+const SCHEMA_V26: &str = "
+ALTER TABLE collections ADD COLUMN position INTEGER;
 ";
 
 #[cfg(test)]

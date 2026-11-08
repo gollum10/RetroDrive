@@ -87,6 +87,7 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 | Hash-verified duplicates | 📋 | Needs background hashing; `sha256` / `crc32` columns are reserved. |
 | Collections | ✅ | Step 7. Your own named game lists: Collections tab, Add to collection on each game, Add all shown (current filters, up to 10,000), rename, remove, delete (asks twice). Lists only: games and files are never touched. |
 | Favorites | ✅ | Star (☆) any game to add it to **Favorites**, a built-in collection listed first; copy it with Plan like any collection. Your favorites also show as favorites on your systems: the **Game art and details** step (in Customize, or the tick box when copying) marks them in each system's game list, without changing a favorite you set or removed in the system's own menu. |
+| Collection order | ✅ | Move collections up and down (↑ ↓ on each card); Favorites always comes first, and Plan lists them in the same order. |
 | Smart collections | ✅ | Pick filters in the Game Library (platform, **genre**, **years**, light gun, vertical, search) and **Save as smart collection**: it fills itself from your library, now and as you add games, and works in Plan and Sync. |
 | Scan progress and cancellation | ✅ | RDS-002. Cancelling keeps files found so far and skips missing-file detection, so it can't mark files missing (QA-002). |
 | One scan at a time | ✅ | Starting a second scan is refused with a clear message. |

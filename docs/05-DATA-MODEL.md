@@ -103,6 +103,7 @@ Choices made while implementing (see ADR-010 and ADR-011 in docs/13):
 - **v23 (2026-11-07, light guns, ADR-066):** `gun_choices(usb_id TEXT PRIMARY KEY 'vid:pid' or 'manual', gun_id, decided_at)`: the light gun the user confirmed or chose. Light gun games aren't stored: they're worked out from the library and a bundled list, and cached in memory until the library changes.
 - **v24 (2026-11-07, Favorites and smart collections, ADR-073):** `collections.kind` (`list` default, `favorites` for the built-in row with id `favorites`, `smart`) and `collections.rule_json` (a smart collection's saved filter: the filter fields of the library query, no paging or sorting). Smart collections keep no rows in `collection_games`.
 - **v25 (2026-11-08, game details, ADR-079):** `game_details(game_file_id PK, description, players, players_max, rating 0–1, updated_at)`: read from the library's gamelist.xml files during a scan and refreshed by each scan of that folder.
+- **v26 (2026-11-08, collection order, ADR-080):** `collections.position` (NULL = after the ordered ones, by name; Favorites always first).
 - **Classification change (2026-11-07, ADR-056):** every file inside a folder named `bios` (at any depth) is classified `BIOS`, whatever its subfolder or extension, except `db`, `ini`, `lnk`, `url`. Before, the nearest system-named subfolder decided (so `bios\dc\dc_boot.bin` was skipped as a non-Dreamcast file) and only `.bin`/`.rom`/`.img` counted. Libraries need re-importing to pick up the newly recognized files.
 
 ## Implemented schema v16 (2026-11-06)

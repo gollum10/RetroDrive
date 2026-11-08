@@ -257,6 +257,12 @@ fn list_collections(catalog: State<'_, Catalog>) -> Result<Vec<collections::Coll
     collections::list(&db::open(&catalog.path()?)?, &volumes::presence)
 }
 
+/// Move a collection up or down in the user's order (ADR-080).
+#[tauri::command]
+fn move_collection(catalog: State<'_, Catalog>, id: String, up: bool) -> Result<(), String> {
+    collections::move_one(&db::open(&catalog.path()?)?, &id, up)
+}
+
 /// Star or unstar a game (Favorites, ADR-073).
 #[tauri::command]
 fn set_favorite(catalog: State<'_, Catalog>, file_id: String, favorite: bool) -> Result<(), String> {
@@ -1406,6 +1412,7 @@ pub fn run() {
             open_backup_folder,
             list_collections,
             set_favorite,
+            move_collection,
             create_smart_collection,
             library_genres,
             create_collection,
