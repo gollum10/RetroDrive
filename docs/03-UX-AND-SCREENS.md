@@ -77,6 +77,8 @@ Search by title and platform, filter by source, status, genre/favorites and dupl
 
 **Implemented 2026-11-07 (Favorites and smart collections, ADR-073; owner: "I love the idea of Favorites and Smart Collections"):** every game cover has a ☆ (shown on hover, always shown ★ when starred) that adds it to **Favorites**, a built-in collection listed first in the Collections tab (no Rename/Delete). The games view has **Genre** and **Years** filters (from the imported catalog) and, when filters are set, **Save as smart collection…** → name → *Save*: a ✨ collection that shows "fills itself: SNES · genre RPG · 1990–1999" and matches the library as it grows. Smart collections and Favorites can be picked in Plan like any collection.
 
+**Implemented 2026-11-07 (favorites on the systems, ADR-074; owner: "1. I love this idea"):** the **Game art and details** step (Customize, and the tick box when copying, now "…box art, logos, catalog details and ★ favorites…") also marks starred games as favorites in the system's game list; its preview table has a **★ Favorites** column and the result says "N favorite(s) marked".
+
 **Implemented 2026-11-07 (RetroPie and ES-DE collections, ADR-072; owner: "in RetroPie … I then have to select which games go in there … we should be able to add them from the library"):** the **Game groups** box also appears for ES-DE and for a RetroPie added by its network share. Each group shows how many matching games are on that system and in the library; ticking one → *Review* ("Light Gun Games: 0 → 1 games", "Collections shown: … → …", and a warning if the Pi's ROM folder is assumed) → *Save*. When groups are already on, *Add newly copied games* tops them up after later copies.
 
 ## Drives
