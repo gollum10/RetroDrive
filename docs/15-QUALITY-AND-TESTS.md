@@ -1,5 +1,7 @@
 # 15 | Quality Assurance, Threat Scenarios and Test Matrix
 
+**Resize checks:** test:theme-workspace covers inverse rotation math, negative-size prevention, unit conversion, opaque/source preservation, unchanged axes/no-ops, limits, nested/missing guards, undo/redo and actual SVG handle presence/disabled states. Contract checks, build and diff checks pass. Native pointer capture/cancellation/DPI/focus checks remain manual. Rust was not rerun for this frontend-only change.
+
 **Alignment checks:** test:theme-workspace covers all six actions, rotated corner bounds, mixed units, precision, untouched fields/scenes, nested/unknown guards, unrepresentable positions, no-ops, undo/redo and real control callback guards. Contract checks, production build and diff check pass. Native visual/focus checks remain manual; no Rust rerun for frontend-only changes.
 
 **Transform checks:** test:theme-workspace covers value limits/nonfinite rejection, default/no-op opacity, opaque-expression preservation, inspector callbacks/disabled guards, undo/redo and actual SVG rotation/opacity attributes. test:theme-contract, production build and diff checks pass. Native visual checks remain manual; Rust suite was not rerun for these frontend-only changes.
@@ -154,6 +156,52 @@ Run with `cd src-tauri && cargo test`.
 RDS-002 tests: progress reporting and final counts, batched commits giving the same catalog as a single pass, a failed batch leaving no open transaction, job lifecycle and failure recording, and recovery of interrupted jobs (`jobs::tests`). Manual crash test 2026-11-04: force-killed the app mid-scan; on relaunch the job and folder showed `interrupted` and no catalog rows were lost.
 
 Other regression tests: rescans don't create duplicates, rescanning a subfolder only affects that subfolder, manual titles survive a rescan, and stored paths never have the `\\?\` prefix.
+
+## Real hardware: read-only pass on the owner's RetroBat (2026-11-09)
+Owner authorization: "start the read-only pass on retrobat". Drive `G:\RetroBat` (RetroBat 8.3.1.1-stable-win64, 241 system folders, 56,345 files and folders). A temporary ignored test (not committed) used an in-memory catalog and called only read paths: every adapter's `detect`, RetroBat's `validate_layout`, `installations::add` (catalog only), `customizer::options`, `look_options`, `game_settings` for every system with games, `game_groups::state`, `controller_setup::for_installation`, a scan of the drive's own `roms` folder as a library, `deployment::plan_with` back onto the drive, and the art preview; plus `real_retrobat_files_parse_and_edit_cleanly` (edits in memory only). **Proof nothing was written:** a listing of every file and folder (path, size, last-write time) before and after compared equal (0 differences); RetroBat wasn't running.
+
+| Check | Result |
+|---|---|
+| Recognition | RetroBat detected (RetroBat.exe, emulationstation, retrobat.ini, roms); every other adapter (Batocera, RetroPie, ES-DE, Recalbox, ROCKNIX, Lakka) stepped aside |
+| Layout checks | All OK, version read from `system\version.info` |
+| Emulator settings | 244 systems (17 with games), 26 shader sets, 15 bezels, 25 ratios; snes offers 7 emulators; es_settings.cfg (57 entries) parsed and an in-memory edit left every other line byte for byte |
+| Look and behavior | 16 of 16 retrobat.ini options found (30 keys); 4 boot videos; 6 music tracks |
+| Settings for one game | Game lists for all 17 systems in 10–50 ms each (nes 4,885 games) |
+| Game groups | Light gun and vertical groups both on; 37 light gun games in the library after the scan |
+| Scan | 7,037 games (8,238 images, 63 skipped) in 8.2 s |
+| Plan back onto the drive | 7,035 games already in place, 0 files to copy, 2 unsupported (a "[BIOS]" zip, one unclassified file), in 0.19 s |
+
+**Found and fixed:** `roms\ps2` holds only an `images` folder, yet counted as a system with games, so it appeared in the RetroBat game picker with no games. `customizer::has_games` and `batocera_settings::systems` now use the same game listing as the game pickers (`game_names`: game lists, media folders and `_info.txt` aren't games); regression check in `options_come_from_the_install`.
+
+## Real hardware: read-only pass on the owner's ES-DE (2026-11-09)
+Owner authorization: "yes, do the read only pass on G: for ES-DE". Drive `G:\ES-DE` (portable ES-DE 3.5.0: `ES-DE.exe`, `ES-DE\` data, `ROMs\` with 1,576 Atari 2600 games copied by RetroDrive on 2026-11-07, `ROMs_ALL\`, empty `Emulators\`; 6,158 files and folders). Same method as the RetroBat pass: a temporary ignored test (not committed), in-memory catalog, read paths only: every adapter's `detect` on the program, ROMs, data and ROMs_ALL folders, ES-DE's `validate_layout`, `installations::add` (catalog only), `game_groups::state`, `custom_collections::state`, `controller_setup::for_installation`, `bios_step::preview`, a scan of `ROMs` as a library, `deployment::plan_with` back onto the drive, and the art preview with and without creating lists. **Proof nothing was written:** a listing of every file and folder (path, size, last-write time) before and after compared equal (0 differences); ES-DE wasn't running.
+
+| Check | Result |
+|---|---|
+| Recognition | `ROMs` Detected ("ROMs folder next to ES-DE.exe"); the program, data and ROMs_ALL folders each Possible with a hint naming `G:\ES-DE\ROMs` |
+| Layout checks | All OK (1 system folder, portable markers, copying, emulators) |
+| Data folder, RetroArch | `G:\ES-DE\ES-DE` found; no RetroArch in `Emulators`, so the BIOS step explains how to add it (expected) |
+| Game groups and custom collections | Read `settings\es_settings.xml`; both off; after the scan, 2 light gun games in the library |
+| Controllers | Nothing to add |
+| Scan | 1,576 games (3 skipped) in 0.64 s |
+| Plan back onto the drive | 1,576 games already in place, 0 files to copy, 0 unsupported, 0 file-type warnings, in 27 ms |
+| Art | Nothing to do (the library has no pictures for these games) |
+
+**Found and fixed:** ROCKNIX also offered itself ("Possible") for `ROMs_ALL`, whose empty folders include ROCKNIX's `sfc` and `tg16` names. ROCKNIX now steps aside when the folder has ES-DE's `systeminfo.txt` markers, as RetroPie already did; regression check in `a_rocknix_roms_folder_is_recognized_and_retropie_steps_aside`.
+
+## Real hardware: write-and-undo tests on the owner's RetroBat and ES-DE (2026-11-09)
+Owner authorization: "Go ahead with real write tests." Method: temporary ignored tests (not committed) calling the same backend functions as the app, on a scratch copy of the owner's catalog (the owner's own catalog untouched). RetroBat, ES-DE, RetroArch and RetroDrive weren't running. Before and after: a listing of every file and folder on `G:\RetroBat` and `G:\ES-DE`, and copies of both settings files.
+
+| Test | Result |
+|---|---|
+| RetroBat: NES aspect ratio 4/3 (system) and 16/9 for one NES game (`'89 Dennou Kyuusei Uranai (Japan).zip`) | Preview showed the 2 rows; apply took 0.6 s; es_settings.cfg gained exactly 2 lines (`nes.ratio`, `nes[&quot;…&quot;].ratio`), none removed, still well formed (59 entries); the game picker then showed the game's own setting |
+| RetroBat: undo | es_settings.cfg byte-identical to before, with its original timestamp (the backup is moved back); the changed file kept under `.retrodrive\backup\settings-undo-16` |
+| ES-DE: copy run, Atari 2600 only | Run only because the plan said nothing would be copied or replaced: 1,576 games already there, 0 files copied, 0 replaced, 0 conflicts; the only new file is RetroDrive's record in `ROMs\.retrodrive\deployments` |
+| ES-DE: light gun collection on | Before the copy record it was refused ("None of your light gun games are on this ES-DE yet"). After: `collections\custom-Light Gun Games.cfg` created with the 2 light gun games (`%ROMPATH%/atari2600/…`), and `CollectionSystemsCustom` set to `Light Gun Games` (1 line changed in es_settings.xml) |
+| ES-DE: undo (both changes) | es_settings.xml byte-identical to before; the created collection file moved to `ES-DE\.retrodrive\backup\settings-undo-17` (ES-DE no longer sees it) |
+| Leftovers (by design: RetroDrive never deletes) | `.retrodrive\backup` folders on both drives holding the changed versions (some now empty), and the ES-DE copy record. Nothing else changed |
+
+Also read (no writes): a plan from the owner's whole library onto RetroBat would copy 67,180 files (191 GB) for 145,342 selected games, 3 groups unsupported.
 
 ## Later raw disk operations (not in starter)
 - Protect Windows system/boot and source disks.
