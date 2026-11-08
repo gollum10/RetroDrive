@@ -7,6 +7,44 @@ use rusqlite::Connection;
 use tauri::State;
 
 #[tauri::command]
+pub(crate) async fn theme_target_profiles(
+    catalog: State<'_, Catalog>,
+) -> Result<Vec<super::capabilities::TargetProfile>, ProjectError> {
+    run(catalog, |c| {
+        super::capabilities::discover(c, &crate::volumes::presence)
+            .map_err(|e| projects::error_message("discovery", &e))
+    })
+    .await
+}
+
+#[tauri::command]
+pub(crate) async fn theme_compatibility(
+    catalog: State<'_, Catalog>,
+    document_json: String,
+    installation_id: Option<String>,
+) -> Result<super::capabilities::CompatibilityReport, ProjectError> {
+    run(catalog, move |c| {
+        let project = super::validation::parse_project(&document_json).map_err(|issues| {
+            projects::error_message("invalid_document", &format!("{issues:?}"))
+        })?;
+        let profile = match installation_id {
+            None => super::capabilities::intent(&project),
+            Some(id) => super::capabilities::discover(c, &crate::volumes::presence)
+                .map_err(|e| projects::error_message("discovery", &e))?
+                .into_iter()
+                .find(|p| p.installation_id.as_deref() == Some(&id))
+                .ok_or_else(|| {
+                    projects::error_message("not_found", "That theme target is no longer saved.")
+                })?,
+        };
+        let adapters = super::adapters::registry();
+        let refs: Vec<_> = adapters.iter().map(|a| a.as_ref()).collect();
+        Ok(super::capabilities::analyze(&project, profile, &refs))
+    })
+    .await
+}
+
+#[tauri::command]
 pub(crate) async fn validate_theme_document(
     document_json: String,
 ) -> Result<super::model::ThemeProject, Vec<super::validation::Issue>> {

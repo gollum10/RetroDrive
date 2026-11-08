@@ -1,5 +1,7 @@
 # 04 | Technical Architecture
 
+**Theme Studio PR 4:** separate pure ThemeAdapter capability contract and empty production registry; TargetProfile distinguishes detected app release from an exact engine/fork/platform/format tuple. Read-only background discovery/report IPC accepts saved installation IDs or project intent only. [Matrix](theme-studio/target-matrix.md). No game adapter or deployment behavior changes.
+
 **Theme Studio PR 3:** React workspace components use a renderer-independent ProjectSession write queue; App invokes its leave guard. A read-only background validate_theme_document command validates raw stored source before editing. Native close waits for persistence, browser unload prompts. No changes to Customize or target writers. [Details](theme-studio/workspace.md).
 
 **Theme Studio PR 2:** `theme_studio::{projects, commands}` provides transactional SQLite storage with optimistic revision checks and structured errors. Eight background commands operate only on the managed catalog; frontend wrappers are `src/theme-studio/api.ts`. Source/checkpoint/draft are independent of target files. See [persistence](theme-studio/persistence.md). Existing Customize and deployment services are unchanged.

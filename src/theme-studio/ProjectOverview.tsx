@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { ProjectSession } from './session';
 import { errorText } from './document';
+import CompatibilityPanel from './CompatibilityPanel';
 
 export default function ProjectOverview({ session, onClose, onCopy, onReload }: { session: ProjectSession; onClose: () => void; onCopy: (name: string) => void; onReload: () => void }) {
   const change = useSyncExternalStore(session.subscribe, session.snapshot, session.snapshot);
@@ -31,7 +32,7 @@ export default function ProjectOverview({ session, onClose, onCopy, onReload }: 
         <label>Description<textarea value={document.metadata.description} onChange={e => metadata('description', e.target.value)} /></label>
         <label>Project version<input maxLength={64} value={document.metadata.version} onChange={e => metadata('version', e.target.value)} /></label>
         <label>License<input maxLength={256} value={document.metadata.license} onChange={e => metadata('license', e.target.value)} /></label>
-        <h3>Compatibility</h3><p>Unverified. No native exporter is enabled in this workspace.</p>
+        <CompatibilityPanel document={document}/>
       </aside>
     </div>
     <details className="panel ts-timeline"><summary>Animation timeline</summary><p>This region is reserved for animation tracks, keyframes and media synchronization. Timeline editing is not implemented yet; existing source extension data is preserved.</p></details>

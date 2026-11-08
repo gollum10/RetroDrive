@@ -1,5 +1,7 @@
 # 11 | Development Roadmap and Backlog
 
+**Theme Studio PR 4 prepared:** exact capability/adapter boundary, synthetic target fixtures, read-only discovery and compatibility status. The four foundation PRs do not complete all P0 requirements. Real engine fixtures/native verification and manual workspace interaction checks remain gates before native support. Canvas/asset/compiler/media/sharing/deployment increments remain planned.
+
 **Theme Studio PR 3 implemented for review:** workspace, browser/wizard, metadata/scene overview and persistence lifecycle. Browser/native interaction smoke checks remain outstanding. PR 4 capability/adapter foundation follows; all advanced editor/export/media/sharing scope remains planned.
 
 **Theme Studio PR 2:** backend SQLite project/checkpoint/draft persistence, conflict protection, recovery/discard, rename/duplicate and typed IPC implemented. Next is PR 3 workspace/browser, explicit no-target wizard, save/recovery/error UI and leaving-workspace flush behavior. PR 4 adapter/capability foundation follows. [Persistence contract](theme-studio/persistence.md).

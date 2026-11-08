@@ -1,0 +1,39 @@
+{
+  "provenance": "Synthetic contract fixtures. Test fork/version/format names are invented and are not native verification evidence.",
+  "retrobatReleaseSample": "8.3.1.1-stable-win64",
+  "exact": {
+    "installationId": null,
+    "frontendFamily": "retrobat",
+    "applicationVersion": null,
+    "observation": "synthetic_contract_test",
+    "engine": {
+      "frontendFamily": "retrobat",
+      "frontendFork": "test-es-fork",
+      "frontendVersion": "test-1",
+      "os": "windows",
+      "architecture": "x86_64",
+      "themeFormatVersion": "test-format-1"
+    }
+  },
+  "unknown": {
+    "installationId": null,
+    "frontendFamily": "retrobat",
+    "applicationVersion": "8.3.1.1-stable-win64",
+    "observation": "synthetic_release_detection",
+    "engine": null
+  },
+  "mismatch": {
+    "installationId": null,
+    "frontendFamily": "batocera",
+    "applicationVersion": null,
+    "observation": "synthetic_contract_test",
+    "engine": {
+      "frontendFamily": "batocera",
+      "frontendFork": "test-es-fork",
+      "frontendVersion": "test-1",
+      "os": "linux",
+      "architecture": "x86_64",
+      "themeFormatVersion": "test-format-1"
+    }
+  }
+}

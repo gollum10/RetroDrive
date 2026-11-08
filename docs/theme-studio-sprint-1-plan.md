@@ -1,6 +1,8 @@
 # Theme Studio: technical gap analysis and Sprint 1 proposal
 
-Date: 2026-11-08. Status: **PRs 1 and 2 merged by owner; PR 3 workspace prepared for review; PR 4 follows autonomously**.
+Date: 2026-11-08. Status: **PRs 1 and 2 merged by owner; PRs 3 and 4 prepared for independent review. Native acceptance gates remain outstanding.**
+
+PR 4 implements capability contracts, read-only discovery and compatibility display. [Evidence matrix](theme-studio/target-matrix.md) distinguishes synthetic contract fixtures from missing native frontend verification. No production exporter or installer is enabled. Owner retains review/approval/merge control.
 
 PR 3 implements workspace/wizard/browser and session lifecycle; [behavior and test limits](theme-studio/workspace.md). The owner authorized continuing the four-PR sequence without separate start prompts. Review, approval and merges remain the owner's responsibility.
 

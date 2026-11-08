@@ -1,5 +1,7 @@
 # 15 | Quality Assurance, Threat Scenarios and Test Matrix
 
+**Theme Studio PR 4 local Windows checks:** 276 Rust tests passed, 7 ignored, including 6 new capability/discovery tests; Clippy with warnings denied, test:theme-workspace, test:theme-contract, frontend build and license gate passed (298 dependencies, zero denied). Fixture profiles and discovery files are synthetic; no real/native frontend or window interaction test is claimed. [Provenance](theme-studio/target-matrix.md).
+
 PR 3 local checks (2026-11-08): test:theme-workspace, test:theme-contract and frontend build passed; Rust suite 270 passed/7 ignored; Clippy with warnings denied passed; license gate passed (298 dependencies, zero denied). No browser/native interaction or real target smoke test was run. The Customize server-render assertion was corrected to use native=true because its existing browser-mode behavior intentionally renders nothing.
 
 **Theme Studio PR 3:** test:theme-workspace covers document factory, serialized revision writes, edits during in-flight writes, failure/retry/conflict retention, and React server-rendered wizard/editor/browser/sidebar/Customize smoke assertions. This is not DOM event or native close testing. [Limits](theme-studio/workspace.md).

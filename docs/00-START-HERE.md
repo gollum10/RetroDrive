@@ -1,5 +1,7 @@
 # RetroDrive | Documentation Index
 
+**Theme Studio PR 4:** [target evidence matrix and adapter contracts](theme-studio/target-matrix.md). Application-release detection is not native theme compatibility; all real theme exports remain disabled.
+
 **Theme Studio PR 3:** [workspace and save/recovery behavior](theme-studio/workspace.md); separate from Customize. Lifecycle/server-render tests do not replace a manual native interaction smoke test.
 
 **Theme Studio PR 2:** [local project persistence/recovery](theme-studio/persistence.md) adds catalog v27 and background IPC. It remains separate from legacy designs and installed theme files; no workspace UI is shipped yet.

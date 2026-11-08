@@ -1,5 +1,7 @@
 # RetroDrive — Features
 
+**Theme Studio PR 4: capability foundation implemented.** Read-only target profiles, exact theme-adapter contracts, five diagnostic outcomes, source-preserving feature reports and workspace compatibility panel. Production registry remains empty: every real target is unverified; no exporter/installer is enabled. [Evidence matrix](docs/theme-studio/target-matrix.md).
+
 **Theme Studio PR 3: partial workspace implemented.** Separate project browser and no-target wizard; metadata editing, scene/layer overview, future canvas/inspector/timeline regions, autosave/checkpoints, recovery and guarded navigation. No drag-and-drop, media editing, native preview/export or installation. [Workspace behavior and verification limits](docs/theme-studio/workspace.md).
 
 **Theme Studio PR 2 (2026-11-08): backend persistence implemented.** Additive catalog v27 stores universal checkpoints/drafts separately with revision conflicts, recovery/discard, rename and source duplication. Background IPC and typed frontend wrappers are available; workspace/wizard and UI autosave remain PR 3. [Storage contract](docs/theme-studio/persistence.md). Existing Customize, design records and target-write code remain unchanged.

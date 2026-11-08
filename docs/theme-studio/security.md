@@ -1,5 +1,7 @@
 # Theme Studio security boundaries
 
+PR 4 adds pure capability analysis and read-only detection. Callers cannot supply a verified engine profile or writable path through IPC. No production adapter is enabled; reports always disable export/deploy, including truncated/unknown/unsupported cases. Detection reuses presence/layout reads and never claims a share ID or updates installation records. Exact-profile fixtures are synthetic only. [Evidence](target-matrix.md).
+
 PR 3 adds only the separate UI and a read-only validation command; source is validated before editable rendering. Overview renders labels, not arbitrary styles, scripts, SVG or external media. App/native leave guards retain pending edits on persistence failure; no target-write authority is added. [Workspace](workspace.md).
 
 PR 2 adds only managed-catalog writes via bounded validated source and transactional/revision-checked project commands. No caller may select a database or writable target path. Checkpoint/draft recovery and additive migration are tested in disposable catalogs. Uneditable source is returned intact rather than replaced with defaults. No installation, package, asset or game file is touched; [storage contract](persistence.md). The no-IPC statement below applies to PR 1 only. Work in this same isolated checkout now uses branch `feature/theme-studio-persistence`; PR 1 was merged by the owner, so PR 2 targets main directly.
