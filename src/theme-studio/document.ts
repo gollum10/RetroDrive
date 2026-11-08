@@ -2,6 +2,23 @@ import type { ThemeProject, ThemeNode } from './types';
 
 export type NewTheme = { name: string; author: string; description: string; version: string; license: string; target: string; targetVersion: string; display: string; template: string };
 export const displays = { '16:9': [1920, 1080], '4:3': [1440, 1080], Portrait: [1080, 1920] } as const;
+
+/** Display-name suggestion only; distinct project IDs remain the identity. */
+export function suggestCopyName(name: string, existingNames: string[] = []): string {
+  let base = name.trim() || 'Untitled theme';
+  let number = 1;
+  const modern = /^(.*) \(copy(?: (\d{1,6}))?\)$/i.exec(base);
+  const legacy = /(?: copy)+$/i.exec(base);
+  if (modern && modern[1].trim()) { base = modern[1].trim(); number = Number(modern[2] ?? 1) + 1; }
+  else if (legacy && legacy.index > 0) { base = base.slice(0, legacy.index).trim(); number = legacy[0].trim().split(/\s+/).length + 1; }
+  const taken = new Set(existingNames.map(n => n.trim().toLowerCase()));
+  for (;;) {
+    const suffix = number === 1 ? ' (copy)' : ` (copy ${number})`;
+    const candidate = Array.from(base).slice(0, 120 - suffix.length).join('').trimEnd() + suffix;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+    number++;
+  }
+}
 export function newDocument(form: NewTheme): ThemeProject {
   const [width, height] = displays[form.display as keyof typeof displays] ?? displays['16:9'];
   const roles = ['startup', 'main_menu', 'system_select', 'game_list', 'game_detail', 'launch', 'idle', 'exit'];

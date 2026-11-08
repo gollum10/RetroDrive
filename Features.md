@@ -1,5 +1,7 @@
 # RetroDrive — Features
 
+**Theme Studio project UX cleanup:** scoped dark controls replace native white inputs/buttons; Save As has a separate named confirmation form, disables original-property editing while open and announces copy creation. Suggested names use numbered copy suffixes, including legacy copy-copy names; identities/storage behavior are unchanged. Owner confirmed creation, checkpoint/draft recovery/discard, native close after restart, Save As creation and copy independence during disposable-catalog QA. Native visual recheck of this styling update remains pending.
+
 **Theme Studio native-close fix (2026-11-08):** stop re-requesting close from its own handler; await persistence and let the SDK complete the original close with explicit main-window destroy permission. Save failures still keep the app open. SDK/permission regression tested; actual owner close/reopen recheck pending. Existing checkpoint/recovery/discard behavior was confirmed by the owner.
 
 **Theme Studio PR 4: capability foundation implemented.** Read-only target profiles, exact theme-adapter contracts, five diagnostic outcomes, source-preserving feature reports and workspace compatibility panel. Production registry remains empty: every real target is unverified; no exporter/installer is enabled. [Evidence matrix](docs/theme-studio/target-matrix.md).
