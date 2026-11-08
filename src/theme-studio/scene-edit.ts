@@ -4,6 +4,24 @@ export function rootNodes(scene: Scene): ThemeNode[] {
   const children = new Set(scene.nodes.flatMap(node => node.children));
   return scene.nodes.filter(node => !children.has(node.id));
 }
+export type LayerOrder = 'back' | 'backward' | 'forward' | 'front';
+export function canOrderLayers(scene: Scene): boolean {
+  return scene.nodes.every(node => ['text', 'panel'].includes(node.type) && node.children.length === 0);
+}
+/** Array order is the editor's back-to-front paint order, not a native export promise. */
+export function orderLayer(project: ThemeProject, sceneId: string, nodeId: string, order: LayerOrder): ThemeProject {
+  const scene = project.scenes.find(scene => scene.id === sceneId);
+  if (!scene || !canOrderLayers(scene)) return project;
+  const index = scene.nodes.findIndex(node => node.id === nodeId);
+  if (index < 0) return project;
+  const destination = order === 'back' ? 0 : order === 'front' ? scene.nodes.length - 1
+    : order === 'backward' ? Math.max(0, index - 1) : Math.min(scene.nodes.length - 1, index + 1);
+  if (destination === index) return project;
+  const nodes = [...scene.nodes];
+  const [node] = nodes.splice(index, 1);
+  nodes.splice(destination, 0, node);
+  return { ...project, scenes: project.scenes.map(current => current.id === sceneId ? { ...current, nodes } : current) };
+}
 export function editableNode(scene: Scene, node: ThemeNode): boolean {
   return ['text', 'panel'].includes(node.type) && node.children.length === 0 && rootNodes(scene).some(root => root.id === node.id);
 }
