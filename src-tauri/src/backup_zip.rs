@@ -246,7 +246,7 @@ mod tests {
         format!("{:x}", Sha256::digest(bytes))
     }
     fn file(area: Area, path: &str, bytes: &[u8]) -> ManifestFile {
-        ManifestFile { group: "saves".into(), area, path: path.into(), size: bytes.len() as u64, sha256: sha(bytes) }
+        ManifestFile { group: "saves".into(), area, path: path.into(), size: bytes.len() as u64, sha256: sha(bytes), modified: None }
     }
     fn manifest(files: Vec<ManifestFile>) -> Manifest {
         Manifest {
