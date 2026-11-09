@@ -30,7 +30,7 @@ License gate (LEGAL-014): `python scripts/check-licenses.py`. Add `--csv docs/th
 
 The same checks run in GitHub Actions on `windows-latest` (`.github/workflows/ci.yml`).
 
-Keep the working copy **outside OneDrive** (e.g. `C:\dev\RetroInstaller`). Cargo's `target/` folder is several GB, and OneDrive sync locks break builds. `vite.config.ts` ignores `src-tauri/**` for the same reason. The catalog lives at `%APPDATA%\com.retrodrive.desktop\retrodrive.sqlite`; delete it to start fresh (migration backups sit next to it).
+Keep the working copy **outside OneDrive** (e.g. `C:\dev\RetroDrive`). Cargo's `target/` folder is several GB, and OneDrive sync locks break builds. `vite.config.ts` ignores `src-tauri/**` for the same reason. The catalog lives at `%APPDATA%\com.retrodrive.desktop\retrodrive.sqlite`; delete it to start fresh (migration backups sit next to it).
 
 ## Suggested repository layout
 ```text
@@ -45,7 +45,7 @@ retrodrive-studio/
 Later split Rust modules by catalog, storage, jobs, platforms and deployment. Avoid premature multi-repository fragmentation.
 
 ## GitHub setup
-The repository is **`gollum10/RetroInstaller`** (private). To clone: `git clone https://github.com/gollum10/RetroInstaller.git`. Original first-push steps, kept for reference:
+The repository is **`gollum10/RetroDrive`** (private; moved from the earlier repository on 2026-11-09, ADR-012). To clone: `git clone https://github.com/gollum10/RetroDrive.git`. Original first-push steps, kept for reference:
 ```powershell
 git init
 git add .

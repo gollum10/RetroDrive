@@ -645,3 +645,17 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 | Changing the original backup | The folder is only read | first test (listing before and after); real run on a copy of the owner's RetroBat backup: 1,876 files, 143 MB → 52 MB zip, added back and checked 1,876/1,876 |
 | Running out of space | Free space checked first (backup size + 5% + 16 MB) | code review |
 
+## 61. Addendum: Catalog tools (2026-11-09)
+**Scope and authorization:** owner chose catalog tools as the next step ("Let's work on catalog tools") with removing entries and a library-only reset (ADR-097; the reset is a separate step with its own addendum). **Export** writes one new CSV file in Documents. **Removing** changes catalog records only; no drive is read or written.
+
+| Risk | Mitigation | Evidence |
+|---|---|---|
+| Touching game files | No file operation in removal; only `DELETE`/`UPDATE` on catalog tables, in one transaction | `catalog_tools::tests::removing_a_folder_forgets_only_its_entries_and_never_touches_files`, `cleaning_up_missing_entries_forgets_only_files_a_scan_found_gone` (listings before and after) |
+| Removing more than shown | Counts shown first; the removal recomputes them in its transaction and rolls back if they differ (e.g. a scan finished); refused while a scan, copy or import runs | `a_stale_preview_removes_nothing` |
+| Entries another folder still holds (nested folders) | A location under another scanned folder on the same drive is kept and counted as "stays" | `a_folder_inside_another_keeps_entries_the_other_still_holds` |
+| Broken references or leftovers | Parts that stay keep their parent; releases and games go only when nothing is left; foreign keys stay on (cascades for collections, art, details; copy history set to no file) | real run on a copy of the owner's catalog: 0 foreign key problems, 0 orphan releases/games/files; search index rows match games |
+| Search index trigger set aside | Dropped and recreated from its own stored SQL inside the same transaction; any failure rolls back both | first test checks the trigger is back and search rows match |
+| Overwriting a file on export | New name each time (`(2)` …), temporary file + `rename_no_replace`; only RetroDrive's own temporary file is removed on failure | `the_export_is_a_new_csv_with_one_row_per_game_file` |
+| Spreadsheet formulas from file names | Cells starting with `= + - @`, tab or CR get a leading `'` | same test (`=cmd (USA).nes`) |
+| Slow on a big library | Schema v28 indexes; search rows deleted in one pass | real copy: 42,335 files in 27 s, 118,443 in 37 s (before: not finished after 10 minutes) |
+

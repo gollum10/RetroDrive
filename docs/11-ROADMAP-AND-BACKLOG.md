@@ -96,7 +96,7 @@ Every GitHub issue should state: persona/problem, user-visible result, constrain
 
 ## Immediate recommended order
 1. ~~Run current scaffold on actual Windows dev machine and log defects.~~ Done 2026-11-04. Defect found and fixed: Vite's watcher crashed on `src-tauri/target` (EBUSY).
-2. ~~Create GitHub repo/CI, pin toolchain and dependency versions.~~ Repo `gollum10/RetroInstaller`, lockfiles committed, Windows CI workflow added.
+2. ~~Create GitHub repo/CI, pin toolchain and dependency versions.~~ Repo `gollum10/RetroDrive` (moved 2026-11-09), lockfiles committed, Windows CI workflow added.
 3. ~~Add tests and normalized schema migrations.~~ RDS-001.
 4. ~~Build read-only robust catalog before any writes.~~ M1 done (RDS-001 to RDS-005).
    - **Follow-up found by measurement:** first-time scans got about 4× slower with the search index (39,300 files in 12 s, versus about 3 s before). Option: bulk-load the search index at the end of a scan instead of one trigger per file.
