@@ -1,5 +1,7 @@
 # 05 | Hybrid Library Data Model
 
+**Image normalization:** no source/catalog change. The pure codec returns bytes/hash/dimensions and assets/images/<hash>.png compatible with the existing asset path contract. No asset row/document declaration is persisted yet; provenance/license and managed storage are still unwired.
+
 **Layer editor flags:** optional node.editor object contains locked/hidden booleans (absent means false). Extra fields survive flag updates. Non-object editor data or non-boolean known flags are read-only. Flags persist in the existing project JSON/checkpoint/draft without a schema or SQLite migration; this is editor-preview state, not native visibility/conditions.
 
 **Grid/snapping:** visibility, enabled state and spacing live only in the mounted canvas session. They are not portable source fields or database columns. Only completed moves/resizes use existing source dimensions and serialized persistence. No source or SQLite migration.

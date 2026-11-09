@@ -1,5 +1,7 @@
 # Theme Studio delivery tracking
 
+**MEDIA-001/NFR partial foundation:** a bounded PNG codec normalizes supplied bytes and creates a portable hash path. This does not implement user file import, asset library, image layers or preview serving. Managed storage and UI wiring follow next; native export remains disabled.
+
 **VIS-002 partial lock/hide:** supported leaf text/panel layer flags now persist and are undoable, guarded across content operations, with list-based unlock/show. Nested/group authoring, native conditional visibility and native target output remain unimplemented. Browser tests pass; native smoke validation is pending.
 
 **VIS-001 partial resize:** selected supported leaf layers now expose a bottom-right handle and handle-focused arrow sizing. Other handles, aspect locking, multi-selection, snapping/grid/guides, groups and native engine preview remain unimplemented; native interaction QA is pending.

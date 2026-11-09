@@ -2720,8 +2720,10 @@ name = "retrodrive-studio"
 version = "0.1.0"
 dependencies = [
  "calamine",
+ "crc32fast",
  "csv",
  "md-5",
+ "png",
  "quick-xml",
  "rusqlite",
  "serde",

@@ -4,6 +4,7 @@ pub mod capabilities;
 #[cfg(test)]
 mod capability_tests;
 pub(crate) mod commands;
+pub mod image_import;
 mod json;
 pub mod model;
 pub mod projects;

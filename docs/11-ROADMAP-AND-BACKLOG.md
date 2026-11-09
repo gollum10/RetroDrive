@@ -1,5 +1,7 @@
 # 11 | Development Roadmap and Backlog
 
+**Theme Studio image boundary prepared:** static PNG byte validation, decode/metadata-free re-encode, bounded allocation/output and hashing. Managed content-addressed storage, user import UI and authorized image preview are the next small PR. JPEG/WebP/SVG, packages, media and target compilation remain later work.
+
 **Theme Studio layer lock/hide prepared:** persisted editor flags, list controls, read-only protected content, guarded stacking, preview hiding/restoration and cancellation tests. Native grid and layer-state smoke checks remain pending. Secure asset import/richer previews follow as separately scoped increments; native export remains evidence-gated.
 
 **Theme Studio grid increment prepared:** optional grid/snap controls, move and local-size snapping, Alt bypass and canvas edge/center guides. Real browser regressions pass; native smoke check remains pending. Locking/hiding follows as a separate increment, followed by secure asset import and richer previews; native export still requires verified target evidence.

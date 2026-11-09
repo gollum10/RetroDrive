@@ -1,5 +1,7 @@
 # 13 | Product Decisions and Open Questions
 
+**Theme Studio first raster boundary:** static PNG only, normalized to RGBA8 and hashed after re-encoding. Original metadata/profiles and animation are not retained; 16-bit samples reduce to eight bits. Explicit input/pixel/scratch/output limits are not a process sandbox. No file reads/writes or IPC are enabled by this increment.
+
 **Theme Studio layer-state semantics:** node.editor.locked/hidden are additive portable editor preferences. Hiding changes only editor preview, not native output visibility; conditional/native visibility remains separate future work. Locking protects content; flag controls remain available to unlock/show. Ordering cannot move a protected layer or cross protected layers. Unknown editor payloads remain read-only and unmodified.
 
 **Theme Studio canvas aids:** grid/snapping preferences are transient workspace aids, not universal document content. Canvas alignment takes precedence over grid rounding when within six screen pixels. Resize snaps local width/height, while arrow keys retain exact steps. Other-layer snapping and custom guides remain later work.
