@@ -239,7 +239,7 @@ Separating components technically can reduce risk but does not by itself guarant
 - [ ] **LEGAL-006:** Establish prohibited ROM/BIOS distribution rules and UI requirements.
 - [x] **LEGAL-007:** Evaluate metadata providers, caching requirements, artwork licensing, and attribution. **Closed 2026-11-06 by not integrating any provider** (owner decision: free app, no scrapers). Notes from the review: ScreenScraper's API terms reportedly allow it only in completely free apps unless its team agrees otherwise, and each app needs its own developer credentials from ScreenScraper. Reopen this item before adding any online source.
 - [ ] **LEGAL-008:** Conduct trademark clearance for RetroDrive and review brand usage.
-- [ ] **LEGAL-009:** Draft and review EULA, third-party notices, privacy policy, and warranty language. *(2026-11-09: third-party notices generated and shipped with the installer, docs/17; EULA, privacy policy and warranty language still open.)*
+- [ ] **LEGAL-009:** Draft and review EULA, third-party notices, privacy policy, and warranty language. *(2026-11-09: third-party notices generated and shipped with the installer, docs/17; EULA, privacy policy and warranty language drafted in [docs/legal](legal/) for counsel review, 2026-11-09.)*
 - [ ] **LEGAL-010:** Implement and test destructive disk-operation protection and recovery.
 - [ ] **LEGAL-011:** Implement signed/hashed download verification and software provenance logging.
 - [ ] **LEGAL-012:** Obtain qualified IP/software-license counsel review before commercial launch.
