@@ -50,7 +50,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub const MANIFEST: &str = "manifest.json";
-const INCOMPLETE: &str = " (incomplete)";
+pub(crate) const INCOMPLETE: &str = " (incomplete)";
 /// Manifest format; restore refuses formats it doesn't know.
 pub(crate) const FORMAT: u32 = 1;
 
@@ -547,7 +547,7 @@ fn existing_ancestor(path: &Path) -> Option<PathBuf> {
 }
 
 /// A folder name Windows accepts.
-fn safe_name(text: &str) -> String {
+pub(crate) fn safe_name(text: &str) -> String {
     let cleaned: String = text.chars().map(|c| if c.is_control() || r#"<>:"/\|?*"#.contains(c) { ' ' } else { c }).collect();
     cleaned.split_whitespace().collect::<Vec<_>>().join(" ")
 }
@@ -564,7 +564,7 @@ fn folder_name(system: &str, location: &Path, stamp: &str) -> String {
 }
 
 /// A name not taken yet, as a finished or an incomplete backup.
-fn free_folder(destination: &Path, name: &str) -> Result<String, String> {
+pub(crate) fn free_folder(destination: &Path, name: &str) -> Result<String, String> {
     for n in 1..1000 {
         let candidate = if n == 1 { name.to_string() } else { format!("{name} ({n})") };
         let taken = |s: &str| fs::symlink_metadata(destination.join(s)).is_ok();
@@ -581,6 +581,11 @@ pub(crate) fn now(connection: &Connection, format: &str) -> String {
 
 fn write_manifest(folder: &Path, manifest: &Manifest) -> Result<(), String> {
     let text = serde_json::to_string_pretty(manifest).map_err(|e| e.to_string())?;
+    write_manifest_bytes(folder, text.as_bytes())
+}
+
+/// Write a backup's list of files (temporary name, then named without replacing).
+pub(crate) fn write_manifest_bytes(folder: &Path, text: &[u8]) -> Result<(), String> {
     let temp = folder.join(format!("{MANIFEST}{}manifest", copier::TEMP_MARKER));
     fs::write(&temp, text).map_err(|e| format!("Couldn't write the backup's list of files: {e}"))?;
     copier::rename_no_replace(&temp, &folder.join(MANIFEST)).map_err(|e| format!("Couldn't name the backup's list of files: {e}"))
@@ -663,7 +668,7 @@ pub(crate) fn read_manifest(folder: &Path) -> Option<Manifest> {
     serde_json::from_str(&fs::read_to_string(folder.join(MANIFEST)).ok()?).ok()
 }
 
-fn entry(folder: &Path) -> Option<BackupEntry> {
+pub(crate) fn entry(folder: &Path) -> Option<BackupEntry> {
     let name = folder.file_name()?.to_string_lossy().into_owned();
     let m = read_manifest(folder);
     if m.is_none() && !name.ends_with(INCOMPLETE) {

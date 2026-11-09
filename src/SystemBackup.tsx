@@ -6,7 +6,8 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { HardDriveDownload, FolderOpen, CheckCircle2, AlertTriangle, Undo2 } from 'lucide-react';
+import { open } from '@tauri-apps/plugin-dialog';
+import { HardDriveDownload, FolderOpen, CheckCircle2, AlertTriangle, Undo2, FileArchive } from 'lucide-react';
 import { fmtSize } from './format';
 import { getBackupFolder } from './backupFolder';
 
@@ -20,6 +21,7 @@ type Check = { files: number; ok: number; missing: string[]; changed: string[] }
 type RGroup = { id: string; label: string; add: number; same: number; different: number; unavailable: number };
 type RPreview = { backup: string; created_at: string; system: string; from_location: string; target_location: string; same_system: boolean; groups: RGroup[]; add: number; same: number; different: number; unavailable: number; bytes_add: number; bytes_different: number; different_files: string[]; unavailable_note: string|null; system_note: string|null; blocked: string|null; fingerprint: string };
 type RSummary = { id: string; added: number; replaced: number; kept: number; failed: string[]; message: string };
+type ZipSaved = { path: string; name: string; files: number; bytes: number };
 type Restore = { id: string; created_at: string; backup: string; added: number; replaced: number; state: string };
 
 const EXTRAS_KEY = 'rd.backupExtras';
@@ -49,6 +51,9 @@ export default function SystemBackup({ installationId, sysName, disabled, notify
   const [showDifferent, setShowDifferent] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [rDone, setRDone] = useState<string|null>(null);
+  // .zip (ADR-096)
+  const [zipping, setZipping] = useState<string|null>(null);
+  const [zipped, setZipped] = useState<ZipSaved|null>(null);
 
   const refresh = async () => {
     try { setBackups((await invoke<Entry[]>('list_system_backups', { folder })).filter(b => b.installation_id === installationId || b.system === sysName)); } catch { setBackups([]); }
@@ -95,6 +100,21 @@ export default function SystemBackup({ installationId, sysName, disabled, notify
     try { setRDone(await invoke<string>('undo_restore', { installationId, restoreId: r.id })); await refresh(); }
     catch (e) { notify(String(e), true); } finally { setWorking(false); }
   };
+  const saveZip = async (b: Entry) => {
+    setWorking(true); setZipping(b.folder); setProgress(null); setZipped(null);
+    try { setZipped(await invoke<ZipSaved>('save_backup_zip', { folder, backup: b.folder })); }
+    catch (e) { notify(String(e), true); } finally { setWorking(false); setZipping(null); setProgress(null); }
+  };
+  const addZip = async () => {
+    const chosen = await open({ multiple: false, directory: false, title: 'Choose a RetroDrive backup .zip', filters: [{ name: 'Backup .zip', extensions: ['zip'] }] });
+    if (typeof chosen !== 'string') return;
+    setWorking(true); setZipping('add'); setProgress(null);
+    try {
+      const b = await invoke<Entry>('add_backup_zip', { folder, zip: chosen });
+      setLast(null); setRDone(`Added the ${b.system ?? ''} backup of ${when(b.created_at)} (${files(b.files)}). Choose Restore… next to it to put it back.`); setShowList(true); await refresh();
+    } catch (e) { notify(String(e), true); await refresh(); } finally { setWorking(false); setZipping(null); setProgress(null); }
+  };
+  const busy = (what: string) => progress ? `${what}… ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()}` : `${what}…`;
   const newest = backups.find(b => b.installation_id === installationId);
   const checkText = (c: Check|string|undefined) => c === undefined ? null : typeof c === 'string' ? c : c.missing.length + c.changed.length === 0 ? `All ${c.files.toLocaleString()} files match.` : `${c.missing.length} missing, ${c.changed.length} changed since the backup.`;
   const p = rPreview;
@@ -102,9 +122,11 @@ export default function SystemBackup({ installationId, sysName, disabled, notify
 
   return <div className="backups system-backup">
     <div className="designs-head"><h3><HardDriveDownload size={17}/> Backup and restore</h3>
-      <div className="actions"><button className="primary" disabled={disabled || working} onClick={() => void run()}>{working && !restoreFor ? (progress ? `Backing up… ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()}` : 'Working…') : 'Back up now'}</button></div></div>
+      <div className="actions"><button className="primary" disabled={disabled || working} onClick={() => void run()}>{working && !restoreFor && !zipping ? (progress ? `Backing up… ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()}` : 'Working…') : 'Back up now'}</button></div></div>
     <p className="plan-notes">Copies {sysName}'s saves, settings and game lists to a new folder on this PC. Nothing on {sysName} is changed. {newest ? <>Last backup: <b>{when(newest.created_at)}</b>{newest.complete ? '' : ' (incomplete)'}.</> : 'No backup yet.'}{' '}
-      <button className="link" onClick={() => setDetails(!details)}>{details ? 'Hide details' : 'What is backed up'}</button>{(backups.length > 0 || restores.length > 0) && <> · <button className="link" onClick={() => setShowList(!showList)}>{showList ? 'Hide backups' : `Show backups and restore (${backups.length})`}</button></>}</p>
+      <button className="link" onClick={() => setDetails(!details)}>{details ? 'Hide details' : 'What is backed up'}</button>{(backups.length > 0 || restores.length > 0) && <> · <button className="link" onClick={() => setShowList(!showList)}>{showList ? 'Hide backups' : `Show backups and restore (${backups.length})`}</button></>}
+      {' · '}<button className="link" disabled={working} onClick={() => void addZip()}>{zipping === 'add' ? busy('Adding') : 'Add a backup from a .zip'}</button></p>
+    {zipped && <p><CheckCircle2 size={15} className="ok-text"/> Saved {files(zipped.files)} as <span className="mono">{zipped.name}</span> ({fmtSize(zipped.bytes)}), checked. Copy it anywhere, and use <b>Add a backup from a .zip</b> to bring it back. <button className="link" onClick={() => openIt()}><FolderOpen size={14}/> Open</button></p>}
     {last && <p>{last.complete ? <CheckCircle2 size={15} className="ok-text"/> : <AlertTriangle size={15} className="warn-text"/>} Backed up {files(last.files)} ({fmtSize(last.bytes)}) to <span className="mono">{last.name}</span>. <button className="link" onClick={() => openIt(last.folder)}><FolderOpen size={14}/> Open</button></p>}
     {rDone && <p><CheckCircle2 size={15} className="ok-text"/> {rDone}</p>}
     {details && <div className="backup-details">
@@ -139,7 +161,7 @@ export default function SystemBackup({ installationId, sysName, disabled, notify
     {showList && <>
       <ul className="backup-list">{backups.map(b => <li key={b.folder}>
         <b>{when(b.created_at)}</b> · {files(b.files)}, {fmtSize(b.bytes)}{b.installation_id !== installationId && b.location ? <span className="plan-notes"> · from {b.location}</span> : ''}{b.complete ? '' : <span className="warn-text"> · incomplete{b.problems ? ` (${b.problems} not copied)` : ''}</span>}
-        {' '}{b.complete && <><button className="link" disabled={working} onClick={() => startRestore(b)}>Restore…</button> · </>}<button className="link" onClick={() => openIt(b.folder)}>Open</button>{b.complete && <> · <button className="link" onClick={() => void check(b)}>Check</button></>}
+        {' '}{b.complete && <><button className="link" disabled={working} onClick={() => startRestore(b)}>Restore…</button> · </>}<button className="link" onClick={() => openIt(b.folder)}>Open</button>{b.complete && <> · <button className="link" onClick={() => void check(b)}>Check</button> · <button className="link" disabled={working} onClick={() => void saveZip(b)}><FileArchive size={14}/> {zipping === b.folder ? busy('Saving') : 'Save as .zip'}</button></>}
         {checkText(checks[b.folder]) && <small className="plan-notes"> {checkText(checks[b.folder])}</small>}
       </li>)}</ul>
       {restores.length > 0 && <><h4>Restores</h4><ul className="backup-list">{restores.map(r => <li key={r.id}>

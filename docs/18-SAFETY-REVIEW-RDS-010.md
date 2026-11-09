@@ -631,3 +631,17 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 | Changing the drive | No writes; only existing read functions | `health::tests::a_new_system_gets_every_check_and_nothing_is_written` (listing before and after); real run on the owner's RetroBat: `G:` listing unchanged (0 differences) |
 | Misleading counts | Uses the Sync plan's counts (its attention list is capped at 500; found on the owner's drive, where it showed "500 differ" instead of 57 differ and 588 can't be copied) | real run |
 | Slow on a network share | Runs only when asked (Check health / Check again); same reads as Sync | code review |
+
+## 60. Addendum: Backups as .zip files (2026-11-09)
+**Scope and authorization:** owner chose "Export a backup as .zip" (ADR-096). Writes **only inside the backup folder on this PC**, and only new files: one `.zip` (save) or one new backup folder (add). No system is read or written; restoring from an added backup is the normal restore (§57) with its preview.
+
+| Risk | Mitigation | Evidence |
+|---|---|---|
+| A zip that doesn't match the backup | Each file's size and SHA-256 checked against `manifest.json` while packing; the zip is read back and every file checked again before it gets its name | `backup_zip::tests::a_backup_saved_as_zip_and_added_back_is_identical_and_the_original_is_untouched`, `a_backup_that_changed_or_did_not_finish_is_not_zipped` |
+| Replacing an earlier zip | Temporary name, then `rename_no_replace`; a taken name gets ` (2)` | same test (saving twice) |
+| Leftover partial zip | Only RetroDrive's own temporary file (`.rdpart-` name, checked by `remove_own_temp`) is removed when saving fails | `a_backup_that_changed_or_did_not_finish_is_not_zipped` (no zip or temporary file left) |
+| A zip that writes outside the backup ("zip slip") or adds programs | Only entries named on the zip's list are unpacked, each to `area/path` inside the new folder; the list must pass `system_backup::covered` (no `..`, drives, shares, `.retrodrive`, temporary names; only places that kind of backup holds); duplicates refused; checked before any folder is created | `only_listed_files_are_unpacked_and_only_to_places_a_backup_holds` (`../evil.exe` and `RetroBat.exe` entries ignored; bad lists refused with nothing created) |
+| Damaged or hostile zip | Each file limited to its listed size plus one byte and checked by SHA-256; the list itself limited to 64 MB; format and "complete" required; a mismatch stops and leaves an "(incomplete)" folder, which isn't offered for restore | `a_damaged_zip_adds_nothing_complete` (changed contents, missing file, not a backup, not a zip) |
+| Changing the original backup | The folder is only read | first test (listing before and after); real run on a copy of the owner's RetroBat backup: 1,876 files, 143 MB → 52 MB zip, added back and checked 1,876/1,876 |
+| Running out of space | Free space checked first (backup size + 5% + 16 MB) | code review |
+
