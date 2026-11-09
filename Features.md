@@ -231,5 +231,5 @@ ecalbox.conf` the way Recalbox's own menu saves them, after you review them, and
 | TypeScript type-check and frontend build | ✅ | `npm run build` |
 | GitHub Actions CI on Windows (tests, clippy, build) | ✅ | Runs on every push to `main` and every pull request. |
 | Pinned dependency lockfiles | ✅ | `package-lock.json`, `src-tauri/Cargo.lock`. |
-| Content Security Policy | 📋 | Still `null` in `tauri.conf.json`; needs testing in dev and release builds. |
+| Content Security Policy | ✅ | On since 2026-11-09 (ADR-089): the app's pages may load only RetroDrive's own code, styles and pictures (including your library art) and talk only to RetroDrive itself; no outside connections, frames, plugins or forms. Tested in a release build (library, art, Theme Studio canvas) and in development. |
 | Project license | 📋 | Open question #9 in docs/13. |
