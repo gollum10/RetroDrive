@@ -32,7 +32,7 @@ use std::path::{Path, PathBuf};
 pub const MANIFEST: &str = "manifest.json";
 const INCOMPLETE: &str = " (incomplete)";
 /// Manifest format; restore refuses formats it doesn't know.
-const FORMAT: u32 = 1;
+pub(crate) const FORMAT: u32 = 1;
 
 /// Where a backed-up file came from, so restore can find the place again even if the
 /// drive letter changed: the installation folder, ES-DE's data folder, or RetroArch's.
@@ -45,7 +45,7 @@ pub enum Area {
 }
 
 impl Area {
-    fn folder(self) -> &'static str {
+    pub(crate) fn folder(self) -> &'static str {
         match self {
             Area::Install => "install",
             Area::EsdeData => "esde_data",
@@ -54,13 +54,13 @@ impl Area {
     }
 }
 
-struct GroupDef {
-    id: &'static str,
-    label: &'static str,
-    optional: bool,
+pub(crate) struct GroupDef {
+    pub(crate) id: &'static str,
+    pub(crate) label: &'static str,
+    pub(crate) optional: bool,
 }
 
-const GROUPS: &[GroupDef] = &[
+pub(crate) const GROUPS: &[GroupDef] = &[
     GroupDef { id: "saves", label: "Saves", optional: false },
     GroupDef { id: "settings", label: "Settings", optional: false },
     GroupDef { id: "gamelists", label: "Game lists", optional: false },
@@ -70,20 +70,20 @@ const GROUPS: &[GroupDef] = &[
 
 /// One file to back up.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Source {
-    group: &'static str,
-    area: Area,
+pub(crate) struct Source {
+    pub(crate) group: &'static str,
+    pub(crate) area: Area,
     /// Below the area's folder, with `/`.
-    rel: String,
-    path: PathBuf,
-    size: u64,
+    pub(crate) rel: String,
+    pub(crate) path: PathBuf,
+    pub(crate) size: u64,
 }
 
 /// The folders an installation's files are found in.
-struct Places {
-    install: PathBuf,
-    esde_data: Option<PathBuf>,
-    retroarch: Option<PathBuf>,
+pub(crate) struct Places {
+    pub(crate) install: PathBuf,
+    pub(crate) esde_data: Option<PathBuf>,
+    pub(crate) retroarch: Option<PathBuf>,
 }
 
 /// What a group would back up.
@@ -166,7 +166,7 @@ fn supported(adapter: &str) -> bool {
     adapter == "retrobat" || adapter == "esde"
 }
 
-fn located(connection: &Connection, installation_id: &str, presence: crate::customizer::PresenceFn) -> Result<Located, String> {
+pub(crate) fn located(connection: &Connection, installation_id: &str, presence: crate::customizer::PresenceFn) -> Result<Located, String> {
     let l = installations::located(connection, presence, Some(installation_id))?.into_iter().next().ok_or("Installation not found")?;
     if !supported(&l.adapter_id) {
         return Err("Backups are available for RetroBat and ES-DE so far.".into());
@@ -177,7 +177,7 @@ fn located(connection: &Connection, installation_id: &str, presence: crate::cust
     Ok(l)
 }
 
-fn places(l: &Located) -> Result<Places, String> {
+pub(crate) fn places(l: &Located) -> Result<Places, String> {
     Ok(match l.adapter_id.as_str() {
         "esde" => Places {
             install: l.root.clone(),
@@ -215,9 +215,9 @@ fn file(out: &mut Vec<Source>, group: &'static str, area: Area, base: &Path, rel
     }
 }
 
-const ES: &str = "emulationstation/.emulationstation";
+pub(crate) const ES: &str = "emulationstation/.emulationstation";
 
-fn sources(adapter: &str, p: &Places) -> Vec<Source> {
+pub(crate) fn sources(adapter: &str, p: &Places) -> Vec<Source> {
     let mut out = Vec::new();
     match adapter {
         "retrobat" => {
@@ -281,7 +281,7 @@ fn chosen(adapter: &str, optional: &[String]) -> Vec<&'static str> {
     GROUPS.iter().filter(|g| wanted.contains(&g.id) && (!g.optional || optional.iter().any(|o| o == g.id))).map(|g| g.id).collect()
 }
 
-fn adapter_name(id: &str) -> String {
+pub(crate) fn adapter_name(id: &str) -> String {
     adapters::find(id).map(|a| a.display_name().to_string()).unwrap_or_else(|| id.to_string())
 }
 
@@ -337,7 +337,7 @@ fn free_folder(destination: &Path, name: &str) -> Result<String, String> {
     Err("Couldn't find a free folder name for the backup.".into())
 }
 
-fn now(connection: &Connection, format: &str) -> String {
+pub(crate) fn now(connection: &Connection, format: &str) -> String {
     connection.query_row("SELECT strftime(?1, 'now', 'localtime')", [format], |r| r.get(0)).unwrap_or_default()
 }
 
@@ -421,7 +421,7 @@ pub fn run(connection: &Connection, installation_id: &str, optional: &[String], 
     Ok(entry(&finished).unwrap_or_else(|| BackupEntry { folder: finished.display().to_string(), name, created_at: None, installation_id: None, system: None, location: None, files: 0, bytes: 0, groups: Vec::new(), complete: false, problems: 0 }))
 }
 
-fn read_manifest(folder: &Path) -> Option<Manifest> {
+pub(crate) fn read_manifest(folder: &Path) -> Option<Manifest> {
     serde_json::from_str(&fs::read_to_string(folder.join(MANIFEST)).ok()?).ok()
 }
 

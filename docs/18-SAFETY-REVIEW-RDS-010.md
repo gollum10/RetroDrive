@@ -591,3 +591,20 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 | Copyrighted art | Downloaded art is opt-in and only goes to the user's own PC (a personal backup); RetroDrive ships or uploads nothing | ADR-090 |
 
 **Restore is not part of this step.** It writes to the system and gets its own addendum and owner go-ahead.
+
+## 57. Addendum: Restore, step 2 of system backups (2026-11-09)
+**Scope and authorization:** owner approved the scoped plan on 2026-11-09 ("Yes, build it as planned (Recommended)": preview first; missing files added; identical skipped; different files keep the system's copy unless the user chooses the backup's, then the system's file is moved to `.retrodrive\backup`, never deleted; refused while the frontend runs; one-step Undo; tested on scratch copies, then one small real restore on the owner's RetroBat, undone). **Writes to the system:** new files (missing ones), and for "use the backup's copies" a no-replace move of the system's file into `.retrodrive/backup/restore-<id>/` followed by a new file in its place. Nothing is overwritten in place and nothing is deleted.
+
+| Risk | Mitigation | Evidence |
+|---|---|---|
+| Losing a newer save | Different files keep the system's copy by default; choosing the backup's moves the system's copy aside first; Undo moves it back | `restoring_adds_missing_files_and_keeps_different_ones_by_default`, `using_the_backups_copy_moves_the_systems_aside_and_undo_puts_everything_back` |
+| Writing outside the backed-up places (edited manifest) | Every path must be plain (no `..`, drive, share, control characters, temp marker, `.retrodrive`) and inside what that system's backup contains; one bad path refuses the whole backup | `a_damaged_or_edited_backup_restores_nothing` (`emulators/…exe`, `../`, `.retrodrive/…`, `C:/…`), `the_allowed_places_match_what_a_backup_reads` |
+| Restoring a damaged backup | Every chosen backup file is checked against its size and SHA-256 before anything is written; any mismatch refuses the restore; incomplete or newer-format backups aren't offered | `a_damaged_or_edited_backup_restores_nothing` |
+| Writing through links | Folders are created with `copier::ensure_folders` (refuses links and files in the way); a link or folder where a file would go is "unavailable" and left out | code review |
+| Half-applied restore after a crash | Journal written before the first change; Undo works from what's on the disk (restored file identical → moved aside; original moved back) | `using_the_backups_copy…` (Undo restores the exact listing); `undo_keeps_files_changed_since_the_restore` |
+| Undo destroying later play | A file changed since the restore is kept and reported ("partly undone") | `undo_keeps_files_changed_since_the_restore` |
+| The frontend overwriting the restore | Refused while RetroBat (retrobat.exe, emulationstation.exe, emulatorlauncher.exe) or ES-DE runs, for restore and undo | tests (refused, nothing changed) |
+| Acting on an old review | The preview's fingerprint (every file's place, decision and checksum) must still match | `restoring_adds_missing_files…` (stale review refused) |
+| Commands used on other folders | Restore only accepts a folder directly inside the backup folder; undo ids are letters, digits and `-` and must belong to the system | code review; `using_the_backups_copy…` (`../../x` refused) |
+
+**Real test (2026-11-09, owner-approved):** on `G:\RetroBat` with a test backup holding a new file and a different version of a real save state (`saves\nes\libretro.fceumm\1943 - The Battle of Midway (USA).state3`): preview add 1 / different 1; restore with "use the backup's copies": 1 added, 1 replaced, the system's state moved to `.retrodrive\backup\restore-…`; Undo: both put back. Listing of `G:\RetroBat` afterwards: identical outside `.retrodrive` (the save state byte-identical, same timestamp); new only: the restore record and the two test files moved to `.retrodrive\backup\restore-…-undo`. The real backup of the drive previewed as 1,876 same, 0 to do.
