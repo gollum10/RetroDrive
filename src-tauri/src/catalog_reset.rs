@@ -483,19 +483,26 @@ mod tests {
     #[test]
     fn a_copy_from_an_older_version_is_brought_up_to_date_first() {
         let (data, _games, path) = setup();
-        let c = db::open(&path).unwrap();
-        let library = table(&c, LIBRARY);
-        // Pretend this copy was saved by a version without v28's indexes.
+        // A catalog saved by the very first RetroDrive (schema v0, before any
+        // migration), which every later version must still be able to upgrade.
         let old = data.path().join("retrodrive-before-reset-2026-11-01 10.00.00.sqlite");
-        c.execute("VACUUM INTO ?1", [old.display().to_string()]).unwrap();
-        drop(c);
         let o = Connection::open(&old).unwrap();
-        o.execute_batch("DROP INDEX idx_game_files_parent; DROP INDEX idx_deployment_items_file; PRAGMA user_version = 27;").unwrap();
+        o.execute_batch(
+            "CREATE TABLE game_files (id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, title TEXT NOT NULL, platform TEXT NOT NULL,
+                 file_size INTEGER NOT NULL DEFAULT 0, last_seen TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+             INSERT INTO game_files (path, title, platform, file_size) VALUES ('D:/Roms/snes/Old One.sfc', 'Old One', 'SNES', 10), ('D:/Roms/nes/Old Two.nes', 'Old Two', 'NES', 20);",
+        )
+        .unwrap();
         drop(o);
+        let before = fs::read(&old).unwrap();
         let p = preview(&db::open(&path).unwrap()).unwrap().clears;
         reset(&path, &p, "2026-11-09 21.30.05").unwrap();
-        put_back(&path, &old, "2026-11-09 22.00.00").unwrap();
-        assert_eq!(table(&db::open(&path).unwrap(), LIBRARY), library);
-        assert_eq!(db::user_version(&read_only(&old).unwrap()).unwrap(), 27, "the saved copy itself isn't changed");
+        let back = put_back(&path, &old, "2026-11-09 22.00.00").unwrap();
+        assert_eq!(back.counts.games, 2);
+        let c = db::open(&path).unwrap();
+        let titles = table(&c, "SELECT canonical_title FROM games ORDER BY 1");
+        assert_eq!(titles, table(&c, "SELECT 'Old One' UNION ALL SELECT 'Old Two'"));
+        assert_eq!(table(&c, "SELECT canonical_title FROM games_fts ORDER BY 1"), titles, "search works");
+        assert_eq!(fs::read(&old).unwrap(), before, "the saved copy itself isn't changed");
     }
 }
