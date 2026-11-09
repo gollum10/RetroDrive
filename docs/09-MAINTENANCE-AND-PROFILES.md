@@ -19,7 +19,7 @@ Discover USB and compatible controllers (Xbox, PlayStation, generic USB and arca
 Each fix produces a **repair plan** with: diagnostic evidence, files/config touched, expected impact, backup action, permissions, estimated disk use, user confirmation, rollback recipe and post-check. Prefer non-mutating advice whenever evidence is uncertain.
 
 ## Backups
-**Step 1 implemented 2026-11-09 (ADR-090, docs/18 §56):** RetroBat and ES-DE backups of saves, settings and game lists into a new folder on the PC, with a SHA-256 manifest and **Check**. Restore (step 2) implemented 2026-11-09 (ADR-091, docs/18 §57): preview, add missing files, keep or replace different ones (system copies moved aside), undo from the disk. RetroBat and ES-DE; other systems later.
+**Step 1 implemented 2026-11-09 (ADR-090, docs/18 §56):** RetroBat and ES-DE backups of saves, settings and game lists into a new folder on the PC, with a SHA-256 manifest and **Check**. Restore (step 2) implemented 2026-11-09 (ADR-091, docs/18 §57): preview, add missing files, keep or replace different ones (system copies moved aside), undo from the disk. All seven systems since 2026-11-09 (ADR-092, docs/18 §58).
 
 Back up configuration, saves, gamelists, manifests and user metadata separately from bulk ROMs. Record included paths, hash manifest, date, source adapter/version, restore prerequisites and verified status. Restore is always a previewed operation, with conflict handling.
 

@@ -608,3 +608,17 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 | Commands used on other folders | Restore only accepts a folder directly inside the backup folder; undo ids are letters, digits and `-` and must belong to the system | code review; `using_the_backups_copy…` (`../../x` refused) |
 
 **Real test (2026-11-09, owner-approved):** on `G:\RetroBat` with a test backup holding a new file and a different version of a real save state (`saves\nes\libretro.fceumm\1943 - The Battle of Midway (USA).state3`): preview add 1 / different 1; restore with "use the backup's copies": 1 added, 1 replaced, the system's state moved to `.retrodrive\backup\restore-…`; Undo: both put back. Listing of `G:\RetroBat` afterwards: identical outside `.retrodrive` (the save state byte-identical, same timestamp); new only: the restore record and the two test files moved to `.retrodrive\backup\restore-…-undo`. The real backup of the drive previewed as 1,876 same, 0 to do.
+
+## 58. Addendum: Backup and restore for Batocera, Recalbox, RetroPie, ROCKNIX and Lakka (2026-11-09)
+**Scope and authorization:** owner, after the research summary: "Build all 5 backup and restore for all 5" (ADR-092). Backup reads only. Restore writes to these systems under the rules approved for §57 (preview, keep the system's copy unless the backup's is chosen, system copies moved to `.retrodrive\backup` on the same share, journal first, Undo from the disk). New write places: Batocera's userdata, Recalbox's share, RetroPie's roms and configs shares (or USB folder), ROCKNIX's games-roms and config shares (or SD card folder), Lakka's Savefiles, Savestates, Configfiles, Remappings and Playlists shares.
+
+| Risk | Mitigation | Evidence |
+|---|---|---|
+| Backing up or writing games where saves sit next to them (RetroPie, ROCKNIX) | Only save file types are taken from system folders (`is_save_file`); restore's `covered` accepts only those there | `retropie_and_rocknix_pick_saves_out_of_the_game_folders` (`snes/Mario.sfc` not backed up and not covered), `save_files_are_told_apart_from_games` |
+| Restore writing outside what the backup holds | One rule list per system is used by both backup and restore (`covered`); everything else in §57 still applies | every new test asserts each backed-up file is covered; `a_damaged_or_edited_backup_restores_nothing` |
+| Moving a file between shares (not possible) | Each area's replaced files go to `.retrodrive\backup` on that same share | code review (`moved_to` is below the item's own area) |
+| The system overwriting a restore when it quits | These systems run elsewhere, so RetroDrive can't check; the review says to restore while it's off or restart it right after, and the result says to restart | code review |
+| A share that can't be reached | Its files are left out with a note (preview and restore); nothing else is affected | `retropie_and_rocknix…` (USB RetroPie: settings note) |
+| RetroBat/ES-DE behaving differently after the change | Same files as before | all earlier tests; read-only preview of the owner's RetroBat (saves 1,863, settings 8, game lists 5, media 11) and ES-DE (settings 1, game lists 1, art 1,204): unchanged |
+
+**Testing limits:** no Batocera, Recalbox, RetroPie, ROCKNIX or Lakka hardware is available; each is tested on folders laid out like it (backup, lose a save, restore, compare). A first real use should be a backup, then a small restore with Undo.

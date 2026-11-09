@@ -20,7 +20,7 @@
 //! - Refused while RetroBat or ES-DE runs.
 
 use crate::customizer::{PresenceFn, RunningFn};
-use crate::system_backup::{self, Area, Manifest, Places, ES, FORMAT, GROUPS};
+use crate::system_backup::{self, Area, Manifest, Places, FORMAT, GROUPS};
 use crate::{copier, db, gamelists};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -68,6 +68,8 @@ pub struct RestorePreview {
     /// First different files (path below its folder).
     pub different_files: Vec<String>,
     pub unavailable_note: Option<String>,
+    /// For systems on their own machine: what to do around a restore.
+    pub system_note: Option<String>,
     pub blocked: Option<String>,
     pub fingerprint: String,
 }
@@ -119,43 +121,8 @@ pub struct RestoreRecord {
     pub state: String,
 }
 
-/// A manifest path is relative and plain: no `..`, drive or share, nothing of RetroDrive's.
-fn plain(path: &str) -> bool {
-    let parts: Vec<&str> = path.split('/').collect();
-    !path.is_empty()
-        && parts.iter().all(|p| !p.is_empty() && *p != "." && *p != ".." && !p.contains([':', '\\']) && !p.chars().any(char::is_control) && !p.contains(copier::TEMP_MARKER))
-        && !parts[0].eq_ignore_ascii_case(".retrodrive")
-}
-
-/// Whether a backup of this kind of system covers this place (the same places
-/// `system_backup::sources` reads).
 fn allowed(adapter: &str, area: Area, path: &str) -> bool {
-    if !plain(path) {
-        return false;
-    }
-    let parts: Vec<&str> = path.split('/').collect();
-    let under = |prefix: &str| path.len() > prefix.len() + 1 && path.starts_with(prefix) && path.as_bytes()[prefix.len()] == b'/';
-    match (adapter, area) {
-        ("retrobat", Area::Install) => {
-            path == "retrobat.ini"
-                || under("saves")
-                || under("user")
-                || ["es_settings.cfg", "es_input.cfg", "gamecontrollerdb.txt"].iter().any(|f| path == format!("{ES}/{f}"))
-                || ["collections", "scripts", "themesettings", "music", "video"].iter().any(|d| under(&format!("{ES}/{d}")))
-                || (parts.len() == 3 && parts[0] == "roms" && parts[2] == "gamelist.xml")
-        }
-        ("esde", Area::EsdeData) => parts.len() >= 2 && ["settings", "collections", "custom_systems", "controllers", "scripts", "gamelists", "downloaded_media"].contains(&parts[0]),
-        ("esde", Area::Retroarch) => parts.len() >= 2 && ["saves", "states"].contains(&parts[0]),
-        _ => false,
-    }
-}
-
-fn base(p: &Places, area: Area) -> Option<&Path> {
-    match area {
-        Area::Install => Some(&p.install),
-        Area::EsdeData => p.esde_data.as_deref(),
-        Area::Retroarch => p.retroarch.as_deref(),
-    }
+    system_backup::covered(adapter, area, path)
 }
 
 fn target_path(base: &Path, rel: &str) -> PathBuf {
@@ -215,7 +182,7 @@ fn load(connection: &Connection, backup: &Path, installation_id: &str, groups: &
         &wanted,
         "comparing",
         |f| {
-            let Some(base) = base(&places, f.area) else { return Action::Unavailable };
+            let Some(base) = places.base(f.area) else { return Action::Unavailable };
             let target = target_path(base, &f.path);
             match fs::symlink_metadata(&target) {
                 Err(_) => Action::Add,
@@ -238,6 +205,12 @@ fn fingerprint(l: &Loaded) -> String {
         h.update(format!("{:?}|{}|{:?}|{}\n", p.file.area, p.file.path, p.action, p.file.sha256));
     }
     format!("{:x}", h.finalize())[..16].to_string()
+}
+
+/// Batocera, Recalbox, RetroPie, ROCKNIX and Lakka run on their own machine, so RetroDrive
+/// can't tell whether they're running; their menus save settings and game lists when they quit.
+fn system_note(adapter: &str, name: &str) -> Option<String> {
+    (adapter != "retrobat" && adapter != "esde").then(|| format!("If {name} is running, it may save its own settings and game lists over the restored ones when it quits. Best: restore while it's switched off (a USB drive), or restart {name} right after restoring and before changing anything in its menu."))
 }
 
 fn blocked(adapter: &str, running: RunningFn) -> Option<String> {
@@ -274,12 +247,14 @@ pub fn preview(connection: &Connection, backup: &Path, installation_id: &str, gr
         bytes_different: bytes(Action::Different),
         different_files: l.planned.iter().filter(|p| p.action == Action::Different).take(50).map(|p| p.file.path.clone()).collect(),
         unavailable_note: (unavailable > 0).then(|| {
-            if l.places.retroarch.is_none() && l.planned.iter().any(|p| p.action == Action::Unavailable && p.file.area == Area::Retroarch) {
-                "RetroArch isn't in this ES-DE's Emulators folder, so its saves can't go back yet.".to_string()
-            } else {
-                "A folder or link is where a file would go, so those files are left out.".to_string()
-            }
+            l.planned
+                .iter()
+                .filter(|p| p.action == Action::Unavailable)
+                .find_map(|p| l.places.missing_note(p.file.area))
+                .map(str::to_string)
+                .unwrap_or_else(|| "A folder or link is where a file would go, so those files are left out.".to_string())
         }),
+        system_note: system_note(&l.manifest.adapter_id, &l.manifest.adapter_name),
         blocked: blocked(&l.manifest.adapter_id, running),
         fingerprint: fingerprint(&l),
     })
@@ -354,7 +329,7 @@ pub fn apply(connection: &Connection, backup: &Path, installation_id: &str, grou
     write_journal(&install, &journal)?;
     let (mut added, mut replaced, mut failed) = (0, 0, Vec::new());
     for item in &items {
-        let Some(base) = base(&l.places, item.area) else { continue };
+        let Some(base) = l.places.base(item.area) else { continue };
         let source = backup_file(backup, item.area, &item.path);
         let result = if item.action == "add" {
             place(base, &item.path, &source).map(|_| added += 1)
@@ -384,10 +359,11 @@ pub fn apply(connection: &Connection, backup: &Path, installation_id: &str, grou
     write_journal(&install, &journal)?;
     let name = &l.manifest.adapter_name;
     let message = format!(
-        "Restored: {added} file{} added, {replaced} replaced (the system's copies are in .retrodrive\\backup\\restore-{id}){}{}. Undo is under Show backups.",
+        "Restored: {added} file{} added, {replaced} replaced (the system's copies are in .retrodrive\\backup\\restore-{id}){}{}. Undo is under Show backups.{}",
         if added == 1 { "" } else { "s" },
         if kept > 0 { format!(", {kept} different file{} kept as {name} had {}", if kept == 1 { "" } else { "s" }, if kept == 1 { "it" } else { "them" }) } else { String::new() },
         if failed.is_empty() { String::new() } else { format!(", {} couldn't be restored", failed.len()) },
+        if l.manifest.adapter_id == "retrobat" || l.manifest.adapter_id == "esde" { String::new() } else { format!(" Restart {name} to use them.") },
     );
     Ok(RestoreSummary { id, added, replaced, kept, failed, message })
 }
@@ -438,7 +414,7 @@ pub fn undo(connection: &Connection, installation_id: &str, restore_id: &str, pr
             kept.push(format!("{} (not a place RetroDrive restores to)", item.path));
             continue;
         }
-        let Some(base) = base(&places, item.area) else { continue };
+        let Some(base) = places.base(item.area) else { continue };
         let target = target_path(base, &item.path);
         let current = fs::symlink_metadata(&target).ok().filter(|m| m.is_file()).and_then(|_| copier::sha256_of(&target).ok());
         let original = item.moved_to.as_deref().map(|m| target_path(base, m)).filter(|p| p.is_file());
