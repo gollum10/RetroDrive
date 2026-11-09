@@ -1,5 +1,7 @@
 # RetroDrive — Features
 
+**Theme Studio PNG workflow prepared:** user file picker with license/attribution, normalized immutable SQLite blobs, PNG image layers and authorized hash-checked previews. Images use normal move/resize/align/lock/hide/history services. Catalog v29 is additive; native import/save/reopen validation remains pending.
+
 **Theme Studio image-import boundary prepared:** bounded native PNG decode/normalization, metadata stripping, canonical byte hashing and portable image path generation. This is codec-only infrastructure; file import/storage, asset UI and image rendering are not implemented yet.
 
 **Theme Studio layer state prepared:** layer-list Lock/Unlock and Hide/Show controls persist optional editor flags with undo/redo and existing draft/checkpoint services. Locked/hidden layers reject content edits; hidden layers remain listed for recovery. Browser checks pass; native validation remains pending.

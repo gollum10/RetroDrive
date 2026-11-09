@@ -11,7 +11,7 @@ export function layerState(node: ThemeNode) {
   return { locked: !recognized || object?.locked === true, hidden: object?.hidden === true, recognized };
 }
 export function supportedNode(scene: Scene, node: ThemeNode): boolean {
-  return ['text', 'panel'].includes(node.type) && node.children.length === 0 && rootNodes(scene).some(root => root.id === node.id);
+  return ['text', 'panel', 'image'].includes(node.type) && node.children.length === 0 && rootNodes(scene).some(root => root.id === node.id);
 }
 export function setLayerState(project: ThemeProject, sceneId: string, nodeId: string, key: 'locked' | 'hidden', value: boolean): ThemeProject {
   const scene = project.scenes.find(scene => scene.id === sceneId);
@@ -25,7 +25,7 @@ export function setLayerState(project: ThemeProject, sceneId: string, nodeId: st
 }
 export type LayerOrder = 'back' | 'backward' | 'forward' | 'front';
 export function canOrderLayers(scene: Scene): boolean {
-  return scene.nodes.every(node => ['text', 'panel'].includes(node.type) && node.children.length === 0);
+  return scene.nodes.every(node => ['text', 'panel', 'image'].includes(node.type) && node.children.length === 0);
 }
 /** Array order is the editor's back-to-front paint order, not a native export promise. */
 export function orderLayer(project: ThemeProject, sceneId: string, nodeId: string, order: LayerOrder): ThemeProject {

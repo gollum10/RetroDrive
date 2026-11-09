@@ -154,3 +154,14 @@ pub(crate) async fn discard_theme_project_draft(
 ) -> Result<ProjectRecord, ProjectError> {
     run(catalog, move |c| projects::discard_draft(c, &id, revision)).await
 }
+
+// Do not queue unlimited image decode/preview work; callers retry a busy response.
+static IMAGE_GATE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+#[tauri::command]
+pub(crate) async fn import_theme_png(catalog: State<'_,Catalog>,project_id: String,png_base64: String) -> Result<super::image_store::StoredImage,ProjectError> {
+    run(catalog,move |connection| { let _guard=IMAGE_GATE.try_lock().map_err(|_|projects::error_message("image_busy","Another image operation is running. Try again."))?; super::image_store::import_png(connection,&project_id,&png_base64) }).await
+}
+#[tauri::command]
+pub(crate) async fn preview_theme_png(catalog: State<'_,Catalog>,project_id: String,asset_id: String) -> Result<String,ProjectError> {
+    run(catalog,move |connection| { let _guard=IMAGE_GATE.try_lock().map_err(|_|projects::error_message("image_busy","Another image operation is running. Try again."))?; super::image_store::preview_png(connection,&project_id,&asset_id) }).await
+}

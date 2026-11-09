@@ -1,5 +1,7 @@
 # 05 | Hybrid Library Data Model
 
+**Catalog v29:** additive theme_image_assets table stores hash primary key, normalized PNG BLOB, dimensions, byte count and imported_at. Existing migration backup/transaction/refusal rules apply. Images deduplicate across local projects, while license/attribution stay in each portable source declaration. No old design rows or target files change. Content limits: 256 MiB and 2,000 blobs; no automatic deletion or source-schema migration.
+
 **Image normalization:** no source/catalog change. The pure codec returns bytes/hash/dimensions and assets/images/<hash>.png compatible with the existing asset path contract. No asset row/document declaration is persisted yet; provenance/license and managed storage are still unwired.
 
 **Layer editor flags:** optional node.editor object contains locked/hidden booleans (absent means false). Extra fields survive flag updates. Non-object editor data or non-boolean known flags are read-only. Flags persist in the existing project JSON/checkpoint/draft without a schema or SQLite migration; this is editor-preview state, not native visibility/conditions.

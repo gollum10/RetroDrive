@@ -1788,6 +1788,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            theme_studio::commands::import_theme_png,
+            theme_studio::commands::preview_theme_png,
             theme_studio::commands::theme_target_profiles,
             theme_studio::commands::theme_compatibility,
             theme_studio::commands::validate_theme_document,

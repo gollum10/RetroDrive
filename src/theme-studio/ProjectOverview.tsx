@@ -2,6 +2,10 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { ProjectSession } from './session';
 import { errorText, suggestCopyName } from './document';
 import CompatibilityPanel from './CompatibilityPanel';
+import ImageImportForm from './ImageImportForm';
+import { attachImage } from './image-assets';
+import { importPng } from './api';
+import useImagePreviews from './use-image-previews';
 import SaveCopyForm from './SaveCopyForm';
 import SceneCanvas from './SceneCanvas';
 import NodeInspector from './NodeInspector';
@@ -10,19 +14,25 @@ import LayerOrderControls from './LayerOrderControls';
 import AlignmentControls from './AlignmentControls';
 import { alignLayer } from './alignment';
 import { resizeLayer } from './resize';
-import { addNode, moveNode, updateNode, orderLayer, setLayerState } from './scene-edit';
+import { addNode, moveNode, updateNode, orderLayer, setLayerState, layerState } from './scene-edit';
 
 export default function ProjectOverview({ session, onClose, onCopy, onReload, blocked = false }: { session: ProjectSession; onClose: () => void; onCopy: (name: string) => void; onReload: () => void; blocked?: boolean }) {
   const change = useSyncExternalStore(session.subscribe, session.snapshot, session.snapshot);
   const [sceneId, setSceneId] = useState(session.document.scenes[0].id);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [copyName, setCopyName] = useState<string | null>(null);
+  const [importScene,setImportScene]=useState<string|null>(null);
+  const alive=useRef(true);
+  useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
   const copyButton = useRef<HTMLButtonElement>(null);
   const [confirmReload, setConfirmReload] = useState(false);
   const document = session.document;
   const scene = document.scenes.find(s => s.id === sceneId) ?? document.scenes[0];
   const selected = scene.nodes.find(node => node.id === selectedId) ?? null;
-  const editorDisabled = blocked || copyName !== null;
+  const editorDisabled = blocked || copyName !== null || importScene !== null;
+  const sceneAssetIds=new Set(scene.nodes.filter(node=>node.type==='image'&&!layerState(node).hidden).flatMap(node=>node.assets));
+  const sceneAssets=document.assets.filter(asset=>sceneAssetIds.has(asset.id));
+  const previews=useImagePreviews(session.record.id,sceneAssets,session.record.revision);
   const nodeCount = document.scenes.reduce((count, scene) => count + scene.nodes.length, 0);
   const add = (kind: 'text' | 'panel') => { const next = addNode(session.document, scene.id, kind); if (next.id) { session.edit(next.project, `Add ${kind}`); setSelectedId(next.id); } };
   useEffect(() => {
@@ -37,15 +47,17 @@ export default function ProjectOverview({ session, onClose, onCopy, onReload, bl
     if (event.key.toLowerCase() === 'z') { event.preventDefault(); if (event.shiftKey) session.redo(); else session.undo(); }
     else if (event.key.toLowerCase() === 'y') { event.preventDefault(); session.redo(); }
   }}>
-    <div className="panel ts-toolbar"><h2>{document.metadata.name || 'Untitled theme'}</h2><span role="status" aria-live="polite">{status}</span><button className="primary" disabled={session.busy || !!session.error || copyName !== null} onClick={() => { void session.save().catch(() => undefined); }}>Save checkpoint</button><button ref={copyButton} aria-expanded={copyName !== null} aria-controls="ts-save-copy" disabled={session.busy} onClick={() => setCopyName(suggestCopyName(document.metadata.name))}>Save As…</button><button className="ghost" onClick={onClose}>Back to projects</button></div>
+    <div className="panel ts-toolbar"><h2>{document.metadata.name || 'Untitled theme'}</h2><span role="status" aria-live="polite">{status}</span><button className="primary" disabled={session.busy || !!session.error || copyName !== null} onClick={() => { void session.save().catch(() => undefined); }}>Save checkpoint</button><button ref={copyButton} aria-expanded={copyName !== null} aria-controls="ts-save-copy" disabled={session.busy || importScene !== null} onClick={() => setCopyName(suggestCopyName(document.metadata.name))}>Save As…</button><button className="ghost" onClick={onClose}>Back to projects</button></div>
     {session.error != null && <div className="panel" role="alert"><p>{errorText(session.error)}</p>{!session.conflict && <button onClick={() => { void session.retry().catch(() => undefined); }}>Retry autosave</button>}<p>Save As keeps your current local edits in a separate project. Reload replaces this session with the database version.</p><button className="ghost" onClick={() => setConfirmReload(true)}>Reload from database…</button></div>}
     {confirmReload && <div className="panel" role="alert"><p>Discard this session's unsaved edits and reopen the database version? Save a copy first to keep these edits.</p><button onClick={onReload}>Discard local edits and reload</button><button className="ghost" onClick={() => setConfirmReload(false)}>Keep editing</button></div>}
     {copyName !== null && <SaveCopyForm name={copyName} sourceName={document.metadata.name} busy={session.busy} onName={setCopyName} onCreate={onCopy} onCancel={() => { setCopyName(null); copyButton.current?.focus(); }} />}
+    {importScene && <ImageImportForm sceneName={document.scenes.find(scene=>scene.id===importScene)?.name??'scene'} onCancel={()=>setImportScene(null)} onImport={async(encoded,license,attribution)=>{await session.flush();const image=await importPng(session.record.id,encoded);if(!alive.current)return;const next=attachImage(session.document,importScene,image,license,attribution);session.edit(next.project,'Import image');setSelectedId(next.id);setImportScene(null);await session.flush();}}/>}
+    {previews.error && <p role="status">{previews.error} <button onClick={previews.retry}>Retry previews</button></p>}
     <p>Edits autosave as a draft. Save checkpoint marks a version to return to. Target: {document.targets.length ? document.targets.map(t => `${t.frontendFamily}${t.frontendVersion ? ` ${t.frontendVersion}` : ' (version unknown)'}`).join(', ') : 'Universal / No Target Yet'}. Native support is unverified.</p>
-    <div className="ts-toolbar ts-edit-actions"><button disabled={editorDisabled || !session.history.canUndo} title={session.history.undoLabel ?? 'Nothing to undo'} onClick={() => session.undo()}>Undo</button><button disabled={editorDisabled || !session.history.canRedo} onClick={() => session.redo()}>Redo</button><button disabled={editorDisabled || nodeCount >= 10_000} onClick={() => add('text')}>Add text</button><button disabled={editorDisabled || nodeCount >= 10_000} onClick={() => add('panel')}>Add panel</button></div>
+    <div className="ts-toolbar ts-edit-actions"><button disabled={editorDisabled || nodeCount >= 10000} onClick={()=>setImportScene(scene.id)}>Import PNG</button><button disabled={editorDisabled || !session.history.canUndo} title={session.history.undoLabel ?? 'Nothing to undo'} onClick={() => session.undo()}>Undo</button><button disabled={editorDisabled || !session.history.canRedo} onClick={() => session.redo()}>Redo</button><button disabled={editorDisabled || nodeCount >= 10_000} onClick={() => add('text')}>Add text</button><button disabled={editorDisabled || nodeCount >= 10_000} onClick={() => add('panel')}>Add panel</button></div>
     <div className="ts-editor-grid">
       <aside className="panel ts-scenes" aria-label="Scenes and layers"><h3>Scenes</h3><nav aria-label="Select scene">{document.scenes.map(s => <button key={s.id} aria-pressed={scene.id === s.id} onClick={() => { setSceneId(s.id); setSelectedId(null); session.endEditGroup(); }}>{s.name}</button>)}</nav><LayerList scene={scene} selected={selectedId} disabled={editorDisabled} onSelect={id => { setSelectedId(id); session.endEditGroup(); }} onState={(id,key,value) => session.edit(setLayerState(session.document,scene.id,id,key,value), `${value ? key === 'locked' ? 'Lock' : 'Hide' : key === 'locked' ? 'Unlock' : 'Show'} layer`)}/></aside>
-      <SceneCanvas scene={scene} selected={selectedId} disabled={editorDisabled} onSelect={setSelectedId} onMove={(id, x, y, group) => session.edit(moveNode(session.document, scene.id, id, x, y), 'Move layer', group)} onResize={(id, width, height, group) => session.edit(resizeLayer(session.document, scene.id, id, width, height), 'Resize layer', group)} onEndGroup={() => session.endEditGroup()}/>
+      <SceneCanvas previewImages={previews.images} scene={scene} selected={selectedId} disabled={editorDisabled} onSelect={setSelectedId} onMove={(id, x, y, group) => session.edit(moveNode(session.document, scene.id, id, x, y), 'Move layer', group)} onResize={(id, width, height, group) => session.edit(resizeLayer(session.document, scene.id, id, width, height), 'Resize layer', group)} onEndGroup={() => session.endEditGroup()}/>
       <aside className="panel ts-inspector" aria-label="Properties inspector"><h3>Properties</h3>
         <LayerOrderControls scene={scene} selected={selectedId} disabled={editorDisabled} onOrder={order => { if (selectedId) session.edit(orderLayer(session.document, scene.id, selectedId, order), 'Change layer order'); }}/>
         <NodeInspector scene={scene} node={selected} disabled={editorDisabled} onChange={(node, label, group) => session.edit(updateNode(session.document, scene.id, node.id, () => node), label, group)} onEnd={() => session.endEditGroup()}/>

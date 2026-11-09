@@ -22,3 +22,7 @@ export { resizeDelta, resizeLayer } from '../../src/theme-studio/resize';
 export { bounds, snapSize, snapPosition, guides } from '../../src/theme-studio/snapping';
 
 export { layerState, setLayerState, editableNode } from '../../src/theme-studio/scene-edit';
+
+export { attachImage } from '../../src/theme-studio/image-assets';
+export { encodePngFile } from '../../src/theme-studio/ImageImportForm';
+export { safePngPreview } from '../../src/theme-studio/use-image-previews';

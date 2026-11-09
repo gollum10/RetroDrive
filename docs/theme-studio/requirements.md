@@ -1,5 +1,7 @@
 # Theme Studio delivery tracking
 
+**MEDIA-001/VIS-003 partial PNG workflow:** static user PNG import, license/attribution, managed catalog bytes, image-layer authoring and verified previews are implemented for review. Byte limits/normalization remain as documented; native end-to-end QA is pending. More codecs, crop tools, full asset browser/cleanup, source packages and native export remain unimplemented.
+
 **MEDIA-001/NFR partial foundation:** a bounded PNG codec normalizes supplied bytes and creates a portable hash path. This does not implement user file import, asset library, image layers or preview serving. Managed storage and UI wiring follow next; native export remains disabled.
 
 **VIS-002 partial lock/hide:** supported leaf text/panel layer flags now persist and are undoable, guarded across content operations, with list-based unlock/show. Nested/group authoring, native conditional visibility and native target output remain unimplemented. Browser tests pass; native smoke validation is pending.

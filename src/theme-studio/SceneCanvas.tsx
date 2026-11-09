@@ -1,11 +1,13 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { safePngPreview } from './use-image-previews';
 import { snapPosition, snapSize, guides } from './snapping';
 import { resizeDelta } from './resize';
 import type { Scene } from './types';
 import { pixels, pointerToScene, previewColor, previewText, rootNodes, editableNode, layerState } from './scene-edit';
 
 type Drag = { id: string; pointerId: number; x: number; y: number; startX: number; startY: number; mode: 'move' | 'resize'; width: number; height: number; rotation: number };
-export default function SceneCanvas({ scene, selected, disabled, onSelect, onMove, onResize, onEndGroup }: {
+export default function SceneCanvas({ scene, selected, disabled, onSelect, onMove, onResize, onEndGroup, previewImages = {} }: {
+  previewImages?: Record<string,string>;
   scene: Scene; selected: string | null; disabled: boolean; onSelect: (id: string | null) => void;
   onMove: (id: string, x: number, y: number, group?: string) => void; onResize: (id: string, width: number, height: number, group?: string) => void; onEndGroup: () => void;
 }) {
@@ -16,8 +18,9 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
   const svg = useRef<SVGSVGElement>(null);
   const drag = useRef<Drag | null>(null);
   const [preview, setPreview] = useState<{ id: string; x: number; y: number; width?: number; height?: number } | null>(null);
+  const safeImages=useMemo(()=>Object.fromEntries(Object.entries(previewImages).filter(([,value])=>safePngPreview(value))),[previewImages]);
   const roots = useMemo(() => rootNodes(scene), [scene]);
-  const visible = roots.filter(node => ['text', 'panel'].includes(node.type) && node.children.length === 0 && !layerState(node).hidden);
+  const visible = roots.filter(node => ['text', 'panel', 'image'].includes(node.type) && node.children.length === 0 && !layerState(node).hidden);
   const cancel = () => { drag.current = null; setPreview(null); };
   const selectedState = scene.nodes.find(node => node.id === selected);
   const locked = selectedState ? layerState(selectedState).locked : false;
@@ -68,6 +71,7 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
         return <g key={node.id} data-node-id={node.id} transform={`translate(${x} ${y}) rotate(${node.layout.rotation})`} style={{ cursor: disabled || !editableNode(scene,node) ? 'default' : 'move' }}
           onPointerDown={event => { if (disabled || event.button !== 0) return; event.stopPropagation(); svg.current?.focus(); onSelect(node.id); if (!editableNode(scene,node)) return; const start = point(event.clientX, event.clientY); if (!start) return; drag.current = { id: node.id, pointerId: event.pointerId, x, y, startX: start.x, startY: start.y, mode: 'move', width, height, rotation: node.layout.rotation }; svg.current?.setPointerCapture(event.pointerId); }}>
           <title>{node.name}</title><rect width={width} height={height} fill={node.type === 'panel' ? previewColor(node.style.fill, '#263f60') : 'transparent'} opacity={opacity}/>
+          {node.type === 'image' && (safeImages[node.assets[0]] ? <image href={safeImages[node.assets[0]]} width={width} height={height} preserveAspectRatio="xMidYMid meet" opacity={opacity} pointerEvents="none"/> : <text x={4} y={20} fill="#abc0d9" fontSize={18} pointerEvents="none">Image unavailable</text>)}
           {node.type === 'text' && <svg width={width} height={height} overflow="hidden" pointerEvents="none"><text x={0} y={0} dominantBaseline="hanging" fontFamily="sans-serif" fontSize={fontSize} fill={previewColor(node.style.color, '#ffffff')} opacity={opacity}>{previewText(node).split('\n').slice(0, 20).map((line, index) => <tspan key={index} x={0} dy={index ? '1.2em' : 0}>{line || ' '}</tspan>)}</text></svg>}
         </g>;
       })}
@@ -95,6 +99,6 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
     </svg>
     <p>Grid and snapping are session-only aids. Hold Alt to bypass pointer snapping; arrow keys keep precise steps. Guides mark canvas edges and centers.</p>
     <p id="ts-canvas-help">Select a layer and drag to move it, or focus the canvas and use arrow keys (Shift: 10 pixels). Drag the bottom-right handle to resize; focus it and use arrows for numeric steps. Escape cancels a drag or resize. Editor preview; native frontend behavior is unverified.</p>
-    {visible.length < scene.nodes.length && <p>Only top-level text and panels are drawn here. Other layers and their source data are preserved.</p>}
+    {visible.length < scene.nodes.length && <p>Only supported top-level layers are drawn here. Other layers and their source data are preserved.</p>}
   </section>;
 }
