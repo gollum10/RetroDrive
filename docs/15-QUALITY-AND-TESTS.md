@@ -1,5 +1,7 @@
 # 15 | Quality Assurance, Threat Scenarios and Test Matrix
 
+**Grid/snapping checks:** workspace tests cover grid rounding, negative positions, minimum sizes, rotated bounds and guides. Real Edge input tests cover toggles without edits, snapped resizing, Alt bypass, center guide display/cancellation and the existing focus/resize/DPI/layout regressions. Contract/build checks pass. Native app validation remains required.
+
 **Real browser resize regression:** npm.cmd run test:theme-browser drives installed headless Edge through CDP using a fresh local profile and source-only fixture. Pre-fix pointer drag committed zero resizes. Fixed tests pass pointer preview/release/no-op/Escape/external blur, focused-handle arrows, 850/650px workspace layout, rotated resizing at 150% device scale and disabled handle. Workspace/contract/build checks also pass. This is real browser input, not native Tauri IPC/SQLite or owner visual sign-off.
 
 **Resize checks:** test:theme-workspace covers inverse rotation math, negative-size prevention, unit conversion, opaque/source preservation, unchanged axes/no-ops, limits, nested/missing guards, undo/redo and actual SVG handle presence/disabled states. Contract checks, build and diff checks pass. Native pointer capture/cancellation/DPI/focus checks remain manual. Rust was not rerun for this frontend-only change.

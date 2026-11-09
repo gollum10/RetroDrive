@@ -1,5 +1,7 @@
 # 11 | Development Roadmap and Backlog
 
+**Theme Studio grid increment prepared:** optional grid/snap controls, move and local-size snapping, Alt bypass and canvas edge/center guides. Real browser regressions pass; native smoke check remains pending. Locking/hiding follows as a separate increment, followed by secure asset import and richer previews; native export still requires verified target evidence.
+
 **Native QA follow-up:** owner reported resize failure and small normal-window canvas after PR 95. Browser input reproduced the resize failure; focus and container-width layout fixes are prepared with real Edge regression coverage. Existing undo/checkpoint services remain unchanged; native app recheck is still required before new editor features.
 
 **Theme Studio resize increment prepared:** bottom-right handle, local-axis rotation-aware resizing and keyboard sizing with undo/redo. Native gesture QA remains pending. Other handles, aspect locking, snapping/guides, groups/lock/hide and assets remain planned.
