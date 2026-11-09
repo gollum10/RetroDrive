@@ -760,6 +760,24 @@ async fn check_health(app: AppHandle, catalog: State<'_, Catalog>, installation_
     tauri::async_runtime::spawn_blocking(move || health::check(&db::open(&db_path)?, &installation_id, &backups, &volumes::presence, &volumes::space)).await.map_err(|e| e.to_string())?
 }
 
+/// Settings → About and legal (LEGAL-009): open the notices shipped next to the app
+/// (`software`: THIRD_PARTY_NOTICES.txt, `data`: THIRD_PARTY_CONTROLLERS.txt) in the
+/// Notepad.
+#[tauri::command]
+fn open_third_party_notices(app: AppHandle, which: String) -> Result<(), String> {
+    let name = match which.as_str() {
+        "software" => "THIRD_PARTY_NOTICES.txt",
+        "data" => "THIRD_PARTY_CONTROLLERS.txt",
+        _ => return Err("Unknown notices file.".into()),
+    };
+    let path = app.path().resource_dir().map_err(|e| format!("Couldn't find RetroDrive's files: {e}"))?.join(name);
+    if !path.is_file() {
+        return Err(format!("{name} wasn't found next to RetroDrive."));
+    }
+    // Notepad is on every Windows PC, so no "choose an app" prompt.
+    std::process::Command::new("notepad.exe").arg(&path).spawn().map(|_| ()).map_err(|e| format!("Couldn't open {name}: {e}"))
+}
+
 /// Settings: the folder backups go into, as a path to show.
 #[tauri::command]
 fn backup_destination_path(app: AppHandle, folder: Option<String>) -> Result<String, String> {
@@ -1739,6 +1757,7 @@ pub fn run() {
             recalbox_games,
             check_bios,
             backup_destination_path,
+            open_third_party_notices,
             check_health,
             system_backup_preview,
             run_system_backup,

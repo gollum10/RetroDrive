@@ -23,6 +23,8 @@ jobs:
       - run: npm ci
       - name: License gate (LEGAL-014)
         run: python scripts/check-licenses.py
+      - name: Third-party notices up to date (LEGAL-009)
+        run: python scripts/third-party-notices.py --check
       - name: Type-check and build frontend
         run: npm run build
       - name: Theme Studio source contract

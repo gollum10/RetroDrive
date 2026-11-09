@@ -24,7 +24,7 @@ cd src-tauri
 cargo test
 cargo clippy --all-targets
 ```
-License gate (LEGAL-014): `python scripts/check-licenses.py`. Add `--csv docs/third-party/dependencies.csv` to refresh the inventory after dependency changes.
+License gate (LEGAL-014): `python scripts/check-licenses.py`. Add `--csv docs/third-party/dependencies.csv` to refresh the inventory after dependency changes. After any dependency change also run `python scripts/third-party-notices.py` (CI fails with `--check` if `src-tauri/resources/THIRD_PARTY_NOTICES.txt` is out of date).
 
 **Separate test catalog:** set `RETRODRIVE_DATA_DIR` to a folder before `npm run tauri dev` to use a catalog there instead of `%APPDATA%\com.retrodrive.desktop`. To run a second copy beside one that's already open, also give it another port, e.g. `npx tauri dev --config "{\"build\":{\"devUrl\":\"http://localhost:1430\",\"beforeDevCommand\":\"npm run dev -- --port 1430 --strictPort\"}}"`.
 
