@@ -1,5 +1,7 @@
 # 11 | Development Roadmap and Backlog
 
+**PNG import workflow prepared:** catalog storage, picker/metadata form, image layers and authorized previews now integrate the merged codec boundary. Automated storage/migration and browser fixture checks pass; native IPC/save/reopen QA remains pending. JPEG/WebP/SVG, image management/garbage collection, portable packages and native export remain later increments.
+
 **Theme Studio image boundary prepared:** static PNG byte validation, decode/metadata-free re-encode, bounded allocation/output and hashing. Managed content-addressed storage, user import UI and authorized image preview are the next small PR. JPEG/WebP/SVG, packages, media and target compilation remain later work.
 
 **Theme Studio layer lock/hide prepared:** persisted editor flags, list controls, read-only protected content, guarded stacking, preview hiding/restoration and cancellation tests. Native grid and layer-state smoke checks remain pending. Secure asset import/richer previews follow as separately scoped increments; native export remains evidence-gated.

@@ -21,7 +21,7 @@ async function main() {
   const errors = ts.getPreEmitDiagnostics(withAssets);
   assert.equal(errors.length, 0, ts.formatDiagnosticsWithColorAndContext(errors, { getCanonicalFileName: f => f, getCurrentDirectory: () => root, getNewLine: () => '\n' }));
   assert.equal(withAssets.emit().emitSkipped, false);
-  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor, canOrderLayers, orderLayer, transformNode, alignedNode, alignLayer, resizeDelta, resizeLayer, bounds, snapSize, snapPosition, guides, layerState, setLayerState, editableNode } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor, canOrderLayers, orderLayer, transformNode, alignedNode, alignLayer, resizeDelta, resizeLayer, bounds, snapSize, snapPosition, guides, layerState, setLayerState, editableNode, attachImage, encodePngFile, safePngPreview } = require(path.join(output, 'tests/theme-studio/workspace.js'));
   assert.deepEqual(project.targets, []);
   assert.equal(project.scenes[0].resolution.width, 1080);
   assert.equal(project.scenes[0].resolution.height, 1920);
@@ -261,6 +261,28 @@ async function main() {
   assert.deepEqual(JSON.parse(flagStored.savedJson),lockedProject);
   assert.deepEqual(new ProjectSession(flagStored,JSON.parse(flagStored.savedJson)).document,lockedProject);
 
+  const pngInfo={sha256:'a'.repeat(64),path:`assets/images/${'a'.repeat(64)}.png`,bytes:70,width:100,height:50};
+  const attached=attachImage(project,scene.id,pngInfo,'original','Creator');
+  assert.equal(attached.project.assets.length,1);
+  assert.equal(attached.project.assets[0].license,'original');
+  assert.equal(attached.project.assets[0].source.includes(':\\'),false);
+  const imageNode=attached.project.scenes[0].nodes.find(node=>node.id===attached.id);
+  assert.equal(imageNode.type,'image');assert.deepEqual(imageNode.assets,[attached.project.assets[0].id]);
+  assert.ok(editableNode(attached.project.scenes[0],imageNode));
+  const repeatedImage=attachImage(attached.project,scene.id,pngInfo,'other','Other');
+  assert.equal(repeatedImage.project.assets.length,1);assert.equal(repeatedImage.project.assets[0].license,'original');
+  assert.notEqual(repeatedImage.id,attached.id);
+  assert.throws(()=>attachImage(project,scene.id,{...pngInfo,path:'C:/private.png'},'original',''));
+  assert.throws(()=>attachImage(project,scene.id,{...pngInfo,width:0},'original',''));
+  assert.ok(!safePngPreview('https://untrusted/image.png'));assert.ok(!safePngPreview('data:image/svg+xml;base64,AAAA'));
+  assert.ok(safePngPreview('data:image/png;base64,iVBORw=='));
+  const testFile=new File([Uint8Array.from([137,80,78,71,13,10,26,10,0])],'file.png',{type:'image/png'});
+  assert.equal(await encodePngFile(testFile),'iVBORw0KGgoA');
+  await assert.rejects(()=>encodePngFile(new File(['<svg/>'],'file.png')));
+  await assert.rejects(()=>encodePngFile(new File([],'file.png')));
+  const imageHistory=new EditHistory();imageHistory.record(project,attached.project,'Import image');
+  assert.deepEqual(imageHistory.undo(attached.project),project);assert.deepEqual(imageHistory.redo(project),attached.project);
+
   const history = new EditHistory();
   assert.ok(history.record(source, added.project, 'Add text'));
   assert.ok(history.record(added.project, moved, 'Move text', 'drag-1'));
@@ -497,6 +519,13 @@ async function main() {
     const disabledRow = disabledList.props.children.find(child => child?.type === 'div').props.children.find(row => row.key === added.id);
     disabledRow.props.children.find(child => child?.props?.className === 'ts-layer-toggles').props.children[0].props.onClick();
     assert.equal(flagRequest,null);
+    const imageCanvasProps={scene:attached.project.scenes[0],selected:attached.id,disabled:false,onSelect(){},onMove(){},onResize(){},onEndGroup(){}};
+    const imageCanvas=render('theme-studio/SceneCanvas',{...imageCanvasProps,previewImages:{[imageNode.assets[0]]:'data:image/png;base64,iVBORw=='}});
+    assert.match(imageCanvas,/<image/);assert.match(imageCanvas,/xMidYMid meet/);
+    const rejectedImage=render('theme-studio/SceneCanvas',{...imageCanvasProps,previewImages:{[imageNode.assets[0]]:'https://untrusted/image.png'}});
+    assert.ok(!rejectedImage.includes('https://untrusted'));assert.match(rejectedImage,/Image unavailable/);
+    const importForm=render('theme-studio/ImageImportForm',{sceneName:'Main',async onImport(){},onCancel(){}});
+    assert.match(importForm,/License/);assert.match(importForm,/Attribution/);assert.match(importForm,/Import and add image/);
     const browser = render('theme-studio/ProjectBrowser', { projects: [], busy: false, offset: 0, onNew() {}, onOpen() {}, onDuplicate() {}, onPage() {}, onRefresh() {} });
     assert.match(browser, /No projects yet/);
     let submitted = null; let cancelled = false;

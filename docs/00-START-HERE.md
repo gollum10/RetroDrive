@@ -1,5 +1,7 @@
 # RetroDrive | Documentation Index
 
+**Theme Studio PNG import workflow:** [storage, safety and QA](theme-studio/image-import.md#managed-catalog-import-and-preview) explains catalog blobs, path-free import, preview authorization and native smoke checks.
+
 **Theme Studio image import:** [PNG safety boundary](theme-studio/image-import.md) documents codec-only validation, resource limits and the managed-storage/preview work still required before UI import.
 
 **Theme Studio layer ordering:** [canvas scope and QA](theme-studio/canvas.md#layer-ordering) covers back-to-front ordering of flat text/panel scenes, undo/redo and native validation limits.

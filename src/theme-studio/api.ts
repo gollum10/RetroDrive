@@ -30,3 +30,7 @@ export const duplicateProject = (id: string, revision: number, name: string, use
   invoke<ProjectRecord>('duplicate_theme_project', { id, revision, name, useDraft });
 export const recoverProject = (id: string, revision: number) => invoke<RecoveredDraft>('recover_theme_project', { id, revision });
 export const discardProjectDraft = (id: string, revision: number) => invoke<ProjectRecord>('discard_theme_project_draft', { id, revision });
+
+export type StoredImage = { sha256: string; path: string; bytes: number; width: number; height: number };
+export const importPng = (projectId: string, pngBase64: string) => invoke<StoredImage>('import_theme_png',{ projectId,pngBase64 });
+export const previewPng = (projectId: string,assetId: string) => invoke<string>('preview_theme_png',{ projectId,assetId });

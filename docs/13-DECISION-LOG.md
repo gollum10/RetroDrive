@@ -1,5 +1,7 @@
 # 13 | Product Decisions and Open Questions
 
+**Theme image storage decision:** use normalized immutable catalog blobs rather than a new loose-file tree. This fits SQLite authoritative local state and eliminates new destination-path/link races. Portable source retains only assets/images/<hash>.png and metadata. Preview authorizes saved declarations; API has no filesystem-path parameter. Undo removes source attachment, retaining deduplicated bytes for recovery. Quotas bound retained content until separately reviewed cleanup exists.
+
 **Theme Studio first raster boundary:** static PNG only, normalized to RGBA8 and hashed after re-encoding. Original metadata/profiles and animation are not retained; 16-bit samples reduce to eight bits. Explicit input/pixel/scratch/output limits are not a process sandbox. No file reads/writes or IPC are enabled by this increment.
 
 **Theme Studio layer-state semantics:** node.editor.locked/hidden are additive portable editor preferences. Hiding changes only editor preview, not native output visibility; conditional/native visibility remains separate future work. Locking protects content; flag controls remain available to unlock/show. Ordering cannot move a protected layer or cross protected layers. Unknown editor payloads remain read-only and unmodified.

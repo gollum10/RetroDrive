@@ -5,6 +5,7 @@ pub mod capabilities;
 mod capability_tests;
 pub(crate) mod commands;
 pub mod image_import;
+pub mod image_store;
 mod json;
 pub mod model;
 pub mod projects;

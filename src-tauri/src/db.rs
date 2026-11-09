@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 28;
+pub const SCHEMA_VERSION: i32 = 29;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -214,6 +214,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 28 {
         tx.execute_batch(SCHEMA_V28).map_err(|e| e.to_string())?;
+    }
+    if from_version < 29 {
+        tx.execute_batch(SCHEMA_V29).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -1066,6 +1069,17 @@ CREATE TABLE theme_projects (
 CREATE INDEX idx_theme_projects_recent ON theme_projects(updated_at DESC, id);
 ";
 
+const SCHEMA_V29: &str = "
+CREATE TABLE theme_image_assets (
+    sha256 TEXT PRIMARY KEY NOT NULL CHECK(length(sha256)=64 AND sha256 NOT GLOB '*[^0-9a-f]*'),
+    png BLOB NOT NULL CHECK(typeof(png)='blob' AND length(png) BETWEEN 1 AND 20971520),
+    width INTEGER NOT NULL CHECK(width BETWEEN 1 AND 4096),
+    height INTEGER NOT NULL CHECK(height BETWEEN 1 AND 4096 AND width*height <= 4194304),
+    byte_count INTEGER NOT NULL CHECK(byte_count=length(png)),
+    imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1121,7 +1135,7 @@ mod tests {
         let mut c = open(&path).unwrap();
         migrate(&mut c,Some(&path)).unwrap();
         // Exact v26 catalog layout: v27 is additive and creates just this table/index.
-        c.execute_batch("DROP TABLE theme_projects; PRAGMA user_version=26;").unwrap();
+        c.execute_batch("DROP TABLE theme_projects; DROP TABLE theme_image_assets; PRAGMA user_version=26;").unwrap();
         let id = crate::designs::create(&c,"Finished legacy",crate::designs::DesignSpec::default()).unwrap();
         crate::designs::finish(&c,&id).unwrap();
         crate::designs::create(&c,"Draft legacy",crate::designs::DesignSpec::default()).unwrap();

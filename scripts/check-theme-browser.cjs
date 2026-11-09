@@ -132,9 +132,27 @@ async function main() {
     const protectedState = await state();
     await mouse('mouseReleased',protect.x+30,protect.y+20); await frame();
     assert.deepEqual(await state(),protectedState,'locking during resize cancels the preview');
+    await evaluate('window.canvasTest.resetDocument()'); await frame();
+    const importBefore=(await state()).commits;
+    await evaluate(`(() => {const canvas=document.createElement('canvas');canvas.width=1;canvas.height=1;canvas.getContext('2d').fillRect(0,0,1,1);const data=atob(canvas.toDataURL('image/png').split(',')[1]);const transfer=new DataTransfer();transfer.items.add(new File([Uint8Array.from(data,c=>c.charCodeAt(0))],'private-source-name.png',{type:'image/png'}));const input=document.querySelector('input[type=file]');input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`); await frame();
+    await evaluate(`(() => {const form=document.querySelector('form[aria-label="Import PNG"]');form.requestSubmit();form.requestSubmit();})()`);
+    await until(()=>evaluate('!!document.querySelector("image")'),'image attachment after file form'); await frame();
+    assert.equal((await state()).commits,importBefore+1,'duplicate submit imports once');
+    const imageProject=await evaluate('window.canvasTest.document');
+    assert.equal(imageProject.assets.length,1);assert.equal(imageProject.assets[0].license,'unknown');
+    assert.ok(!JSON.stringify(imageProject).includes('private-source-name'),'source filename never enters portable data');
+    assert.equal(imageProject.scenes[0].nodes.at(-1).type,'image');
+    await evaluate(`new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(true);image.onerror=reject;image.src=document.querySelector('image').getAttribute('href');})`);
+    const imageSizeBefore=(await evaluate('window.canvasTest.document.scenes[0].nodes.at(-1).layout')).width.value;
+    const imageHandle=await handle();await mouse('mousePressed',imageHandle.x,imageHandle.y);await mouse('mouseMoved',imageHandle.x+20,imageHandle.y+10);await mouse('mouseReleased',imageHandle.x+20,imageHandle.y+10);await frame();
+    assert.ok((await evaluate('window.canvasTest.document.scenes[0].nodes.at(-1).layout')).width.value>imageSizeBefore,'imported image resizes');
+    await evaluate(`document.querySelector('[aria-label="Hide Image"]').click()`);await frame();
+    assert.equal(await evaluate('!!document.querySelector("image")'),false);
+    await evaluate(`document.querySelector('[aria-label="Show Image"]').click()`);await frame();
+    assert.equal(await evaluate('!!document.querySelector("image")'),true);
     await evaluate('window.canvasTest.setDisabled(true)'); await frame();
     assert.equal(await evaluate('!!document.querySelector("circle[role=button]")'), false);
-    console.log('Theme browser: real pointer resize/default focus, preview, no-op, Escape, external blur, keyboard 850/650px workspace layout, rotated resize at 150% scale grid controls, snapped resize, Alt bypass, center guides/cancellation lock/hide/restore/edit-guard and disabled handle passed.');
+    console.log('Theme browser: real pointer resize/default focus, preview, no-op, Escape, external blur, keyboard 850/650px workspace layout, rotated resize at 150% scale grid controls, snapped resize, Alt bypass, center guides/cancellation lock/hide/restore/edit-guard PNG form attachment/double-submit/preview/resize/hide-show and disabled handle passed.');
   } finally {
     if (socket && socket.readyState === WebSocket.OPEN) { socket.send(JSON.stringify({ id: 999999, method: 'Browser.close' })); await delay(500); socket.close(); }
     if (browser) { browser.kill(); await delay(500); }
