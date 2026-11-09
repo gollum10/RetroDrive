@@ -1,5 +1,7 @@
 # 04 | Technical Architecture
 
+**PNG boundary:** theme_studio::image_import is pure bytes-in/normalized-PNG-out code using checked chunk framing/CRC, bounded decoding and a fresh RGBA8 encoder. It returns a normalized-byte hash and portable declaration path. No IPC, filesystem, target writer or UI integration is added; managed storage/preview authorization follows separately.
+
 **Layer state:** scene-edit.ts recognizes additive node.editor.locked/hidden booleans and preserves other editor fields. LayerList changes flags separately from guarded content edits. Shared eligibility blocks protected updates, canvas hides hidden nodes, and a flag change cancels active gestures. No database/backend migration.
 
 **Canvas aids:** snapping.ts supplies pure rotated bounds, grid rounding and canvas alignment functions. SceneCanvas owns session-only aid state, renders a pointer-transparent SVG pattern/guides, and applies snapping only to pointer previews/releases. Existing unit conversion/history/persistence boundaries remain unchanged.

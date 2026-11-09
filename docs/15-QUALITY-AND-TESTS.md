@@ -1,5 +1,7 @@
 # 15 | Quality Assurance, Threat Scenarios and Test Matrix
 
+**PNG codec foundation:** full cargo test --locked --quiet passes (313 passed, 7 ignored); seven generated-image tests cover pixel/color conversion, palette/alpha, metadata removal, sample depths, normalization/hash/path stability, truncation/CRC/deflate corruption, unknown/duplicate chunks, animation, dimensions/input/chunk/output limits. Strict Clippy, workspace/contract/build, license and notice checks pass. No UI/browser/native import flow is added or claimed; managed storage and authorized preview require separate tests.
+
 **Layer-state tests:** workspace checks cover no-ops, unknown/nested/missing guards, opaque field preservation, locked/hidden move/resize/align/transform/order prevention, ordering barriers, undo/redo and checkpoint reopen via the persistence model. Edge browser checks cover lock/no-handle, protected arrows/drag, unlock, hide/show and cancelling active resize on lock. Contract/build checks pass; native Tauri/SQLite interaction QA remains manual.
 
 **Grid/snapping checks:** workspace tests cover grid rounding, negative positions, minimum sizes, rotated bounds and guides. Real Edge input tests cover toggles without edits, snapped resizing, Alt bypass, center guide display/cancellation and the existing focus/resize/DPI/layout regressions. Contract/build checks pass. Native app validation remains required.
