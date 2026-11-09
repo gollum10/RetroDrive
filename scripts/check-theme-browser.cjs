@@ -111,9 +111,30 @@ async function main() {
     assert.ok(await evaluate('document.querySelectorAll("[data-canvas-guides] line").length > 0'), 'center guide is rendered during snapped drag');
     await key('Escape'); await mouse('mouseReleased', targetX, grabY); await frame();
     assert.deepEqual(await state(), layoutBeforeGuide, 'cancelled snapped move does not commit');
+    await evaluate('window.canvasTest.resetDocument()'); await frame();
+    await evaluate(`document.querySelector('[aria-label="Lock Panel"]').click()`); await frame();
+    const lockedState = await state();
+    assert.equal(await evaluate('!!document.querySelector("circle[role=button]")'),false,'locked layer has no resize handle');
+    await evaluate('document.querySelector("svg.ts-canvas-svg").focus()'); await key('ArrowRight');
+    assert.deepEqual(await state(),lockedState,'locked canvas cannot move with keyboard');
+    const lockedPoint = await evaluate('(() => {const r=document.querySelector("[data-node-id] rect").getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()');
+    await mouse('mousePressed',lockedPoint.x,lockedPoint.y); await mouse('mouseMoved',lockedPoint.x+30,lockedPoint.y+15); await mouse('mouseReleased',lockedPoint.x+30,lockedPoint.y+15); await frame();
+    assert.deepEqual(await state(),lockedState,'locked canvas cannot drag');
+    await evaluate(`document.querySelector('[aria-label="Unlock Panel"]').click()`); await frame();
+    assert.equal(await evaluate('!!document.querySelector("circle[role=button]")'),true);
+    await evaluate(`document.querySelector('[aria-label="Hide Panel"]').click()`); await frame();
+    assert.equal(await evaluate('!!document.querySelector("[data-node-id]")'),false,'hidden layer is absent from canvas');
+    assert.equal(await evaluate(`!!document.querySelector('[aria-label="Show Panel"]')`),true,'hidden layer remains recoverable in list');
+    await evaluate(`document.querySelector('[aria-label="Show Panel"]').click()`); await frame();
+    assert.equal(await evaluate('!!document.querySelector("[data-node-id]")'),true);
+    const protect = await handle(); await mouse('mousePressed',protect.x,protect.y); await mouse('mouseMoved',protect.x+30,protect.y+20); await frame();
+    await evaluate(`document.querySelector('[aria-label="Lock Panel"]').click()`); await frame();
+    const protectedState = await state();
+    await mouse('mouseReleased',protect.x+30,protect.y+20); await frame();
+    assert.deepEqual(await state(),protectedState,'locking during resize cancels the preview');
     await evaluate('window.canvasTest.setDisabled(true)'); await frame();
     assert.equal(await evaluate('!!document.querySelector("circle[role=button]")'), false);
-    console.log('Theme browser: real pointer resize/default focus, preview, no-op, Escape, external blur, keyboard 850/650px workspace layout, rotated resize at 150% scale grid controls, snapped resize, Alt bypass, center guides/cancellation and disabled handle passed.');
+    console.log('Theme browser: real pointer resize/default focus, preview, no-op, Escape, external blur, keyboard 850/650px workspace layout, rotated resize at 150% scale grid controls, snapped resize, Alt bypass, center guides/cancellation lock/hide/restore/edit-guard and disabled handle passed.');
   } finally {
     if (socket && socket.readyState === WebSocket.OPEN) { socket.send(JSON.stringify({ id: 999999, method: 'Browser.close' })); await delay(500); socket.close(); }
     if (browser) { browser.kill(); await delay(500); }

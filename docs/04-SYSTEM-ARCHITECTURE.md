@@ -1,5 +1,7 @@
 # 04 | Technical Architecture
 
+**Layer state:** scene-edit.ts recognizes additive node.editor.locked/hidden booleans and preserves other editor fields. LayerList changes flags separately from guarded content edits. Shared eligibility blocks protected updates, canvas hides hidden nodes, and a flag change cancels active gestures. No database/backend migration.
+
 **Canvas aids:** snapping.ts supplies pure rotated bounds, grid rounding and canvas alignment functions. SceneCanvas owns session-only aid state, renders a pointer-transparent SVG pattern/guides, and applies snapping only to pointer previews/releases. Existing unit conversion/history/persistence boundaries remain unchanged.
 
 **Canvas focus/layout correction:** resize pointer-down prevents default focus transfer and focuses its handle; canvas blur cancels only when focus leaves the SVG subtree. Container queries now size the editor from available workspace width, accounting for the application sidebar. No source/persistence/backend changes.

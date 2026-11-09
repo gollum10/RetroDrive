@@ -21,7 +21,7 @@ async function main() {
   const errors = ts.getPreEmitDiagnostics(withAssets);
   assert.equal(errors.length, 0, ts.formatDiagnosticsWithColorAndContext(errors, { getCanonicalFileName: f => f, getCurrentDirectory: () => root, getNewLine: () => '\n' }));
   assert.equal(withAssets.emit().emitSkipped, false);
-  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor, canOrderLayers, orderLayer, transformNode, alignedNode, alignLayer, resizeDelta, resizeLayer, bounds, snapSize, snapPosition, guides } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor, canOrderLayers, orderLayer, transformNode, alignedNode, alignLayer, resizeDelta, resizeLayer, bounds, snapSize, snapPosition, guides, layerState, setLayerState, editableNode } = require(path.join(output, 'tests/theme-studio/workspace.js'));
   assert.deepEqual(project.targets, []);
   assert.equal(project.scenes[0].resolution.width, 1080);
   assert.equal(project.scenes[0].resolution.height, 1920);
@@ -216,6 +216,50 @@ async function main() {
   assert.ok(Math.abs(rotatedBounds.left + 50) < 1e-8);
   assert.ok(Math.abs(rotatedBounds.bottom - 100) < 1e-8);
   assert.deepEqual(guides({ ...gridBox, x: 910, y: 515 },1920,1080), { x: [960], y: [540] });
+
+  const lockedProject = setLayerState(added.project,scene.id,added.id,'locked',true);
+  const lockedNode = lockedProject.scenes[0].nodes.find(node => node.id === added.id);
+  assert.equal(layerState(lockedNode).locked,true);
+  assert.equal(editableNode(lockedProject.scenes[0],lockedNode),false);
+  assert.equal(setLayerState(lockedProject,scene.id,added.id,'locked',true),lockedProject);
+  assert.deepEqual(lockedNode.layout, added.project.scenes[0].nodes.find(node => node.id === added.id).layout);
+  assert.equal(moveNode(lockedProject,scene.id,added.id,20,20),lockedProject, 'move cannot edit a locked layer');
+  assert.equal(resizeLayer(lockedProject,scene.id,added.id,200,200),lockedProject);
+  assert.equal(alignLayer(lockedProject,scene.id,added.id,'left'),lockedProject);
+  assert.equal(transformNode(lockedNode,'rotation',45),lockedNode);
+  assert.equal(orderLayer(lockedProject,scene.id,added.id,'back'),lockedProject);
+  assert.equal(orderLayer(lockedProject,scene.id,lockedProject.scenes[0].nodes[0].id,'front'),lockedProject,'cannot reorder across a protected layer');
+  const hiddenProject = setLayerState(lockedProject,scene.id,added.id,'hidden',true);
+  assert.equal(layerState(hiddenProject.scenes[0].nodes.find(node => node.id === added.id)).hidden,true);
+  const unlockedProject = setLayerState(hiddenProject,scene.id,added.id,'locked',false);
+  assert.equal(moveNode(unlockedProject,scene.id,added.id,20,20),unlockedProject,'hidden layer stays read-only');
+  const shownProject = setLayerState(unlockedProject,scene.id,added.id,'hidden',false);
+  assert.notEqual(moveNode(shownProject,scene.id,added.id,20,20),shownProject);
+  const editorExtension = JSON.parse(JSON.stringify(added.project));
+  editorExtension.scenes[0].nodes.find(node => node.id === added.id).editor = { futurePanel: { preserve: true } };
+  const extensionLocked = setLayerState(editorExtension,scene.id,added.id,'locked',true);
+  assert.deepEqual(extensionLocked.scenes[0].nodes.find(node => node.id === added.id).editor.futurePanel,{ preserve: true });
+  for (const editor of [null, [], 'future', { locked: 'expression' }, { hidden: { future: true } }]) {
+    const opaqueEditor = JSON.parse(JSON.stringify(added.project));
+    opaqueEditor.scenes[0].nodes.find(node => node.id === added.id).editor = editor;
+    assert.equal(setLayerState(opaqueEditor,scene.id,added.id,'locked',true),opaqueEditor);
+    assert.equal(moveNode(opaqueEditor,scene.id,added.id,0,0),opaqueEditor);
+  }
+  assert.equal(setLayerState(nested,scene.id,added.id,'locked',true),nested);
+  assert.equal(setLayerState(added.project,'missing',added.id,'hidden',true),added.project);
+  assert.equal(added.project.scenes[0].nodes.find(node => node.id === added.id).editor,undefined);
+  let flagStored = { ...record(), savedJson: JSON.stringify(added.project) };
+  const flagSession = new ProjectSession(flagStored,added.project,async (id,revision,json,kind) => {
+    assert.equal(revision,flagStored.revision);
+    flagStored = { ...flagStored,revision:revision+1,savedJson:kind === 'checkpoint' ? json : flagStored.savedJson,draftJson:kind === 'checkpoint' ? null : json };
+    return flagStored;
+  });
+  flagSession.edit(lockedProject,'Lock layer'); await flagSession.flush();
+  assert.deepEqual(JSON.parse(flagStored.draftJson),lockedProject);
+  flagSession.undo(); await flagSession.flush(); assert.deepEqual(flagSession.document,added.project);
+  flagSession.redo(); await flagSession.save();
+  assert.deepEqual(JSON.parse(flagStored.savedJson),lockedProject);
+  assert.deepEqual(new ProjectSession(flagStored,JSON.parse(flagStored.savedJson)).document,lockedProject);
 
   const history = new EditHistory();
   assert.ok(history.record(source, added.project, 'Add text'));
@@ -435,6 +479,24 @@ async function main() {
       assert.equal(alignRequest, null);
     }
     assert.match(editor, /Align to canvas/);
+    const lockedCanvasProps = { scene: lockedProject.scenes[0], selected: added.id, disabled: false, onSelect() {}, onMove() {}, onResize() {}, onEndGroup() {} };
+    assert.ok(!render('theme-studio/SceneCanvas',lockedCanvasProps).includes('aria-label="Resize Text"'));
+    const hiddenCanvas = render('theme-studio/SceneCanvas',{ ...lockedCanvasProps,scene:hiddenProject.scenes[0] });
+    assert.ok(!hiddenCanvas.includes(`data-node-id="${added.id}"`));
+    let flagRequest = null;
+    const listProps = { scene:hiddenProject.scenes[0],selected:added.id,disabled:false,onSelect() {},onState(...args) { flagRequest=args; } };
+    const layerList = component('theme-studio/LayerList')(listProps);
+    const rows = layerList.props.children.find(child => child?.type === 'div').props.children;
+    const row = rows.find(row => row.key === added.id);
+    const toggles = row.props.children.find(child => child?.props?.className === 'ts-layer-toggles').props.children;
+    toggles.find(button => button.props.children === 'Show').props.onClick();
+    assert.deepEqual(flagRequest,[added.id,'hidden',false]);
+    assert.match(render('theme-studio/LayerList',listProps),/hidden/);
+    flagRequest = null;
+    const disabledList = component('theme-studio/LayerList')({ ...listProps,disabled:true });
+    const disabledRow = disabledList.props.children.find(child => child?.type === 'div').props.children.find(row => row.key === added.id);
+    disabledRow.props.children.find(child => child?.props?.className === 'ts-layer-toggles').props.children[0].props.onClick();
+    assert.equal(flagRequest,null);
     const browser = render('theme-studio/ProjectBrowser', { projects: [], busy: false, offset: 0, onNew() {}, onOpen() {}, onDuplicate() {}, onPage() {}, onRefresh() {} });
     assert.match(browser, /No projects yet/);
     let submitted = null; let cancelled = false;

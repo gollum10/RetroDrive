@@ -1,5 +1,7 @@
 # 11 | Development Roadmap and Backlog
 
+**Theme Studio layer lock/hide prepared:** persisted editor flags, list controls, read-only protected content, guarded stacking, preview hiding/restoration and cancellation tests. Native grid and layer-state smoke checks remain pending. Secure asset import/richer previews follow as separately scoped increments; native export remains evidence-gated.
+
 **Theme Studio grid increment prepared:** optional grid/snap controls, move and local-size snapping, Alt bypass and canvas edge/center guides. Real browser regressions pass; native smoke check remains pending. Locking/hiding follows as a separate increment, followed by secure asset import and richer previews; native export still requires verified target evidence.
 
 **Native QA follow-up:** owner reported resize failure and small normal-window canvas after PR 95. Browser input reproduced the resize failure; focus and container-width layout fixes are prepared with real Edge regression coverage. Existing undo/checkpoint services remain unchanged; native app recheck is still required before new editor features.

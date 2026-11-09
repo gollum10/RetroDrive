@@ -20,3 +20,5 @@ export { alignedNode, alignLayer } from '../../src/theme-studio/alignment';
 export { resizeDelta, resizeLayer } from '../../src/theme-studio/resize';
 
 export { bounds, snapSize, snapPosition, guides } from '../../src/theme-studio/snapping';
+
+export { layerState, setLayerState, editableNode } from '../../src/theme-studio/scene-edit';
