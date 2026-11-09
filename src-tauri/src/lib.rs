@@ -761,11 +761,13 @@ async fn check_health(app: AppHandle, catalog: State<'_, Catalog>, installation_
 }
 
 /// Settings → About and legal (LEGAL-009): open the notices shipped next to the app
-/// (`software`: THIRD_PARTY_NOTICES.txt, `data`: THIRD_PARTY_CONTROLLERS.txt) in the
+/// (`license`: RetroDrive's Apache-2.0 LICENSE.txt, `software`: THIRD_PARTY_NOTICES.txt,
+/// `data`: THIRD_PARTY_CONTROLLERS.txt) in the
 /// Notepad.
 #[tauri::command]
 fn open_third_party_notices(app: AppHandle, which: String) -> Result<(), String> {
     let name = match which.as_str() {
+        "license" => "LICENSE.txt",
         "software" => "THIRD_PARTY_NOTICES.txt",
         "data" => "THIRD_PARTY_CONTROLLERS.txt",
         _ => return Err("Unknown notices file.".into()),

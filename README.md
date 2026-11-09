@@ -76,3 +76,13 @@ RetroDrive doesn't include or download games, BIOS or firmware; it organizes and
 - **Game identity:** each game is one file or one disc set. Matching against metadata databases is planned; duplicates are flagged by name and size, not yet by hash.
 - **Platform guesses** come from folder names and extensions; ambiguous archive and disc files are marked `Unclassified`.
 - **Verified 2026-11-04** on Windows 11 with Node 24, Rust 1.99.1 and VS 2026 C++ tools: `cargo test` (168 passing; 302 as of 2026-11-09), `npm run build`, and `npm run tauri dev`, including 40,000-file scans, cancel, crash recovery, drive recognition, search, paging, duplicates, disc grouping and the RetroBat placement preview, plus (2026-11-05) the RDS-009 deployment plan and the RDS-010 verified copy (copy, stale-plan refusal and cancel tested in the app; see docs/18).
+
+## License
+
+RetroDrive is free and open source under the [Apache License 2.0](LICENSE) (see also
+[NOTICE](NOTICE)). Copyright 2026 The RetroDrive contributors. The open-source components
+it's built with keep their own licenses, listed in
+[`THIRD_PARTY_NOTICES.txt`](src-tauri/resources/THIRD_PARTY_NOTICES.txt); data files are
+credited in [`THIRD_PARTY_CONTROLLERS.txt`](src-tauri/resources/THIRD_PARTY_CONTROLLERS.txt).
+Privacy: [docs/legal/PRIVACY.md](docs/legal/PRIVACY.md). Questions and problems:
+[GitHub Issues](https://github.com/gollum10/RetroInstaller/issues).

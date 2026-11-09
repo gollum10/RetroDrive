@@ -26,7 +26,10 @@
   },
   "bundle": {
     "active": true,
+    "licenseFile": "../LICENSE",
     "resources": {
+      "../LICENSE": "LICENSE.txt",
+      "../NOTICE": "NOTICE.txt",
       "resources/THIRD_PARTY_NOTICES.txt": "THIRD_PARTY_NOTICES.txt",
       "resources/THIRD_PARTY_CONTROLLERS.txt": "THIRD_PARTY_CONTROLLERS.txt"
     },

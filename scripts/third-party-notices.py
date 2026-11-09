@@ -73,6 +73,8 @@ def render(rows):
         "RetroDrive - third-party notices",
         "=" * 32,
         "",
+        "RetroDrive itself is licensed under the Apache License 2.0 (LICENSE.txt).",
+        "",
         "RetroDrive is built with the open-source components listed below. Each is",
         "used under its own license, reproduced in this file from the component's own",
         "package. RetroDrive does not modify them.",
