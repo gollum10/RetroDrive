@@ -36,6 +36,7 @@ mod themes;
 pub mod theme_studio;
 mod scanner;
 mod sinden_step;
+mod system_backup;
 mod vertical;
 mod volumes;
 
@@ -733,6 +734,85 @@ async fn apply_sinden_step(app: AppHandle, catalog: State<'_, Catalog>, active: 
     .map_err(|e| e.to_string());
     active.undoing.store(false, Ordering::SeqCst);
     result?
+}
+
+/// Backups (FR-09, ADR-090): the folder backups go into, the user's choice or
+/// `Documents\RetroDrive Backups`.
+fn backup_destination(app: &AppHandle, folder: Option<String>) -> Result<PathBuf, String> {
+    match folder.filter(|f| !f.trim().is_empty()) {
+        Some(f) if Path::new(&f).is_absolute() => Ok(PathBuf::from(f)),
+        Some(_) => Err("Choose a full folder path for backups.".into()),
+        None => Ok(app.path().document_dir().map_err(|e| format!("Couldn't find your Documents folder: {e}"))?.join("RetroDrive Backups")),
+    }
+}
+
+fn running_frontend(connection: &rusqlite::Connection, installation_id: &str) -> customizer::RunningFn<'static> {
+    let adapter: String = connection.query_row("SELECT adapter_id FROM installations WHERE id = ?1", [installation_id], |r| r.get(0)).unwrap_or_default();
+    if adapter == "esde" { &customizer::esde_running } else { &customizer::retrobat_running }
+}
+
+/// Backups: what a backup of this system would copy (reads only).
+#[tauri::command]
+async fn system_backup_preview(app: AppHandle, catalog: State<'_, Catalog>, installation_id: String, folder: Option<String>) -> Result<system_backup::BackupPreview, String> {
+    let destination = backup_destination(&app, folder)?;
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let c = db::open(&db_path)?;
+        let running = running_frontend(&c, &installation_id);
+        system_backup::preview(&c, &installation_id, &destination, &volumes::presence, running)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Backups: copy the system's saves, settings and game lists into a new folder on this PC.
+#[tauri::command]
+async fn run_system_backup(app: AppHandle, catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, optional: Vec<String>, folder: Option<String>) -> Result<system_backup::BackupEntry, String> {
+    let destination = backup_destination(&app, folder)?;
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let c = db::open(&db_path)?;
+        let running = running_frontend(&c, &installation_id);
+        system_backup::run(&c, &installation_id, &optional, &destination, &volumes::presence, running, &|phase, done, total| {
+            let _ = app.emit("backup-progress", ArtProgress { phase: phase.to_string(), done, total });
+        })
+    })
+    .await
+    .map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
+/// Backups: the backups in the folder, newest first (reads only).
+#[tauri::command]
+async fn list_system_backups(app: AppHandle, folder: Option<String>) -> Result<Vec<system_backup::BackupEntry>, String> {
+    let destination = backup_destination(&app, folder)?;
+    tauri::async_runtime::spawn_blocking(move || system_backup::list(&destination)).await.map_err(|e| e.to_string())
+}
+
+/// Backups: check a backup's files against its list (reads only).
+#[tauri::command]
+async fn check_system_backup(app: AppHandle, folder: Option<String>, backup: String) -> Result<system_backup::CheckResult, String> {
+    let destination = backup_destination(&app, folder)?;
+    let path = PathBuf::from(&backup);
+    if path.parent() != Some(destination.as_path()) {
+        return Err("That isn't a backup in the backup folder.".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || system_backup::check(&path)).await.map_err(|e| e.to_string())?
+}
+
+/// Backups: show the backup folder (or one backup) in File Explorer.
+#[tauri::command]
+fn open_system_backups(app: AppHandle, folder: Option<String>, backup: Option<String>) -> Result<(), String> {
+    let destination = backup_destination(&app, folder)?;
+    let target = match backup.map(PathBuf::from) {
+        Some(b) if b.parent() == Some(destination.as_path()) && b.is_dir() => b,
+        Some(_) => return Err("That isn't a backup in the backup folder.".into()),
+        None if destination.is_dir() => destination,
+        None => return Err("There are no backups yet.".into()),
+    };
+    std::process::Command::new("explorer.exe").arg(&target).spawn().map(|_| ()).map_err(|e| format!("Couldn't open File Explorer: {e}"))
 }
 
 /// Light guns: remember the user's gun for `vid:pid`, or `manual` (`None` forgets it).
@@ -1578,6 +1658,11 @@ pub fn run() {
             apply_recalbox_settings,
             recalbox_games,
             check_bios,
+            system_backup_preview,
+            run_system_backup,
+            list_system_backups,
+            check_system_backup,
+            open_system_backups,
             preview_lakka_playlists,
             apply_lakka_playlists,
             recalbox_game_options,
