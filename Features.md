@@ -216,9 +216,9 @@ ecalbox.conf` the way Recalbox's own menu saves them, after you review them, and
 | RetroBat support limited to the user's own installation | ✅ | RetroDrive works only with a RetroBat you installed: it checks the folder and copies games into it after you confirm. Downloading or installing RetroBat is blocked on LEGAL-002/003. |
 | Personal-use statement (Settings, README) | 🟡 | Draft: RetroDrive is for your own games, for personal use; not for preparing drives or machines for others or for sale (ADR-023). |
 | Independence statement in the app (Settings) and README | 🟡 | Draft wording from docs/16 §8, pending counsel review. |
-| Third-party component manifest (LEGAL-001) | 🟡 | Software dependencies inventoried (280; 5 MPL-2.0 via Tauri need notices). Platforms and assets are listed by hand. |
+| Third-party component manifest (LEGAL-001) | 🟡 | Software dependencies inventoried (298; 5 MPL-2.0 via Tauri, credited with their source location in the notices file). Platforms and assets are listed by hand. |
 | CI license gate (LEGAL-014) | 🟡 | `scripts/check-licenses.py` fails CI on copyleft or unknown licenses; release sign-off still to be defined. |
-| Third-party notices file in the installer (LEGAL-009) | 📋 | Needed before public release. |
+| Third-party notices file in the installer (LEGAL-009) | ✅ | `THIRD_PARTY_NOTICES.txt` (298 open-source components with their licenses, and where to get the source of the 5 MPL-2.0 ones) and `THIRD_PARTY_CONTROLLERS.txt` (data credits) are installed next to RetroDrive; **Settings → About and legal** opens them (**Third-party notices**, **Data credits**). Generated from the dependency list; CI fails if it falls out of date. |
 | Trademark clearance for "RetroDrive", and logo provenance (LEGAL-008) | 📋 | Owner action; the logo is AI-generated (docs/17 §4). |
 | RetroBat written permission (LEGAL-003) | ✅ | Not needed for what RetroDrive does (owner decision 2026-11-09, ADR-087): RetroDrive is free and doesn't download, install, bundle or package RetroBat; it only works with a RetroBat the user installed. Would only come back if RetroDrive ever downloaded or installed RetroBat itself (RDS-012, out of scope). |
 

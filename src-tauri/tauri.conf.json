@@ -26,6 +26,10 @@
   },
   "bundle": {
     "active": true,
+    "resources": {
+      "resources/THIRD_PARTY_NOTICES.txt": "THIRD_PARTY_NOTICES.txt",
+      "resources/THIRD_PARTY_CONTROLLERS.txt": "THIRD_PARTY_CONTROLLERS.txt"
+    },
     "publisher": "RetroDrive",
     "icon": [
       "icons/32x32.png",

@@ -24,7 +24,7 @@ _Last updated: 2026-11-05 (RetroBat license, OneSauce)._
 
 ## 1. Software compiled into RetroDrive
 
-Measured 2026-11-04: **280 shipped dependencies**, 275 under permissive licenses, 5 needing notices, 0 denied.
+Measured 2026-11-09: **298 shipped dependencies**, 293 under permissive licenses, 5 needing notices (MPL-2.0), 0 denied. (2026-11-04: 280.)
 
 | Component | Version | License | Distribution mode | Commercial rights | Obligations |
 |---|---|---|---|---|---|
@@ -43,7 +43,7 @@ Measured 2026-11-04: **280 shipped dependencies**, 275 under permissive licenses
 | **option-ext** | 0.2.0 | **MPL-2.0** | Bundled, unmodified, via `tauri-build` → `dirs` | Allowed | Same as above |
 | Other transitive crates | see CSV | Permissive (MIT, Apache-2.0, BSD, Zlib, Unicode-3.0, Unlicense, CC0, 0BSD) | Bundled | Permissive | Notices |
 
-**Open item (LEGAL-009):** the installer doesn't yet include a third-party notices file. Generate one from the CSV and include it before any public release.
+**Third-party notices (LEGAL-009, done 2026-11-09):** `python scripts/third-party-notices.py` writes `src-tauri/resources/THIRD_PARTY_NOTICES.txt` from the same list as the license gate: every component with its version and license, the source location of each MPL-2.0 component, and the license/notice files from each package (identical texts printed once with every component using them; for the 6 packages that ship no license file, the standard text appears for another component with the same license). The installer ships it next to `RetroDrive.exe` together with `THIRD_PARTY_CONTROLLERS.txt` (Tauri `bundle.resources`); Settings → About and legal opens either in Notepad (**Third-party notices**, **Data credits**). CI runs `--check` so the file can't fall behind the dependencies. Still open under LEGAL-009: EULA, privacy policy and warranty wording (owner/counsel).
 
 ## 2. Software used but not shipped
 

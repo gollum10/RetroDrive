@@ -118,6 +118,7 @@ rust,litemap,0.8.3,Unicode-3.0,ok,,https://github.com/unicode-org/icu4x
 rust,lock_api,0.4.14,MIT OR Apache-2.0,ok,,https://github.com/Amanieu/parking_lot
 rust,log,0.4.35,MIT OR Apache-2.0,ok,,https://github.com/rust-lang/log
 rust,markup5ever,0.39.0,MIT OR Apache-2.0,ok,,https://github.com/servo/html5ever
+rust,md-5,0.10.6,MIT OR Apache-2.0,ok,,https://github.com/RustCrypto/hashes
 rust,memchr,2.8.3,Unlicense OR MIT,ok,,https://github.com/BurntSushi/memchr
 rust,mime,0.3.17,MIT OR Apache-2.0,ok,,https://github.com/hyperium/mime
 rust,miniz_oxide,0.8.9,MIT OR Zlib OR Apache-2.0,ok,,https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide
