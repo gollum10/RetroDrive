@@ -11,14 +11,14 @@ import { fmtSize } from './format';
 import { getBackupFolder } from './backupFolder';
 
 // Systems with backup and restore so far.
-export const BACKUP_ADAPTERS = ['retrobat', 'esde'];
+export const BACKUP_ADAPTERS = ['retrobat', 'esde', 'batocera', 'recalbox', 'retropie', 'rocknix', 'lakka'];
 
 type Group = { id: string; label: string; optional: boolean; files: number; bytes: number; note: string|null };
 type Preview = { system: string; location: string; groups: Group[]; destination: string; free_bytes: number|null; blocked: string|null };
 type Entry = { folder: string; name: string; created_at: string|null; installation_id: string|null; system: string|null; location: string|null; files: number; bytes: number; groups: string[]; complete: boolean; problems: number };
 type Check = { files: number; ok: number; missing: string[]; changed: string[] };
 type RGroup = { id: string; label: string; add: number; same: number; different: number; unavailable: number };
-type RPreview = { backup: string; created_at: string; system: string; from_location: string; target_location: string; same_system: boolean; groups: RGroup[]; add: number; same: number; different: number; unavailable: number; bytes_add: number; bytes_different: number; different_files: string[]; unavailable_note: string|null; blocked: string|null; fingerprint: string };
+type RPreview = { backup: string; created_at: string; system: string; from_location: string; target_location: string; same_system: boolean; groups: RGroup[]; add: number; same: number; different: number; unavailable: number; bytes_add: number; bytes_different: number; different_files: string[]; unavailable_note: string|null; system_note: string|null; blocked: string|null; fingerprint: string };
 type RSummary = { id: string; added: number; replaced: number; kept: number; failed: string[]; message: string };
 type Restore = { id: string; created_at: string; backup: string; added: number; replaced: number; state: string };
 
@@ -122,6 +122,7 @@ export default function SystemBackup({ installationId, sysName, disabled, notify
       <p>{restoreFor.groups.map(g => <label key={g} className="inline-check"><input type="checkbox" checked={rGroups.includes(g)} onChange={() => setRGroups(rGroups.includes(g) ? rGroups.filter(x => x !== g) : [...rGroups, g])}/> {GROUP_LABEL[g] ?? g} </label>)}</p>
       {rGroups.length === 0 ? <p className="plan-notes">Tick what to restore.</p> : !p ? <p className="plan-notes">Comparing the backup with {sysName}…</p> : <>
         {p.blocked && <p className="warn-text"><AlertTriangle size={15}/> {p.blocked}</p>}
+        {p.system_note && <p className="plan-notes"><AlertTriangle size={15}/> {p.system_note}</p>}
         <ul>
           <li><b>{files(p.add)}</b> missing on {sysName} will be added{p.add ? ` (${fmtSize(p.bytes_add)})` : ''}.</li>
           <li>{files(p.same)} already the same: skipped.</li>

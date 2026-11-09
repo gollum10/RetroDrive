@@ -1,5 +1,7 @@
 //! Backup, step 1 (FR-09, owner 2026-11-09 "Backup and restore"; ADR-090; docs/18 §56):
-//! copy a system's saves, settings and game lists into a new folder on this PC.
+//! copy a system's saves, settings and game lists into a new folder on this PC. All
+//! seven systems since 2026-11-09 (owner "Build all 5 backup and restore for all 5";
+//! ADR-092; docs/18 §58).
 //!
 //! Reads only on the system. On the PC it only creates a new folder and new files in it
 //! (`gamelists::copy_image`: temporary file, checked against the original, then named
@@ -8,17 +10,35 @@
 //! the folder is then renamed. Nothing is ever deleted: a backup that didn't finish
 //! keeps its "(incomplete)" name and is listed as such.
 //!
-//! What is backed up (checked on the owner's RetroBat 8.3.1.1 and portable ES-DE 3.5.0):
-//! - RetroBat: `saves\`; `retrobat.ini`; EmulationStation's own settings
-//!   (`es_settings.cfg`, `es_input.cfg`, `gamecontrollerdb.txt`, `collections\`,
-//!   `scripts\`, `themesettings\`) and `user\`; each system's `roms\<system>\gamelist.xml`.
-//!   Optional: menu music and boot videos. Left out: themes, emulators, BIOS and games
-//!   (they come with RetroBat or from the library).
+//! What each system's backup holds is one list of [`Rule`]s per system ([`rules`]): the
+//! backup reads by them and restore only accepts paths they cover ([`covered`]), so the
+//! two can't drift apart. Facts (checked in each project's source, 2026-11-09):
+//! - RetroBat: `saves\`; `retrobat.ini`; EmulationStation's `es_settings.cfg`,
+//!   `es_input.cfg`, `gamecontrollerdb.txt`, `collections\`, `scripts\`,
+//!   `themesettings\`; `user\`; `roms\<system>\gamelist.xml`. Optional: music, boot videos.
 //! - ES-DE: its data folder's `settings\`, `collections\`, `custom_systems\`,
 //!   `controllers\`, `scripts\`, `gamelists\`; RetroArch's `saves\` and `states\` when
 //!   RetroArch is in ES-DE's Emulators folder. Optional: `downloaded_media\` (art).
-//!
-//! Restore is step 2 and needs its own safety review.
+//! - Batocera (userdata): `saves\` (batocera-launch-libretro: `/userdata/saves/`);
+//!   `system\batocera.conf`; `system\configs\emulationstation\` es_settings.cfg,
+//!   es_input.cfg, `collections\`; `roms\<system>\gamelist.xml`.
+//! - Recalbox (share): `saves\` (configgen `recalboxFiles.py`); `system\recalbox.conf`;
+//!   `system\.emulationstation\` es_settings.cfg, es_input.cfg; per-game
+//!   `roms\<system>\<rom>.recalbox.conf`; `roms\<system>\gamelist.xml`.
+//! - RetroPie: saves sit next to the games (RetroPie sets no `savefile_directory`, so
+//!   RetroArch uses the game's folder), picked out by file type ([`is_save_file`]);
+//!   EmulationStation's folder is moved onto the `configs` share
+//!   (`configs\all\emulationstation`: es_settings.cfg, es_input.cfg, `collections\`,
+//!   `gamelists\`), with `all\retroarch.cfg`, `all\retroarch-core-options.cfg`,
+//!   `all\retroarch-joypads\` and each system's `emulators.cfg`/`retroarch.cfg`. The
+//!   configs share is reached over the network only.
+//! - ROCKNIX: save files next to the games (`savefiles_in_content_dir = "true"`), save
+//!   states in `savestates\<system>` (`setsettings.sh`); game lists in the system
+//!   folders; settings on the `config` share (`system\configs\system.cfg`,
+//!   `emulationstation\` es_settings.cfg, es_input.cfg, `collections\`), network only.
+//! - Lakka: the `Savefiles` and `Savestates` shares; RetroArch's settings on
+//!   `Configfiles` (`retroarch\retroarch.cfg`, `retroarch-core-options.cfg`,
+//!   `retroarch\config\`) and `Remappings`; its game lists are the `Playlists` share.
 
 use crate::customizer::RunningFn;
 use crate::installations::{self, Located};
@@ -35,13 +55,26 @@ const INCOMPLETE: &str = " (incomplete)";
 pub(crate) const FORMAT: u32 = 1;
 
 /// Where a backed-up file came from, so restore can find the place again even if the
-/// drive letter changed: the installation folder, ES-DE's data folder, or RetroArch's.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// drive letter changed. Each area is one folder (or network share) of the system.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Area {
+    /// The installation folder (RetroBat, Batocera's userdata, Recalbox's share).
     Install,
     EsdeData,
     Retroarch,
+    /// The folder that holds the system folders (RetroPie, ROCKNIX).
+    Games,
+    /// RetroPie's `configs` share.
+    Configs,
+    /// ROCKNIX's `config` share.
+    Config,
+    /// Lakka's shares.
+    Savefiles,
+    Savestates,
+    Configfiles,
+    Playlists,
+    Remappings,
 }
 
 impl Area {
@@ -50,6 +83,14 @@ impl Area {
             Area::Install => "install",
             Area::EsdeData => "esde_data",
             Area::Retroarch => "retroarch",
+            Area::Games => "games",
+            Area::Configs => "configs",
+            Area::Config => "config",
+            Area::Savefiles => "savefiles",
+            Area::Savestates => "savestates",
+            Area::Configfiles => "configfiles",
+            Area::Playlists => "playlists",
+            Area::Remappings => "remappings",
         }
     }
 }
@@ -68,6 +109,163 @@ pub(crate) const GROUPS: &[GroupDef] = &[
     GroupDef { id: "art", label: "Downloaded art", optional: true },
 ];
 
+/// What a rule covers, below its area's folder (paths with `/`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Kind {
+    /// One file.
+    File(&'static str),
+    /// Every file below a folder (`""`: the whole area).
+    Tree(&'static str),
+    /// `<dir>/<system>/<file>` (`dir` may be `""`).
+    PerSystem(&'static str, &'static str),
+    /// Save files directly in `<dir>/<system>/` ([`is_save_file`]).
+    PerSystemSaves(&'static str),
+    /// Files directly in `<dir>/<system>/` ending in a suffix.
+    PerSystemSuffix(&'static str, &'static str),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Rule {
+    pub(crate) area: Area,
+    pub(crate) group: &'static str,
+    pub(crate) kind: Kind,
+}
+
+const fn r(area: Area, group: &'static str, kind: Kind) -> Rule {
+    Rule { area, group, kind }
+}
+
+/// What a backup of each kind of system holds.
+pub(crate) fn rules(adapter: &str) -> Vec<Rule> {
+    use Area::*;
+    use Kind::*;
+    match adapter {
+        "retrobat" => vec![
+            r(Install, "saves", Tree("saves")),
+            r(Install, "settings", File("retrobat.ini")),
+            r(Install, "settings", File("emulationstation/.emulationstation/es_settings.cfg")),
+            r(Install, "settings", File("emulationstation/.emulationstation/es_input.cfg")),
+            r(Install, "settings", File("emulationstation/.emulationstation/gamecontrollerdb.txt")),
+            r(Install, "settings", Tree("emulationstation/.emulationstation/collections")),
+            r(Install, "settings", Tree("emulationstation/.emulationstation/scripts")),
+            r(Install, "settings", Tree("emulationstation/.emulationstation/themesettings")),
+            r(Install, "settings", Tree("user")),
+            r(Install, "gamelists", PerSystem("roms", "gamelist.xml")),
+            r(Install, "media", Tree("emulationstation/.emulationstation/music")),
+            r(Install, "media", Tree("emulationstation/.emulationstation/video")),
+        ],
+        "esde" => vec![
+            r(Retroarch, "saves", Tree("saves")),
+            r(Retroarch, "saves", Tree("states")),
+            r(EsdeData, "settings", Tree("settings")),
+            r(EsdeData, "settings", Tree("collections")),
+            r(EsdeData, "settings", Tree("custom_systems")),
+            r(EsdeData, "settings", Tree("controllers")),
+            r(EsdeData, "settings", Tree("scripts")),
+            r(EsdeData, "gamelists", Tree("gamelists")),
+            r(EsdeData, "art", Tree("downloaded_media")),
+        ],
+        "batocera" => vec![
+            r(Install, "saves", Tree("saves")),
+            r(Install, "settings", File("system/batocera.conf")),
+            r(Install, "settings", File("system/configs/emulationstation/es_settings.cfg")),
+            r(Install, "settings", File("system/configs/emulationstation/es_input.cfg")),
+            r(Install, "settings", Tree("system/configs/emulationstation/collections")),
+            r(Install, "gamelists", PerSystem("roms", "gamelist.xml")),
+        ],
+        "recalbox" => vec![
+            r(Install, "saves", Tree("saves")),
+            r(Install, "settings", File("system/recalbox.conf")),
+            r(Install, "settings", File("system/.emulationstation/es_settings.cfg")),
+            r(Install, "settings", File("system/.emulationstation/es_input.cfg")),
+            r(Install, "settings", PerSystemSuffix("roms", ".recalbox.conf")),
+            r(Install, "gamelists", PerSystem("roms", "gamelist.xml")),
+        ],
+        "retropie" => vec![
+            r(Games, "saves", PerSystemSaves("")),
+            r(Configs, "settings", File("all/emulationstation/es_settings.cfg")),
+            r(Configs, "settings", File("all/emulationstation/es_input.cfg")),
+            r(Configs, "settings", Tree("all/emulationstation/collections")),
+            r(Configs, "settings", File("all/retroarch-core-options.cfg")),
+            r(Configs, "settings", Tree("all/retroarch-joypads")),
+            r(Configs, "settings", PerSystem("", "emulators.cfg")),
+            r(Configs, "settings", PerSystem("", "retroarch.cfg")),
+            r(Games, "gamelists", PerSystem("", "gamelist.xml")),
+            r(Configs, "gamelists", Tree("all/emulationstation/gamelists")),
+        ],
+        "rocknix" => vec![
+            r(Games, "saves", PerSystemSaves("")),
+            r(Games, "saves", Tree("savestates")),
+            r(Config, "settings", File("system/configs/system.cfg")),
+            r(Config, "settings", File("emulationstation/es_settings.cfg")),
+            r(Config, "settings", File("emulationstation/es_input.cfg")),
+            r(Config, "settings", Tree("emulationstation/collections")),
+            r(Games, "gamelists", PerSystem("", "gamelist.xml")),
+        ],
+        "lakka" => vec![
+            r(Savefiles, "saves", Tree("")),
+            r(Savestates, "saves", Tree("")),
+            r(Configfiles, "settings", File("retroarch/retroarch.cfg")),
+            r(Configfiles, "settings", File("retroarch/retroarch-core-options.cfg")),
+            r(Configfiles, "settings", Tree("retroarch/config")),
+            r(Remappings, "settings", Tree("")),
+            r(Playlists, "gamelists", Tree("")),
+        ],
+        _ => Vec::new(),
+    }
+}
+
+/// A save file RetroArch (or an emulator) writes next to a game: battery saves, memory
+/// cards and save states (with their thumbnails), never a game's own file type.
+pub(crate) fn is_save_file(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    if [".srm", ".sav", ".rtc", ".eep", ".fla", ".mpk", ".sra", ".mcr"].iter().any(|e| n.ends_with(e) && n.len() > e.len()) {
+        return true;
+    }
+    match n.rfind(".state") {
+        Some(i) if i > 0 => {
+            let rest = n[i + 6..].trim_end_matches(".png");
+            let rest = rest.strip_prefix('.').unwrap_or(rest);
+            rest.is_empty() || rest == "auto" || rest.chars().all(|c| c.is_ascii_digit())
+        }
+        _ => false,
+    }
+}
+
+/// Whether a rule covers a path (already checked to be plain).
+fn rule_covers(rule: &Rule, path: &str) -> bool {
+    let parts: Vec<&str> = path.split('/').collect();
+    let per_system = |dir: &str| -> Option<&str> {
+        match (dir.is_empty(), parts.len()) {
+            (true, 2) if !parts[0].starts_with('.') => Some(parts[1]),
+            (false, 3) if parts[0] == dir && !parts[1].starts_with('.') => Some(parts[2]),
+            _ => None,
+        }
+    };
+    match rule.kind {
+        Kind::File(f) => path == f,
+        Kind::Tree("") => true,
+        Kind::Tree(prefix) => path.len() > prefix.len() + 1 && path.starts_with(prefix) && path.as_bytes()[prefix.len()] == b'/',
+        Kind::PerSystem(dir, file) => per_system(dir) == Some(file),
+        Kind::PerSystemSaves(dir) => per_system(dir).is_some_and(is_save_file),
+        Kind::PerSystemSuffix(dir, suffix) => per_system(dir).is_some_and(|n| n.len() > suffix.len() && n.to_ascii_lowercase().ends_with(suffix)),
+    }
+}
+
+/// A relative path with nothing unusual in it: no `..`, drive, share, control
+/// characters, RetroDrive's temporary marker or `.retrodrive` folder.
+pub(crate) fn plain(path: &str) -> bool {
+    let parts: Vec<&str> = path.split('/').collect();
+    !path.is_empty()
+        && parts.iter().all(|p| !p.is_empty() && *p != "." && *p != ".." && !p.contains([':', '\\']) && !p.chars().any(char::is_control) && !p.contains(copier::TEMP_MARKER))
+        && !parts.iter().any(|p| p.eq_ignore_ascii_case(".retrodrive"))
+}
+
+/// Whether a backup of this kind of system covers this place (restore only writes there).
+pub(crate) fn covered(adapter: &str, area: Area, path: &str) -> bool {
+    plain(path) && rules(adapter).iter().any(|rule| rule.area == area && rule_covers(rule, path))
+}
+
 /// One file to back up.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Source {
@@ -79,11 +277,25 @@ pub(crate) struct Source {
     pub(crate) size: u64,
 }
 
-/// The folders an installation's files are found in.
+/// The folders (or shares) an installation's files are found in.
 pub(crate) struct Places {
+    /// The installation folder; RetroDrive's restore records go here.
     pub(crate) install: PathBuf,
-    pub(crate) esde_data: Option<PathBuf>,
-    pub(crate) retroarch: Option<PathBuf>,
+    pub(crate) bases: Vec<(Area, PathBuf)>,
+    /// Areas that can't be reached, with why.
+    pub(crate) missing: Vec<(Area, String)>,
+}
+
+impl Places {
+    pub(crate) fn base(&self, area: Area) -> Option<&Path> {
+        if area == Area::Install {
+            return Some(&self.install);
+        }
+        self.bases.iter().find(|(a, _)| *a == area).map(|(_, p)| p.as_path())
+    }
+    pub(crate) fn missing_note(&self, area: Area) -> Option<&str> {
+        self.missing.iter().find(|(a, _)| *a == area).map(|(_, n)| n.as_str())
+    }
 }
 
 /// What a group would back up.
@@ -162,14 +374,10 @@ pub struct CheckResult {
     pub changed: Vec<String>,
 }
 
-fn supported(adapter: &str) -> bool {
-    adapter == "retrobat" || adapter == "esde"
-}
-
 pub(crate) fn located(connection: &Connection, installation_id: &str, presence: crate::customizer::PresenceFn) -> Result<Located, String> {
     let l = installations::located(connection, presence, Some(installation_id))?.into_iter().next().ok_or("Installation not found")?;
-    if !supported(&l.adapter_id) {
-        return Err("Backups are available for RetroBat and ES-DE so far.".into());
+    if rules(&l.adapter_id).is_empty() {
+        return Err("Backups aren't available for this system yet.".into());
     }
     if l.presence != Presence::Connected {
         return Err("The drive isn't connected.".into());
@@ -178,20 +386,40 @@ pub(crate) fn located(connection: &Connection, installation_id: &str, presence: 
 }
 
 pub(crate) fn places(l: &Located) -> Result<Places, String> {
-    Ok(match l.adapter_id.as_str() {
-        "esde" => Places {
-            install: l.root.clone(),
-            esde_data: Some(gamelists::esde_data_dir(&l.root).ok_or("ES-DE's data folder wasn't found next to this ROMs folder. Start ES-DE once, then try again.")?),
-            retroarch: bios_step::esde_retroarch(&l.root),
-        },
-        _ => Places { install: l.root.clone(), esde_data: None, retroarch: None },
-    })
+    let mut p = Places { install: l.root.clone(), bases: Vec::new(), missing: Vec::new() };
+    let mut add = |area: Area, dir: Option<PathBuf>, why: String| match dir.filter(|d| d.is_dir()) {
+        Some(d) => p.bases.push((area, d)),
+        None => p.missing.push((area, why)),
+    };
+    match l.adapter_id.as_str() {
+        "esde" => {
+            let data = gamelists::esde_data_dir(&l.root).ok_or("ES-DE's data folder wasn't found next to this ROMs folder. Start ES-DE once, then try again.")?;
+            add(Area::EsdeData, Some(data), String::new());
+            add(Area::Retroarch, bios_step::esde_retroarch(&l.root), "RetroArch isn't in ES-DE's Emulators folder, so there are no RetroArch saves here.".into());
+        }
+        "retropie" => {
+            add(Area::Games, Some(gamelists::games_dir(&l.root).0), String::new());
+            let configs = crate::retropie_settings::configs_root(&l.root.display().to_string()).map(PathBuf::from);
+            add(Area::Configs, configs, "RetroPie keeps its settings and most game lists on its configs network share. Add RetroPie by its network share (\\\\RETROPIE\\roms) to back them up too.".into());
+        }
+        "rocknix" => {
+            add(Area::Games, Some(adapters::rocknix::games_folder(&l.root)), String::new());
+            add(Area::Config, crate::rocknix_settings::network_config(&l.root).ok(), "ROCKNIX keeps its settings in a part of the card Windows can't read. Add the ROCKNIX device by its network share (\\\\ROCKNIX\\games-roms) to back them up too.".into());
+        }
+        "lakka" => {
+            for (area, name) in [(Area::Savefiles, "Savefiles"), (Area::Savestates, "Savestates"), (Area::Configfiles, "Configfiles"), (Area::Playlists, "Playlists"), (Area::Remappings, "Remappings")] {
+                add(area, adapters::lakka::share(&l.root, name), format!("Lakka's {name} share can't be reached."));
+            }
+        }
+        _ => {}
+    }
+    Ok(p)
 }
 
 /// Files below `dir` (recursively), skipping links, RetroDrive's own folder and its
 /// temporary files.
 fn tree(out: &mut Vec<Source>, group: &'static str, area: Area, base: &Path, rel_dir: &str) {
-    let dir = crate::paths::join(&base.display().to_string(), rel_dir);
+    let dir = if rel_dir.is_empty() { base.to_path_buf() } else { crate::paths::join(&base.display().to_string(), rel_dir) };
     if !dir.is_dir() {
         return;
     }
@@ -215,70 +443,80 @@ fn file(out: &mut Vec<Source>, group: &'static str, area: Area, base: &Path, rel
     }
 }
 
-pub(crate) const ES: &str = "emulationstation/.emulationstation";
+/// The system folders in `<base>/<dir>` (not hidden ones), sorted.
+fn system_folders(base: &Path, dir: &str) -> Vec<String> {
+    let folder = if dir.is_empty() { base.to_path_buf() } else { base.join(dir) };
+    let Ok(entries) = fs::read_dir(folder) else { return Vec::new() };
+    let mut names: Vec<String> = entries.filter_map(Result::ok).filter(|e| e.file_type().is_ok_and(|t| t.is_dir())).map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| !n.starts_with('.')).collect();
+    names.sort();
+    names
+}
 
+fn join_rel(dir: &str, system: &str, name: &str) -> String {
+    if dir.is_empty() { format!("{system}/{name}") } else { format!("{dir}/{system}/{name}") }
+}
+
+/// Every file the system's rules cover, once each.
 pub(crate) fn sources(adapter: &str, p: &Places) -> Vec<Source> {
     let mut out = Vec::new();
-    match adapter {
-        "retrobat" => {
-            let root = &p.install;
-            tree(&mut out, "saves", Area::Install, root, "saves");
-            file(&mut out, "settings", Area::Install, root, "retrobat.ini");
-            for f in ["es_settings.cfg", "es_input.cfg", "gamecontrollerdb.txt"] {
-                file(&mut out, "settings", Area::Install, root, &format!("{ES}/{f}"));
-            }
-            for d in ["collections", "scripts", "themesettings"] {
-                tree(&mut out, "settings", Area::Install, root, &format!("{ES}/{d}"));
-            }
-            tree(&mut out, "settings", Area::Install, root, "user");
-            if let Ok(systems) = fs::read_dir(root.join("roms")) {
-                let mut names: Vec<String> = systems.filter_map(Result::ok).filter(|e| e.file_type().is_ok_and(|t| t.is_dir())).map(|e| e.file_name().to_string_lossy().into_owned()).collect();
-                names.sort();
-                for name in names {
-                    file(&mut out, "gamelists", Area::Install, root, &format!("roms/{name}/gamelist.xml"));
+    for rule in rules(adapter) {
+        let Some(base) = p.base(rule.area) else { continue };
+        match rule.kind {
+            Kind::File(f) => file(&mut out, rule.group, rule.area, base, f),
+            Kind::Tree(d) => tree(&mut out, rule.group, rule.area, base, d),
+            Kind::PerSystem(dir, name) => {
+                for system in system_folders(base, dir) {
+                    file(&mut out, rule.group, rule.area, base, &join_rel(dir, &system, name));
                 }
             }
-            tree(&mut out, "media", Area::Install, root, &format!("{ES}/music"));
-            tree(&mut out, "media", Area::Install, root, &format!("{ES}/video"));
-        }
-        "esde" => {
-            if let Some(data) = &p.esde_data {
-                for d in ["settings", "collections", "custom_systems", "controllers", "scripts"] {
-                    tree(&mut out, "settings", Area::EsdeData, data, d);
+            Kind::PerSystemSaves(dir) | Kind::PerSystemSuffix(dir, _) => {
+                for system in system_folders(base, dir) {
+                    let folder = crate::paths::join(&base.display().to_string(), &join_rel(dir, &system, ""));
+                    let Ok(entries) = fs::read_dir(&folder) else { continue };
+                    let mut names: Vec<String> = entries.filter_map(Result::ok).filter(|e| e.file_type().is_ok_and(|t| t.is_file())).map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+                    names.sort();
+                    for name in names {
+                        let rel = join_rel(dir, &system, &name);
+                        if plain(&rel) && rule_covers(&rule, &rel) {
+                            file(&mut out, rule.group, rule.area, base, &rel);
+                        }
+                    }
                 }
-                tree(&mut out, "gamelists", Area::EsdeData, data, "gamelists");
-                tree(&mut out, "art", Area::EsdeData, data, "downloaded_media");
-            }
-            if let Some(ra) = &p.retroarch {
-                tree(&mut out, "saves", Area::Retroarch, ra, "saves");
-                tree(&mut out, "saves", Area::Retroarch, ra, "states");
             }
         }
-        _ => {}
     }
+    let mut seen = std::collections::HashSet::new();
+    out.retain(|s| seen.insert((s.area, s.rel.to_ascii_lowercase())));
     out
+}
+
+/// The groups this system has, in order.
+fn adapter_groups(adapter: &str) -> Vec<&'static GroupDef> {
+    let rules = rules(adapter);
+    GROUPS.iter().filter(|g| rules.iter().any(|r| r.group == g.id)).collect()
 }
 
 /// The groups this adapter has, with what each would back up.
 fn group_previews(adapter: &str, p: &Places, all: &[Source]) -> Vec<GroupPreview> {
-    let wanted: &[&str] = if adapter == "esde" { &["saves", "settings", "gamelists", "art"] } else { &["saves", "settings", "gamelists", "media"] };
-    GROUPS
-        .iter()
-        .filter(|g| wanted.contains(&g.id))
+    let rules = rules(adapter);
+    adapter_groups(adapter)
+        .into_iter()
         .map(|g| {
             let files: Vec<&Source> = all.iter().filter(|s| s.group == g.id).collect();
-            let note = (files.is_empty()).then(|| match (adapter, g.id) {
-                ("esde", "saves") if p.retroarch.is_none() => "RetroArch isn't in ES-DE's Emulators folder, so there are no RetroArch saves here.".to_string(),
-                _ => "Nothing to back up.".to_string(),
-            });
+            let unreachable: Vec<&str> = rules.iter().filter(|r| r.group == g.id).filter_map(|r| p.missing_note(r.area)).collect();
+            let note = match (files.is_empty(), unreachable.first()) {
+                (true, Some(n)) => Some(n.to_string()),
+                (true, None) => Some("Nothing to back up.".to_string()),
+                (false, Some(n)) => Some(format!("Some are left out: {n}")),
+                (false, None) => None,
+            };
             GroupPreview { id: g.id, label: g.label, optional: g.optional, files: files.len(), bytes: files.iter().map(|s| s.size).sum(), note }
         })
         .collect()
 }
 
 fn chosen(adapter: &str, optional: &[String]) -> Vec<&'static str> {
-    let wanted: &[&str] = if adapter == "esde" { &["saves", "settings", "gamelists", "art"] } else { &["saves", "settings", "gamelists", "media"] };
-    GROUPS.iter().filter(|g| wanted.contains(&g.id) && (!g.optional || optional.iter().any(|o| o == g.id))).map(|g| g.id).collect()
+    adapter_groups(adapter).into_iter().filter(|g| !g.optional || optional.iter().any(|o| o == g.id)).map(|g| g.id).collect()
 }
 
 pub(crate) fn adapter_name(id: &str) -> String {
@@ -641,4 +879,128 @@ mod tests {
         assert!(folder.join("esde_data/settings/es_settings.xml").is_file() && folder.join("retroarch/saves/Pitfall.srm").is_file());
         assert!(!folder.join("esde_data/downloaded_media").exists() && !folder.join("esde_data/themes").exists());
     }
+
+    /// Back up, then lose a save and restore it; every backed-up file is covered by restore.
+    fn round_trip(c: &Connection, id: &str, backups: &Path, lost: &Path) -> Manifest {
+        let b = run(c, id, &[], backups, &connected, &closed, &|_, _, _| {}).unwrap();
+        assert!(b.complete, "{b:?}");
+        let folder = PathBuf::from(&b.folder);
+        let m = read_manifest(&folder).unwrap();
+        assert!(m.files.iter().all(|f| covered(&m.adapter_id, f.area, &f.path)), "every backed-up file can go back");
+        let kept = fs::read(lost).unwrap();
+        fs::remove_file(lost).unwrap();
+        let groups: Vec<String> = m.groups.clone();
+        let p = crate::system_restore::preview(c, &folder, id, &groups, &connected, &closed).unwrap();
+        assert_eq!(p.add, 1, "only the lost save");
+        crate::system_restore::apply(c, &folder, id, &groups, false, &p.fingerprint, &connected, &closed).unwrap();
+        assert_eq!(fs::read(lost).unwrap(), kept);
+        m
+    }
+
+    fn installed(root: &Path, adapter: &str) -> (Connection, String) {
+        let mut c = Connection::open_in_memory().unwrap();
+        crate::db::migrate(&mut c, None).unwrap();
+        let id = installations::add(&c, root, adapter, &|_: &str| VolumeProbe::unknown()).unwrap();
+        (c, id)
+    }
+
+    fn paths(m: &Manifest) -> Vec<String> {
+        let mut v: Vec<String> = m.files.iter().map(|f| format!("{}:{}", f.area.folder(), f.path)).collect();
+        v.sort();
+        v
+    }
+
+    #[test]
+    fn batocera_backs_up_saves_settings_and_game_lists() {
+        let dir = tempfile::tempdir().unwrap();
+        let u = dir.path().join("batocera");
+        put(&u, "system/batocera.conf", "global.ratio=4/3");
+        put(&u, "system/configs/emulationstation/es_settings.cfg", "<config />");
+        put(&u, "system/configs/emulationstation/collections/custom-Fav.cfg", "a");
+        put(&u, "system/configs/emulationstation/themes/x/theme.xml", "theme");
+        put(&u, "saves/snes/F-Zero.srm", "save");
+        put(&u, "roms/snes/F-Zero.zip", "game");
+        put(&u, "roms/snes/gamelist.xml", "<gameList />");
+        put(&u, "bios/scph5501.bin", "bios");
+        let (c, id) = installed(&u, "batocera");
+        let m = round_trip(&c, &id, &dir.path().join("Backups"), &u.join("saves/snes/F-Zero.srm"));
+        assert_eq!(paths(&m), ["install:roms/snes/gamelist.xml", "install:saves/snes/F-Zero.srm", "install:system/batocera.conf", "install:system/configs/emulationstation/collections/custom-Fav.cfg", "install:system/configs/emulationstation/es_settings.cfg"]);
+    }
+
+    #[test]
+    fn recalbox_includes_its_per_game_settings_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let sh = dir.path().join("share");
+        put(&sh, "system/recalbox.conf", "global.ratio=auto");
+        put(&sh, "system/.emulationstation/es_input.cfg", "<inputList />");
+        put(&sh, "saves/nes/Zelda.srm", "save");
+        put(&sh, "roms/nes/Zelda.nes", "game");
+        put(&sh, "roms/nes/Zelda.nes.recalbox.conf", "nes.ratio=4/3");
+        put(&sh, "roms/nes/gamelist.xml", "<gameList />");
+        let (c, id) = installed(&sh, "recalbox");
+        let m = round_trip(&c, &id, &dir.path().join("Backups"), &sh.join("roms/nes/Zelda.nes.recalbox.conf"));
+        assert_eq!(paths(&m), ["install:roms/nes/Zelda.nes.recalbox.conf", "install:roms/nes/gamelist.xml", "install:saves/nes/Zelda.srm", "install:system/.emulationstation/es_input.cfg", "install:system/recalbox.conf"]);
+    }
+
+    #[test]
+    fn retropie_and_rocknix_pick_saves_out_of_the_game_folders() {
+        let dir = tempfile::tempdir().unwrap();
+        let pie = dir.path().join("retropie");
+        for f in ["roms/snes/Mario.sfc", "roms/snes/Mario.srm", "roms/snes/Mario.state1", "roms/snes/Mario.state1.png", "roms/snes/gamelist.xml", "roms/nes/Zelda.nes", "roms/ports/x.sh"] {
+            put(&pie, f, f);
+        }
+        let (c, id) = installed(&pie, "retropie");
+        let pv = preview(&c, &id, dir.path(), &connected, &closed).unwrap();
+        let settings = pv.groups.iter().find(|g| g.id == "settings").unwrap();
+        assert!(settings.files == 0 && settings.note.as_deref().unwrap().contains("configs network share"), "a USB stick has no configs share");
+        let m = round_trip(&c, &id, &dir.path().join("Backups"), &pie.join("roms/snes/Mario.srm"));
+        assert_eq!(paths(&m), ["games:snes/Mario.srm", "games:snes/Mario.state1", "games:snes/Mario.state1.png", "games:snes/gamelist.xml"], "games aren't saves");
+        assert!(!covered("retropie", Area::Games, "snes/Mario.sfc"), "restore never writes a game");
+
+        let card = dir.path().join("rocknix");
+        for f in ["roms/snes/Mario.sfc", "roms/snes/Mario.srm", "roms/sfc/x.sfc", "roms/nes/Zelda.nes", "roms/fbn/x.zip", "roms/bezels/a.png", "roms/savestates/snes/Mario.state", "roms/savestates/snes/Mario.state.png"] {
+            put(&card, f, f);
+        }
+        let (c, id) = installed(&card, "rocknix");
+        let m = round_trip(&c, &id, &dir.path().join("Backups"), &card.join("roms/savestates/snes/Mario.state"));
+        assert_eq!(paths(&m), ["games:savestates/snes/Mario.state", "games:savestates/snes/Mario.state.png", "games:snes/Mario.srm"]);
+    }
+
+    #[test]
+    fn lakka_backs_up_its_save_settings_and_playlist_shares() {
+        let dir = tempfile::tempdir().unwrap();
+        let host = dir.path();
+        put(host, "ROMs/nes/Zelda.nes", "game");
+        put(host, "Configfiles/retroarch/retroarch.cfg", "video_smooth = false");
+        put(host, "Configfiles/retroarch/config/Nestopia/Nestopia.cfg", "x");
+        put(host, "Configfiles/kodi/big.db", "not RetroArch's");
+        put(host, "Playlists/Nintendo - Nintendo Entertainment System.lpl", "{}");
+        put(host, "Savefiles/Zelda.srm", "save");
+        put(host, "Savestates/Zelda.state1", "state");
+        put(host, "Remappings/Nestopia/Nestopia.rmp", "map");
+        let (c, id) = installed(&host.join("ROMs"), "lakka");
+        let m = round_trip(&c, &id, &host.join("Backups"), &host.join("Savefiles/Zelda.srm"));
+        assert_eq!(paths(&m), ["configfiles:retroarch/config/Nestopia/Nestopia.cfg", "configfiles:retroarch/retroarch.cfg", "playlists:Nintendo - Nintendo Entertainment System.lpl", "remappings:Nestopia/Nestopia.rmp", "savefiles:Zelda.srm", "savestates:Zelda.state1"]);
+    }
+
+    #[test]
+    fn save_files_are_told_apart_from_games() {
+        for (name, save) in [
+            ("Mario.srm", true),
+            ("Pokemon.sav", true),
+            ("Mario.state", true),
+            ("Mario.state3", true),
+            ("Mario.state.auto", true),
+            ("Mario.state12.png", true),
+            ("Mupen.eep", true),
+            ("Mario.sfc", false),
+            ("Mario.zip", false),
+            ("cover.png", false),
+            (".srm", false),
+            ("Mario.statement.txt", false),
+        ] {
+            assert_eq!(is_save_file(name), save, "{name}");
+        }
+    }
 }
+

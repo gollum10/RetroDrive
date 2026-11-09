@@ -748,8 +748,7 @@ fn backup_destination(app: &AppHandle, folder: Option<String>) -> Result<PathBuf
 }
 
 fn running_frontend(connection: &rusqlite::Connection, installation_id: &str) -> customizer::RunningFn<'static> {
-    let adapter: String = connection.query_row("SELECT adapter_id FROM installations WHERE id = ?1", [installation_id], |r| r.get(0)).unwrap_or_default();
-    if adapter == "esde" { &customizer::esde_running } else { &customizer::retrobat_running }
+    running_for(connection, installation_id)
 }
 
 /// Settings: the folder backups go into, as a path to show.
