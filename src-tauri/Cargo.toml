@@ -1,6 +1,7 @@
 [package]
 name = "retrodrive-studio"
 version = "0.1.0"
+license = "Apache-2.0"
 description = "RetroDrive desktop backend"
 authors = ["RetroDrive"]
 edition = "2021"

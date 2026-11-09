@@ -1,9 +1,8 @@
 # RetroDrive Privacy Policy
 
-> **DRAFT for counsel review (LEGAL-009). Not legal advice and not yet in force.**
-> Items in `[brackets]` are for the owner to fill in.
+> **Draft (LEGAL-009), to be reviewed before the first public release.** Not legal advice.
 
-**Version:** draft 1 · **Date:** [EFFECTIVE DATE]
+**Version:** 1 · 2026-11-09
 
 ## The short version
 
@@ -94,7 +93,8 @@ sends data would be off until you turn it on.
 
 ## Contact
 
-[CONTACT EMAIL OR ADDRESS]
+RetroDrive is an open-source project. For questions about this policy, open an issue on
+GitHub: https://github.com/gollum10/RetroInstaller/issues. Please don't post personal information there; issues are public.
 
 ---
 
@@ -113,3 +113,6 @@ sends data would be off until you turn it on.
   be accurate.
 - Where it's shown: suggested in Settings → About and legal and next to the installer,
   once approved.
+- No name, email or postal address is published (owner decision 2026-11-09); contact is
+  through GitHub Issues. Counsel to confirm that's enough where a privacy contact is
+  required.
