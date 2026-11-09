@@ -1,5 +1,7 @@
 # RetroDrive — Features
 
+**CI test reliability:** the copier confirmation test now gives each file pair a separate modification second and pins its confirmation to that pair. This removes a runner-timing assumption without changing production copying behavior.
+
 **Saved PNG preview fix prepared:** shared in-flight requests prevent StrictMode setup/cleanup from racing the native image-worker guard on reopen. Bounded busy retries and state-based preview publication restore saved image layers without touching stored source/bytes. Native owner recheck remains pending.
 
 **Theme Studio PNG workflow prepared:** user file picker with license/attribution, normalized immutable SQLite blobs, PNG image layers and authorized hash-checked previews. Images use normal move/resize/align/lock/hide/history services. Catalog v29 is additive; native import/save/reopen validation remains pending.

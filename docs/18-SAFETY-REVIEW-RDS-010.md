@@ -683,3 +683,9 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 | Older backups or older RetroDrive versions | The field is optional: backups without it are compared by contents; older versions ignore it (format stays 1) | same test (a list without times: compared by contents) |
 | A damaged backup | The backup's own files are still checked by SHA-256 in every preview | `a_damaged_or_edited_backup_restores_nothing` |
 
+
+## Test-only CI correction: confirmation timestamps
+
+The existing same-second confirmation test used one newest timestamp across two source/destination pairs. If a slower runner created the pairs in different seconds, the older pair legitimately qualified for reuse and the assertion failed. The fixture now deliberately gives pairs different modified times and pins each deployment item's confirmation to its own pair's latest modified/created time. The staggered fixture reproduces the prior failure without sleeps. All same-second/later-confirmation/changed-content assertions remain in place.
+
+Only the disposable test fixture in copier.rs changes. Production confirmation checks, copying, no-replace publication, rollback/deletion rules and hazards H1-H14 are unchanged. The complete Rust suite and strict Clippy are required before pushing this test correction; no user catalog or target files are used.
