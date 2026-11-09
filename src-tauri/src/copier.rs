@@ -2115,20 +2115,28 @@ mod tests {
         let mut f = Fixture::new(&[("nes/Kid.nes", b"kid"), ("nes/Zelda.nes", b"zelda")]);
         assert_eq!(f.deploy().files_copied, 2);
         let reused = |c: &Connection| -> i64 { c.query_row("SELECT COUNT(*) FROM deployment_items WHERE message LIKE 'Confirmed by an earlier copy%'", [], |r| r.get(0)).unwrap() };
+        // Force distinct modification seconds so the fixture also covers slower CI runners.
+        let base = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() + 60;
+        for (index, name) in ["Kid.nes", "Zelda.nes"].iter().enumerate() {
+            let modified = std::time::UNIX_EPOCH + std::time::Duration::from_secs(base + index as u64 * 60);
+            for path in [f.root.join("roms/nes").join(name), f.library.join("nes").join(name)] {
+                fs::OpenOptions::new().write(true).open(path).unwrap().set_modified(modified).unwrap();
+            }
+        }
         // A confirmation in the same second as the files last changed isn't trusted: checked again by content.
-        // (Pinned to the files' own latest time, so the result doesn't depend on the clock.)
-        let latest = ["Kid.nes", "Zelda.nes"]
-            .iter()
-            .flat_map(|n| [f.root.join("roms/nes").join(n), f.library.join("nes").join(n)])
-            .flat_map(|p| {
-                let m = fs::metadata(&p).unwrap();
-                [m.modified().ok(), m.created().ok()]
-            })
-            .flatten()
-            .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64)
-            .max()
-            .unwrap();
-        f.catalog.execute("UPDATE deployment_items SET updated_at = datetime(?1, 'unixepoch')", [latest]).unwrap();
+        // Pin each confirmation to its own source/destination pair, not the global
+        // latest time (which could make an older pair legitimately reusable).
+        let pairs: Vec<(i64, String, String)> = {
+            let mut query = f.catalog.prepare("SELECT id,source_path,destination_path FROM deployment_items").unwrap();
+            query.query_map([], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?))).unwrap().map(Result::unwrap).collect()
+        };
+        for (id, source, destination) in pairs {
+            let latest = [source, destination].iter().flat_map(|path| {
+                let metadata = fs::metadata(path).unwrap();
+                [metadata.modified().ok(), metadata.created().ok()]
+            }).flatten().map(|time| time.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64).max().unwrap();
+            assert_eq!(f.catalog.execute("UPDATE deployment_items SET updated_at = datetime(?1, 'unixepoch') WHERE id=?2", rusqlite::params![latest,id]).unwrap(), 1);
+        }
         assert_eq!(f.deploy().files_identical, 2);
         assert_eq!(reused(&f.catalog), 0, "a confirmation isn't trusted for files modified in the same second");
         // Confirmations made after the files last changed are trusted (no reading).

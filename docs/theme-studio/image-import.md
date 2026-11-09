@@ -80,3 +80,15 @@ Native owner smoke check still required in the same disposable QA catalog:
 JPEG/WebP/SVG, portable asset packages, replacement/deletion/garbage collection, advanced asset browsing/cropping, media and native theme export remain future work.
 
 Automated result for this workflow PR: full Rust suite 325 passed / 7 ignored; strict Clippy passed; workspace, source-contract and production build checks passed; real Edge fixture import/layer regressions passed; license gate and generated notices/inventory checks passed (298 components, zero denied). Browser tests may leave a generated cache profile locked during cleanup. No user browser profile, native catalog or target installation was used.
+
+## Saved-preview lifecycle regression
+
+Native owner testing confirmed two imports displayed, but reopening showed image layers with Image unavailable placeholders. A read-only inspection of the disposable QA catalog found the declared PNG blob present with matching SHA-256, byte count and PNG signature. Source/bytes were not repaired or rewritten.
+
+The earlier browser import fixture passed preview URLs directly to the canvas and did not exercise the actual loading hook on mount. A new fixture starts with saved declarations, mounts useImagePreviews under React.StrictMode and models the real native one-worker busy guard. It reproduced zero image elements: the first effect's request was cancelled for publication, while the repeated effect made another request that was rejected as busy.
+
+The hook now shares in-flight promises by project ID, asset ID, hash and byte count across effect cleanup/setup. Cancelled consumers cannot publish; the active consumer puts completed URLs into React state. Render uses that immutable state filtered against current declarations, rather than reading mutable ref cache contents. Cache entries remain bounded and project-scoped, and removed/changed declarations cannot reuse stale URLs.
+
+Only image_busy replies auto-retry: at most four attempts with 100/200/300ms delays. Other errors surface immediately, and exhausted retries stop with Retry previews available. There is no infinite polling or change to native authorization, saved source, BLOBs, schema, CSP or permissions.
+
+Executed browser checks cover the exact pre-fix failure, shared request count, actual component reopen, transient busy recovery, authorization after project change, declaration removal/restoration, permanent-error no-retry/manual recovery and bounded busy exhaustion/manual recovery, together with existing import/editor regressions. The source-only native service is stubbed in this browser test; no real catalog or user browser profile is used by it. Native owner recheck remains: reopen the existing QA project without reimporting and verify both saved images appear, then checkpoint/close/reopen again. Rust is unchanged and its suite was not rerun for this frontend-only fix.

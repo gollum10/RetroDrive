@@ -694,3 +694,9 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 | Adding something the user didn't choose | Nothing is added automatically; Add and use calls the existing `add_installation` (which re-checks recognition) | in the app with a scratch catalog: RetroBat added and chosen, ES-DE left alone |
 | Being pushed into the wizard | Offered once on first start with No thanks; Exit any time; never reopens by itself | in the app with a scratch catalog |
 
+
+## Test-only CI correction: confirmation timestamps
+
+The existing same-second confirmation test used one newest timestamp across two source/destination pairs. If a slower runner created the pairs in different seconds, the older pair legitimately qualified for reuse and the assertion failed. The fixture now deliberately gives pairs different modified times and pins each deployment item's confirmation to its own pair's latest modified/created time. The staggered fixture reproduces the prior failure without sleeps. All same-second/later-confirmation/changed-content assertions remain in place.
+
+Only the disposable test fixture in copier.rs changes. Production confirmation checks, copying, no-replace publication, rollback/deletion rules and hazards H1-H14 are unchanged. The complete Rust suite and strict Clippy are required before pushing this test correction; no user catalog or target files are used.

@@ -1,5 +1,7 @@
 # 04 | Technical Architecture
 
+**Preview reopen correction:** useImagePreviews shares promises keyed by project ID, asset ID, hash and byte count across effect restarts, keeps cancelled effects from publishing, and renders immutable loaded state rather than mutable ref cache contents. Busy worker responses retry at most four attempts; other errors require user retry. Native authorization/integrity checks are unchanged.
+
 **PNG workflow:** two background commands accept bounded base64 bytes/project ID or saved project ID/asset ID, never filesystem paths. image_store normalizes into immutable SHA-keyed SQLite blobs and re-verifies reads. The UI attaches portable asset declarations/image nodes through existing ProjectSession, then loads a bounded PNG-only data-URL cache. Source file selection uses a browser File grant; existing CSP already permits PNG data images.
 
 **PNG boundary:** theme_studio::image_import is pure bytes-in/normalized-PNG-out code using checked chunk framing/CRC, bounded decoding and a fresh RGBA8 encoder. It returns a normalized-byte hash and portable declaration path. No IPC, filesystem, target writer or UI integration is added; managed storage/preview authorization follows separately.
