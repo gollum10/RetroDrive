@@ -37,6 +37,7 @@ pub mod theme_studio;
 mod scanner;
 mod sinden_step;
 mod system_backup;
+mod system_restore;
 mod vertical;
 mod volumes;
 
@@ -813,6 +814,71 @@ fn open_system_backups(app: AppHandle, folder: Option<String>, backup: Option<St
         None => return Err("There are no backups yet.".into()),
     };
     std::process::Command::new("explorer.exe").arg(&target).spawn().map(|_| ()).map_err(|e| format!("Couldn't open File Explorer: {e}"))
+}
+
+/// Restore (FR-09 step 2, ADR-091): a backup directly inside the backup folder.
+fn backup_in(app: &AppHandle, folder: Option<String>, backup: &str) -> Result<PathBuf, String> {
+    let destination = backup_destination(app, folder)?;
+    let path = PathBuf::from(backup);
+    if path.parent() != Some(destination.as_path()) || !path.is_dir() {
+        return Err("That isn't a backup in the backup folder.".into());
+    }
+    Ok(path)
+}
+
+/// Restore: what putting these groups back would do (reads only).
+#[tauri::command]
+async fn restore_preview(app: AppHandle, catalog: State<'_, Catalog>, installation_id: String, backup: String, groups: Vec<String>, folder: Option<String>) -> Result<system_restore::RestorePreview, String> {
+    let backup = backup_in(&app, folder, &backup)?;
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let c = db::open(&db_path)?;
+        let running = running_frontend(&c, &installation_id);
+        system_restore::preview(&c, &backup, &installation_id, &groups, &volumes::presence, running)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Restore: put the reviewed files back (journaled; undoable; nothing deleted).
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+async fn apply_restore(app: AppHandle, catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, backup: String, groups: Vec<String>, use_backup: bool, fingerprint: String, folder: Option<String>) -> Result<system_restore::RestoreSummary, String> {
+    let backup = backup_in(&app, folder, &backup)?;
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let c = db::open(&db_path)?;
+        let running = running_frontend(&c, &installation_id);
+        system_restore::apply(&c, &backup, &installation_id, &groups, use_backup, &fingerprint, &volumes::presence, running)
+    })
+    .await
+    .map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
+/// Restore: this system's restores (reads only).
+#[tauri::command]
+async fn list_restores(catalog: State<'_, Catalog>, installation_id: String) -> Result<Vec<system_restore::RestoreRecord>, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || system_restore::list(&db::open(&db_path)?, &installation_id, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Restore: undo one (moves restored files aside, puts the originals back).
+#[tauri::command]
+async fn undo_restore(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, restore_id: String) -> Result<String, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let c = db::open(&db_path)?;
+        let running = running_frontend(&c, &installation_id);
+        system_restore::undo(&c, &installation_id, &restore_id, &volumes::presence, running)
+    })
+    .await
+    .map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
 }
 
 /// Light guns: remember the user's gun for `vid:pid`, or `manual` (`None` forgets it).
@@ -1663,6 +1729,10 @@ pub fn run() {
             list_system_backups,
             check_system_backup,
             open_system_backups,
+            restore_preview,
+            apply_restore,
+            list_restores,
+            undo_restore,
             preview_lakka_playlists,
             apply_lakka_playlists,
             recalbox_game_options,
