@@ -6,9 +6,12 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { open } from '@tauri-apps/plugin-dialog';
 import { HardDriveDownload, FolderOpen, CheckCircle2, AlertTriangle, Undo2 } from 'lucide-react';
 import { fmtSize } from './format';
+import { getBackupFolder } from './backupFolder';
+
+// Systems with backup and restore so far.
+export const BACKUP_ADAPTERS = ['retrobat', 'esde'];
 
 type Group = { id: string; label: string; optional: boolean; files: number; bytes: number; note: string|null };
 type Preview = { system: string; location: string; groups: Group[]; destination: string; free_bytes: number|null; blocked: string|null };
@@ -19,7 +22,6 @@ type RPreview = { backup: string; created_at: string; system: string; from_locat
 type RSummary = { id: string; added: number; replaced: number; kept: number; failed: string[]; message: string };
 type Restore = { id: string; created_at: string; backup: string; added: number; replaced: number; state: string };
 
-const FOLDER_KEY = 'rd.backupFolder';
 const EXTRAS_KEY = 'rd.backupExtras';
 const GROUP_LABEL: Record<string, string> = { saves: 'Saves', settings: 'Settings', gamelists: 'Game lists', media: 'Music and boot videos', art: 'Downloaded art' };
 const load = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -28,7 +30,7 @@ const when = (t: string|null) => t ? t.replace('T', ' ').slice(0, 16) : 'unknown
 const files = (n: number) => `${n.toLocaleString()} file${n === 1 ? '' : 's'}`;
 
 export default function SystemBackup({ installationId, sysName, disabled, notify }: { installationId: string; sysName: string; disabled: boolean; notify: (text: string, error?: boolean) => void }) {
-  const [folder, setFolder] = useState<string|null>(() => load(FOLDER_KEY));
+  const [folder] = useState<string|null>(() => getBackupFolder());
   const [extras, setExtras] = useState<string[]>(() => { try { return JSON.parse(load(EXTRAS_KEY) ?? '[]'); } catch { return []; } });
   const [preview, setPreview] = useState<Preview|null>(null);
   const [backups, setBackups] = useState<Entry[]>([]);
@@ -70,12 +72,6 @@ export default function SystemBackup({ installationId, sysName, disabled, notify
       if (!b.complete) notify(`The backup finished, but ${b.problems} file${b.problems === 1 ? '' : 's'} couldn't be copied. It's kept as "(incomplete)".`, true);
     } catch (e) { notify(String(e), true); } finally { setWorking(false); setProgress(null); }
   };
-  const chooseFolder = async () => {
-    const picked = await open({ directory: true, multiple: false, title: 'Choose where RetroDrive keeps backups' });
-    if (typeof picked !== 'string') return;
-    setFolder(picked); save(FOLDER_KEY, picked); setPreview(null);
-  };
-  const useDefault = () => { setFolder(null); save(FOLDER_KEY, null); setPreview(null); };
   const toggleExtra = (id: string) => { const next = extras.includes(id) ? extras.filter(x => x !== id) : [...extras, id]; setExtras(next); save(EXTRAS_KEY, JSON.stringify(next)); };
   const check = async (b: Entry) => {
     setChecks(c => ({ ...c, [b.folder]: 'Checking…' }));
@@ -105,7 +101,7 @@ export default function SystemBackup({ installationId, sysName, disabled, notify
   const nothing = !!p && p.add === 0 && (p.different === 0 || !useBackup);
 
   return <div className="backups system-backup">
-    <div className="designs-head"><h3><HardDriveDownload size={17}/> Backup</h3>
+    <div className="designs-head"><h3><HardDriveDownload size={17}/> Backup and restore</h3>
       <div className="actions"><button className="primary" disabled={disabled || working} onClick={() => void run()}>{working && !restoreFor ? (progress ? `Backing up… ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()}` : 'Working…') : 'Back up now'}</button></div></div>
     <p className="plan-notes">Copies {sysName}'s saves, settings and game lists to a new folder on this PC. Nothing on {sysName} is changed. {newest ? <>Last backup: <b>{when(newest.created_at)}</b>{newest.complete ? '' : ' (incomplete)'}.</> : 'No backup yet.'}{' '}
       <button className="link" onClick={() => setDetails(!details)}>{details ? 'Hide details' : 'What is backed up'}</button>{(backups.length > 0 || restores.length > 0) && <> · <button className="link" onClick={() => setShowList(!showList)}>{showList ? 'Hide backups' : `Show backups and restore (${backups.length})`}</button></>}</p>
@@ -118,7 +114,7 @@ export default function SystemBackup({ installationId, sysName, disabled, notify
           ? <label><input type="checkbox" checked={extras.includes(g.id)} onChange={() => toggleExtra(g.id)}/> Also back up <b>{g.label.toLowerCase()}</b>: {files(g.files)}, {fmtSize(g.bytes)}</label>
           : <><b>{g.label}</b>: {g.files ? `${files(g.files)}, ${fmtSize(g.bytes)}` : g.note}</>}</li>)}</ul>
         <p className="plan-notes">Games, BIOS files, themes and emulators aren't included: they're in your library or come with {sysName}.</p>
-        <p className="plan-notes">Backups go to <span className="mono">{preview.destination}</span>{preview.free_bytes !== null ? ` (${fmtSize(preview.free_bytes)} free)` : ''}. <button className="link" onClick={() => void chooseFolder()}>Change folder…</button>{folder && <> · <button className="link" onClick={useDefault}>Use Documents\RetroDrive Backups</button></>}</p>
+        <p className="plan-notes">Backups go to <span className="mono">{preview.destination}</span>{preview.free_bytes !== null ? ` (${fmtSize(preview.free_bytes)} free)` : ''}. You can change this in <b>Settings</b>.</p>
       </>}</div>}
 
     {restoreFor && <div className="confirm">

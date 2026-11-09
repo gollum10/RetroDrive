@@ -13,7 +13,6 @@ import LakkaPlaylists from './LakkaPlaylists';
 import GameGroups from './GameGroups';
 import RetroPieSettings from './RetroPieSettings';
 import BiosCheck from './BiosCheck';
-import SystemBackup from './SystemBackup';
 import BiosStep from './BiosStep';
 
 // ---------- data from the backend ----------
@@ -262,7 +261,6 @@ export default function Customize({ installs, native, busy, notify }: { installs
     <p className="mono cust-target">{target.adapter_name} · {target.path}{lastApplied?` · last applied: "${lastApplied.design_name}"`:''}</p>
     {!connected&&<p className="warn-text">{isRetroBat?"This RetroBat's drive isn't connected. You can still design; applying needs the drive.":`This ${sysName} isn't connected. Plug in its game drive, or start it so its network share is reachable.`}</p>}
     {blocked&&<p className="warn-text"><AlertTriangle size={15}/> {blocked} <button className="ghost" onClick={()=>void loadTarget(target.id)}>Check again</button></p>}
-    {(isRetroBat||target.adapter_id==='esde')&&connected&&<SystemBackup installationId={target.id} sysName={sysName} disabled={busy} notify={notify}/>}
 
     {isRetroBat&&<div className="backups"><div className="designs-head"><h3>My designs</h3>
       <div className="actions"><input className="design-new" placeholder="Name for a new design" value={newName} maxLength={60} onChange={e=>setNewName(e.target.value)}/><button className="primary" disabled={working} onClick={()=>void startDesign(false)}><Plus size={16}/> New design</button><button className="ghost" disabled={working||!connected} title="Start from this RetroBat's current theme and settings" onClick={()=>void startDesign(true)}><Palette size={16}/> New from this RetroBat</button></div></div>
