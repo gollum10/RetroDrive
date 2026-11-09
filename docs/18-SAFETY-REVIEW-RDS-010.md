@@ -673,3 +673,13 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 | Triggers set aside | Dropped and recreated from their own stored SQL in the same transaction; titles and search index rebuilt; any failure rolls everything back | first test compares every trigger's SQL before and after; real copy: search index identical |
 | Leftover working files | Only RetroDrive's own temporary files (marked names) are removed | tests check no temporary file is left |
 
+## 63. Addendum: Faster restore preview (2026-11-09)
+**Scope:** owner's list ("faster restore preview", ADR-099). No new write path. Backups record one more field per file; the restore preview reads file sizes and times instead of contents where they match.
+
+| Risk | Mitigation | Evidence |
+|---|---|---|
+| A changed file counted as unchanged | Only when size **and** last-change time both equal what was backed up (a normal edit changes the time); the result is only that restore leaves the system's copy, its default; anything else is compared by SHA-256 | `system_restore::tests::unchanged_files_are_told_by_size_and_time_and_older_backups_by_contents` (edited contents with a new time: different) |
+| Restore writing the wrong files | Unchanged: files restore adds (missing) or replaces (different, after the user chose the backup's copies) are decided as before; the fingerprint still covers every decision | existing restore tests |
+| Older backups or older RetroDrive versions | The field is optional: backups without it are compared by contents; older versions ignore it (format stays 1) | same test (a list without times: compared by contents) |
+| A damaged backup | The backup's own files are still checked by SHA-256 in every preview | `a_damaged_or_edited_backup_restores_nothing` |
+

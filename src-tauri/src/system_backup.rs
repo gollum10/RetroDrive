@@ -329,6 +329,17 @@ pub struct ManifestFile {
     pub path: String,
     pub size: u64,
     pub sha256: String,
+    /// When the system's file was last changed (nanoseconds since 1970), so a restore
+    /// preview can tell an unchanged file without reading it (ADR-099). Missing in
+    /// backups made before 2026-11-09; those are compared by contents.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modified: Option<u64>,
+}
+
+/// A file's last-change time in nanoseconds since 1970 (as stored in the backup list).
+pub(crate) fn modified_ns(meta: &fs::Metadata) -> Option<u64> {
+    let since = meta.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?;
+    u64::try_from(since.as_nanos()).ok()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -623,11 +634,14 @@ pub fn run(connection: &Connection, installation_id: &str, optional: &[String], 
             if !s.path.is_file() {
                 return Err(format!("{} (gone)", s.rel));
             }
+            // Read before copying: if the file changes meanwhile, its time won't match
+            // later and a restore preview compares contents instead.
+            let modified = fs::metadata(&s.path).ok().as_ref().and_then(modified_ns);
             let target = crate::paths::join(&working.join(s.area.folder()).display().to_string(), &s.rel);
             gamelists::copy_image(&s.path, &target).map_err(|e| format!("{} ({e})", s.rel))?;
             let size = fs::metadata(&target).map(|m| m.len()).map_err(|e| format!("{} ({e})", s.rel))?;
             let sha256 = copier::sha256_of(&target).map_err(|e| format!("{} ({e})", s.rel))?;
-            Ok(ManifestFile { group: s.group.to_string(), area: s.area, path: s.rel.clone(), size, sha256 })
+            Ok(ManifestFile { group: s.group.to_string(), area: s.area, path: s.rel.clone(), size, sha256, modified })
         },
         progress,
     );

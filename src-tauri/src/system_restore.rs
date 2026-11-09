@@ -187,6 +187,10 @@ fn load(connection: &Connection, backup: &Path, installation_id: &str, groups: &
             match fs::symlink_metadata(&target) {
                 Err(_) => Action::Add,
                 Ok(m) if !m.is_file() => Action::Unavailable,
+                // Same size and last-change time as when backed up: unchanged, without
+                // reading it (ADR-099; the slow part on a USB drive). Wrongly calling a
+                // file the same only leaves the system's copy, the default anyway.
+                Ok(m) if m.len() == f.size && f.modified.is_some() && system_backup::modified_ns(&m) == f.modified => Action::Same,
                 Ok(m) if m.len() == f.size && copier::sha256_of(&target).ok().as_deref() == Some(f.sha256.as_str()) => Action::Same,
                 Ok(_) => Action::Different,
             }
@@ -519,6 +523,40 @@ mod tests {
         assert_eq!(preview(&s.c, &s.backup, &s.id, &["settings".to_string()], &connected, &closed).unwrap().add, 0, "only the chosen groups");
         assert!(preview(&s.c, &s.backup, &s.id, &all(), &connected, &open).unwrap().blocked.is_some());
         assert_eq!(listing(&s.root), before, "a preview changes nothing");
+    }
+
+    #[test]
+    fn unchanged_files_are_told_by_size_and_time_and_older_backups_by_contents() {
+        let s = setup();
+        let m = system_backup::read_manifest(&s.backup).unwrap();
+        assert!(m.files.iter().all(|f| f.modified.is_some()), "new backups record each file's time");
+        let save = s.root.join("saves/snes/F-Zero.srm");
+        let when = fs::metadata(&save).unwrap().modified().unwrap();
+        let original = fs::read(&save).unwrap();
+
+        // Changed contents with a new time (any normal edit): compared, found different.
+        fs::write(&save, vec![b'x'; original.len()]).unwrap();
+        let p = preview(&s.c, &s.backup, &s.id, &all(), &connected, &closed).unwrap();
+        assert_eq!(p.different_files, ["saves/snes/F-Zero.srm"]);
+
+        // Same size and time as when backed up: taken as unchanged without reading it.
+        fs::OpenOptions::new().write(true).open(&save).unwrap().set_modified(when).unwrap();
+        let p = preview(&s.c, &s.backup, &s.id, &all(), &connected, &closed).unwrap();
+        assert_eq!((p.same, p.different), (5, 0));
+
+        // A backup from before times were recorded: contents are compared as before.
+        let mut old = m.clone();
+        for f in &mut old.files {
+            f.modified = None;
+        }
+        let text = serde_json::to_string_pretty(&old).unwrap();
+        fs::write(s.backup.join("manifest.json"), &text).unwrap();
+        assert!(!text.contains("modified"), "older lists have no times");
+        let p = preview(&s.c, &s.backup, &s.id, &all(), &connected, &closed).unwrap();
+        assert_eq!(p.different_files, ["saves/snes/F-Zero.srm"]);
+        fs::write(&save, &original).unwrap();
+        let p = preview(&s.c, &s.backup, &s.id, &all(), &connected, &closed).unwrap();
+        assert_eq!((p.same, p.different), (5, 0));
     }
 
     #[test]
