@@ -49,3 +49,9 @@
 .theme-studio .ts-canvas-tools { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
 .theme-studio .ts-canvas-tools label { margin: 0; display: flex; align-items: center; gap: .4rem; }
 .theme-studio .ts-canvas-tools input[type=checkbox] { width: auto; }
+
+.theme-studio .ts-layer-list { display: grid; gap: .8rem; }
+.theme-studio .ts-layer-row > button { width: 100%; text-align: left; }
+.theme-studio .ts-layer-row small { display: block; }
+.theme-studio .ts-layer-toggles { display: flex; gap: .35rem; margin-top: .35rem; }
+.theme-studio .ts-layer-toggles button { flex: 1; padding: .4rem; }

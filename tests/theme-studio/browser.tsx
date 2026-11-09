@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import LayerList from '../../src/theme-studio/LayerList';
 import SceneCanvas from '../../src/theme-studio/SceneCanvas';
 import { newDocument } from '../../src/theme-studio/document';
-import { addNode, moveNode, updateNode, transformNode } from '../../src/theme-studio/scene-edit';
+import { addNode, moveNode, updateNode, transformNode, setLayerState } from '../../src/theme-studio/scene-edit';
 import { resizeLayer } from '../../src/theme-studio/resize';
 import '../../src/theme-studio/theme-studio.css';
 
@@ -15,7 +16,7 @@ function Harness() {
   const [disabled, setDisabled] = useState(false);
   Object.assign(window, { canvasTest: { document, commits, setWorkspaceWidth, setDisabled, resetDocument: () => setDocument(added.project), setRotation: (angle: number) => setDocument(current => updateNode(current, initial.scenes[0].id, added.id, node => transformNode(node, 'rotation', angle))) } });
   return <div className="theme-studio" style={{ width: workspaceWidth }}><div className="ts-editor-grid">
-    <aside className="ts-scenes">Scenes</aside>
+    <aside className="ts-scenes"><LayerList scene={document.scenes[0]} selected={added.id} disabled={disabled} onSelect={() => {}} onState={(id,key,value) => { setDocument(current => setLayerState(current,initial.scenes[0].id,id,key,value)); setCommits(count => count+1); }}/></aside>
     <SceneCanvas scene={document.scenes[0]} selected={added.id} disabled={disabled} onSelect={() => {}}
       onMove={(id, x, y) => { setDocument(current => moveNode(current, initial.scenes[0].id, id, x, y)); setCommits(count => count + 1); }}
       onResize={(id, width, height) => { setDocument(current => resizeLayer(current, initial.scenes[0].id, id, width, height)); setCommits(count => count + 1); }} onEndGroup={() => {}}/>

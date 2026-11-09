@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Dimension, Scene, ThemeNode } from './types';
-import { editableNode, pixels, positionFromPixels, previewColor, previewText, transformNode } from './scene-edit';
+import { editableNode, pixels, positionFromPixels, previewColor, previewText, transformNode, layerState } from './scene-edit';
 
 function NumberField({ label, value, min, max, onChange, onEnd }: { label: string; value: number; min: number; max: number; onChange: (value: number) => void; onEnd: () => void }) {
   const [text, setText] = useState(String(value));
@@ -11,6 +11,7 @@ function NumberField({ label, value, min, max, onChange, onEnd }: { label: strin
 
 export default function NodeInspector({ scene, node, disabled, onChange, onEnd }: { scene: Scene; node: ThemeNode | null; disabled: boolean; onChange: (node: ThemeNode, label: string, group?: string) => void; onEnd: () => void }) {
   if (!node) return <section aria-label="Layer properties"><h3>Layer properties</h3><p>Select a layer, or add text or a panel.</p></section>;
+  if (layerState(node).locked || layerState(node).hidden) return <section aria-label="Layer properties"><h3>{node.name}</h3><p>This layer is locked, hidden, or has unrecognized editor data. Use the layer list to unlock/show it before editing.</p></section>;
   if (!editableNode(scene, node)) return <section aria-label="Layer properties"><h3>{node.name}</h3><p>This layer is preserved but not editable in this first canvas increment. Nested layers and other component types come later.</p></section>;
   const geometry = (key: 'x' | 'y' | 'width' | 'height', dimension: Dimension) => onChange({ ...node, layout: { ...node.layout, [key]: dimension } }, `Change ${key}`, `layout:${node.id}:${key}`);
   const style = (key: string, value: ThemeNode['style'][string]) => onChange({ ...node, style: { ...node.style, [key]: value } }, `Change ${key}`, `style:${node.id}:${key}`);

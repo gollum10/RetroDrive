@@ -1,5 +1,7 @@
 # Universal theme source contract v1
 
+**Editor extension:** node.editor may contain locked/hidden booleans with false defaults, plus preserved future fields. This additive use of the existing extension map does not change v1.0.0 or require storage migration. Non-object editor data or non-boolean known flags are not coerced/overwritten. Flags are editor-only; exporters are still unimplemented and must not infer native conditional visibility.
+
 The first canvas editor now interprets a safe subset of existing layout and style fields (text, color/fill, pixel fontSize), with immutable graph edits and no format/catalog migration. Unknown/nested data stays preserved; unsupported style expressions and oversized text are read-only. [Editor contract](canvas.md).
 
 PR 2 now implements the authoritative SQLite working store and background project IPC; see [persistence](persistence.md). Source schema/portability are unchanged. References below to PR 1's lack of storage describe that increment only.

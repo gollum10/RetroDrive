@@ -1,5 +1,7 @@
 # 13 | Product Decisions and Open Questions
 
+**Theme Studio layer-state semantics:** node.editor.locked/hidden are additive portable editor preferences. Hiding changes only editor preview, not native output visibility; conditional/native visibility remains separate future work. Locking protects content; flag controls remain available to unlock/show. Ordering cannot move a protected layer or cross protected layers. Unknown editor payloads remain read-only and unmodified.
+
 **Theme Studio canvas aids:** grid/snapping preferences are transient workspace aids, not universal document content. Canvas alignment takes precedence over grid rounding when within six screen pixels. Resize snaps local width/height, while arrow keys retain exact steps. Other-layer snapping and custom guides remain later work.
 
 **Canvas first slice (2026-11-08):** original top-level text/panels only; completed drag commits one operation, cancellation leaves source untouched. Preserve coordinate units/future fields. Use bounded session JSON history with grouped edits; undo/redo persists as drafts and never rolls back explicit checkpoints or target settings. Preview interprets only safe SVG primitives/hex colors/system font, with unsupported source properties read-only. No rendering engine or dependencies added.

@@ -5,11 +5,12 @@ import CompatibilityPanel from './CompatibilityPanel';
 import SaveCopyForm from './SaveCopyForm';
 import SceneCanvas from './SceneCanvas';
 import NodeInspector from './NodeInspector';
+import LayerList from './LayerList';
 import LayerOrderControls from './LayerOrderControls';
 import AlignmentControls from './AlignmentControls';
 import { alignLayer } from './alignment';
 import { resizeLayer } from './resize';
-import { addNode, moveNode, updateNode, orderLayer } from './scene-edit';
+import { addNode, moveNode, updateNode, orderLayer, setLayerState } from './scene-edit';
 
 export default function ProjectOverview({ session, onClose, onCopy, onReload, blocked = false }: { session: ProjectSession; onClose: () => void; onCopy: (name: string) => void; onReload: () => void; blocked?: boolean }) {
   const change = useSyncExternalStore(session.subscribe, session.snapshot, session.snapshot);
@@ -43,7 +44,7 @@ export default function ProjectOverview({ session, onClose, onCopy, onReload, bl
     <p>Edits autosave as a draft. Save checkpoint marks a version to return to. Target: {document.targets.length ? document.targets.map(t => `${t.frontendFamily}${t.frontendVersion ? ` ${t.frontendVersion}` : ' (version unknown)'}`).join(', ') : 'Universal / No Target Yet'}. Native support is unverified.</p>
     <div className="ts-toolbar ts-edit-actions"><button disabled={editorDisabled || !session.history.canUndo} title={session.history.undoLabel ?? 'Nothing to undo'} onClick={() => session.undo()}>Undo</button><button disabled={editorDisabled || !session.history.canRedo} onClick={() => session.redo()}>Redo</button><button disabled={editorDisabled || nodeCount >= 10_000} onClick={() => add('text')}>Add text</button><button disabled={editorDisabled || nodeCount >= 10_000} onClick={() => add('panel')}>Add panel</button></div>
     <div className="ts-editor-grid">
-      <aside className="panel ts-scenes" aria-label="Scenes and layers"><h3>Scenes</h3><nav aria-label="Select scene">{document.scenes.map(s => <button key={s.id} aria-pressed={scene.id === s.id} onClick={() => { setSceneId(s.id); setSelectedId(null); session.endEditGroup(); }}>{s.name}</button>)}</nav><h3>Layers</h3><small>Back to front · nested layers are read-only</small>{scene.nodes.length ? <nav aria-label="Select layer">{scene.nodes.map(node => <button key={node.id} aria-pressed={selectedId === node.id} onClick={() => { setSelectedId(node.id); session.endEditGroup(); }}>{node.name || node.type} <small>({node.type})</small></button>)}</nav> : <p>No layers in this scene.</p>}</aside>
+      <aside className="panel ts-scenes" aria-label="Scenes and layers"><h3>Scenes</h3><nav aria-label="Select scene">{document.scenes.map(s => <button key={s.id} aria-pressed={scene.id === s.id} onClick={() => { setSceneId(s.id); setSelectedId(null); session.endEditGroup(); }}>{s.name}</button>)}</nav><LayerList scene={scene} selected={selectedId} disabled={editorDisabled} onSelect={id => { setSelectedId(id); session.endEditGroup(); }} onState={(id,key,value) => session.edit(setLayerState(session.document,scene.id,id,key,value), `${value ? key === 'locked' ? 'Lock' : 'Hide' : key === 'locked' ? 'Unlock' : 'Show'} layer`)}/></aside>
       <SceneCanvas scene={scene} selected={selectedId} disabled={editorDisabled} onSelect={setSelectedId} onMove={(id, x, y, group) => session.edit(moveNode(session.document, scene.id, id, x, y), 'Move layer', group)} onResize={(id, width, height, group) => session.edit(resizeLayer(session.document, scene.id, id, width, height), 'Resize layer', group)} onEndGroup={() => session.endEditGroup()}/>
       <aside className="panel ts-inspector" aria-label="Properties inspector"><h3>Properties</h3>
         <LayerOrderControls scene={scene} selected={selectedId} disabled={editorDisabled} onOrder={order => { if (selectedId) session.edit(orderLayer(session.document, scene.id, selectedId, order), 'Change layer order'); }}/>

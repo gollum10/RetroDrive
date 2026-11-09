@@ -4,6 +4,25 @@ export function rootNodes(scene: Scene): ThemeNode[] {
   const children = new Set(scene.nodes.flatMap(node => node.children));
   return scene.nodes.filter(node => !children.has(node.id));
 }
+export function layerState(node: ThemeNode) {
+  const editor = node.editor;
+  const object = editor !== null && typeof editor === 'object' && !Array.isArray(editor) ? editor : null;
+  const recognized = editor === undefined || (object !== null && ['locked','hidden'].every(key => object[key] === undefined || typeof object[key] === 'boolean'));
+  return { locked: !recognized || object?.locked === true, hidden: object?.hidden === true, recognized };
+}
+export function supportedNode(scene: Scene, node: ThemeNode): boolean {
+  return ['text', 'panel'].includes(node.type) && node.children.length === 0 && rootNodes(scene).some(root => root.id === node.id);
+}
+export function setLayerState(project: ThemeProject, sceneId: string, nodeId: string, key: 'locked' | 'hidden', value: boolean): ThemeProject {
+  const scene = project.scenes.find(scene => scene.id === sceneId);
+  const node = scene?.nodes.find(node => node.id === nodeId);
+  if (!scene || !node || !supportedNode(scene,node)) return project;
+  const state = layerState(node);
+  if (!state.recognized || state[key] === value) return project;
+  const editor = node.editor;
+  const next = { ...node, editor: { ...(editor && typeof editor === 'object' && !Array.isArray(editor) ? editor : {}), [key]: value } };
+  return { ...project, scenes: project.scenes.map(current => current.id !== sceneId ? current : { ...current, nodes: current.nodes.map(current => current.id === nodeId ? next : current) }) };
+}
 export type LayerOrder = 'back' | 'backward' | 'forward' | 'front';
 export function canOrderLayers(scene: Scene): boolean {
   return scene.nodes.every(node => ['text', 'panel'].includes(node.type) && node.children.length === 0);
@@ -16,14 +35,15 @@ export function orderLayer(project: ThemeProject, sceneId: string, nodeId: strin
   if (index < 0) return project;
   const destination = order === 'back' ? 0 : order === 'front' ? scene.nodes.length - 1
     : order === 'backward' ? Math.max(0, index - 1) : Math.min(scene.nodes.length - 1, index + 1);
-  if (destination === index) return project;
+  if (destination === index || scene.nodes.slice(Math.min(index,destination), Math.max(index,destination)+1).some(node => layerState(node).locked || layerState(node).hidden)) return project;
   const nodes = [...scene.nodes];
   const [node] = nodes.splice(index, 1);
   nodes.splice(destination, 0, node);
   return { ...project, scenes: project.scenes.map(current => current.id === sceneId ? { ...current, nodes } : current) };
 }
 export function editableNode(scene: Scene, node: ThemeNode): boolean {
-  return ['text', 'panel'].includes(node.type) && node.children.length === 0 && rootNodes(scene).some(root => root.id === node.id);
+  const state = layerState(node);
+  return supportedNode(scene,node) && !state.locked && !state.hidden;
 }
 export function pixels(dimension: Dimension, extent: number): number { return dimension.unit === '%' ? dimension.value * extent / 100 : dimension.value; }
 export function positionFromPixels(dimension: Dimension, value: number, extent: number): Dimension {
@@ -63,7 +83,7 @@ export function previewText(node: ThemeNode): string {
 }
 
 export function transformNode(node: ThemeNode, property: 'rotation' | 'opacity', value: number): ThemeNode {
-  if (!Number.isFinite(value)) return node;
+  if (!Number.isFinite(value) || layerState(node).locked || layerState(node).hidden) return node;
   if (property === 'rotation') {
     if (Math.abs(value) > 36_000 || value === node.layout.rotation) return node;
     return { ...node, layout: { ...node.layout, rotation: value } };

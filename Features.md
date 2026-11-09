@@ -1,5 +1,7 @@
 # RetroDrive — Features
 
+**Theme Studio layer state prepared:** layer-list Lock/Unlock and Hide/Show controls persist optional editor flags with undo/redo and existing draft/checkpoint services. Locked/hidden layers reject content edits; hidden layers remain listed for recovery. Browser checks pass; native validation remains pending.
+
 **Theme Studio grid/snapping prepared:** separate grid visibility and optional snapping controls, 8/16/32/64 logical-pixel spacing, pointer move/resize snapping, Alt bypass and canvas edge/center guides. Controls are session-only and preserve the universal source format. Native QA remains pending.
 
 **Theme Studio resize regression fix:** handle pointer-down now owns focus and internal focus changes no longer cancel gestures. Workspace-width container breakpoints keep the canvas larger in normal windows. Real headless Edge input regression checks pass; native Tauri recheck remains pending.

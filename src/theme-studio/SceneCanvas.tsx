@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { snapPosition, snapSize, guides } from './snapping';
 import { resizeDelta } from './resize';
 import type { Scene } from './types';
-import { pixels, pointerToScene, previewColor, previewText, rootNodes } from './scene-edit';
+import { pixels, pointerToScene, previewColor, previewText, rootNodes, editableNode, layerState } from './scene-edit';
 
 type Drag = { id: string; pointerId: number; x: number; y: number; startX: number; startY: number; mode: 'move' | 'resize'; width: number; height: number; rotation: number };
 export default function SceneCanvas({ scene, selected, disabled, onSelect, onMove, onResize, onEndGroup }: {
@@ -17,9 +17,12 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
   const drag = useRef<Drag | null>(null);
   const [preview, setPreview] = useState<{ id: string; x: number; y: number; width?: number; height?: number } | null>(null);
   const roots = useMemo(() => rootNodes(scene), [scene]);
-  const visible = roots.filter(node => ['text', 'panel'].includes(node.type) && node.children.length === 0);
+  const visible = roots.filter(node => ['text', 'panel'].includes(node.type) && node.children.length === 0 && !layerState(node).hidden);
   const cancel = () => { drag.current = null; setPreview(null); };
-  useEffect(() => { cancel(); }, [scene.id, disabled]);
+  const selectedState = scene.nodes.find(node => node.id === selected);
+  const locked = selectedState ? layerState(selectedState).locked : false;
+  const hidden = selectedState ? layerState(selectedState).hidden : false;
+  useEffect(() => { cancel(); }, [scene.id, disabled, locked, hidden]);
   const point = (x: number, y: number) => svg.current ? pointerToScene(x, y, svg.current.getBoundingClientRect(), scene) : null;
   const destination = (x: number, y: number, bypass = false) => {
     const current = drag.current; const pointer = point(x, y);
@@ -43,14 +46,14 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
     <svg ref={svg} className="ts-canvas-svg" viewBox={`0 0 ${scene.resolution.width} ${scene.resolution.height}`} preserveAspectRatio="none" style={{ aspectRatio: `${scene.resolution.width} / ${scene.resolution.height}` }} tabIndex={0} role="group" aria-label="Editable scene canvas" aria-describedby="ts-canvas-help"
       onPointerDown={event => { if (event.target === event.currentTarget) onSelect(null); }}
       onPointerMove={event => { if (event.pointerId !== drag.current?.pointerId) return; const next = destination(event.clientX, event.clientY, event.altKey); if (next) setPreview(next); }}
-      onPointerUp={event => { if (event.pointerId !== drag.current?.pointerId) return; const original = drag.current; const next = destination(event.clientX, event.clientY, event.altKey); cancel(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); if (disabled || !next) return; if (original.mode === 'resize' && 'width' in next && next.width !== undefined && next.height !== undefined) { if (Math.abs(next.width - original.width) + Math.abs(next.height - original.height) > 0.000001) onResize(next.id, next.width, next.height); } else if (Math.abs(next.x - original.x) + Math.abs(next.y - original.y) > 0.000001) onMove(next.id, next.x, next.y); }}
+      onPointerUp={event => { if (event.pointerId !== drag.current?.pointerId) return; const original = drag.current; const next = destination(event.clientX, event.clientY, event.altKey); cancel(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); if (disabled || !next || !visible.some(node => node.id === next.id && editableNode(scene,node))) return; if (original.mode === 'resize' && 'width' in next && next.width !== undefined && next.height !== undefined) { if (Math.abs(next.width - original.width) + Math.abs(next.height - original.height) > 0.000001) onResize(next.id, next.width, next.height); } else if (Math.abs(next.x - original.x) + Math.abs(next.y - original.y) > 0.000001) onMove(next.id, next.x, next.y); }}
       onPointerCancel={cancel} onLostPointerCapture={cancel} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) { cancel(); onEndGroup(); } }}
       onKeyUp={event => { if (event.key.startsWith('Arrow')) onEndGroup(); }}
       onKeyDown={event => {
         if ((event.ctrlKey || event.metaKey) && ['z', 'y'].includes(event.key.toLowerCase())) { cancel(); return; }
         if (event.key === 'Escape') { cancel(); return; }
         const node = visible.find(n => n.id === selected);
-        if (disabled || !node || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+        if (disabled || !node || !editableNode(scene,node) || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
         event.preventDefault(); if (drag.current) { cancel(); return; } const step = event.shiftKey ? 10 : 1;
         onMove(node.id, pixels(node.layout.x, scene.resolution.width) + (event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0), pixels(node.layout.y, scene.resolution.height) + (event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0), `keyboard-move:${node.id}`);
       }}>
@@ -62,8 +65,8 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
         const font = node.style.fontSize;
         const fontSize = font && typeof font === 'object' && !Array.isArray(font) && font.unit === 'px' && typeof font.value === 'number' ? Math.max(8, Math.min(256, font.value)) : 36;
         const opacity = typeof node.style.opacity === 'number' ? Math.max(0, Math.min(1, node.style.opacity)) : 1;
-        return <g key={node.id} data-node-id={node.id} transform={`translate(${x} ${y}) rotate(${node.layout.rotation})`} style={{ cursor: disabled ? 'default' : 'move' }}
-          onPointerDown={event => { if (disabled || event.button !== 0) return; event.stopPropagation(); svg.current?.focus(); onSelect(node.id); const start = point(event.clientX, event.clientY); if (!start) return; drag.current = { id: node.id, pointerId: event.pointerId, x, y, startX: start.x, startY: start.y, mode: 'move', width, height, rotation: node.layout.rotation }; svg.current?.setPointerCapture(event.pointerId); }}>
+        return <g key={node.id} data-node-id={node.id} transform={`translate(${x} ${y}) rotate(${node.layout.rotation})`} style={{ cursor: disabled || !editableNode(scene,node) ? 'default' : 'move' }}
+          onPointerDown={event => { if (disabled || event.button !== 0) return; event.stopPropagation(); svg.current?.focus(); onSelect(node.id); if (!editableNode(scene,node)) return; const start = point(event.clientX, event.clientY); if (!start) return; drag.current = { id: node.id, pointerId: event.pointerId, x, y, startX: start.x, startY: start.y, mode: 'move', width, height, rotation: node.layout.rotation }; svg.current?.setPointerCapture(event.pointerId); }}>
           <title>{node.name}</title><rect width={width} height={height} fill={node.type === 'panel' ? previewColor(node.style.fill, '#263f60') : 'transparent'} opacity={opacity}/>
           {node.type === 'text' && <svg width={width} height={height} overflow="hidden" pointerEvents="none"><text x={0} y={0} dominantBaseline="hanging" fontFamily="sans-serif" fontSize={fontSize} fill={previewColor(node.style.color, '#ffffff')} opacity={opacity}>{previewText(node).split('\n').slice(0, 20).map((line, index) => <tspan key={index} x={0} dy={index ? '1.2em' : 0}>{line || ' '}</tspan>)}</text></svg>}
         </g>;
@@ -76,7 +79,7 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
         const height = preview?.id === node.id && preview.height !== undefined ? preview.height : pixels(node.layout.height, scene.resolution.height);
         return <g transform={`translate(${x} ${y}) rotate(${node.layout.rotation})`}>
           <rect width={width} height={height} fill="none" stroke="#65b6ff" strokeWidth={2} vectorEffect="non-scaling-stroke" pointerEvents="none"/>
-          {!disabled && <circle cx={width} cy={height} r={scene.resolution.width / 90} fill="#65b6ff" stroke="#101b2c" strokeWidth={2} vectorEffect="non-scaling-stroke" tabIndex={0} role="button" aria-label={`Resize ${node.name || node.type}`} style={{ cursor: 'nwse-resize' }}
+          {!disabled && editableNode(scene,node) && <circle cx={width} cy={height} r={scene.resolution.width / 90} fill="#65b6ff" stroke="#101b2c" strokeWidth={2} vectorEffect="non-scaling-stroke" tabIndex={0} role="button" aria-label={`Resize ${node.name || node.type}`} style={{ cursor: 'nwse-resize' }}
             onPointerDown={event => { if (event.button !== 0) return; event.preventDefault(); event.stopPropagation(); event.currentTarget.focus(); const start = point(event.clientX, event.clientY); if (!start) return; drag.current = { id: node.id, pointerId: event.pointerId, x, y, startX: start.x, startY: start.y, mode: 'resize', width, height, rotation: node.layout.rotation }; svg.current?.setPointerCapture(event.pointerId); }}
             onKeyDown={event => {
               if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;

@@ -1,5 +1,7 @@
 # 15 | Quality Assurance, Threat Scenarios and Test Matrix
 
+**Layer-state tests:** workspace checks cover no-ops, unknown/nested/missing guards, opaque field preservation, locked/hidden move/resize/align/transform/order prevention, ordering barriers, undo/redo and checkpoint reopen via the persistence model. Edge browser checks cover lock/no-handle, protected arrows/drag, unlock, hide/show and cancelling active resize on lock. Contract/build checks pass; native Tauri/SQLite interaction QA remains manual.
+
 **Grid/snapping checks:** workspace tests cover grid rounding, negative positions, minimum sizes, rotated bounds and guides. Real Edge input tests cover toggles without edits, snapped resizing, Alt bypass, center guide display/cancellation and the existing focus/resize/DPI/layout regressions. Contract/build checks pass. Native app validation remains required.
 
 **Real browser resize regression:** npm.cmd run test:theme-browser drives installed headless Edge through CDP using a fresh local profile and source-only fixture. Pre-fix pointer drag committed zero resizes. Fixed tests pass pointer preview/release/no-op/Escape/external blur, focused-handle arrows, 850/650px workspace layout, rotated resizing at 150% device scale and disabled handle. Workspace/contract/build checks also pass. This is real browser input, not native Tauri IPC/SQLite or owner visual sign-off.
