@@ -1,4 +1,4 @@
-.theme-studio { min-width: 0; }
+.theme-studio { min-width: 0; container-type: inline-size; }
 .theme-studio button { font: inherit; font-size: .85rem; font-weight: 600; line-height: 1.3; padding: .65rem .85rem; border: 1px solid #32465f; border-radius: 9px; background: #1e304b; color: #e9edf5; }
 .theme-studio button:not(:disabled):hover { background: #263f60; border-color: #65b6ff; }
 .theme-studio button.primary { background: #378cdd; border-color: #378cdd; color: #fff; }
@@ -31,6 +31,7 @@
 .theme-studio .ts-projects { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; margin: 1rem 0; }
 .theme-studio .ts-project { padding: 1rem; border: 1px solid #35445c; border-radius: 12px; background: #141d2d; overflow-wrap: anywhere; }
 .theme-studio .ts-editor-grid { display: grid; grid-template-columns: 190px minmax(250px, 1fr) 260px; gap: 1rem; align-items: start; }
+.theme-studio .ts-editor-grid > * { min-width: 0; }
 .theme-studio .ts-scenes nav { display: grid; gap: .4rem; }
 .theme-studio .ts-scenes button { text-align: left; }
 .theme-studio button[aria-pressed=true] { outline: 2px solid #65b6ff; outline-offset: 2px; }
@@ -40,7 +41,7 @@
 .theme-studio pre { max-height: 400px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 .theme-studio :focus-visible { outline: 2px solid #65b6ff; outline-offset: 3px; }
 .theme-studio .ts-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-@media(max-width: 1200px) { .theme-studio .ts-editor-grid { grid-template-columns: 160px minmax(200px,1fr); } .theme-studio .ts-inspector { grid-column: 1 / -1; } }
-@media(max-width: 800px) { .theme-studio .ts-editor-grid { grid-template-columns: 1fr; } }
+@container(max-width: 1050px) { .theme-studio .ts-editor-grid { grid-template-columns: 160px minmax(0,1fr); } .theme-studio .ts-inspector { grid-column: 1 / -1; } }
+@container(max-width: 700px) { .theme-studio .ts-editor-grid { grid-template-columns: minmax(0,1fr); } .theme-studio .ts-scenes nav { grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); } }
 @media(prefers-reduced-motion: reduce) { .theme-studio * { scroll-behavior: auto; transition: none; } }
 .ts-editor .ts-layer-order { border: 1px solid var(--border, #31465f); border-radius: 8px; padding: 10px; margin: 0 0 16px; display: grid; gap: 6px; }
