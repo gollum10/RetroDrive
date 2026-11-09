@@ -37,6 +37,7 @@ Measured 2026-11-09: **298 shipped dependencies**, 293 under permissive licenses
 | walkdir, sysinfo, serde, serde_json, uuid, windows-sys (features: storage, foundation, ToolHelp process list since 2026-11-06) | see CSV | MIT / Apache-2.0 / Unlicense | Bundled | Permissive | Notices |
 | quick-xml (reads `gamelist.xml`; already shipped via calamine) | 0.42.0 | MIT | Bundled | Permissive | Notices |
 | calamine (reads the user's `.xlsx` catalog) | 0.38.0 | MIT | Bundled | Permissive | Notices |
+| zip (backups saved as and added from .zip, ADR-096; already shipped via calamine) | 9.4.0 | MIT | Bundled | Permissive | Notices |
 | csv (reads `.csv` catalogs) | 1.x | Unlicense OR MIT | Bundled | Permissive | Notices |
 | sha2 (SHA-256 for copy verification, RDS-010) | 0.10.9 | MIT OR Apache-2.0 | Bundled; already shipped through Tauri before it became a direct dependency (count unchanged) | Permissive | Notices |
 | **cssparser, cssparser-macros, selectors, dtoa-short** | 0.37.0, 0.7.1, 0.38.0, 0.3.5 | **MPL-2.0** | Bundled, unmodified, pulled in by `tauri-utils` → `dom_query` | Allowed | **Ship the MPL-2.0 notice and say where the source of these files is available (crates.io).** Modified MPL files would have to be published; we don't modify them. |

@@ -37,6 +37,7 @@ mod themes;
 pub mod theme_studio;
 mod scanner;
 mod sinden_step;
+mod backup_zip;
 mod system_backup;
 mod system_restore;
 mod vertical;
@@ -848,6 +849,38 @@ fn open_system_backups(app: AppHandle, folder: Option<String>, backup: Option<St
         None => return Err("There are no backups yet.".into()),
     };
     std::process::Command::new("explorer.exe").arg(&target).spawn().map(|_| ()).map_err(|e| format!("Couldn't open File Explorer: {e}"))
+}
+
+/// Backups (ADR-096): save a finished backup as one .zip file in the backup folder.
+#[tauri::command]
+async fn save_backup_zip(app: AppHandle, folder: Option<String>, backup: String) -> Result<backup_zip::ZipSaved, String> {
+    let destination = backup_destination(&app, folder.clone())?;
+    let backup = backup_in(&app, folder, &backup)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        backup_zip::save(&backup, &destination, &|phase, done, total| {
+            let _ = app.emit("backup-progress", ArtProgress { phase: phase.to_string(), done, total });
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Backups (ADR-096): add a backup from a .zip the user chose, as a new folder in the
+/// backup folder (nothing else is written).
+#[tauri::command]
+async fn add_backup_zip(app: AppHandle, folder: Option<String>, zip: String) -> Result<system_backup::BackupEntry, String> {
+    let destination = backup_destination(&app, folder)?;
+    let path = PathBuf::from(&zip);
+    if !path.is_absolute() || !path.is_file() || !path.extension().is_some_and(|e| e.eq_ignore_ascii_case("zip")) {
+        return Err("Choose a .zip file.".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        backup_zip::add(&path, &destination, &|phase, done, total| {
+            let _ = app.emit("backup-progress", ArtProgress { phase: phase.to_string(), done, total });
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Restore (FR-09 step 2, ADR-091): a backup directly inside the backup folder.
@@ -1766,6 +1799,8 @@ pub fn run() {
             list_system_backups,
             check_system_backup,
             open_system_backups,
+            save_backup_zip,
+            add_backup_zip,
             restore_preview,
             apply_restore,
             list_restores,

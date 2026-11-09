@@ -27,6 +27,8 @@ md-5 = "0.10"
 csv = "1"
 calamine = { version = "0.38.0", default-features = false }
 quick-xml = "0.42"
+# Already built for calamine; no new crates (backup .zip files, ADR-096).
+zip = { version = "9.4", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"
