@@ -37,7 +37,7 @@ async function main() {
     const frame = () => delay(100);
     const state = () => evaluate('({commits:window.canvasTest.commits,layout:window.canvasTest.document.scenes[0].nodes[0].layout})');
     const handle = () => evaluate("(() => {const r=document.querySelector('circle[role=button]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()");
-    const mouse = (type, x, y) => send('Input.dispatchMouseEvent', { type, x, y, button: type === 'mouseMoved' ? 'none' : 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1 });
+    const mouse = (type, x, y, modifiers = 0) => send('Input.dispatchMouseEvent', { type, x, y, modifiers, button: type === 'mouseMoved' ? 'none' : 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1 });
     const key = async key => { await send('Input.dispatchKeyEvent', { type: 'keyDown', key }); await send('Input.dispatchKeyEvent', { type: 'keyUp', key }); await frame(); };
     await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false });
     await send('Page.enable');
@@ -62,7 +62,7 @@ async function main() {
     await evaluate("document.querySelector('circle[role=button]').focus()"); await key('ArrowRight');
     assert.equal((await state()).commits, 2, 'focused handle keyboard resize');
     const keyboard = await state();
-    const blur = await handle(); await mouse('mousePressed', blur.x, blur.y); await mouse('mouseMoved', blur.x + 40, blur.y + 20); await evaluate("document.querySelector('input').focus()"); await mouse('mouseReleased', blur.x + 40, blur.y + 20); await frame();
+    const blur = await handle(); await mouse('mousePressed', blur.x, blur.y); await mouse('mouseMoved', blur.x + 40, blur.y + 20); await evaluate("document.querySelector('[aria-label=\"Outside canvas\"]').focus()"); await mouse('mouseReleased', blur.x + 40, blur.y + 20); await frame();
     assert.deepEqual(await state(), keyboard, 'leaving canvas cancels preview');
     for (const width of [850, 650]) {
       await evaluate(`window.canvasTest.setWorkspaceWidth(${width})`); await frame();
@@ -83,9 +83,37 @@ async function main() {
     assert.ok(rotatedAfter.layout.width.value > rotatedBefore.layout.width.value);
     assert.ok(rotatedAfter.layout.height.value > rotatedBefore.layout.height.value);
     assert.equal(rotatedAfter.layout.rotation, 45);
+    await evaluate('window.canvasTest.resetDocument()'); await frame();
+    const aidBefore = await state();
+    await evaluate("[...document.querySelectorAll('label')].find(label => label.textContent === 'Show grid').querySelector('input').click()");
+    await evaluate("[...document.querySelectorAll('label')].find(label => label.textContent === 'Snap to grid and canvas').querySelector('input').click()"); await frame();
+    assert.deepEqual(await state(), aidBefore, 'canvas aid controls do not edit the project');
+    assert.equal(await evaluate('!!document.querySelector("pattern")'), true);
+    const snapHandle = await handle();
+    await mouse('mousePressed', snapHandle.x, snapHandle.y); await mouse('mouseMoved', snapHandle.x + 17, snapHandle.y + 13); await mouse('mouseReleased', snapHandle.x + 17, snapHandle.y + 13); await frame();
+    const snapped = await state();
+    assert.equal(snapped.commits, aidBefore.commits + 1);
+    const sizePixels = (dimension, extent) => dimension.unit === '%' ? dimension.value * extent / 100 : dimension.value;
+    const multiple = value => Math.abs(value / 16 - Math.round(value / 16)) < 0.00001;
+    assert.ok(multiple(sizePixels(snapped.layout.width,1920)) && multiple(sizePixels(snapped.layout.height,1080)), 'pointer sizes snap to logical grid');
+    const altHandle = await handle();
+    await mouse('mousePressed', altHandle.x, altHandle.y, 1); await mouse('mouseMoved', altHandle.x + 7, altHandle.y + 7, 1); await mouse('mouseReleased', altHandle.x + 7, altHandle.y + 7, 1); await frame();
+    assert.ok(!multiple(sizePixels((await state()).layout.width,1920)), 'Alt bypasses pointer snapping');
+    const layoutBeforeGuide = await state();
+    const svgBox = await evaluate('document.querySelector("svg.ts-canvas-svg").getBoundingClientRect().toJSON()');
+    const widthPx = sizePixels(layoutBeforeGuide.layout.width,1920);
+    const xPx = sizePixels(layoutBeforeGuide.layout.x,1920);
+    const yPx = sizePixels(layoutBeforeGuide.layout.y,1080);
+    const grabX = svgBox.x + (xPx + widthPx/2)*svgBox.width/1920;
+    const grabY = svgBox.y + (yPx + 10)*svgBox.height/1080;
+    const targetX = grabX + ((1920-widthPx)/2-xPx)*svgBox.width/1920;
+    await mouse('mousePressed', grabX, grabY); await mouse('mouseMoved', targetX, grabY); await frame();
+    assert.ok(await evaluate('document.querySelectorAll("[data-canvas-guides] line").length > 0'), 'center guide is rendered during snapped drag');
+    await key('Escape'); await mouse('mouseReleased', targetX, grabY); await frame();
+    assert.deepEqual(await state(), layoutBeforeGuide, 'cancelled snapped move does not commit');
     await evaluate('window.canvasTest.setDisabled(true)'); await frame();
     assert.equal(await evaluate('!!document.querySelector("circle[role=button]")'), false);
-    console.log('Theme browser: real pointer resize/default focus, preview, no-op, Escape, external blur, keyboard 850/650px workspace layout, rotated resize at 150% scale and disabled handle passed.');
+    console.log('Theme browser: real pointer resize/default focus, preview, no-op, Escape, external blur, keyboard 850/650px workspace layout, rotated resize at 150% scale grid controls, snapped resize, Alt bypass, center guides/cancellation and disabled handle passed.');
   } finally {
     if (socket && socket.readyState === WebSocket.OPEN) { socket.send(JSON.stringify({ id: 999999, method: 'Browser.close' })); await delay(500); socket.close(); }
     if (browser) { browser.kill(); await delay(500); }

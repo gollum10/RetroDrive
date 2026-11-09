@@ -21,7 +21,7 @@ async function main() {
   const errors = ts.getPreEmitDiagnostics(withAssets);
   assert.equal(errors.length, 0, ts.formatDiagnosticsWithColorAndContext(errors, { getCanonicalFileName: f => f, getCurrentDirectory: () => root, getNewLine: () => '\n' }));
   assert.equal(withAssets.emit().emitSkipped, false);
-  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor, canOrderLayers, orderLayer, transformNode, alignedNode, alignLayer, resizeDelta, resizeLayer } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor, canOrderLayers, orderLayer, transformNode, alignedNode, alignLayer, resizeDelta, resizeLayer, bounds, snapSize, snapPosition, guides } = require(path.join(output, 'tests/theme-studio/workspace.js'));
   assert.deepEqual(project.targets, []);
   assert.equal(project.scenes[0].resolution.width, 1080);
   assert.equal(project.scenes[0].resolution.height, 1920);
@@ -205,6 +205,17 @@ async function main() {
   assert.equal(resizeLayer(alignSource, scene.id, added.id, 1e20, 1e20).scenes[0].nodes[0].layout.width.value, 1_000_000);
   const resizeHistory = new EditHistory(); resizeHistory.record(alignSource, resized, 'Resize');
   assert.deepEqual(resizeHistory.undo(resized), alignSource); assert.deepEqual(resizeHistory.redo(alignSource), resized);
+
+  assert.deepEqual(snapSize(30, 49, 16), { width: 32, height: 48 });
+  assert.deepEqual(snapSize(1, 1, 16), { width: 1, height: 1 });
+  const gridBox = { x: 19, y: -9, width: 100, height: 50, rotation: 0 };
+  assert.deepEqual(snapPosition(gridBox, 1920, 1080, 16, 0), { x: 16, y: -16 });
+  assert.equal(gridBox.x, 19);
+  assert.deepEqual(snapPosition({ ...gridBox, x: 905, y: 20 }, 1920, 1080, 16, 12), { x: 910, y: 16 });
+  const rotatedBounds = bounds({ ...gridBox, x: 0, y: 0, rotation: 90 });
+  assert.ok(Math.abs(rotatedBounds.left + 50) < 1e-8);
+  assert.ok(Math.abs(rotatedBounds.bottom - 100) < 1e-8);
+  assert.deepEqual(guides({ ...gridBox, x: 910, y: 515 },1920,1080), { x: [960], y: [540] });
 
   const history = new EditHistory();
   assert.ok(history.record(source, added.project, 'Add text'));

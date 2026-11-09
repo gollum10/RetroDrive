@@ -1,5 +1,7 @@
 # 13 | Product Decisions and Open Questions
 
+**Theme Studio canvas aids:** grid/snapping preferences are transient workspace aids, not universal document content. Canvas alignment takes precedence over grid rounding when within six screen pixels. Resize snaps local width/height, while arrow keys retain exact steps. Other-layer snapping and custom guides remain later work.
+
 **Canvas first slice (2026-11-08):** original top-level text/panels only; completed drag commits one operation, cancellation leaves source untouched. Preserve coordinate units/future fields. Use bounded session JSON history with grouped edits; undo/redo persists as drafts and never rolls back explicit checkpoints or target settings. Preview interprets only safe SVG primitives/hex colors/system font, with unsupported source properties read-only. No rendering engine or dependencies added.
 
 **Project copy UX (2026-11-08):** distinguish editing the current project's name from naming a new copy. Save As temporarily disables original metadata controls and requires explicit copy confirmation; cancelling creates nothing. Numbered display-name suggestions replace repeated copy-copy labels without renaming existing projects or adding a database uniqueness rule. No change to source format, revision/persistence semantics or installation writes.

@@ -1,5 +1,7 @@
 # RetroDrive — Features
 
+**Theme Studio grid/snapping prepared:** separate grid visibility and optional snapping controls, 8/16/32/64 logical-pixel spacing, pointer move/resize snapping, Alt bypass and canvas edge/center guides. Controls are session-only and preserve the universal source format. Native QA remains pending.
+
 **Theme Studio resize regression fix:** handle pointer-down now owns focus and internal focus changes no longer cancel gestures. Workspace-width container breakpoints keep the canvas larger in normal windows. Real headless Edge input regression checks pass; native Tauri recheck remains pending.
 
 **Theme Studio resize:** selected leaf text/panel layers now have a bottom-right resize handle and handle-focused arrow/Shift-arrow sizing. Rotated local-axis math and existing undo/save services are reused. Native pointer/keyboard QA remains pending; export stays disabled.

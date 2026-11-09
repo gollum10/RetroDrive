@@ -1,5 +1,7 @@
 # 04 | Technical Architecture
 
+**Canvas aids:** snapping.ts supplies pure rotated bounds, grid rounding and canvas alignment functions. SceneCanvas owns session-only aid state, renders a pointer-transparent SVG pattern/guides, and applies snapping only to pointer previews/releases. Existing unit conversion/history/persistence boundaries remain unchanged.
+
 **Canvas focus/layout correction:** resize pointer-down prevents default focus transfer and focuses its handle; canvas blur cancels only when focus leaves the SVG subtree. Container queries now size the editor from available workspace width, accounting for the application sidebar. No source/persistence/backend changes.
 
 **Resize gestures:** SceneCanvas extends its local pointer preview to width/height; resize.ts projects canvas deltas into rotated local axes and applies immutable, unit-preserving bounded dimensions. Only pointer release commits through ProjectSession. Numeric inspector sizing remains available. No backend/schema/dependency changes.

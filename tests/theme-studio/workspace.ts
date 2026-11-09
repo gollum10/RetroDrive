@@ -18,3 +18,5 @@ export { transformNode } from '../../src/theme-studio/scene-edit';
 export { alignedNode, alignLayer } from '../../src/theme-studio/alignment';
 
 export { resizeDelta, resizeLayer } from '../../src/theme-studio/resize';
+
+export { bounds, snapSize, snapPosition, guides } from '../../src/theme-studio/snapping';
