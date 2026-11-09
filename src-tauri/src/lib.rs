@@ -752,6 +752,12 @@ fn running_frontend(connection: &rusqlite::Connection, installation_id: &str) ->
     if adapter == "esde" { &customizer::esde_running } else { &customizer::retrobat_running }
 }
 
+/// Settings: the folder backups go into, as a path to show.
+#[tauri::command]
+fn backup_destination_path(app: AppHandle, folder: Option<String>) -> Result<String, String> {
+    backup_destination(&app, folder).map(|p| p.display().to_string())
+}
+
 /// Backups: what a backup of this system would copy (reads only).
 #[tauri::command]
 async fn system_backup_preview(app: AppHandle, catalog: State<'_, Catalog>, installation_id: String, folder: Option<String>) -> Result<system_backup::BackupPreview, String> {
@@ -1724,6 +1730,7 @@ pub fn run() {
             apply_recalbox_settings,
             recalbox_games,
             check_bios,
+            backup_destination_path,
             system_backup_preview,
             run_system_backup,
             list_system_backups,
