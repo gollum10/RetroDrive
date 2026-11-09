@@ -19,7 +19,7 @@
 - **Ransomware-like behavior:** no background mass overwrite or deletion; bounded and logged writes only for user-approved targets.
 
 ## Privacy defaults
-No account needed. The local catalog can reveal sensitive file paths and user collections; keep it local, don't upload without explicit opt-in. Optional telemetry: clearly described and disabled by default initially. Provide export/delete catalog controls that don't delete ROM files.
+No account needed. The local catalog can reveal sensitive file paths and user collections; keep it local, don't upload without explicit opt-in. Optional telemetry: clearly described and disabled by default initially. Provide export/delete catalog controls that don't delete ROM files. *(Export and removing entries done 2026-11-09, ADR-097: Settings → Library catalog; a library-only reset follows.)*
 
 ## Copyright/legal
 The detailed legal assessment, compliance backlog and release gates are in [docs/16](16-LEGAL-AND-COMPLIANCE.md); the component inventory is in [docs/17](17-THIRD-PARTY-COMPONENTS.md).

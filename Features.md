@@ -138,7 +138,7 @@ _Last updated: 2026-11-05 (arcade choice, RetroBat version, real-world test)_
 | Multi-file game records (schema v5) | ✅ | `game_files.file_role` (primary / disc / track), `parent_file_id`, `payload_bytes`, `missing_parts`. Upgrades from every earlier schema are tested. |
 | Search and query indexes (schema v4) | ✅ | `games_fts` trigram index kept in sync by triggers; indexes for duplicate keys, platform+title, storage+status. |
 | Volume fingerprints (schema v3) | ✅ | `storage_locations` rebuilt: unique `stable_id`, non-unique `root_path`, plus label, filesystem, serial, GUID and size. References are checked before commit. |
-| Catalog export / delete controls | 📋 | docs/10 privacy defaults. |
+| Catalog export / delete controls | 🟡 | ADR-097. **Settings → Library catalog**: **Export game list** saves a CSV to Documents (opens in Excel: title, platform, year, genre, players, file, size, drive, path, status, collections). **Library folders** lists every scanned folder with **Remove from catalog…** (e.g. a drive you no longer use): it shows how many games go first, and the next scan doesn't bring them back. **Clean up missing entries** forgets files a scan found gone. Only RetroDrive's list changes: files on your drives are never touched. Next: reset the catalog (library only, keeping the old one). |
 
 ## Platforms (FR-04) and deployment (FR-05)
 

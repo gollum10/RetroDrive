@@ -6,6 +6,7 @@ mod batocera_settings;
 mod bios_check;
 mod bios_step;
 mod catalog;
+mod catalog_tools;
 mod classify;
 mod collections;
 mod controller_setup;
@@ -258,6 +259,83 @@ async fn clean_up_duplicates(catalog: State<'_, Catalog>, active: State<'_, Acti
     }
     let db_path = catalog.path()?;
     tauri::async_runtime::spawn_blocking(move || duplicates::clean_up(&db::open(&db_path)?, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Catalog tools (ADR-097): refuse while a scan, copy or import is running.
+fn catalog_idle(active: &ActiveJobs) -> Result<(), String> {
+    if !active.jobs.lock().map_err(|_| "Job registry unavailable".to_string())?.is_empty() {
+        return Err("A scan or copy is running. Try again when it has finished.".into());
+    }
+    if active.importing.load(Ordering::SeqCst) {
+        return Err(BUSY_IMPORTING.into());
+    }
+    Ok(())
+}
+
+/// Catalog tools: the scanned library folders (reads only).
+#[tauri::command]
+async fn library_folders(catalog: State<'_, Catalog>) -> Result<Vec<catalog_tools::LibraryFolder>, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || catalog_tools::folders(&db::open(&db_path)?, &volumes::presence)).await.map_err(|e| e.to_string())?
+}
+
+/// Catalog tools: what removing a library folder (`Some`) or the missing entries
+/// (`None`) would forget (reads only).
+#[tauri::command]
+async fn catalog_removal_preview(catalog: State<'_, Catalog>, folder: Option<String>) -> Result<catalog_tools::Removal, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut c = db::open(&db_path)?;
+        match folder {
+            Some(id) => catalog_tools::folder_preview(&mut c, &id),
+            None => catalog_tools::missing_preview(&mut c),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Catalog tools: remove a library folder's entries (`Some`) or the missing entries
+/// (`None`) from the catalog, as previewed. Files on drives are never touched.
+#[tauri::command]
+async fn remove_catalog_entries(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, folder: Option<String>, expected: catalog_tools::Removal) -> Result<catalog_tools::Removal, String> {
+    catalog_idle(&active)?;
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut c = db::open(&db_path)?;
+        match folder {
+            Some(id) => catalog_tools::remove_folder(&mut c, &id, &expected),
+            None => catalog_tools::remove_missing(&mut c, &expected),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Catalog tools: save the game list as a new CSV file in Documents.
+#[tauri::command]
+async fn export_library(app: AppHandle, catalog: State<'_, Catalog>) -> Result<catalog_tools::Exported, String> {
+    let folder = app.path().document_dir().map_err(|e| format!("Couldn't find your Documents folder: {e}"))?;
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let c = db::open(&db_path)?;
+        let date = system_backup::now(&c, "%Y-%m-%d");
+        catalog_tools::export(&c, &folder, &date, &volumes::presence)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Catalog tools: show an exported game list in File Explorer.
+#[tauri::command]
+fn show_exported_library(app: AppHandle, path: String) -> Result<(), String> {
+    let folder = app.path().document_dir().map_err(|e| format!("Couldn't find your Documents folder: {e}"))?;
+    let file = PathBuf::from(&path);
+    let named = file.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("RetroDrive library") && n.ends_with(".csv"));
+    if file.parent() != Some(folder.as_path()) || !named || !file.is_file() {
+        return Err("That file isn't an exported game list.".into());
+    }
+    std::process::Command::new("explorer.exe").arg(format!("/select,{}", file.display())).spawn().map(|_| ()).map_err(|e| format!("Couldn't open File Explorer: {e}"))
 }
 
 #[tauri::command]
@@ -1800,6 +1878,11 @@ pub fn run() {
             check_system_backup,
             open_system_backups,
             save_backup_zip,
+            library_folders,
+            catalog_removal_preview,
+            remove_catalog_entries,
+            export_library,
+            show_exported_library,
             add_backup_zip,
             restore_preview,
             apply_restore,

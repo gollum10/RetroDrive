@@ -94,7 +94,7 @@ sends data would be off until you turn it on.
 ## Contact
 
 RetroDrive is an open-source project. For questions about this policy, open an issue on
-GitHub: https://github.com/gollum10/RetroInstaller/issues. Please don't post personal information there; issues are public.
+GitHub: https://github.com/gollum10/RetroDrive/issues. Please don't post personal information there; issues are public.
 
 ---
 

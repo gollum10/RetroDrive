@@ -18,6 +18,8 @@
 
 **Catalog v27 (Theme Studio PR 2):** adds only `theme_projects(id, name, schema_version, saved_json, draft_json, revision, created_at, updated_at, saved_at)` and a recent-project index. SQL enforces source/record ID/version and indexed-name consistency, JSON validity and safe integer revision. The existing backup-first transactional migration preserves legacy tables. See [storage semantics](theme-studio/persistence.md); universal source version remains 1.0.0.
 
+**Catalog v28 (ADR-097):** indexes `idx_game_files_parent` on `game_files(parent_file_id)` and `idx_deployment_items_file` on `deployment_items(game_file_id)`, so removing entries doesn't scan every file per row. No table or data change.
+
 **Theme Studio PR 1 (2026-11-08):** versioned universal [JSON contract](theme-studio/project-format.md), separate from legacy DesignSpec. No catalog schema version, tables, designs or migrations change. SQLite remains the planned authoritative working store in PR 2. Portable source excludes machine paths/local installation bindings; its format schema version is independent of PRAGMA user_version.
 
 ## Essential rule

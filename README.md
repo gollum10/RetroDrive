@@ -45,9 +45,9 @@ npm run tauri build
 `npm run dev` alone opens the UI in a browser, but native commands **do not** work without Tauri.
 
 ## Create your GitHub repo
-The project lives at **https://github.com/gollum10/RetroInstaller** (private). Clone it outside OneDrive:
+The project lives at **https://github.com/gollum10/RetroDrive** (private). Clone it outside OneDrive:
 ```powershell
-git clone https://github.com/gollum10/RetroInstaller.git C:\dev\RetroInstaller
+git clone https://github.com/gollum10/RetroDrive.git C:\dev\RetroDrive
 ```
 Original first-push steps, kept for reference:
 ```powershell
@@ -75,7 +75,7 @@ RetroDrive doesn't include or download games, BIOS or firmware; it organizes and
 ## Current simplifications
 - **Game identity:** each game is one file or one disc set. Matching against metadata databases is planned; duplicates are flagged by name and size, not yet by hash.
 - **Platform guesses** come from folder names and extensions; ambiguous archive and disc files are marked `Unclassified`.
-- **Verified 2026-11-04** on Windows 11 with Node 24, Rust 1.99.1 and VS 2026 C++ tools: `cargo test` (168 passing; 306 as of 2026-11-09), `npm run build`, and `npm run tauri dev`, including 40,000-file scans, cancel, crash recovery, drive recognition, search, paging, duplicates, disc grouping and the RetroBat placement preview, plus (2026-11-05) the RDS-009 deployment plan and the RDS-010 verified copy (copy, stale-plan refusal and cancel tested in the app; see docs/18).
+- **Verified 2026-11-04** on Windows 11 with Node 24, Rust 1.99.1 and VS 2026 C++ tools: `cargo test` (168 passing; 312 as of 2026-11-09), `npm run build`, and `npm run tauri dev`, including 40,000-file scans, cancel, crash recovery, drive recognition, search, paging, duplicates, disc grouping and the RetroBat placement preview, plus (2026-11-05) the RDS-009 deployment plan and the RDS-010 verified copy (copy, stale-plan refusal and cancel tested in the app; see docs/18).
 
 ## License
 
@@ -85,4 +85,4 @@ it's built with keep their own licenses, listed in
 [`THIRD_PARTY_NOTICES.txt`](src-tauri/resources/THIRD_PARTY_NOTICES.txt); data files are
 credited in [`THIRD_PARTY_CONTROLLERS.txt`](src-tauri/resources/THIRD_PARTY_CONTROLLERS.txt).
 Privacy: [docs/legal/PRIVACY.md](docs/legal/PRIVACY.md). Questions and problems:
-[GitHub Issues](https://github.com/gollum10/RetroInstaller/issues).
+[GitHub Issues](https://github.com/gollum10/RetroDrive/issues).

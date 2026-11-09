@@ -25,7 +25,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i32 = 27;
+pub const SCHEMA_VERSION: i32 = 28;
 
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
@@ -211,6 +211,9 @@ fn run_steps(connection: &mut Connection, from_version: i32, report: &mut Migrat
     }
     if from_version < 27 {
         tx.execute_batch(SCHEMA_V27).map_err(|e| e.to_string())?;
+    }
+    if from_version < 28 {
+        tx.execute_batch(SCHEMA_V28).map_err(|e| e.to_string())?;
     }
     let violations: i64 = tx
         .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))
@@ -1036,6 +1039,13 @@ ALTER TABLE collections ADD COLUMN position INTEGER;
 ";
 
 /// Universal theme source only; legacy designs and installation history are untouched.
+/// v28 (ADR-097): indexes for the two references to `game_files` that had none, so
+/// forgetting entries (catalog tools) doesn't scan every file for each one removed.
+const SCHEMA_V28: &str = "
+CREATE INDEX IF NOT EXISTS idx_game_files_parent ON game_files(parent_file_id);
+CREATE INDEX IF NOT EXISTS idx_deployment_items_file ON deployment_items(game_file_id);
+";
+
 const SCHEMA_V27: &str = "
 CREATE TABLE theme_projects (
     id TEXT PRIMARY KEY NOT NULL,
@@ -1125,7 +1135,7 @@ mod tests {
         let tables = ["designs","settings_changes","design_applications"];
         let before: Vec<_> = tables.iter().map(|t|snapshot(&c,t)).collect();
         let report = migrate(&mut c,Some(&path)).unwrap();
-        assert_eq!((report.from_version,report.to_version),(26,27));
+        assert_eq!((report.from_version,report.to_version),(26,SCHEMA_VERSION));
         let backup = open(report.backup_path.as_ref().unwrap()).unwrap();
         assert_eq!(user_version(&backup).unwrap(),26);
         assert!(!table_exists(&backup,"theme_projects").unwrap());
@@ -1377,4 +1387,18 @@ mod tests {
         }
         assert!(rebuilt.iter().all(|p| !p.starts_with(r"\\?\")));
     }
+
+    #[test]
+    fn v28_indexes_the_references_to_game_files() {
+        let mut c = Connection::open_in_memory().unwrap();
+        configure(&c).unwrap();
+        migrate(&mut c, None).unwrap();
+        for index in ["idx_game_files_parent", "idx_deployment_items_file"] {
+            let n: i64 = c.query_row("SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ?1", [index], |r| r.get(0)).unwrap();
+            assert_eq!(n, 1, "{index}");
+        }
+        let plan: String = c.query_row("EXPLAIN QUERY PLAN SELECT 1 FROM game_files WHERE parent_file_id = 'x'", [], |r| r.get(3)).unwrap();
+        assert!(plan.contains("idx_game_files_parent"), "{plan}");
+    }
 }
+
