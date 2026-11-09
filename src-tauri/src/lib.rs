@@ -6,6 +6,7 @@ mod batocera_settings;
 mod bios_check;
 mod bios_step;
 mod catalog;
+mod catalog_reset;
 mod catalog_tools;
 mod classify;
 mod collections;
@@ -310,6 +311,53 @@ async fn remove_catalog_entries(catalog: State<'_, Catalog>, active: State<'_, A
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Catalog reset (ADR-098): what a reset would clear and keep (reads only).
+#[tauri::command]
+async fn catalog_reset_preview(catalog: State<'_, Catalog>) -> Result<catalog_reset::ResetPreview, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || catalog_reset::preview(&db::open(&db_path)?)).await.map_err(|e| e.to_string())?
+}
+
+/// Catalog reset: the saved catalogs next to the catalog (reads only).
+#[tauri::command]
+async fn saved_catalogs(catalog: State<'_, Catalog>) -> Result<Vec<catalog_reset::SavedCatalog>, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || catalog_reset::saved(&db_path)).await.map_err(|e| e.to_string())
+}
+
+fn catalog_stamp(db_path: &Path) -> Result<String, String> {
+    Ok(system_backup::now(&db::open(db_path)?, "%Y-%m-%d %H.%M.%S"))
+}
+
+/// Catalog reset: save a full copy of the catalog, then clear the library.
+#[tauri::command]
+async fn reset_catalog(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, expected: catalog_reset::Counts) -> Result<catalog_reset::Done, String> {
+    catalog_idle(&active)?;
+    if active.undoing.load(Ordering::SeqCst) {
+        return Err(BUSY_UNDOING.into());
+    }
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || catalog_reset::reset(&db_path, &expected, &catalog_stamp(&db_path)?)).await.map_err(|e| e.to_string())?
+}
+
+/// Catalog reset: save the current catalog, then put a saved catalog's library back.
+#[tauri::command]
+async fn put_back_catalog(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, path: String) -> Result<catalog_reset::Done, String> {
+    catalog_idle(&active)?;
+    if active.undoing.load(Ordering::SeqCst) {
+        return Err(BUSY_UNDOING.into());
+    }
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || catalog_reset::put_back(&db_path, Path::new(&path), &catalog_stamp(&db_path)?)).await.map_err(|e| e.to_string())?
+}
+
+/// Catalog reset: show the catalog's folder (with the saved copies) in File Explorer.
+#[tauri::command]
+fn open_catalog_folder(catalog: State<'_, Catalog>) -> Result<(), String> {
+    let db_path = catalog.path()?;
+    std::process::Command::new("explorer.exe").arg(format!("/select,{}", db_path.display())).spawn().map(|_| ()).map_err(|e| format!("Couldn't open File Explorer: {e}"))
 }
 
 /// Catalog tools: save the game list as a new CSV file in Documents.
@@ -1883,6 +1931,11 @@ pub fn run() {
             remove_catalog_entries,
             export_library,
             show_exported_library,
+            catalog_reset_preview,
+            saved_catalogs,
+            reset_catalog,
+            put_back_catalog,
+            open_catalog_folder,
             add_backup_zip,
             restore_preview,
             apply_restore,
