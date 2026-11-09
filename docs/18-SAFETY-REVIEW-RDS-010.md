@@ -622,3 +622,12 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 | RetroBat/ES-DE behaving differently after the change | Same files as before | all earlier tests; read-only preview of the owner's RetroBat (saves 1,863, settings 8, game lists 5, media 11) and ES-DE (settings 1, game lists 1, art 1,204): unchanged |
 
 **Testing limits:** no Batocera, Recalbox, RetroPie, ROCKNIX or Lakka hardware is available; each is tested on folders laid out like it (backup, lose a save, restore, compare). A first real use should be a backup, then a small restore with Undo.
+
+## 59. Addendum: Maintenance checks (2026-11-09)
+**Scope and authorization:** owner approved the outline ("great let's do it"; ADR-093). **Reads only**: the catalog, the Sync plan (stat and listing of the drive as Sync already does), the adapter's layout checks, the BIOS checker, the backup folder's manifests, and a walk of the installation folder for temporary-file names and the size of `.retrodrive\backup`. No new write path: every finding links to an existing, already reviewed feature (Sync, Plan, Backup, BIOS step/checker, Open backup folder).
+
+| Risk | Mitigation | Evidence |
+|---|---|---|
+| Changing the drive | No writes; only existing read functions | `health::tests::a_new_system_gets_every_check_and_nothing_is_written` (listing before and after); real run on the owner's RetroBat: `G:` listing unchanged (0 differences) |
+| Misleading counts | Uses the Sync plan's counts (its attention list is capped at 500; found on the owner's drive, where it showed "500 differ" instead of 57 differ and 588 can't be copied) | real run |
+| Slow on a network share | Runs only when asked (Check health / Check again); same reads as Sync | code review |

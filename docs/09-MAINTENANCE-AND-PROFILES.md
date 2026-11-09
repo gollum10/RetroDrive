@@ -7,6 +7,8 @@ Portable configuration objects, versioned by schema and adapter. Initial templat
 Discover USB and compatible controllers (Xbox, PlayStation, generic USB and arcade encoders). Templates for 2/4 players, trackballs, spinners and light guns where supported. Provide guided button identification with platform-specific mapping and backup of existing config. Controllers and drivers can differ; no universal one-click guarantee.
 
 ## Maintenance checks
+**Implemented 2026-11-09 (ADR-093, docs/18 §59):** **Check health** per system: space and next-Sync fit, games gone/different/blocked/new (Sync plan), folder layout, BIOS, backup age, leftovers (temporary files, `.retrodrive\backup` size); each finding links to the feature that fixes it. Not yet: hash re-verification of every copied file, update checks.
+
 - Storage available and writable/readable as required.
 - Indexed file missing, corrupt or hash changed.
 - Manifest differs from destination.

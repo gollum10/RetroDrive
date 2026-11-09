@@ -19,6 +19,7 @@ mod deployment;
 mod drives;
 mod game_groups;
 mod gamelists;
+mod health;
 mod duplicates;
 mod install_helper;
 mod installations;
@@ -749,6 +750,14 @@ fn backup_destination(app: &AppHandle, folder: Option<String>) -> Result<PathBuf
 
 fn running_frontend(connection: &rusqlite::Connection, installation_id: &str) -> customizer::RunningFn<'static> {
     running_for(connection, installation_id)
+}
+
+/// Maintenance checks (FR-10, ADR-093): one system's health (reads only).
+#[tauri::command]
+async fn check_health(app: AppHandle, catalog: State<'_, Catalog>, installation_id: String, folder: Option<String>) -> Result<health::Health, String> {
+    let backups = backup_destination(&app, folder)?;
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || health::check(&db::open(&db_path)?, &installation_id, &backups, &volumes::presence, &volumes::space)).await.map_err(|e| e.to_string())?
 }
 
 /// Settings: the folder backups go into, as a path to show.
@@ -1730,6 +1739,7 @@ pub fn run() {
             recalbox_games,
             check_bios,
             backup_destination_path,
+            check_health,
             system_backup_preview,
             run_system_backup,
             list_system_backups,
