@@ -55,7 +55,7 @@ pub struct MigrationReport {
     pub backup_path: Option<PathBuf>,
 }
 
-fn user_version(connection: &Connection) -> Result<i32, String> {
+pub(crate) fn user_version(connection: &Connection) -> Result<i32, String> {
     connection
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .map_err(|e| e.to_string())

@@ -659,3 +659,17 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 | Spreadsheet formulas from file names | Cells starting with `= + - @`, tab or CR get a leading `'` | same test (`=cmd (USA).nes`) |
 | Slow on a big library | Schema v28 indexes; search rows deleted in one pass | real copy: 42,335 files in 27 s, 118,443 in 37 s (before: not finished after 10 minutes) |
 
+## 62. Addendum: Catalog reset and put back (2026-11-09)
+**Scope and authorization:** owner chose the reset with "Library only" (ADR-098). Writes only in RetroDrive's own data folder: a new saved copy of the catalog, then changes to catalog rows. No drive is read or written.
+
+| Risk | Mitigation | Evidence |
+|---|---|---|
+| Losing the library | A full copy is saved and checked (`quick_check`, schema version, counts) **before** anything is cleared; if saving fails nothing changes; saved copies are never deleted; Put back restores them | `catalog_reset::tests::reset_saves_a_copy_first_then_clears_only_the_library` (the copy holds the whole library), `putting_the_old_catalog_back_restores_the_library_and_saves_the_current_one` |
+| Clearing more than the library | Fixed list of library tables; systems, copy history, designs, settings history, controller/gun choices, Theme Studio and reference catalog untouched; drives used by a system kept | first test (systems, designs, the system's drive and the copy-history record stay) |
+| Put back losing what's there now | The current catalog is saved first (`before-put-back`) | second test (that copy lists the one-folder scan made after the reset) |
+| A saved copy from an older RetroDrive, a damaged file, or another file | Only `retrodrive-before-*.sqlite` files next to the catalog; a working copy is migrated (the saved file unchanged); a file that can't be read changes nothing and saves nothing | `a_copy_from_an_older_version_is_brought_up_to_date_first`, `a_stale_preview_or_a_foreign_file_changes_nothing` |
+| Resetting more than shown | Counts compared with the preview; refused while a scan, copy, import or drive change runs | `a_stale_preview_or_a_foreign_file_changes_nothing` |
+| Broken references | One transaction; foreign keys checked before commit (deferred during put back); drives matched by id or fingerprint | real copy: 0 foreign key problems after reset and after put back |
+| Triggers set aside | Dropped and recreated from their own stored SQL in the same transaction; titles and search index rebuilt; any failure rolls everything back | first test compares every trigger's SQL before and after; real copy: search index identical |
+| Leftover working files | Only RetroDrive's own temporary files (marked names) are removed | tests check no temporary file is left |
+
