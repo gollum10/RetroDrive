@@ -576,3 +576,18 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 
 ## 55. Addendum: BIOS checker (2026-11-09)
 **Scope and authorization:** owner ("work on everything you can"). Reads only: the catalog, file names in the library's `bios` folders, and file names in the system's BIOS folder (directory listings and existence checks). Nothing is written, copied, downloaded or shipped; copying stays with Plan's BIOS row and the BIOS step. Evidence: `bios_check::tests`; a read-only run on the owner's RetroBat left its file listing unchanged.
+
+## 56. Addendum: System backup, step 1 (2026-11-09)
+**Scope and authorization:** owner chose "Backup and restore (Recommended)" and "let's go ahead with the next part" (ADR-090). **On the system: reads only** (directory listings and file reads of saves, settings and game lists). **On the PC:** creates one new folder per backup inside the backup folder, and new files in it; nothing is replaced or deleted.
+
+| Risk | Mitigation | Evidence |
+|---|---|---|
+| Changing the system | No write path to the system; files are only opened for reading | `a_backup_copies_verified_files_into_a_new_folder_and_never_touches_the_system` (byte-for-byte listing before and after); real run on the owner's RetroBat and ES-DE: `G:` listing unchanged (0 differences) |
+| A half-written save copied while the frontend runs | Refused while RetroBat (retrobat.exe, emulationstation.exe, emulatorlauncher.exe) or ES-DE runs | same test (refused, nothing created); the preview shows why |
+| Overwriting an earlier backup or another folder | A new folder with a name not used by a finished or incomplete backup (`(2)`, `(3)`…); each file via `copy_image` (temporary file, SHA-256 checked against the original, no-replace rename); the folder is renamed without replacing | `incomplete_backups_are_listed_and_names_are_never_reused`; a second backup leaves the first byte-identical |
+| A backup that looks complete but isn't | `manifest.json` written last; the folder keeps `(incomplete)` until then, and when any file failed (listed under problems); **Check** re-reads every file against the manifest | `checking_finds_missing_and_changed_files`; real check: 1,876 of 1,876 files matched |
+| Running out of space | Free space checked first (size + 5% + 16 MB) | code review |
+| Commands used on arbitrary folders | **Check** and **Open** accept only a folder directly inside the backup folder; the backup folder must be an absolute path | code review |
+| Copyrighted art | Downloaded art is opt-in and only goes to the user's own PC (a personal backup); RetroDrive ships or uploads nothing | ADR-090 |
+
+**Restore is not part of this step.** It writes to the system and gets its own addendum and owner go-ahead.

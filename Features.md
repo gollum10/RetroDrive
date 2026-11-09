@@ -202,7 +202,7 @@ ecalbox.conf` the way Recalbox's own menu saves them, after you review them, and
 | Artwork and metadata scraping with attribution | ⛔ | FR-06, dropped 2026-11-06: RetroDrive is free and won't fetch online art or metadata (ADR-033). |
 | BIOS checker (user-supplied files only) | ✅ | FR-07. In **Customize**: which systems in your library need a BIOS, whether you have it (library and that system), with regional alternatives counted. Names from libretro-core-info (MIT, credited); RetroDrive never provides BIOS files. Checks names, not checksums. |
 | Controller profiles | 📋 | FR-08 |
-| Backup and restore of configs and saves | 📋 | FR-09 |
+| Backup and restore of configs and saves | 🟡 | FR-09, ADR-090. **Backup** (step 1) in **Customize** for RetroBat and ES-DE: **Back up now** copies the system's saves, settings and game lists to a new folder on your PC (`Documents\RetroDrive Backups`, or a folder you choose). Nothing on the system is changed, and each file is checked after copying. Optionally include music and boot videos (RetroBat) or downloaded art (ES-DE). See when the last backup was made, open any backup, and **Check** that it's still intact. Games, BIOS, themes and emulators aren't included. Not while RetroBat or ES-DE is running. **Restore** comes next (step 2). |
 | Maintenance checks and repair plans | 📋 | FR-10 |
 | Arcade Builder | 📋 | FR-11 |
 | Optional AI troubleshooting (opt-in, redacted) | 📋 | FR-12 |
