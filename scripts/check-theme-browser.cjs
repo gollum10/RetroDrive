@@ -152,7 +152,43 @@ async function main() {
     assert.equal(await evaluate('!!document.querySelector("image")'),true);
     await evaluate('window.canvasTest.setDisabled(true)'); await frame();
     assert.equal(await evaluate('!!document.querySelector("circle[role=button]")'), false);
-    console.log('Theme browser: real pointer resize/default focus, preview, no-op, Escape, external blur, keyboard 850/650px workspace layout, rotated resize at 150% scale grid controls, snapped resize, Alt bypass, center guides/cancellation lock/hide/restore/edit-guard PNG form attachment/double-submit/preview/resize/hide-show and disabled handle passed.');
+    await send('Page.navigate',{url:`http://127.0.0.1:${port}/tests/theme-studio/preview-reopen.html`});
+    await until(()=>evaluate('!!window.previewHarness'),'saved-image hook fixture');
+    await delay(500);
+    assert.equal(await evaluate('document.querySelectorAll("image").length'),2,'saved images load on StrictMode reopen through the real hook');
+    assert.equal(await evaluate('window.previewService.calls.length'),1,'StrictMode effects share one authorized request');
+    await evaluate('window.previewHarness.remount()'); await frame();
+    await until(()=>evaluate('document.querySelectorAll("image").length===2'),'images after component reopen');
+    assert.equal(await evaluate('window.previewService.calls.length'),2,'fresh component reloads saved images');
+    const busyStart=await evaluate('window.previewService.calls.length');
+    await evaluate('window.previewService.forcedBusy=2;window.previewHarness.remount()'); await frame();
+    await until(()=>evaluate('document.querySelectorAll("image").length===2'),'transient native busy recovery');
+    assert.equal(await evaluate('window.previewService.calls.length'),busyStart+3,'busy retries remain shared');
+    await evaluate('window.previewHarness.setProject("saved-two")');
+    await frame();
+    await until(()=>evaluate('document.querySelectorAll("image").length===2'),'project switch preview');
+    assert.ok(await evaluate('window.previewService.calls.includes("saved-two")'),'another project performs its own authorization');
+    await evaluate('window.previewHarness.setEmpty(true)');await frame();
+    assert.equal(await evaluate('document.querySelectorAll("image").length'),0,'removed declarations cannot reuse cached previews');
+    await evaluate('window.previewHarness.setEmpty(false)');
+    await until(()=>evaluate('document.querySelectorAll("image").length===2'),'restored declarations reload');
+    const failureStart=await evaluate('window.previewService.calls.length');
+    await evaluate('window.previewService.permanent=true;window.previewHarness.remount()'); await frame();
+    await until(()=>evaluate('document.querySelector("[data-error]").textContent.includes("unavailable")'),'permanent preview error');
+    assert.equal(await evaluate('document.querySelectorAll("image").length'),0);
+    assert.equal(await evaluate('window.previewService.calls.length'),failureStart+1,'permanent errors do not auto-retry');
+    await evaluate('window.previewService.permanent=false;window.previewRetry()');
+    await until(()=>evaluate('document.querySelectorAll("image").length===2'),'manual retry recovery');
+    const exhaustedStart=await evaluate('window.previewService.calls.length');
+    await evaluate('window.previewService.forcedBusy=20;window.previewHarness.remount()'); await frame();
+    await until(()=>evaluate('document.querySelector("[data-error]").textContent.includes("unavailable")'),'bounded busy retry exhaustion');
+    assert.equal(await evaluate('window.previewService.calls.length'),exhaustedStart+4,'busy retry is bounded to four attempts');
+    await delay(350);
+    assert.equal(await evaluate('window.previewService.calls.length'),exhaustedStart+4,'no infinite polling after busy exhaustion');
+    await evaluate('window.previewService.forcedBusy=0;window.previewRetry()');
+    await until(()=>evaluate('document.querySelectorAll("image").length===2'),'manual retry after busy exhaustion');
+
+    console.log('Theme browser: real pointer resize/default focus, preview, no-op, Escape, external blur, keyboard 850/650px workspace layout, rotated resize at 150% scale grid controls, snapped resize, Alt bypass, center guides/cancellation lock/hide/restore/edit-guard PNG form attachment/double-submit/preview/resize/hide-show saved-image StrictMode/reopen/busy retry/isolation/error recovery and disabled handle passed.');
   } finally {
     if (socket && socket.readyState === WebSocket.OPEN) { socket.send(JSON.stringify({ id: 999999, method: 'Browser.close' })); await delay(500); socket.close(); }
     if (browser) { browser.kill(); await delay(500); }
