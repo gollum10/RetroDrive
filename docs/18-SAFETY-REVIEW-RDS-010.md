@@ -683,3 +683,14 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 | Older backups or older RetroDrive versions | The field is optional: backups without it are compared by contents; older versions ignore it (format stays 1) | same test (a list without times: compared by contents) |
 | A damaged backup | The backup's own files are still checked by SHA-256 in every preview | `a_damaged_or_edited_backup_restores_nothing` |
 
+## 64. Addendum: Setup wizard, finding systems (2026-11-09)
+**Scope:** owner approved the wizard plan, including checking the systems' network names (ADR-100). **Reads only:** folder listings and the adapters' existing recognition checks. The only write is the existing **Add existing installation** catalog record, made when the user clicks Add and use.
+
+| Risk | Mitigation | Evidence |
+|---|---|---|
+| Changing a drive while searching | Only `read_dir` and the adapters' `detect` (existence checks and small reads); no writes; links and junctions not followed | `find_systems::tests::systems_up_to_two_folders_deep_are_found_and_nothing_is_written` (listing before and after) |
+| Slow on big drives | Top folder plus two levels, Windows folders skipped, at most 400 folders per level; a system found at a level isn't searched below | same tests; real run on this PC (C: and G:): 1.0 s, found `G:\RetroBat` 8.3.1.1 and `G:\ES-DE\ROMs` |
+| A network name that never answers | Each checked on its own thread; whatever hasn't answered within 8 s is left out (Browse… still works) | `network_names_that_do_not_answer_are_left_out_by_the_deadline`; real run: 5.4 s with none on the network |
+| Adding something the user didn't choose | Nothing is added automatically; Add and use calls the existing `add_installation` (which re-checks recognition) | in the app with a scratch catalog: RetroBat added and chosen, ES-DE left alone |
+| Being pushed into the wizard | Offered once on first start with No thanks; Exit any time; never reopens by itself | in the app with a scratch catalog |
+

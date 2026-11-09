@@ -132,6 +132,9 @@ Inventory: manufacturer/model, bus type when known, capacity, filesystem, free s
 ## Systems
 Catalog of Batocera, RetroBat, and later platforms. Cards: bootable OS vs frontend vs Windows portable application; supported hardware; version/source; setup vs existing-install recognition. Show prerequisites, external links, disk implications, licensing and hardware constraints. Use official download sites, never assume all systems flash like ISOs.
 
+## Setup wizards (ADR-100)
+Dashboard → **Quick actions**: **Set up everything** (the complete wizard) and one card per task (Add your games, Find or add a system, Copy games to a system, Check BIOS files, Back up a system, Controllers and light guns). All optional: offered once on first start when no system is set up, with "No thanks, I'll do it myself"; Exit any time. The complete wizard shows a step bar: Your games → Find your system → What to copy → BIOS → Copy → Back up and check. *(Part 1, 2026-11-09: Your games and Find your system are built; the later steps hand over to the plan, and the task cards for them open the existing screens.)*
+
 ## Deployment Wizard
 1. Source: games, one collection, or entire filtered selection. *(Implemented: "What to copy" in the plan chooses platforms or one collection, 2026-11-05.)*
 2. Destination: existing supported installation or authorized local folder.
