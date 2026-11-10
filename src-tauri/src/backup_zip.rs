@@ -13,6 +13,8 @@
 //! backup holds ([`system_backup::covered`]), each to a new file that must match its
 //! size and SHA-256; anything else in the zip is ignored. Like a backup run, the folder
 //! is called "(incomplete)" until every file is in, and is never deleted.
+//! A backup added this way also gets a small note, `added-from-zip.txt`, with the zip's
+//! name, so the list shows "added from a .zip" (ADR-106); it isn't on the backup's list.
 //! Nothing outside the backup folder is written, and the system isn't touched: restoring
 //! from the unpacked backup is the normal restore, with its preview.
 
@@ -227,6 +229,10 @@ pub fn add(zip_path: &Path, destination: &Path, progress: gamelists::ProgressFn)
     }
     progress("unpacking", total, total);
     system_backup::write_manifest_bytes(&working, &manifest_text)?;
+    // A note saying where it came from, so the list can tell it from the original (ADR-106).
+    let zip_name = zip_path.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    fs::write(working.join(system_backup::ADDED_FROM), format!("{zip_name}
+")).map_err(|e| format!("Couldn't finish the backup folder: {e}. The unpacked part is kept as \"{name}{}\".", system_backup::INCOMPLETE))?;
     let done = destination.join(&name);
     copier::rename_no_replace(&working, &done).map_err(|e| format!("The backup was added but couldn't be renamed: {e}. It's in {}.", working.display()))?;
     system_backup::entry(&done).ok_or_else(|| "The backup was added but can't be listed.".into())
@@ -319,13 +325,26 @@ mod tests {
         assert_eq!(added.name, "RetroBat (G) 2026-11-09 20.00");
         assert!(added.complete);
         assert_eq!((added.files, added.system.as_deref()), (3, Some("RetroBat")));
-        assert_eq!(listing(&other.path().join(&added.name)), before);
+        let unpacked = other.path().join(&added.name);
+        assert_eq!(fs::read_to_string(unpacked.join(system_backup::ADDED_FROM)).unwrap(), "RetroBat (G) 2026-11-09 20.00.zip
+");
+        assert_eq!(added.added_from.as_deref(), Some("RetroBat (G) 2026-11-09 20.00.zip"));
+        let without_note: Vec<_> = listing(&unpacked).into_iter().filter(|(n, _)| n != system_backup::ADDED_FROM).collect();
+        assert_eq!(without_note, before, "same files as the original, plus the note");
         assert_eq!(system_backup::check(&other.path().join(&added.name)).unwrap().ok, 3);
 
         // Adding it next to the original gets a new name.
         let beside = add(Path::new(&saved.path), dir.path(), &quiet).unwrap();
         assert_eq!(beside.name, "RetroBat (G) 2026-11-09 20.00 (2)");
         assert_eq!(listing(&folder), before);
+        // The list tells them apart: only the added one says where it came from.
+        let listed = system_backup::list(dir.path());
+        let from: Vec<_> = listed.iter().map(|b| (b.name.as_str(), b.added_from.is_some())).collect();
+        assert!(from.contains(&("RetroBat (G) 2026-11-09 20.00", false)) && from.contains(&("RetroBat (G) 2026-11-09 20.00 (2)", true)), "{from:?}");
+        // Saving the added one as a .zip leaves the note out (it isn't on the backup's list).
+        let rezip = save(&dir.path().join(&beside.name), dir.path(), &quiet).unwrap();
+        let names_in: Vec<String> = { let a = ZipArchive::new(File::open(&rezip.path).unwrap()).unwrap(); a.file_names().map(|n| n.unwrap().into_owned()).collect() };
+        assert!(!names_in.iter().any(|n| n.contains(system_backup::ADDED_FROM)), "{names_in:?}");
     }
 
     #[test]
@@ -355,7 +374,7 @@ mod tests {
         make_zip(&zip, &[(MANIFEST, &text), ("install/saves/snes/Mario.srm", b"save"), ("../evil.exe", b"MZ"), ("install/RetroBat.exe", b"MZ")]);
         let out = dir.path().join("backups");
         let added = add(&zip, &out, &quiet).unwrap();
-        assert_eq!(listing(&out.join(&added.name)).iter().map(|(p, _)| p.replace('\\', "/")).collect::<Vec<_>>(), vec!["install/saves/snes/Mario.srm", "manifest.json"]);
+        assert_eq!(listing(&out.join(&added.name)).iter().map(|(p, _)| p.replace('\\', "/")).collect::<Vec<_>>(), vec!["added-from-zip.txt", "install/saves/snes/Mario.srm", "manifest.json"]);
         assert!(!dir.path().join("evil.exe").exists());
 
         // A list naming a place outside what backups hold is refused before anything is written.
