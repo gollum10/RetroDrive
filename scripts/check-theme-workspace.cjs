@@ -527,12 +527,12 @@ async function main() {
     const component = file => require(path.join(output, `src/${file}.js`)).default;
     const render = (file, props) => renderToStaticMarkup(React.createElement(component(file), props));
     const wizard = render('theme-studio/NewProjectWizard', { busy: false, onCreate() {}, onCancel() {} });
-    assert.match(wizard, /Universal \/ No Target Yet/);
-    assert.match(wizard, /No emulator or connected installation is needed/);
+    assert.match(wizard, /Any system \(choose later\)/);
+    assert.match(wizard, /You don&#x27;t need a system connected/);
     const editor = render('theme-studio/ProjectOverview', { session, onClose() {}, onCopy() {}, onReload() {} });
-    for (const region of ['Scenes and layers', 'Scene canvas', 'Properties inspector', 'Animation timeline']) assert.ok(editor.includes(region));
-    assert.match(editor, /Autosaved|Saved checkpoint/);
-    assert.match(editor, /Native support is unverified/);
+    for (const region of ['Screens and layers', 'Scene canvas', 'Properties inspector', 'Animation timeline']) assert.ok(editor.includes(region));
+    assert.match(editor, /Changes kept|Saved|Saving/);
+    assert.match(editor, /any system \(choose later\)/); assert.ok(!/unverified|checkpoint|Universal/.test(editor), 'plain wording');
     assert.match(editor, /Add text/); assert.match(editor, /Add panel/); assert.match(editor, />Undo</);
     const safeProject = addNode(project, project.scenes[0].id, 'text');
     const safeNode = safeProject.project.scenes[0].nodes.find(node => node.id === safeProject.id);
@@ -565,9 +565,9 @@ async function main() {
     const inspector = render('theme-studio/NodeInspector', { scene: safeProject.project.scenes[0], node: safeNode, disabled: false, onChange() {}, onEnd() {} });
     assert.match(inspector, /X position/); assert.match(inspector, /Font size/);
     const longText = { ...safeNode, style: { ...safeNode.style, text: 'A'.repeat(501) } };
-    assert.match(render('theme-studio/NodeInspector', { scene: safeProject.project.scenes[0], node: longText, disabled: false, onChange() {}, onEnd() {} }), /preserved read-only/);
+    assert.match(render('theme-studio/NodeInspector', { scene: safeProject.project.scenes[0], node: longText, disabled: false, onChange() {}, onEnd() {} }), /can&#x27;t be changed here yet; it&#x27;s kept/);
     const unknownText = { ...safeNode, style: { ...safeNode.style, text: { futureExpression: 'kept' } } };
-    assert.match(render('theme-studio/NodeInspector', { scene: safeProject.project.scenes[0], node: unknownText, disabled: false, onChange() {}, onEnd() {} }), /preserved read-only/);
+    assert.match(render('theme-studio/NodeInspector', { scene: safeProject.project.scenes[0], node: unknownText, disabled: false, onChange() {}, onEnd() {} }), /can&#x27;t be changed here yet; it&#x27;s kept/);
     let renamedLayer;
     const originalLayer = project.scenes[0].nodes[0];
     const layerForm = component('theme-studio/NodeInspector')({ scene: project.scenes[0], node: originalLayer, disabled: false, onChange(node) { renamedLayer = node; }, onEnd() {} });
@@ -590,7 +590,7 @@ async function main() {
     const disabledTransform = component('theme-studio/NodeInspector')({ ...transformProps, disabled: true });
     disabledTransform.props.children.find(child => child?.type === 'fieldset').props.children.find(child => child?.props?.label === 'Rotation (degrees)').props.onChange(60);
     assert.equal(renamedLayer, null);
-    assert.match(render('theme-studio/NodeInspector', { ...transformProps, node: opaqueOpacity }), /Unsupported opacity data is preserved read-only/);
+    assert.match(render('theme-studio/NodeInspector', { ...transformProps, node: opaqueOpacity }), /opacity can&#x27;t be changed here; it&#x27;s kept/);
     const transformedCanvas = render('theme-studio/SceneCanvas', { scene: transformProject.scenes[0], selected: added.id, disabled: false, onSelect() {}, onMove() {}, onResize() {}, onEndGroup() {} });
     assert.match(transformedCanvas, /rotate\(-45\.5\)/);
     assert.match(transformedCanvas, /opacity="0.25"/);
@@ -625,11 +625,11 @@ async function main() {
     assert.equal(flagRequest,null);
     const imageCanvasProps={scene:attached.project.scenes[0],selected:attached.id,disabled:false,onSelect(){},onMove(){},onResize(){},onEndGroup(){}};
     const imageCanvas=render('theme-studio/SceneCanvas',{...imageCanvasProps,previewImages:{[imageNode.assets[0]]:'data:image/png;base64,iVBORw=='}});
-    assert.match(imageCanvas,/Loading image/);
+    assert.match(imageCanvas,/Loading picture/);
     const rejectedImage=render('theme-studio/SceneCanvas',{...imageCanvasProps,previewImages:{[imageNode.assets[0]]:'https://untrusted/image.png'}});
     assert.ok(!rejectedImage.includes('https://untrusted'));assert.match(rejectedImage,/Image unavailable/);
     const importForm=render('theme-studio/ImageImportForm',{sceneName:'Main',async onImport(){},onCancel(){}});
-    assert.match(importForm,/License/);assert.match(importForm,/Attribution/);assert.match(importForm,/Import and add image/);
+    assert.match(importForm,/License/);assert.match(importForm,/Credit/);assert.match(importForm,/Add picture/);
     let alignedEdit=null;
     const typographyProps={node:typographyNode,disabled:false,onChange(next){alignedEdit=next;},onEnd(){}};
     const alignmentSelect=component('theme-studio/TextAlignmentControls')(typographyProps).props.children.find(child=>child?.type==='select');
@@ -638,7 +638,7 @@ async function main() {
     alignedEdit=null;
     component('theme-studio/TextAlignmentControls')({...typographyProps,disabled:true}).props.children.find(child=>child?.type==='select').props.onChange({target:{value:'right'}});
     assert.equal(alignedEdit,null);
-    assert.match(render('theme-studio/TextAlignmentControls',{...typographyProps,node:{...typographyNode,style:{textAlign:'future'}}}),/Unsupported alignment/);
+    assert.match(render('theme-studio/TextAlignmentControls',{...typographyProps,node:{...typographyNode,style:{textAlign:'future'}}}),/Other alignment \(kept\)/);
     let bindingEdit=null;
     const bindingProps={node:staticSample,disabled:false,onChange(next){bindingEdit=next;},onEnd(){}};
     const bindingControl=component('theme-studio/TextBindingControls')(bindingProps);
@@ -648,9 +648,9 @@ async function main() {
     const blockedBinding=component('theme-studio/TextBindingControls')({...bindingProps,disabled:true});
     blockedBinding.props.children.find(child=>child?.type==='label').props.children.find(child=>child?.type==='select').props.onChange({target:{value:'game.title'}});
     assert.equal(bindingEdit,null);
-    assert.match(render('theme-studio/TextBindingControls',{...bindingProps,node:imageText}),/Unsupported binding/);
+    assert.match(render('theme-studio/TextBindingControls',{...bindingProps,node:imageText}),/can’t show \(kept\)/);
     const browser = render('theme-studio/ProjectBrowser', { projects: [], busy: false, offset: 0, onNew() {}, onOpen() {}, onDuplicate() {}, onPage() {}, onRefresh() {} });
-    assert.match(browser, /No projects yet/);
+    assert.match(browser, /No themes yet/);
     let submitted = null; let cancelled = false;
     const copyProps = { name: ' New copy ', sourceName: 'Original', busy: false, onName() {}, onCreate(name) { submitted = name; }, onCancel() { cancelled = true; } };
     const copyForm = component('theme-studio/SaveCopyForm')(copyProps);
@@ -675,7 +675,7 @@ async function main() {
     assert.ok(shell.indexOf('>Customize</button>') < shell.indexOf('>Theme Studio</button>'));
     assert.ok(shell.indexOf('>Theme Studio</button>') < shell.indexOf('>Settings</button>'));
     const fallback = render('ThemeStudio', { native: false, leaveGuard: { current: null } });
-    assert.match(fallback, /No emulator installation or cloud account is required/);
+    assert.match(fallback, /No system or account is needed/);
   } finally { Module._load = originalLoad; }
   console.log('Theme workspace: creation, saves/close/copy regressions, scene editing, bounded history/in-flight undo and safe React/SVG rendering passed.');
 }

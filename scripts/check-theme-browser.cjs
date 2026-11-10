@@ -218,7 +218,7 @@ async function main() {
     assert.equal(await evaluate(`document.querySelector('[aria-label="Image controls"] fieldset').disabled`),true,'locked image controls remain read-only');
     await evaluate(`window.imageControlsTest.setNode({...window.imageControlsTest.node,editor:{locked:false},style:{imageFit:{future:true},imageCrop:{future:true}}})`);await frame();
     assert.equal(await evaluate(`document.querySelector('[aria-label="Image controls"] select').disabled`),true);
-    assert.ok(await evaluate(`document.querySelector('[aria-label="Image controls"]').textContent.includes('Unsupported crop data')`));
+    assert.ok(await evaluate(`document.querySelector('[aria-label="Image controls"]').textContent.includes("crop can't be changed here")`));
     assert.equal(await evaluate(`document.querySelector('[aria-label="Image controls"] button')===null`),true,'unknown crop cannot be reset/overwritten');
 
     await send('Page.navigate',{url:`http://127.0.0.1:${port}/tests/theme-studio/sample-preview.html`});

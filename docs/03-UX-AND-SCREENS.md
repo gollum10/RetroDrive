@@ -1,5 +1,8 @@
 # 03 | Information Architecture and UX Specification
 
+**Theme Studio, plain language (2026-11-10, ADR-107):** every Theme Studio screen now uses plain words: *Your themes*, *New theme*, *Made for: Any system (choose later)*, *Screen shape*, *Save version* (a point to go back to; changes are kept automatically), *Save a copy*, *Add picture*, *Screens* and *Layers*; messages about data the editor can't change say it's kept. The editor follows the app's look. Next steps: [roadmap](theme-studio/roadmap.md).
+
+
 **VIS-004 partial typography:** text layers now support left/center/right alignment within their existing rectangle, including sample-bound multiline captions. Unknown values stay preserved read-only; source edits use existing history and draft/checkpoint persistence. Wrapping, vertical alignment, custom fonts and native engine output remain unimplemented.
 
 

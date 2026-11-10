@@ -1,5 +1,8 @@
 # Theme Studio delivery tracking
 
+**2026-11-10 (ADR-107):** Theme Studio is now Claude's; direction and next steps are in the [roadmap](roadmap.md). Step 1 (plain language, looks) is done; the requirement IDs below are unchanged.
+
+
 **Candidate package assembly:** a read-only catalog snapshot now resolves used managed PNGs, checks exact length/hash/signature and assembles bounded deterministic XML/assets/credits/manifest files in memory. Native verification, full licensing/privacy audit and user-facing export remain disabled. [Details](retrobat-export-plan.md#managed-asset-package-spike).
 
 
