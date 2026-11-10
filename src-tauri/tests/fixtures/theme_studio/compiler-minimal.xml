@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <theme>
   <formatVersion>7</formatVersion>
-  <view name="detailed">
+  <view name="detailed, video">
     <text name="rd_176ca52906b001daa816562988464d2af4e18590a85bc7090e28ad3faccb7f8c" extra="true">
       <pos>0.100000 0.200000</pos>
       <size>0.500000 0.100000</size>

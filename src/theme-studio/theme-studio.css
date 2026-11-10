@@ -95,3 +95,5 @@
 /* Adding pictures (ADR-110). */
 .theme-studio .ts-placement label, .theme-studio .ts-check { display: flex; align-items: flex-start; gap: .5rem; margin-bottom: .5rem; }
 .theme-studio .ts-placement input, .theme-studio .ts-check input { width: auto; margin-top: .25rem; }
+.theme-studio .ts-put-on { border-top: 1px solid var(--c-32465f); margin-top: .8rem; padding-top: .8rem; }
+.theme-studio .ts-put-on h4 { margin: 0 0 .4rem; }
