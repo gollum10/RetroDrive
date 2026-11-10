@@ -4,13 +4,13 @@
 // opt-in below. Setting controllers up on your systems comes next.
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Check, RefreshCw, Search } from 'lucide-react';
+import { Check, RefreshCw, Search, Wand2 } from 'lucide-react';
 import ControllerOutline from './ControllerOutline';
 import LightGuns from './LightGuns';
 
-type ControllerType = { id: string; name: string; layout: string; systems: string };
+export type ControllerType = { id: string; name: string; layout: string; systems: string };
 type Info = { vid: string; pid: string; name: string; also_known_as: string[]; controller_type: ControllerType|null; type_basis: string|null; sources: string; sdl_windows: boolean; retroarch_files: string[]; shares_usb_id: number; mixed_names: boolean };
-type Connected = { vid: string; pid: string; product: string|null; info: Info|null; xinput: boolean; suggested: ControllerType|null; suggested_by: string|null };
+export type Connected = { vid: string; pid: string; product: string|null; info: Info|null; xinput: boolean; suggested: ControllerType|null; suggested_by: string|null };
 const like = (t: ControllerType) => /^many/i.test(t.systems) ? 'works with many systems' : `like ${t.systems}`;
 type Reference = { types: ControllerType[]; sources: [string, string, string, string][]; controllers: number; notices: string };
 
@@ -24,7 +24,7 @@ function Facts({ info }: { info: Info }) {
 }
 
 // One connected controller: confirm the suggested style, or choose one from the list.
-function ConfirmCard({ c, types, onSaved, notify }: { c: Connected; types: ControllerType[]; onSaved: () => void; notify: (t: string, e?: boolean) => void }) {
+export function ConfirmCard({ c, types, onSaved, notify, setup = true }: { c: Connected; types: ControllerType[]; onSaved: () => void; notify: (t: string, e?: boolean) => void; /** Show step 2 (set it up) once confirmed. */ setup?: boolean }) {
   const confirmed = c.suggested_by === 'remembered';
   const [choosing, setChoosing] = useState(!c.suggested);
   const [pick, setPick] = useState(c.suggested?.id ?? '');
@@ -45,7 +45,7 @@ function ConfirmCard({ c, types, onSaved, notify }: { c: Connected; types: Contr
         {confirmed && !choosing ? <>
           <p><Check size={15}/> <b>{c.suggested!.name}</b>. {c.suggested!.layout}.</p>
           <p className="plan-notes">Suits {c.suggested!.systems}. <button className="link" onClick={() => { setPick(c.suggested!.id); setChoosing(true); }}>Change</button></p>
-          <SetupPanel c={c} notify={notify}/>
+          {setup && <SetupPanel c={c} notify={notify}/>}
         </> : !choosing && c.suggested ? <>
           <p>Does yours look like this? <b>{c.suggested.name}</b>: {c.suggested.layout}.</p>
           <p className="plan-notes">{why} Suits {c.suggested.systems}.</p>
@@ -74,7 +74,7 @@ const shortPath = (p: string) => p.split(/[\\/]/).filter(Boolean).slice(-2).join
 const MARK: Record<string, string> ={ ready: '✓', add: '＋', manual: '•', unavailable: '–' };
 
 // Step 2: where this controller stands on each installation, and one button to set it up.
-function SetupPanel({ c, notify }: { c: Connected; notify: (t: string, e?: boolean) => void }) {
+export function SetupPanel({ c, notify }: { c: Connected; notify: (t: string, e?: boolean) => void }) {
   const [targets, setTargets] = useState<SetupTarget[]|null>(null); const [problem, setProblem] = useState('');
   const [confirm, setConfirm] = useState(false); const [working, setWorking] = useState(false);
   const check = async () => { setProblem(''); setConfirm(false);
@@ -107,7 +107,7 @@ function LookupCard({ info }: { info: Info }) {
   </article>;
 }
 
-export default function Controllers({ notify, onShowGunGames }: { notify: (text: string, error?: boolean) => void; onShowGunGames: () => void }) {
+export default function Controllers({ notify, onShowGunGames, onWizard }: { notify: (text: string, error?: boolean) => void; onShowGunGames: () => void; /** Open the controller and light gun wizard (ADR-102). */ onWizard?: () => void }) {
   const [connected, setConnected] = useState<Connected[]|null>(null); const [looking, setLooking] = useState(false);
   const [showLookup, setShowLookup] = useState(false); const [query, setQuery] = useState(''); const [found, setFound] = useState<Info[]>([]);
   const [ref, setRef] = useState<Reference|null>(null); const [showTypes, setShowTypes] = useState(false); const [showNotices, setShowNotices] = useState(false);
@@ -117,7 +117,7 @@ export default function Controllers({ notify, onShowGunGames }: { notify: (text:
 
   return <section className="panel controllers">
     <div className="section-heading"><div><h2>Controllers</h2><p>Plug in your controller and RetroDrive works out what kind it is. Confirm it once and RetroDrive remembers it, then sets it up on your systems. Light guns have their own section below.</p></div>
-      <button className="ghost" disabled={looking} onClick={() => void detect()}><RefreshCw size={16}/> {looking ? 'Looking…' : 'Look again'}</button></div>
+      <div className="actions">{onWizard && <button className="ghost" onClick={onWizard} title="A step-by-step guide (optional)"><Wand2 size={16}/> Step by step</button>}<button className="ghost" disabled={looking} onClick={() => void detect()}><RefreshCw size={16}/> {looking ? 'Looking…' : 'Look again'}</button></div></div>
 
     {connected === null ? <p className="plan-notes">Looking for controllers…</p>
     : connected.length === 0 ? <p className="plan-notes">No game controllers found. Plug one in (USB, or pair it over Bluetooth), then choose <b>Look again</b>.</p>
