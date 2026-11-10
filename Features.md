@@ -1,5 +1,8 @@
 # RetroDrive — Features
 
+**AI helpers: connect (2026-11-10, ADR-119):** Settings → AI helpers. Connect your own Claude account (Claude Opus 5.5 by default, cheaper models selectable) or a free private AI on your PC or network. Your key stays in Windows Credential Manager; nothing is sent until you connect. Design help comes next.
+
+
 **Theme Studio clips (2026-11-10, ADR-117):** add your own looping MP4 clips anywhere, including as a moving background; they play in the editor and on RetroBat.
 
 

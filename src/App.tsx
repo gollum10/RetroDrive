@@ -15,6 +15,7 @@ import ControllerWizard from './ControllerWizard';
 import SetupWizard from './SetupWizard';
 import { LOOKS, applyLook, savedLook, type LookId } from './looks';
 import HealthPanel from './HealthPanel';
+import AiConnect from './AiConnect';
 import { fmtSize, localTime, shortPath } from './format';
 import { DecisionsLine, DecisionsPanel, type KeptOffChange } from './Decisions';
 
@@ -557,6 +558,7 @@ export default function App() {
     {page==='Theme Studio' && <ThemeStudio native={native} leaveGuard={studioLeave}/>}
     {page==='Settings' && native && <CatalogTools busy={busy} onChanged={()=>void load()} notify={(text,isError)=>{ setError(!!isError); setMessage(text); }}/>}
     {page==='Settings' && native && <BackupSettings notify={(text,isError)=>{ setError(!!isError); setMessage(text); }}/>}
+    {page==='Settings' && native && <AiConnect notify={(text,isError)=>{ setError(!!isError); setMessage(text); }}/>}
     {page==='Settings' && <section className="panel"><h2>Reference catalog</h2>
       <p>Import your own game catalog (.xlsx or .csv) to show proper titles, years, genres and publishers. RetroDrive matches games by their exact No-Intro or MAME name first, then by title on the same system. Only names and details are imported; <b>art columns are never read</b>. Your files are never changed, and removing the catalog leaves your library as it was.</p>
       {refStatus ? <div className="ref-status"><div><b>{refStatus.name}</b><small>{refStatus.file_name} · {refStatus.entries.toLocaleString()} entries{refStatus.genres_added?` · ${refStatus.genres_added.toLocaleString()} genres added`:''} · imported {sqlTime(refStatus.imported_at)}</small></div>

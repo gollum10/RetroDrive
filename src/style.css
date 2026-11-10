@@ -261,3 +261,11 @@ button.small{padding:4px 10px;font-size:12.5px}
 .wizard-systems{list-style:none;padding:0;margin:6px 0 12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px 16px}
 .wizard-systems small{color:var(--c-8ea3b9)}
 .wizard select{background:var(--c-101d2c);color:var(--c-e6f0fb);border:1px solid var(--c-2f4b69);border-radius:6px;padding:3px 6px}
+/* AI helpers (ADR-118) */
+.ai-connect .ai-card{border:1px solid var(--c-32465f);border-radius:10px;padding:14px 16px;margin:12px 0}
+.ai-connect .ai-card h3{display:flex;align-items:center;gap:10px;margin:0 0 8px}
+.ai-connect .ai-steps{padding-left:20px;margin:0 0 8px}
+.ai-connect .ai-steps li{margin:6px 0}
+.ai-connect .ai-paste{display:inline-flex;gap:8px;align-items:center;margin-left:6px}
+.ai-connect .ai-paste input,.ai-connect .ai-address{background:var(--c-0f1724);border:1px solid var(--c-32465f);border-radius:8px;color:inherit;padding:8px 10px;min-width:260px}
+.ai-connect .notice{margin:12px 0 0}

@@ -44,7 +44,8 @@ Measured 2026-11-09: **298 shipped dependencies**, 293 under permissive licenses
 | Orbitron, Antonio, Fredoka and Russo One fonts (`@fontsource/orbitron`, `@fontsource/antonio`, `@fontsource/fredoka`, `@fontsource/russo-one`, latin subsets; ADR-104, ADR-105) | 5.3.0 | OFL-1.1 | Bundled (frontend, unmodified) | Allowed for bundling with software; fonts not sold on their own | Ship the license text (in the notices) |
 | rusqlite / libsqlite3-sys | 0.32.1 / 0.30.1 | MIT | Bundled | Permissive | Notices |
 | SQLite (compiled in by `libsqlite3-sys` "bundled") | 3.x | Public domain | Bundled | Unrestricted | None required |
-| walkdir, sysinfo, serde, serde_json, uuid, windows-sys (features: storage, foundation, ToolHelp process list since 2026-11-06) | see CSV | MIT / Apache-2.0 / Unlicense | Bundled | Permissive | Notices |
+| walkdir, sysinfo, serde, serde_json, uuid, windows-sys (features: storage, foundation, ToolHelp process list since 2026-11-06, Credential Manager since 2026-11-10) | see CSV | MIT / Apache-2.0 / Unlicense | Bundled | Permissive | Notices |
+| `ureq` (HTTP client, AI helpers, ADR-119), `native-tls` and `schannel` (Windows' own TLS) | 2.12.x / 0.2.x | MIT OR Apache-2.0 (schannel: MIT) | Bundled (compiled in) | Permissive | Notices |
 | quick-xml (reads `gamelist.xml`; already shipped via calamine) | 0.42.0 | MIT | Bundled | Permissive | Notices |
 | calamine (reads the user's `.xlsx` catalog) | 0.38.0 | MIT | Bundled | Permissive | Notices |
 | zip (backups saved as and added from .zip, ADR-096; already shipped via calamine) | 9.4.0 | MIT | Bundled | Permissive | Notices |
