@@ -2,6 +2,8 @@
 
 **80s look (2026-11-10, ADR-123):** the Dashboard's Look switch gains *80s*: synthwave in the colours of RetroDrive's logo (purple-navy night, hot pink neon, cyan glow, sunset headings, a neon grid floor).
 
+**AI pictures (2026-11-10, ADR-122):** *Add picture* has *From a file* and *Make one with AI* (description, shape, service). The made picture is previewed with *Use as the background* and *Put it on the screen* right under it; credit and license are filled in.
+
 
 **Ask AI (2026-11-10, ADR-120):** *Ask AI…* in the Theme Studio toolbar opens a box beside the canvas: idea buttons, a request, a *what is sent* line (and *Show exactly* in Standard and Pro). The suggestion appears on the canvas at once with *Keep* and *Discard* right under its explanation; *What changed* and any left-out suggestions fold away below.
 

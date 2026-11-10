@@ -305,6 +305,11 @@ pub struct AiSettings {
     /// Other AI services (ADR-121): the chosen model for each connected service, and a custom address.
     pub service_models: std::collections::BTreeMap<String, String>,
     pub custom_url: Option<String>,
+    /// AI pictures (ADR-122): the OpenAI picture model, and a picture program on this PC or network.
+    pub picture_openai_model: Option<String>,
+    pub picture_url: Option<String>,
+    pub picture_kind: Option<String>,
+    pub picture_model: Option<String>,
 }
 
 pub fn settings_path(catalog: &Path) -> PathBuf {
