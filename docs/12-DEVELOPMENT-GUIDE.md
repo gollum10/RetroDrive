@@ -56,6 +56,16 @@ git push -u origin main
 ```
 Replace the placeholder with your real GitHub user/org. Do not commit provider API keys or local database files.
 
+## Releases (ADR-124)
+Installers are built by GitHub, never uploaded from a personal PC.
+
+1. Set the same version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` (then `cargo check` to refresh `Cargo.lock`), add the CHANGELOG entry, and merge to `main`.
+2. Tag that commit and push the tag: `git tag v0.1.0` then `git push origin v0.1.0`.
+3. The **Release** workflow checks the versions, runs the gates and tests, builds the installer (`.exe`) and the `.msi`, writes `SHA256SUMS.txt`, and creates a **draft pre-release** with the notes from `.github/release-notes.md`.
+4. Review the draft on GitHub (Releases), try the installer, then press **Publish release**. Until then nobody else can see it.
+
+Installers aren't code-signed yet, so Windows SmartScreen warns on first run; the release notes explain this and how to check the checksum.
+
 ## Branch and review conventions
 `main` remains stable; branches `feature/RDS-###-name`, `fix/RDS-###-name`. Small pull requests, one acceptance criterion set per change, include screenshots for screen changes and tests for storage changes.
 

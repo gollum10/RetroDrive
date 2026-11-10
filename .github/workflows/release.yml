@@ -1,0 +1,63 @@
+name: Release
+
+# Pushing a version tag (for example v0.1.0) builds the Windows installers on GitHub and
+# attaches them, with SHA-256 checksums, to a DRAFT pre-release. Drafts are not public:
+# the owner reviews the draft and presses Publish (ADR-124). Nothing is published here.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Tag matches the app version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}".TrimStart('v')
+          $npm = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $tauri = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $cargo = (Select-String -Path src-tauri/Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          "tag $tag | package.json $npm | tauri.conf.json $tauri | Cargo.toml $cargo"
+          if ($tag -ne $npm -or $tag -ne $tauri -or $tag -ne $cargo) { throw "The tag doesn't match the version in package.json, tauri.conf.json and Cargo.toml." }
+      - run: npm ci
+      - name: License gate (LEGAL-014)
+        run: python scripts/check-licenses.py
+      - name: Third-party notices up to date (LEGAL-009)
+        run: python scripts/third-party-notices.py --check
+      - name: App looks up to date (ADR-104)
+        run: npm run test:looks
+      - name: Theme Studio workspace lifecycle
+        run: npm run test:theme-workspace
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test --locked
+      - name: Build the installers
+        run: npx tauri build
+      - name: Checksums and a draft pre-release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart('v')
+          $out = New-Item -ItemType Directory -Force release-files
+          Copy-Item "src-tauri/target/release/bundle/nsis/*-setup.exe" $out
+          Copy-Item "src-tauri/target/release/bundle/msi/*.msi" $out
+          $sums = Get-ChildItem $out -File | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name }
+          Set-Content -Path "$out/SHA256SUMS.txt" -Value $sums -Encoding utf8NoBOM
+          $notes = (Get-Content .github/release-notes.md -Raw).Replace('{{VERSION}}', $version).Replace('{{CHECKSUMS}}', ($sums -join "`n"))
+          Set-Content -Path release-notes.md -Value $notes -Encoding utf8NoBOM
+          gh release create $tag (Get-ChildItem $out -File).FullName --draft --prerelease --title "RetroDrive $version (beta)" --notes-file release-notes.md
