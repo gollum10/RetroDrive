@@ -34,3 +34,7 @@ export { sampleText,setTextBinding,textBindingEditable,previewDatasets,textSourc
 export { textAlignment,setTextAlignment,textPosition } from '../../src/theme-studio/text-presentation';
 
 export { LEVELS, shows } from '../../src/theme-studio/skill';
+
+export { deleteNode } from '../../src/theme-studio/scene-edit';
+export { creditFor } from '../../src/theme-studio/image-assets';
+export { encodePictureFile } from '../../src/theme-studio/ImageImportForm';

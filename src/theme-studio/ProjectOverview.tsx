@@ -15,7 +15,7 @@ import LayerOrderControls from './LayerOrderControls';
 import AlignmentControls from './AlignmentControls';
 import { alignLayer } from './alignment';
 import { resizeLayer } from './resize';
-import { addNode, moveNode, updateNode, orderLayer, setLayerState, layerState } from './scene-edit';
+import { addNode, moveNode, updateNode, orderLayer, setLayerState, layerState, deleteNode, editableNode } from './scene-edit';
 import { LEVELS, savedLevel, saveLevel, shows, type Level, type Tool } from './skill';
 
 export default function ProjectOverview({ session, onClose, onCopy, onReload, blocked = false }: { session: ProjectSession; onClose: () => void; onCopy: (name: string) => void; onReload: () => void; blocked?: boolean }) {
@@ -39,6 +39,8 @@ export default function ProjectOverview({ session, onClose, onCopy, onReload, bl
   const sceneAssets=document.assets.filter(asset=>sceneAssetIds.has(asset.id));
   const previews=useImagePreviews(session.record.id,sceneAssets,session.record.revision);
   const nodeCount = document.scenes.reduce((count, scene) => count + scene.nodes.length, 0);
+  const removable = selected !== null && editableNode(scene, selected);
+  const remove = () => { if (!editorDisabled && selected && removable) { session.edit(deleteNode(session.document, scene.id, selected.id), 'Delete layer'); setSelectedId(null); } };
   const add = (kind: 'text' | 'panel') => { const next = addNode(session.document, scene.id, kind); if (next.id) { session.edit(next.project, `Add ${kind}`); setSelectedId(next.id); } };
   useEffect(() => {
     if (!session.dirty || session.error || session.busy) return;
@@ -48,7 +50,9 @@ export default function ProjectOverview({ session, onClose, onCopy, onReload, bl
   const status = session.error ? session.conflict ? 'Changed elsewhere: your edits are kept here' : "Couldn't save: your edits are kept here" : session.busy ? 'Saving…' : session.dirty ? 'Saving soon…' : session.record.draftJson ? 'Changes kept' : 'Saved';
   const metadata = (key: string, value: string) => session.edit({ ...document, metadata: { ...document.metadata, [key]: value } }, `Edit project ${key}`, `metadata:${key}`);
   return <section className="ts-editor" aria-label="Theme Studio editor" onKeyDown={event => {
-    if (editorDisabled || event.altKey || !(event.ctrlKey || event.metaKey) || (event.target as Element).closest('input, textarea, select, [contenteditable="true"]')) return;
+    if (editorDisabled || (event.target as Element).closest('input, textarea, select, [contenteditable="true"]')) return;
+    if (event.key === 'Delete' && !event.ctrlKey && !event.metaKey && !event.altKey && removable) { event.preventDefault(); remove(); return; }
+    if (event.altKey || !(event.ctrlKey || event.metaKey)) return;
     if (event.key.toLowerCase() === 'z') { event.preventDefault(); if (event.shiftKey) session.redo(); else session.undo(); }
     else if (event.key.toLowerCase() === 'y') { event.preventDefault(); session.redo(); }
   }}>
@@ -56,11 +60,11 @@ export default function ProjectOverview({ session, onClose, onCopy, onReload, bl
     {session.error != null && <div className="panel" role="alert"><p>{errorText(session.error)}</p>{!session.conflict && <button onClick={() => { void session.retry().catch(() => undefined); }}>Try saving again</button>}<p>Save a copy keeps your edits in a separate theme. Reload opens the last saved state instead.</p><button className="ghost" onClick={() => setConfirmReload(true)}>Reload the last saved state…</button></div>}
     {confirmReload && <div className="panel" role="alert"><p>Drop the edits you just made and reopen the last saved state? Save a copy first if you want to keep them.</p><button onClick={onReload}>Drop my edits and reload</button><button className="ghost" onClick={() => setConfirmReload(false)}>Keep editing</button></div>}
     {copyName !== null && <SaveCopyForm name={copyName} sourceName={document.metadata.name} busy={session.busy} onName={setCopyName} onCreate={onCopy} onCancel={() => { setCopyName(null); copyButton.current?.focus(); }} />}
-    {importScene && <ImageImportForm sceneName={document.scenes.find(scene=>scene.id===importScene)?.name??'scene'} onCancel={()=>setImportScene(null)} onImport={async(encoded,license,attribution)=>{await session.flush();const image=await importPng(session.record.id,encoded);if(!alive.current)return;const next=attachImage(session.document,importScene,image,license,attribution);session.edit(next.project,'Import image');setSelectedId(next.id);setImportScene(null);await session.flush();}}/>}
+    {importScene && <ImageImportForm sceneName={document.scenes.find(scene=>scene.id===importScene)?.name??'scene'} overName={removable && importScene === scene.id ? selected!.name : undefined} onCancel={()=>setImportScene(null)} onImport={async(encoded,license,attribution,options)=>{await session.flush();const image=await importPng(session.record.id,encoded);if(!alive.current)return;const next=attachImage(session.document,importScene,image,license,attribution,{ ...options, overId: selectedId });session.edit(next.project,options?.placement==='background'?'Add background picture':options?.placement==='over'?'Add frame':'Add picture');setSelectedId(next.id);setImportScene(null);await session.flush();}}/>}
     {previews.error && <p role="status">{previews.error} <button onClick={previews.retry}>Retry previews</button></p>}
     <div className="ts-levels" role="radiogroup" aria-label="Tools"><span>Tools</span>{LEVELS.map(l => <button key={l.id} type="button" role="radio" aria-checked={level === l.id} className={level === l.id ? 'on' : ''} title={l.hint} onClick={() => setLevel(l.id)}>{l.name}</button>)}<small>{LEVELS.find(l => l.id === level)?.hint}</small></div>
     <p className="ts-field-help">Your changes are kept automatically; <b>Save version</b> marks a point you can go back to. Made for: {document.targets.length ? document.targets.map(t => `${t.frontendFamily}${t.frontendVersion ? ` ${t.frontendVersion}` : ''}`).join(', ') : 'any system (choose later)'}.</p>
-    <div className="ts-toolbar ts-edit-actions"><button disabled={editorDisabled || nodeCount >= 10000} onClick={()=>setImportScene(scene.id)}>Add picture</button><button disabled={editorDisabled || !session.history.canUndo} title={session.history.undoLabel ?? 'Nothing to undo'} onClick={() => session.undo()}>Undo</button><button disabled={editorDisabled || !session.history.canRedo} onClick={() => session.redo()}>Redo</button><button disabled={editorDisabled || nodeCount >= 10_000} onClick={() => add('text')}>Add text</button>{can('panel') && <button disabled={editorDisabled || nodeCount >= 10_000} onClick={() => add('panel')}>Add panel</button>}</div>
+    <div className="ts-toolbar ts-edit-actions"><button disabled={editorDisabled || nodeCount >= 10000} onClick={()=>setImportScene(scene.id)}>Add picture</button><button disabled={editorDisabled || !session.history.canUndo} title={session.history.undoLabel ?? 'Nothing to undo'} onClick={() => session.undo()}>Undo</button><button disabled={editorDisabled || !session.history.canRedo} onClick={() => session.redo()}>Redo</button><button disabled={editorDisabled || !removable} title="Delete the selected layer (Delete key). Undo brings it back." onClick={remove}>Delete layer</button><button disabled={editorDisabled || nodeCount >= 10_000} onClick={() => add('text')}>Add text</button>{can('panel') && <button disabled={editorDisabled || nodeCount >= 10_000} onClick={() => add('panel')}>Add panel</button>}</div>
     <nav className="ts-screens" aria-label="Select screen"><span>Screens</span>{document.scenes.map(s => <button key={s.id} aria-pressed={scene.id === s.id} onClick={() => { setSceneId(s.id); setSelectedId(null); session.endEditGroup(); }}>{s.name}</button>)}</nav>
     <div className="ts-editor-grid">
       <aside className="panel ts-layers" aria-label="Layer list"><LayerList scene={scene} selected={selectedId} disabled={editorDisabled} onSelect={id => { setSelectedId(id); session.endEditGroup(); }} onState={(id,key,value) => session.edit(setLayerState(session.document,scene.id,id,key,value), `${value ? key === 'locked' ? 'Lock' : 'Hide' : key === 'locked' ? 'Unlock' : 'Show'} layer`)}/></aside>
