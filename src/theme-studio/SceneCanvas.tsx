@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import ImageLayer from './ImageLayer';
 import { safePngPreview } from './use-image-previews';
 import { snapPosition, snapSize, guides } from './snapping';
 import { resizeDelta } from './resize';
@@ -71,7 +72,7 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
         return <g key={node.id} data-node-id={node.id} transform={`translate(${x} ${y}) rotate(${node.layout.rotation})`} style={{ cursor: disabled || !editableNode(scene,node) ? 'default' : 'move' }}
           onPointerDown={event => { if (disabled || event.button !== 0) return; event.stopPropagation(); svg.current?.focus(); onSelect(node.id); if (!editableNode(scene,node)) return; const start = point(event.clientX, event.clientY); if (!start) return; drag.current = { id: node.id, pointerId: event.pointerId, x, y, startX: start.x, startY: start.y, mode: 'move', width, height, rotation: node.layout.rotation }; svg.current?.setPointerCapture(event.pointerId); }}>
           <title>{node.name}</title><rect width={width} height={height} fill={node.type === 'panel' ? previewColor(node.style.fill, '#263f60') : 'transparent'} opacity={opacity}/>
-          {node.type === 'image' && (safeImages[node.assets[0]] ? <image href={safeImages[node.assets[0]]} width={width} height={height} preserveAspectRatio="xMidYMid meet" opacity={opacity} pointerEvents="none"/> : <text x={4} y={20} fill="#abc0d9" fontSize={18} pointerEvents="none">Image unavailable</text>)}
+          {node.type === 'image' && (safeImages[node.assets[0]] ? <ImageLayer node={node} url={safeImages[node.assets[0]]} width={width} height={height} opacity={opacity}/> : <text x={4} y={20} fill="#abc0d9" fontSize={18} pointerEvents="none">Image unavailable</text>)}
           {node.type === 'text' && <svg width={width} height={height} overflow="hidden" pointerEvents="none"><text x={0} y={0} dominantBaseline="hanging" fontFamily="sans-serif" fontSize={fontSize} fill={previewColor(node.style.color, '#ffffff')} opacity={opacity}>{previewText(node).split('\n').slice(0, 20).map((line, index) => <tspan key={index} x={0} dy={index ? '1.2em' : 0}>{line || ' '}</tspan>)}</text></svg>}
         </g>;
       })}

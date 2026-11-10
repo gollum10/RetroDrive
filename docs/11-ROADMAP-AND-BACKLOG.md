@@ -1,5 +1,7 @@
 # 11 | Development Roadmap and Backlog
 
+**Image controls prepared:** Fit/Fill and percentage crop/reset, safe intrinsic dimensions and asset information, with browser pixel/source-history tests. Native smoke checks remain. Additional codecs, direct crop handles, asset management/cleanup, richer scenes and verified native export remain separate future increments.
+
 **PNG native QA follow-up:** owner confirmed duplicate imports visible, then found missing previews after reopen. Read-only QA inspection confirmed stored byte/hash/length/signature integrity. The real-hook StrictMode browser test reproduced zero images; request-sharing/state/retry fix is prepared. Reopen validation takes priority over new image tools.
 
 **PNG import workflow prepared:** catalog storage, picker/metadata form, image layers and authorized previews now integrate the merged codec boundary. Automated storage/migration and browser fixture checks pass; native IPC/save/reopen QA remains pending. JPEG/WebP/SVG, image management/garbage collection, portable packages and native export remain later increments.

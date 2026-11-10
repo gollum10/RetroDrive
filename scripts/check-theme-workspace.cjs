@@ -9,7 +9,7 @@ fs.mkdirSync(cache, { recursive: true });
 const output = fs.mkdtempSync(path.join(cache, 'theme-workspace-'));
 
 async function main() {
-  const files = ['tests/theme-studio/workspace.ts', 'tests/theme-studio/browser.tsx', 'tests/theme-studio/preview-reopen.tsx', 'src/App.tsx', 'src/ThemeStudio.tsx'];
+  const files = ['tests/theme-studio/workspace.ts', 'tests/theme-studio/browser.tsx', 'tests/theme-studio/preview-reopen.tsx', 'tests/theme-studio/image-controls.tsx', 'src/App.tsx', 'src/ThemeStudio.tsx'];
   const program = ts.createProgram(files.map(f => path.join(root, f)), {
     target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, strict: true,
     jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true, skipLibCheck: true,
@@ -21,7 +21,7 @@ async function main() {
   const errors = ts.getPreEmitDiagnostics(withAssets);
   assert.equal(errors.length, 0, ts.formatDiagnosticsWithColorAndContext(errors, { getCanonicalFileName: f => f, getCurrentDirectory: () => root, getNewLine: () => '\n' }));
   assert.equal(withAssets.emit().emitSkipped, false);
-  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor, canOrderLayers, orderLayer, transformNode, alignedNode, alignLayer, resizeDelta, resizeLayer, bounds, snapSize, snapPosition, guides, layerState, setLayerState, editableNode, attachImage, encodePngFile, safePngPreview } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor, canOrderLayers, orderLayer, transformNode, alignedNode, alignLayer, resizeDelta, resizeLayer, bounds, snapSize, snapPosition, guides, layerState, setLayerState, editableNode, attachImage, encodePngFile, safePngPreview, imagePresentation,setImageFit,setImageCrop,resetImageCrop,cropPixels } = require(path.join(output, 'tests/theme-studio/workspace.js'));
   assert.deepEqual(project.targets, []);
   assert.equal(project.scenes[0].resolution.width, 1080);
   assert.equal(project.scenes[0].resolution.height, 1920);
@@ -283,6 +283,39 @@ async function main() {
   const imageHistory=new EditHistory();imageHistory.record(project,attached.project,'Import image');
   assert.deepEqual(imageHistory.undo(attached.project),project);assert.deepEqual(imageHistory.redo(project),attached.project);
 
+  assert.deepEqual(imagePresentation(imageNode).crop,{x:0,y:0,width:100,height:100});
+  assert.equal(setImageFit(imageNode,'contain'),imageNode,'default fit is a no-op');
+  const filledImage=setImageFit(imageNode,'cover');assert.equal(filledImage.style.imageFit,'cover');
+  const cropImage=setImageCrop(filledImage,'x',50);
+  assert.deepEqual(imagePresentation(cropImage).crop,{x:50,y:0,width:50,height:100});
+  assert.equal(cropImage.layout,imageNode.layout);assert.equal(cropImage.assets,imageNode.assets);
+  assert.deepEqual(cropPixels(imagePresentation(cropImage).crop,640,360),{x:320,y:0,width:320,height:360});
+  for(const value of [NaN,Infinity,-1,100])assert.equal(setImageCrop(imageNode,'x',value),imageNode);
+  assert.equal(setImageCrop(cropImage,'width',60),cropImage,'crop cannot extend outside original image');
+  const tinyCrop=setImageCrop(imageNode,'x',99.9);assert.equal(imagePresentation(tinyCrop).crop.width,.1);
+  assert.deepEqual(imagePresentation(resetImageCrop(cropImage)).crop,{x:0,y:0,width:100,height:100});
+  assert.equal(resetImageCrop(imageNode),imageNode);
+  const opaqueCrop={...imageNode,style:{imageCrop:{future:'expression'},imageFit:{token:'future'}}};
+  assert.equal(setImageCrop(opaqueCrop,'x',10),opaqueCrop);assert.equal(setImageFit(opaqueCrop,'cover'),opaqueCrop);assert.equal(resetImageCrop(opaqueCrop),opaqueCrop);
+  const extraCrop={...cropImage,style:{...cropImage.style,imageCrop:{...imagePresentation(cropImage).crop,futureAnchor:'kept'}}};
+  assert.equal(setImageCrop(extraCrop,'y',10).style.imageCrop.futureAnchor,'kept');
+  assert.equal(resetImageCrop(extraCrop).style.imageCrop.futureAnchor,'kept');
+  const lockedCrop={...imageNode,editor:{locked:true}};assert.equal(setImageCrop(lockedCrop,'x',10),lockedCrop);assert.equal(setImageFit(lockedCrop,'cover'),lockedCrop);
+  const cropHistory=new EditHistory();cropHistory.record(imageNode,cropImage,'Crop');assert.deepEqual(cropHistory.undo(cropImage),imageNode);assert.deepEqual(cropHistory.redo(imageNode),cropImage);
+
+  const croppedProject=updateNode(attached.project,scene.id,attached.id,()=>cropImage);
+  let cropStored={...record(),savedJson:JSON.stringify(attached.project)};
+  const cropSession=new ProjectSession(cropStored,attached.project,async(id,revision,json,kind)=>{
+    assert.equal(revision,cropStored.revision);cropStored={...cropStored,revision:revision+1,savedJson:kind==='checkpoint'?json:cropStored.savedJson,draftJson:kind==='checkpoint'?null:json};return cropStored;
+  });
+  cropSession.edit(croppedProject,'Crop image');await cropSession.save();
+  const croppedCheckpoint=cropStored.savedJson;
+  assert.deepEqual(JSON.parse(croppedCheckpoint),croppedProject);
+  cropSession.undo();await cropSession.flush();assert.deepEqual(JSON.parse(cropStored.draftJson),attached.project);
+  assert.equal(cropStored.savedJson,croppedCheckpoint,'undo does not rewrite a checkpoint');
+  cropSession.redo();await cropSession.flush();assert.deepEqual(cropSession.document,croppedProject);
+  assert.deepEqual(new ProjectSession(cropStored,JSON.parse(croppedCheckpoint)).document,croppedProject);
+
   const history = new EditHistory();
   assert.ok(history.record(source, added.project, 'Add text'));
   assert.ok(history.record(added.project, moved, 'Move text', 'drag-1'));
@@ -521,7 +554,7 @@ async function main() {
     assert.equal(flagRequest,null);
     const imageCanvasProps={scene:attached.project.scenes[0],selected:attached.id,disabled:false,onSelect(){},onMove(){},onResize(){},onEndGroup(){}};
     const imageCanvas=render('theme-studio/SceneCanvas',{...imageCanvasProps,previewImages:{[imageNode.assets[0]]:'data:image/png;base64,iVBORw=='}});
-    assert.match(imageCanvas,/<image/);assert.match(imageCanvas,/xMidYMid meet/);
+    assert.match(imageCanvas,/Loading image/);
     const rejectedImage=render('theme-studio/SceneCanvas',{...imageCanvasProps,previewImages:{[imageNode.assets[0]]:'https://untrusted/image.png'}});
     assert.ok(!rejectedImage.includes('https://untrusted'));assert.match(rejectedImage,/Image unavailable/);
     const importForm=render('theme-studio/ImageImportForm',{sceneName:'Main',async onImport(){},onCancel(){}});

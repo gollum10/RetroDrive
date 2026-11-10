@@ -188,7 +188,40 @@ async function main() {
     await evaluate('window.previewService.forcedBusy=0;window.previewRetry()');
     await until(()=>evaluate('document.querySelectorAll("image").length===2'),'manual retry after busy exhaustion');
 
-    console.log('Theme browser: real pointer resize/default focus, preview, no-op, Escape, external blur, keyboard 850/650px workspace layout, rotated resize at 150% scale grid controls, snapped resize, Alt bypass, center guides/cancellation lock/hide/restore/edit-guard PNG form attachment/double-submit/preview/resize/hide-show saved-image StrictMode/reopen/busy retry/isolation/error recovery and disabled handle passed.');
+    await send('Page.navigate',{url:`http://127.0.0.1:${port}/tests/theme-studio/image-controls.html`});
+    await until(()=>evaluate('!!window.imageControlsTest && !!document.querySelector("image")'),'image sizing fixture');
+    const pixel=async(x,y)=>evaluate(`(async()=>{const svg=document.querySelector('[data-pixel-test]');const xml=new XMLSerializer().serializeToString(svg);const image=new Image();image.src='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(xml)));await image.decode();const canvas=document.createElement('canvas');canvas.width=400;canvas.height=400;const context=canvas.getContext('2d');context.drawImage(image,0,0);return [...context.getImageData(${x},${y},1,1).data];})()`);
+    const cropField=async(label,value)=>{await evaluate(`(()=>{const label=[...document.querySelectorAll('label')].find(label=>label.textContent.startsWith(${JSON.stringify(label)}));const input=label.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}));})()`);await frame();};
+    assert.equal((await pixel(200,20))[3],0,'Fit letterboxes the original wide image');
+    assert.deepEqual(await pixel(100,200),[255,0,0,255]);
+    await evaluate(`(()=>{const select=document.querySelector('[aria-label="Image controls"] select');select.value='cover';select.dispatchEvent(new Event('change',{bubbles:true}));})()`);await frame();
+    assert.equal((await pixel(200,20))[3],255,'Fill covers the layer');
+    await evaluate(`(()=>{const select=document.querySelector('[aria-label="Image controls"] select');select.value='contain';select.dispatchEvent(new Event('change',{bubbles:true}));})()`);await frame();
+    await cropField('Crop left','50');
+    assert.deepEqual(await pixel(20,200),[0,255,0,255],'crop selects right-hand green pixels');
+    await evaluate(`document.querySelector('[aria-label="Image controls"] button').click()`);await frame();
+    await cropField('Crop width','25');
+    assert.equal((await pixel(20,200))[3],0,'pixels outside crop cannot leak into Fit letterboxing');
+    assert.deepEqual(await pixel(200,200),[255,0,0,255]);
+    const sourceCrop=await evaluate('window.imageControlsTest.node.style.imageCrop');
+    const commitsCrop=await evaluate('window.imageControlsTest.commits');
+    await cropField('Crop width','0');
+    assert.deepEqual(await evaluate('window.imageControlsTest.node.style.imageCrop'),sourceCrop,'invalid crop does not edit source');
+    assert.equal(await evaluate('window.imageControlsTest.commits'),commitsCrop);
+    await evaluate('window.imageControlsTest.setDisabled(true)');await frame();
+    await evaluate(`document.querySelector('[aria-label="Image controls"] button').click()`);await frame();
+    assert.equal(await evaluate('window.imageControlsTest.commits'),commitsCrop,'disabled reset cannot modify crop');
+    await evaluate('window.imageControlsTest.setDisabled(false);window.imageControlsTest.reset()');await frame();
+    assert.equal((await pixel(200,20))[3],0);
+    assert.ok(await evaluate(`document.querySelector('[aria-label="Image controls"]').textContent.includes('Fixture creator')`));
+    await evaluate(`window.imageControlsTest.setNode({...window.imageControlsTest.node,editor:{locked:true}})`);await frame();
+    assert.equal(await evaluate(`document.querySelector('[aria-label="Image controls"] fieldset').disabled`),true,'locked image controls remain read-only');
+    await evaluate(`window.imageControlsTest.setNode({...window.imageControlsTest.node,editor:{locked:false},style:{imageFit:{future:true},imageCrop:{future:true}}})`);await frame();
+    assert.equal(await evaluate(`document.querySelector('[aria-label="Image controls"] select').disabled`),true);
+    assert.ok(await evaluate(`document.querySelector('[aria-label="Image controls"]').textContent.includes('Unsupported crop data')`));
+    assert.equal(await evaluate(`document.querySelector('[aria-label="Image controls"] button')===null`),true,'unknown crop cannot be reset/overwritten');
+
+    console.log('Theme browser: real pointer resize/default focus, preview, no-op, Escape, external blur, keyboard 850/650px workspace layout, rotated resize at 150% scale grid controls, snapped resize, Alt bypass, center guides/cancellation lock/hide/restore/edit-guard PNG form attachment/double-submit/preview/resize/hide-show saved-image StrictMode/reopen/busy retry/isolation/error recovery pixel-verified Fit/Fill/crop/letterbox clipping and asset controls passed.');
   } finally {
     if (socket && socket.readyState === WebSocket.OPEN) { socket.send(JSON.stringify({ id: 999999, method: 'Browser.close' })); await delay(500); socket.close(); }
     if (browser) { browser.kill(); await delay(500); }

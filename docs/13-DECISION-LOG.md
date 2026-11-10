@@ -1,5 +1,7 @@
 # 13 | Product Decisions and Open Questions
 
+**Image crop semantics:** crop selects original pixels before Fit/Fill using a top-left percentage rectangle, min 0.1% extent, inside the original. Editing left/top trims extent if needed; values round to six decimals. Fit shows the whole selected region, Fill covers the layer with excess clipped. Source pixels/hash/license data do not change; no native exporter support is implied.
+
 **Image preview lifecycle:** deduplicate concurrent effect requests by full project/asset/hash/length identity without weakening native saved-declaration authorization. Retry image_busy only (100/200/300ms delays, four attempts total); permanent errors remain visible and manual retry is available. Discard stale effects and cached data not represented by current declarations.
 
 **Theme image storage decision:** use normalized immutable catalog blobs rather than a new loose-file tree. This fits SQLite authoritative local state and eliminates new destination-path/link races. Portable source retains only assets/images/<hash>.png and metadata. Preview authorizes saved declarations; API has no filesystem-path parameter. Undo removes source attachment, retaining deduplicated bytes for recovery. Quotas bound retained content until separately reviewed cleanup exists.

@@ -1,5 +1,7 @@
 # Theme Studio delivery tracking
 
+**VIS-004 partial image presentation:** Fit/Fill, percentage crop/reset and asset metadata inspection now integrate with history and immutable PNG previews. Direct graphical crop handles, anchors/conditional visibility, advanced image effects, codecs and native compilation remain future work. Browser pixels pass; native acceptance remains pending.
+
 **MEDIA-001/VIS-003 partial PNG workflow:** static user PNG import, license/attribution, managed catalog bytes, image-layer authoring and verified previews are implemented for review. Byte limits/normalization remain as documented; native end-to-end QA is pending. More codecs, crop tools, full asset browser/cleanup, source packages and native export remain unimplemented.
 
 **MEDIA-001/NFR partial foundation:** a bounded PNG codec normalizes supplied bytes and creates a portable hash path. This does not implement user file import, asset library, image layers or preview serving. Managed storage and UI wiring follow next; native export remains disabled.
