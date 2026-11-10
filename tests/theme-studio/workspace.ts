@@ -28,3 +28,5 @@ export { encodePngFile } from '../../src/theme-studio/ImageImportForm';
 export { safePngPreview } from '../../src/theme-studio/use-image-previews';
 
 export { imagePresentation,setImageFit,setImageCrop,resetImageCrop,cropPixels } from '../../src/theme-studio/image-presentation';
+
+export { sampleText,setTextBinding,textBindingEditable,previewDatasets,textSources } from '../../src/theme-studio/sample-data';

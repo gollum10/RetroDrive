@@ -9,7 +9,7 @@ fs.mkdirSync(cache, { recursive: true });
 const output = fs.mkdtempSync(path.join(cache, 'theme-workspace-'));
 
 async function main() {
-  const files = ['tests/theme-studio/workspace.ts', 'tests/theme-studio/browser.tsx', 'tests/theme-studio/preview-reopen.tsx', 'tests/theme-studio/image-controls.tsx', 'src/App.tsx', 'src/ThemeStudio.tsx'];
+  const files = ['tests/theme-studio/workspace.ts', 'tests/theme-studio/browser.tsx', 'tests/theme-studio/preview-reopen.tsx', 'tests/theme-studio/image-controls.tsx', 'tests/theme-studio/sample-preview.tsx', 'src/App.tsx', 'src/ThemeStudio.tsx'];
   const program = ts.createProgram(files.map(f => path.join(root, f)), {
     target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, strict: true,
     jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true, skipLibCheck: true,
@@ -21,7 +21,7 @@ async function main() {
   const errors = ts.getPreEmitDiagnostics(withAssets);
   assert.equal(errors.length, 0, ts.formatDiagnosticsWithColorAndContext(errors, { getCanonicalFileName: f => f, getCurrentDirectory: () => root, getNewLine: () => '\n' }));
   assert.equal(withAssets.emit().emitSkipped, false);
-  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor, canOrderLayers, orderLayer, transformNode, alignedNode, alignLayer, resizeDelta, resizeLayer, bounds, snapSize, snapPosition, guides, layerState, setLayerState, editableNode, attachImage, encodePngFile, safePngPreview, imagePresentation,setImageFit,setImageCrop,resetImageCrop,cropPixels } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor, canOrderLayers, orderLayer, transformNode, alignedNode, alignLayer, resizeDelta, resizeLayer, bounds, snapSize, snapPosition, guides, layerState, setLayerState, editableNode, attachImage, encodePngFile, safePngPreview, imagePresentation,setImageFit,setImageCrop,resetImageCrop,cropPixels, sampleText,setTextBinding,textBindingEditable,previewDatasets,textSources } = require(path.join(output, 'tests/theme-studio/workspace.js'));
   assert.deepEqual(project.targets, []);
   assert.equal(project.scenes[0].resolution.width, 1080);
   assert.equal(project.scenes[0].resolution.height, 1920);
@@ -316,6 +316,44 @@ async function main() {
   cropSession.redo();await cropSession.flush();assert.deepEqual(cropSession.document,croppedProject);
   assert.deepEqual(new ProjectSession(cropStored,JSON.parse(croppedCheckpoint)).document,croppedProject);
 
+  const staticSample={...project.scenes[0].nodes[0],style:{text:'Kept static text'},bindings:{other:{source:'game.players',kind:'number'}}};
+  for(const option of textSources){
+    const bound=setTextBinding(staticSample,option.source);
+    assert.equal(bound.bindings.text.kind,option.kind);assert.equal(bound.bindings.text.source,option.source);
+    assert.deepEqual(bound.bindings.other,staticSample.bindings.other);assert.equal(bound.style,staticSample.style);
+    assert.notEqual(sampleText(bound,'sample'),`{${option.source}}`);
+    assert.equal(sampleText(bound,'placeholders'),`{${option.source}}`);
+    const restored=setTextBinding(bound,'');assert.equal(sampleText(restored,'long'),'Kept static text');assert.deepEqual(restored.bindings,staticSample.bindings);
+  }
+  const boundTitle=setTextBinding(staticSample,'game.title');
+  assert.equal(sampleText(boundTitle,'sample'),'Sample Adventure');
+  assert.ok(sampleText(boundTitle,'long').includes('??'));
+  assert.equal(sampleText(setTextBinding(staticSample,'game.year'),'missing'),'{game.year}');
+  assert.equal(sampleText(setTextBinding(staticSample,'game.rating'),'sample'),'0.85');
+  assert.equal(setTextBinding(staticSample,'eval(script)'),staticSample);
+  assert.equal(setTextBinding(boundTitle,'game.title'),boundTitle);
+  const futureBinding={...boundTitle,bindings:{...boundTitle.bindings,text:{...boundTitle.bindings.text,futureFormat:{keep:true}}}};
+  assert.deepEqual(setTextBinding(futureBinding,'game.year').bindings.text.futureFormat,{keep:true});
+  const imageText={...staticSample,bindings:{text:{source:'game.artwork',kind:'image'}}};
+  assert.equal(textBindingEditable(imageText),false);assert.equal(setTextBinding(imageText,'game.title'),imageText);assert.equal(sampleText(imageText,'sample'),'{game.artwork}');
+  assert.equal(setTextBinding({...staticSample,editor:{locked:true}},'game.title').bindings.text,undefined);
+  const sampleCheckpoint={...project,scenes:project.scenes.map((scene,index)=>index?scene:{...scene,nodes:[boundTitle]})};
+  const beforeSamples=JSON.stringify(sampleCheckpoint);
+  for(const dataset of previewDatasets)sampleText(boundTitle,dataset.id);
+  assert.equal(JSON.stringify(sampleCheckpoint),beforeSamples,'sample selection never mutates portable source');
+  assert.ok(!beforeSamples.includes('Sample Adventure'));
+  const bindingHistory=new EditHistory();bindingHistory.record(project,sampleCheckpoint,'Bind text');assert.deepEqual(bindingHistory.undo(sampleCheckpoint),project);assert.deepEqual(bindingHistory.redo(project),sampleCheckpoint);
+
+  let bindingStored={...record(),savedJson:JSON.stringify(project)};
+  const bindingSession=new ProjectSession(bindingStored,project,async(id,revision,json,kind)=>{
+    assert.equal(revision,bindingStored.revision);bindingStored={...bindingStored,revision:revision+1,savedJson:kind==='checkpoint'?json:bindingStored.savedJson,draftJson:kind==='checkpoint'?null:json};return bindingStored;
+  });
+  bindingSession.edit(sampleCheckpoint,'Change text binding');await bindingSession.save();
+  assert.deepEqual(JSON.parse(bindingStored.savedJson),sampleCheckpoint);
+  assert.ok(!bindingStored.savedJson.includes('Sample Adventure'));
+  bindingSession.undo();await bindingSession.flush();assert.deepEqual(JSON.parse(bindingStored.draftJson),project);
+  assert.deepEqual(new ProjectSession(bindingStored,JSON.parse(bindingStored.savedJson)).document,sampleCheckpoint);
+
   const history = new EditHistory();
   assert.ok(history.record(source, added.project, 'Add text'));
   assert.ok(history.record(added.project, moved, 'Move text', 'drag-1'));
@@ -559,6 +597,16 @@ async function main() {
     assert.ok(!rejectedImage.includes('https://untrusted'));assert.match(rejectedImage,/Image unavailable/);
     const importForm=render('theme-studio/ImageImportForm',{sceneName:'Main',async onImport(){},onCancel(){}});
     assert.match(importForm,/License/);assert.match(importForm,/Attribution/);assert.match(importForm,/Import and add image/);
+    let bindingEdit=null;
+    const bindingProps={node:staticSample,disabled:false,onChange(next){bindingEdit=next;},onEnd(){}};
+    const bindingControl=component('theme-studio/TextBindingControls')(bindingProps);
+    const bindingSelect=bindingControl.props.children.find(child=>child?.type==='label').props.children.find(child=>child?.type==='select');
+    bindingSelect.props.onChange({target:{value:'game.players'}});assert.equal(bindingEdit.bindings.text.kind,'number');
+    bindingEdit=null;
+    const blockedBinding=component('theme-studio/TextBindingControls')({...bindingProps,disabled:true});
+    blockedBinding.props.children.find(child=>child?.type==='label').props.children.find(child=>child?.type==='select').props.onChange({target:{value:'game.title'}});
+    assert.equal(bindingEdit,null);
+    assert.match(render('theme-studio/TextBindingControls',{...bindingProps,node:imageText}),/Unsupported binding/);
     const browser = render('theme-studio/ProjectBrowser', { projects: [], busy: false, offset: 0, onNew() {}, onOpen() {}, onDuplicate() {}, onPage() {}, onRefresh() {} });
     assert.match(browser, /No projects yet/);
     let submitted = null; let cancelled = false;

@@ -221,7 +221,30 @@ async function main() {
     assert.ok(await evaluate(`document.querySelector('[aria-label="Image controls"]').textContent.includes('Unsupported crop data')`));
     assert.equal(await evaluate(`document.querySelector('[aria-label="Image controls"] button')===null`),true,'unknown crop cannot be reset/overwritten');
 
-    console.log('Theme browser: real pointer resize/default focus, preview, no-op, Escape, external blur, keyboard 850/650px workspace layout, rotated resize at 150% scale grid controls, snapped resize, Alt bypass, center guides/cancellation lock/hide/restore/edit-guard PNG form attachment/double-submit/preview/resize/hide-show saved-image StrictMode/reopen/busy retry/isolation/error recovery pixel-verified Fit/Fill/crop/letterbox clipping and asset controls passed.');
+    await send('Page.navigate',{url:`http://127.0.0.1:${port}/tests/theme-studio/sample-preview.html`});
+    await until(()=>evaluate('!!window.samplePreview'),'sample binding fixture');await frame();
+    const sampleCaption=()=>evaluate('document.querySelector("[data-node-id] text").textContent');
+    const choose=async(label,value)=>{await evaluate(`(()=>{const select=[...document.querySelectorAll('label')].find(label=>label.textContent.startsWith(${JSON.stringify(label)})).querySelector('select');select.value=${JSON.stringify(value)};select.dispatchEvent(new Event('change',{bubbles:true}));})()`);await frame();};
+    const unchangedSource=await evaluate('window.samplePreview.source');
+    assert.equal(await sampleCaption(),'Sample Adventure');
+    await choose('Preview data','long');assert.ok((await sampleCaption()).includes('??'));
+    await choose('Preview data','placeholders');assert.equal(await sampleCaption(),'{game.title}');
+    assert.equal(await evaluate('window.samplePreview.source'),unchangedSource,'preview-only choices never modify saved document');
+    assert.equal(await evaluate('window.samplePreview.commits'),0);
+    await choose('Text content source','game.year');
+    assert.equal(await evaluate('window.samplePreview.node.bindings.text.kind'),'number');
+    await choose('Preview data','sample');assert.equal(await sampleCaption(),'1994');
+    await choose('Preview data','missing');assert.equal(await sampleCaption(),'{game.year}');
+    assert.equal(await evaluate('window.samplePreview.commits'),1,'sample switching creates no extra source edits');
+    await choose('Text content source','');assert.equal(await sampleCaption(),'Game List');
+    await evaluate(`(()=>{const text=document.querySelector('textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(text,'Original static caption');text.dispatchEvent(new Event('input',{bubbles:true}));})()`);await frame();
+    await choose('Text content source','game.title');await choose('Preview data','sample');assert.equal(await sampleCaption(),'Sample Adventure');
+    await choose('Text content source','');assert.equal(await sampleCaption(),'Original static caption','static content survives binding edits');
+    await choose('Text content source','game.description');
+    assert.equal(await evaluate('document.querySelectorAll("[data-node-id] text tspan").length'),2,'multiline description uses literal text');
+    const portableSource=await evaluate('window.samplePreview.source');
+    assert.ok(!portableSource.includes('Sample Adventure')&&!portableSource.includes('colorful world'),'synthetic samples never enter portable project JSON');
+    console.log('Theme browser: real pointer resize/default focus, preview, no-op, Escape, external blur, keyboard 850/650px workspace layout, rotated resize at 150% scale grid controls, snapped resize, Alt bypass, center guides/cancellation lock/hide/restore/edit-guard PNG form attachment/double-submit/preview/resize/hide-show saved-image StrictMode/reopen/busy retry/isolation/error recovery pixel-verified Fit/Fill/crop/letterbox clipping sample dataset/binding/source-preservation and asset controls passed.');
   } finally {
     if (socket && socket.readyState === WebSocket.OPEN) { socket.send(JSON.stringify({ id: 999999, method: 'Browser.close' })); await delay(500); socket.close(); }
     if (browser) { browser.kill(); await delay(500); }

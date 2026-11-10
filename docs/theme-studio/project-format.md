@@ -1,5 +1,7 @@
 # Universal theme source contract v1
 
+**Typed text binding authoring:** Text content source edits bindings.text with existing source/kind pairs: game.title/game.description/system.name are text; game.year/game.players/game.rating are number. No expression syntax or new format fields are introduced. Static text is retained while bound; explicit unbinding removes only the text slot. Synthetic datasets are not serialized.
+
 **Image style fields:** optional imageFit is contain or cover; optional imageCrop has x/y/width/height percentages, with x/y nonnegative, width/height at least 0.1, and extents within 100%. Missing crop means full image. Unknown fit/crop expressions remain read-only, extra crop properties survive edits/reset. These are additive style-map fields in v1.0.0; asset content hashes and catalog schema stay unchanged.
 
 **PNG attachment:** declarations keep the existing content-addressed PNG path and byte/hash/MIME/license/attribution fields, with portable provenance text only. Image nodes reference one declared asset ID. Local BLOB storage is not embedded in JSON; future package export must supply those bytes. Duplicate imports reuse existing project metadata and create independent image nodes. No source-format version change.

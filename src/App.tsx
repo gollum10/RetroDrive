@@ -11,6 +11,7 @@ import Controllers from './Controllers';
 import SystemBackup, { BACKUP_ADAPTERS } from './SystemBackup';
 import BackupSettings from './BackupSettings';
 import CatalogTools from './CatalogTools';
+import ControllerWizard from './ControllerWizard';
 import SetupWizard from './SetupWizard';
 import HealthPanel from './HealthPanel';
 import { fmtSize, localTime, shortPath } from './format';
@@ -222,7 +223,7 @@ export default function App() {
   // Setup wizard (ADR-100): optional. Offered once on first start when no system is set
   // up; after that only when the user clicks Set up a system.
   const WIZARD_OFFERED='rd.wizardOffered';
-  const [wizard,setWizard]=useState<{first?:boolean; task:string}|null>(null);
+  const [wizard,setWizard]=useState<{first?:boolean; task:string; collection?:string}|null>(null);
   useEffect(()=>{ if(!native||stats===null||adapters.length===0||installs.length>0||wizard) return; /* adapters and installs load together */ let offered=false; try { offered=localStorage.getItem(WIZARD_OFFERED)==='1'; localStorage.setItem(WIZARD_OFFERED,'1'); } catch { offered=true; } if(!offered) setWizard({first:true, task:'everything'}); },[stats,adapters,installs]);
   const wizardButton=<button className="ghost" disabled={!native} onClick={()=>setWizard(w=>w?.task==='everything'?null:{task:'everything'})} title="A step-by-step guide to setting up a system (optional)"><Wand2 size={17}/> Set up a system</button>;
   const addInstallation=async()=>{
@@ -378,7 +379,8 @@ export default function App() {
       <small className="scan-current" title={scan.progress?.current_path}>{scan.progress?.current_path||'Starting...'}</small></section>}
     {copyProgressView}
     {issues.length>0 && <details className="issues"><summary><AlertTriangle size={15}/> {issues.length} scan issue(s){issues.length>=200?' (first 200 shown)':''}</summary><ul>{issues.map((i,n)=><li key={n} className={'issue-'+i.severity}><b>{i.severity==='error'?'Error':'Warning'}:</b> <code>{i.path}</code> — {i.message}</li>)}</ul></details>}
-    {wizard && <SetupWizard key={wizard.task} task={wizard.task} firstRun={!!wizard.first} games={stats?.files??0} scanning={scan!==null} busy={busy} installs={installs}
+    {wizard?.task==='controllers' && <ControllerWizard systems={installs.length} onCopyCollection={id=>setWizard({task:'copy',collection:id})} onShowGunGames={()=>{ setWizard(null); showGunGames(); }} onClose={()=>setWizard(null)} notify={(text,isError=false)=>{ setError(isError); setMessage(text); }}/>}
+    {wizard && wizard.task!=='controllers' && <SetupWizard key={wizard.task+(wizard.collection??'')} task={wizard.task} collection={wizard.collection} firstRun={!!wizard.first} games={stats?.files??0} scanning={scan!==null} busy={busy} installs={installs}
       copy={{running:copy!==null, progress:copy?.progress??null, result:copyResult?.summary??null, error:copyResult?.error??null}}
       onScan={()=>void importFolder()} onAdded={load} onSetArcade={setArcade} onStartCopy={wizardCopy}
       onOpenPlan={id=>{ setWizard(null); setPage('Emulation Systems'); void openPlan(id); }} onHealthAction={(id,a)=>{ setWizard(null); healthAction(id,a); }} onInstallHelp={()=>{ setWizard(null); setPage('Emulation Systems'); setInstallHelp(true); }}
@@ -391,7 +393,7 @@ export default function App() {
         <button className="task" disabled={!native||installs.length===0} onClick={()=>setWizard({task:'copy'})}><RefreshCw size={18}/><b>Copy games to a system</b><small>{installs.length===0?'Add a system first':'Choose what to copy, then copy'}</small></button>
         <button className="task" disabled={!native} onClick={()=>setWizard({task:'bios'})}><ShieldCheck size={18}/><b>Check BIOS files</b><small>What your systems need, and what's missing</small></button>
         <button className="task" disabled={!native||installs.length===0} onClick={()=>setWizard({task:'backup'})}><HardDriveDownload size={18}/><b>Back up a system</b><small>{installs.length===0?'Add a system first':'Saves, settings and game lists'}</small></button>
-        <button className="task" disabled={!native} onClick={()=>setPage('Controllers')}><Joystick size={18}/><b>Controllers and light guns</b><small>Find and set up your controller or gun</small></button>
+        <button className="task" disabled={!native} onClick={()=>setWizard({task:'controllers'})}><Joystick size={18}/><b>Controllers and light guns</b><small>Find and set up your controller or gun</small></button>
       </div>
       <button className="subtle" onClick={()=>setPage('Game Library')}><LibraryBig size={18}/> Browse library</button>{(stats?.duplicate_files??0)>0&&<p className="dup-hint"><Copy size={15}/> {stats!.duplicate_files.toLocaleString()} files look like duplicate copies. <button className="link" onClick={reviewDuplicates}>Review them</button> or <button className="link" onClick={()=>void previewCleanup()}>clean them up</button> (nothing is deleted).</p>}</section><section className="panel"><h2>Platform roadmap</h2>{([['batocera','Batocera','Plan & copy games (drive or network)'],['retrobat','RetroBat','Recognize, plan & copy games'],['retropie','RetroPie','Plan & copy games (network or USB)'],['esde','ES-DE','Plan & copy games'],['recalbox','Recalbox','Plan & copy games (network or drive)'],['rocknix','ROCKNIX','Plan & copy games (network or SD card)'],['lakka','Lakka','Plan & copy games, playlists (network)']] as const).map(([id,name,what])=>{ const n=installs.filter(i=>i.adapter_id===id).length; return <div key={id} className="platform-row"><span>{name}</span><em>{n?`${n} installation${n>1?'s':''} · plan & copy games`:what}</em></div>; })}<div className="platform-row"><span>More systems</span><em>Future milestone</em></div></section></div>
     <section className="panel activity"><h2>Recent activity</h2>{jobs.length===0?<p>No scans or copies yet.</p>:jobs.map(j=><div className="platform-row" key={j.id}><span><b className={'job '+j.state}>{jobStateLabel[j.state]??j.state}</b> <span className="job-folder" title={j.input.folder}>{j.kind==='deployment'?'Copy to ':''}{j.input.folder??j.kind}</span></span><em>{j.progress?.indexed!=null?`${j.progress.indexed} files · `:''}{j.progress?.files_copied!=null?`${j.progress.files_copied} files copied · `:''}{j.error_message?j.error_message+' · ':''}{new Date(j.started_at.replace(' ','T')+'Z').toLocaleString()}</em></div>)}</section></>}
@@ -547,7 +549,7 @@ export default function App() {
       <div className="actions"><button className="ghost" onClick={()=>setCopyResult(null)}>Close</button></div>
     </section>}
     </>}
-    {page==='Controllers' && <Controllers onShowGunGames={showGunGames} notify={(text, isError=false)=>{ setError(isError); setMessage(text); }}/>}
+    {page==='Controllers' && <Controllers onShowGunGames={showGunGames} onWizard={()=>setWizard({task:'controllers'})} notify={(text, isError=false)=>{ setError(isError); setMessage(text); }}/>}
     {page==='Customize' && <Customize installs={installs} native={native} busy={busy} notify={(text, isError=false)=>{ setError(isError); setMessage(text); }}/>}
     {page==='Theme Studio' && <ThemeStudio native={native} leaveGuard={studioLeave}/>}
     {page==='Settings' && native && <CatalogTools busy={busy} onChanged={()=>void load()} notify={(text,isError)=>{ setError(!!isError); setMessage(text); }}/>}

@@ -43,8 +43,8 @@ const save = (k: string, v: string|null) => { try { if (v === null) localStorage
 const same = (a: string, b: string) => a.replace(/[\\/]+$/, '').toLowerCase() === b.replace(/[\\/]+$/, '').toLowerCase();
 const n = (x: number, one: string, many = `${one}s`) => `${x.toLocaleString()} ${x === 1 ? one : many}`;
 
-export default function SetupWizard({ task, firstRun, games, scanning, busy, installs, copy, onScan, onAdded, onSetArcade, onStartCopy, onOpenPlan, onHealthAction, onInstallHelp, onClose, notify }: {
-  task: string; firstRun: boolean; games: number; scanning: boolean; busy: boolean; installs: WizardInstall[]; copy: WizardCopy;
+export default function SetupWizard({ task, collection: startCollection, firstRun, games, scanning, busy, installs, copy, onScan, onAdded, onSetArcade, onStartCopy, onOpenPlan, onHealthAction, onInstallHelp, onClose, notify }: {
+  task: string; /** Copy games: start with this collection chosen. */ collection?: string; firstRun: boolean; games: number; scanning: boolean; busy: boolean; installs: WizardInstall[]; copy: WizardCopy;
   onScan: () => void; onAdded: () => Promise<void>; onSetArcade: (installationId: string, system: string) => Promise<void>;
   onStartCopy: (plan: DeploymentPlan, collectionId: string|null) => Promise<void>; onOpenPlan: (installationId: string) => void;
   /** A health-check link other than Back up (Sync, Plan, BIOS, backup folder). */ onHealthAction: (installationId: string, action: string) => void;
@@ -67,7 +67,7 @@ export default function SetupWizard({ task, firstRun, games, scanning, busy, ins
   const [plan, setPlan] = useState<DeploymentPlan|null>(null);
   const [planning, setPlanning] = useState(false);
   const [collections, setCollections] = useState<Collection[]>([]);
-  const [collection, setCollection] = useState('');
+  const [collection, setCollection] = useState(startCollection ?? '');
   const [confirm, setConfirm] = useState(false);
   // Only a copy started from this wizard is shown here.
   const [started, setStarted] = useState(false);
@@ -110,7 +110,7 @@ export default function SetupWizard({ task, firstRun, games, scanning, busy, ins
     setPlanning(true); setConfirm(false);
     try {
       const choices = await invoke('saved_choices', { installationId: chosen.id }).catch(() => ({}));
-      setPlan(await invoke<DeploymentPlan>('deployment_plan', { installationId: chosen.id, systems, choices, collectionId: collectionId || null }));
+      setPlan(await invoke<DeploymentPlan>('deployment_plan', { installationId: chosen.id, systems: collectionId ? null : systems, choices, collectionId: collectionId || null }));
     } catch (e) { notify(`Couldn't work out what to copy: ${String(e)}`, true); } finally { setPlanning(false); }
   };
   const selected = plan ? plan.systems.filter(x => x.selected).map(x => x.system_folder) : [];

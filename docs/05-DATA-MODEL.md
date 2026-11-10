@@ -1,5 +1,7 @@
 # 05 | Hybrid Library Data Model
 
+**Preview samples:** dataset selection and synthetic values remain transient canvas state. Only existing node.bindings.text source/kind are edited; other bindings, static style.text and binding extension fields survive source changes. Explicit Static text selection removes that text binding slot. No source or catalog schema migration.
+
 **Image fit/crop source:** existing node.style extension map stores imageFit (contain/cover) and imageCrop (x/y/width/height percentages). Defaults are contain/full region. Additional crop fields remain intact, unsupported shapes are read-only, and image bytes/asset hashes remain immutable. No catalog/source-schema migration.
 
 **Catalog v29:** additive theme_image_assets table stores hash primary key, normalized PNG BLOB, dimensions, byte count and imported_at. Existing migration backup/transaction/refusal rules apply. Images deduplicate across local projects, while license/attribution stay in each portable source declaration. No old design rows or target files change. Content limits: 256 MiB and 2,000 blobs; no automatic deletion or source-schema migration.
