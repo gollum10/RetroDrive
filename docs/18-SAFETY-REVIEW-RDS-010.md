@@ -710,3 +710,12 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 The existing same-second confirmation test used one newest timestamp across two source/destination pairs. If a slower runner created the pairs in different seconds, the older pair legitimately qualified for reuse and the assertion failed. The fixture now deliberately gives pairs different modified times and pins each deployment item's confirmation to its own pair's latest modified/created time. The staggered fixture reproduces the prior failure without sleeps. All same-second/later-confirmation/changed-content assertions remain in place.
 
 Only the disposable test fixture in copier.rs changes. Production confirmation checks, copying, no-replace publication, rollback/deletion rules and hazards H1-H14 are unchanged. The complete Rust suite and strict Clippy are required before pushing this test correction; no user catalog or target files are used.
+
+## 66. Addendum: "added from a .zip" note (2026-11-10)
+**Scope:** ADR-106. **Add a backup from a .zip** (§60) also writes one small text file, `added-from-zip.txt`, holding the zip's file name, so the backup list can tell an added backup from the original.
+
+| Risk | Mitigation | Evidence |
+|---|---|---|
+| Writing somewhere unexpected | Only inside the new backup folder RetroDrive just created (still named "(incomplete)"), before it is renamed; never in an existing folder, never on a system's drive | `a_backup_saved_as_zip_and_added_back_is_identical_and_the_original_is_untouched` |
+| Changing what a backup holds | The note isn't on the backup's list; `manifest.json` is written exactly as it was in the zip; check, restore and save as .zip use only the list | same test: a re-saved zip has no note; `only_listed_files_are_unpacked_and_only_to_places_a_backup_holds` |
+| A strange note shown in the app | Only the first line is read, at most 260 characters, shown as plain text | `system_backup::entry` |

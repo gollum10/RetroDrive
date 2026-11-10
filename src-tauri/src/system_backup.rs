@@ -50,6 +50,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub const MANIFEST: &str = "manifest.json";
+/// A note in a backup folder added from a .zip, holding the zip's file name (ADR-106).
+/// Not on the backup's list, so checking, restoring and saving as .zip ignore it.
+pub const ADDED_FROM: &str = "added-from-zip.txt";
 pub(crate) const INCOMPLETE: &str = " (incomplete)";
 /// Manifest format; restore refuses formats it doesn't know.
 pub(crate) const FORMAT: u32 = 1;
@@ -374,6 +377,8 @@ pub struct BackupEntry {
     pub groups: Vec<String>,
     pub complete: bool,
     pub problems: usize,
+    /// The .zip this backup was added from, if it was (ADR-106).
+    pub added_from: Option<String>,
 }
 
 /// The result of checking a backup against its manifest (reads only).
@@ -675,7 +680,7 @@ pub fn run(connection: &Connection, installation_id: &str, optional: &[String], 
     } else {
         working
     };
-    Ok(entry(&finished).unwrap_or_else(|| BackupEntry { folder: finished.display().to_string(), name, created_at: None, installation_id: None, system: None, location: None, files: 0, bytes: 0, groups: Vec::new(), complete: false, problems: 0 }))
+    Ok(entry(&finished).unwrap_or_else(|| BackupEntry { folder: finished.display().to_string(), name, created_at: None, installation_id: None, system: None, location: None, files: 0, bytes: 0, groups: Vec::new(), complete: false, problems: 0, added_from: None }))
 }
 
 pub(crate) fn read_manifest(folder: &Path) -> Option<Manifest> {
@@ -701,9 +706,17 @@ pub(crate) fn entry(folder: &Path) -> Option<BackupEntry> {
             groups: m.groups,
             complete: m.complete && m.format == FORMAT,
             problems: m.problems.len(),
+            added_from: added_from(folder),
         },
-        None => BackupEntry { folder: folder.display().to_string(), name, created_at: None, installation_id: None, system: None, location: None, files: 0, bytes: 0, groups: Vec::new(), complete: false, problems: 0 },
+        None => BackupEntry { folder: folder.display().to_string(), name, created_at: None, installation_id: None, system: None, location: None, files: 0, bytes: 0, groups: Vec::new(), complete: false, problems: 0, added_from: None },
     })
+}
+
+/// The zip name from a backup folder's [`ADDED_FROM`] note (first line, at most 260 characters).
+fn added_from(folder: &Path) -> Option<String> {
+    let text = fs::read_to_string(folder.join(ADDED_FROM)).ok()?;
+    let line: String = text.lines().next()?.trim().chars().take(260).collect();
+    (!line.is_empty()).then_some(line)
 }
 
 /// The backups in `destination`, newest first (reads only).

@@ -16,7 +16,7 @@ export const BACKUP_ADAPTERS = ['retrobat', 'esde', 'batocera', 'recalbox', 'ret
 
 type Group = { id: string; label: string; optional: boolean; files: number; bytes: number; note: string|null };
 type Preview = { system: string; location: string; groups: Group[]; destination: string; free_bytes: number|null; blocked: string|null };
-type Entry = { folder: string; name: string; created_at: string|null; installation_id: string|null; system: string|null; location: string|null; files: number; bytes: number; groups: string[]; complete: boolean; problems: number };
+type Entry = { folder: string; name: string; created_at: string|null; installation_id: string|null; system: string|null; location: string|null; files: number; bytes: number; groups: string[]; complete: boolean; problems: number; /** The .zip it was added from (ADR-106). */ added_from: string|null };
 type Check = { files: number; ok: number; missing: string[]; changed: string[] };
 type RGroup = { id: string; label: string; add: number; same: number; different: number; unavailable: number };
 type RPreview = { backup: string; created_at: string; system: string; from_location: string; target_location: string; same_system: boolean; groups: RGroup[]; add: number; same: number; different: number; unavailable: number; bytes_add: number; bytes_different: number; different_files: string[]; unavailable_note: string|null; system_note: string|null; blocked: string|null; fingerprint: string };
@@ -160,7 +160,7 @@ export default function SystemBackup({ installationId, sysName, disabled, notify
 
     {showList && <>
       <ul className="backup-list">{backups.map(b => <li key={b.folder}>
-        <b>{when(b.created_at)}</b> · {files(b.files)}, {fmtSize(b.bytes)}{b.installation_id !== installationId && b.location ? <span className="plan-notes"> · from {b.location}</span> : ''}{b.complete ? '' : <span className="warn-text"> · incomplete{b.problems ? ` (${b.problems} not copied)` : ''}</span>}
+        <b>{when(b.created_at)}</b> · {files(b.files)}, {fmtSize(b.bytes)}{b.installation_id !== installationId && b.location ? <span className="plan-notes"> · from {b.location}</span> : ''}{b.added_from && <span className="plan-notes" title={b.added_from}> · added from a .zip</span>}{b.complete ? '' : <span className="warn-text"> · incomplete{b.problems ? ` (${b.problems} not copied)` : ''}</span>}
         {' '}{b.complete && <><button className="link" disabled={working} onClick={() => startRestore(b)}>Restore…</button> · </>}<button className="link" onClick={() => openIt(b.folder)}>Open</button>{b.complete && <> · <button className="link" onClick={() => void check(b)}>Check</button> · <button className="link" disabled={working} onClick={() => void saveZip(b)}><FileArchive size={14}/> {zipping === b.folder ? busy('Saving') : 'Save as .zip'}</button></>}
         {checkText(checks[b.folder]) && <small className="plan-notes"> {checkText(checks[b.folder])}</small>}
       </li>)}</ul>
