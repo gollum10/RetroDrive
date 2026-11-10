@@ -91,3 +91,7 @@
 .theme-studio .ts-order legend, .theme-studio .ts-order p { grid-column: 1 / -1; }
 .theme-studio .ts-order button { padding: .4rem .3rem; }
 .theme-studio .ts-numbers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 .5rem; }
+
+/* Adding pictures (ADR-110). */
+.theme-studio .ts-placement label, .theme-studio .ts-check { display: flex; align-items: flex-start; gap: .5rem; margin-bottom: .5rem; }
+.theme-studio .ts-placement input, .theme-studio .ts-check input { width: auto; margin-top: .25rem; }

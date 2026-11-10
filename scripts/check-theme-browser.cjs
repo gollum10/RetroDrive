@@ -147,9 +147,9 @@ async function main() {
     const imageSizeBefore=(await evaluate('window.canvasTest.document.scenes[0].nodes.at(-1).layout')).width.value;
     const imageHandle=await handle();await mouse('mousePressed',imageHandle.x,imageHandle.y);await mouse('mouseMoved',imageHandle.x+20,imageHandle.y+10);await mouse('mouseReleased',imageHandle.x+20,imageHandle.y+10);await frame();
     assert.ok((await evaluate('window.canvasTest.document.scenes[0].nodes.at(-1).layout')).width.value>imageSizeBefore,'imported image resizes');
-    await evaluate(`document.querySelector('[aria-label="Hide Image"]').click()`);await frame();
+    await evaluate(`document.querySelector('[aria-label="Hide Picture"]').click()`);await frame();
     assert.equal(await evaluate('!!document.querySelector("image")'),false);
-    await evaluate(`document.querySelector('[aria-label="Show Image"]').click()`);await frame();
+    await evaluate(`document.querySelector('[aria-label="Show Picture"]').click()`);await frame();
     assert.equal(await evaluate('!!document.querySelector("image")'),true);
     await evaluate('window.canvasTest.setDisabled(true)'); await frame();
     assert.equal(await evaluate('!!document.querySelector("circle[role=button]")'), false);

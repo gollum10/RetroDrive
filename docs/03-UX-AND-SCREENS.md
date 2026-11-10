@@ -1,5 +1,8 @@
 # 03 | Information Architecture and UX Specification
 
+**Theme Studio pictures (2026-11-10, ADR-110):** *Add picture* takes PNG, JPG or WebP (very large ones are made smaller) and asks where to put it: on the screen, as the screen background, or over the selected layer as a frame. A *Made with an AI tool* tickbox adds that to the credit. *Delete layer* (or the Delete key) removes the selected layer; Undo brings it back.
+
+
 **Theme Studio layout (2026-11-10, ADR-109):** screens are tabs above the editor; the canvas, layers and properties are visible together (properties beside the canvas, scrolling on their own), so nothing needs a page scroll to change. Align and layer order appear once a layer is selected.
 
 

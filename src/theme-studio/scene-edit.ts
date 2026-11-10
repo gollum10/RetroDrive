@@ -76,6 +76,13 @@ export function addNode(project: ThemeProject, sceneId: string, kind: 'text' | '
     style: kind === 'text' ? { text: 'Your text', color: 'ffffff', fontSize: { value: 36, unit: 'px' } } : { fill: '263f60' }, children: [], assets: [], bindings: {} };
   return { project: { ...project, scenes: project.scenes.map(scene => scene.id === sceneId ? { ...scene, nodes: [...scene.nodes, node] } : scene) }, id };
 }
+/** Remove an editable (unlocked, shown, supported) layer; anything else is left as it is (ADR-110). */
+export function deleteNode(project: ThemeProject, sceneId: string, nodeId: string): ThemeProject {
+  const scene = project.scenes.find(s => s.id === sceneId);
+  const node = scene?.nodes.find(n => n.id === nodeId);
+  if (!scene || !node || !editableNode(scene, node)) return project;
+  return { ...project, scenes: project.scenes.map(s => s.id !== sceneId ? s : { ...s, nodes: s.nodes.filter(n => n.id !== nodeId) }) };
+}
 export function previewColor(value: unknown, fallback: string): string { return typeof value === 'string' && /^[0-9a-f]{6}([0-9a-f]{2})?$/i.test(value) ? `#${value}` : fallback; }
 export function previewText(node: ThemeNode): string {
   if (node.bindings.text) return `{${node.bindings.text.source}}`;
