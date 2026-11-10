@@ -1,6 +1,6 @@
 # Theme Studio AI: design help and AI-made pictures (plan, for owner approval)
 
-Status: **proposed** (ADR-118). No code yet. This is the first RetroDrive feature that can send anything off the user's PC, so it needs the owner's approval of this plan and a safety review before it is built.
+Status: **approved by the owner 2026-11-10** (ADR-118); see section 6. Not built yet. This is the first RetroDrive feature that can send anything off the user's PC, so each build step adds its safety review section first.
 
 Owner's words (2026-11-10): "It would be nice if the studio offered the ability to connect to a Frontier model or their own Private AI to assist with design." "I envision that the AI will be simple as signing into their account." "The other thing I would like it to do is add AI Generated pics."
 
@@ -55,7 +55,10 @@ If Anthropic adds a third-party sign-in for desktop apps later, it can replace s
 3. **Make a picture with AI:** image service and local picture server connect, the Make tab, choices, import with AI credit.
 4. **Polish:** suggestions from a picture ("colours from my background"), cost display, per-day limit settings.
 
-## 6. Decisions for the owner
+## 6. Owner decisions (2026-11-10)
+
+Answered: (1) **Guided Connect** with the user's own key; (2) **OpenAI image models plus a private picture server** first; (3) default model **Claude Opus 5.5** (`claude-opus-5-5`), a cheaper model selectable in settings; (4) **add one HTTP library**. The questions as asked:
+
 
 1. Approve the **guided connect with the user's own key** (section 2) as the way to "sign in"?
 2. First picture service: **OpenAI image models** plus a **private ComfyUI or Automatic1111/Forge** server? Others (Stability AI, Google) can follow.
