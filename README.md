@@ -9,7 +9,7 @@ Early Windows desktop application for managing a full retro gaming setup.
 ![RetroDrive logo](branding/retrodrive-logo-full.png)
 
 ## What works today
-Full, maintained list: **[Features.md](Features.md)**.
+Full, maintained list: **[FEATURES.md](FEATURES.md)**. What changed and when: **[CHANGELOG.md](CHANGELOG.md)**.
 - **Navigation:** Dashboard, Game Library, Drive Manager, Emulation Systems, Settings.
 - **Drives:** read-only detection of mounted volumes. Drives are recognized by volume ID even when Windows gives them a different letter, and **Known drives** lists every scanned drive, plugged in or not.
 - **Import:** scan an existing ROM folder in the background *without moving, modifying or deleting anything*. Shows live progress, can be cancelled, and the report lists ignored and unreadable files.
