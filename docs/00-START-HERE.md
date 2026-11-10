@@ -44,7 +44,7 @@
 | [18 Safety review: first disk writes](18-SAFETY-REVIEW-RDS-010.md) | Hazards, mitigations, tests, review findings and owner sign-off for the staged copier (RDS-010) |
 | [19 Light guns and light bars (research)](19-LIGHT-GUNS-RESEARCH.md) | What RetroBat and Batocera already do for light guns, facts RetroDrive can build on, and the step 3 proposal awaiting owner approval (RDS-028). Design only |
 
-**Feature status:** see [`../Features.md`](../Features.md) for what is shipped vs planned.
+**Feature status:** see [`../FEATURES.md`](../FEATURES.md) for what is ready vs planned, and [`../CHANGELOG.md`](../CHANGELOG.md) for what changed when.
 
 ## Where to start in VS Code
 
