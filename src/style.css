@@ -269,3 +269,4 @@ button.small{padding:4px 10px;font-size:12.5px}
 .ai-connect .ai-paste{display:inline-flex;gap:8px;align-items:center;margin-left:6px}
 .ai-connect .ai-paste input,.ai-connect .ai-address{background:var(--c-0f1724);border:1px solid var(--c-32465f);border-radius:8px;color:inherit;padding:8px 10px;min-width:260px}
 .ai-connect .notice{margin:12px 0 0}
+.ai-service-row{align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px}

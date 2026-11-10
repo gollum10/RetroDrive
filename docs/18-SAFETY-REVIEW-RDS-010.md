@@ -776,3 +776,14 @@ Only the disposable test fixture in copier.rs changes. Production confirmation c
 | Surprise costs | 50 requests a day, counted before sending; rough cost and requests left shown after each answer; Stop waiting says the request may still count | `the_daily_limit_counts_requests_and_resets_each_day` |
 | Sending without a connection or to the wrong place | Claude only with a stored key at the fixed Anthropic address; private only at the saved local or private-network address; redirects not followed | `nothing_is_sent_without_a_connection`; ADR-119 rules |
 | Hanging | 240 s (Claude) or 300 s (private) limit, off the interface thread; Stop waiting ignores a late answer | `ai_design::ask`; `AskAi` ticket |
+
+## 72. Addendum: other AI services (2026-11-10)
+**Scope:** ADR-121. RetroDrive can store keys for other online AI services and send Ask AI requests to them. Same data as §71; only `ai-settings.json` changes on disk.
+
+| Risk | Mitigation | Evidence |
+|---|---|---|
+| A key sent to the wrong host | Built-in services have fixed https addresses in code; a key is stored per service and only sent to that service's address; redirects are not followed | `other_services_use_fixed_addresses_and_custom_ones_must_be_internet_https` |
+| Custom address misuse | Pro only, with a warning that the key and screen go there; https, a real internet host, no user name, query, fragment or `..`; local addresses refused (Private AI covers them, without a key) | same test |
+| Keys in files or logs | Credential Manager only (`RetroDrive/ThemeStudio/Service/<id>`); settings hold the model and custom address; disconnect deletes the key | `services_status` test; checked in the app (nothing stored after a refused key) |
+| Model answers | Same schema and the same editor checks as §71; a plain-JSON retry is still checked the same way | §71 evidence |
+| Costs | Each company bills its own account; the card says prices and allowances are theirs; the 50-a-day limit covers every service | in-app text; `take_request` |

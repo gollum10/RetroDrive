@@ -122,6 +122,175 @@ impl KeyStore for CredentialManager {
     fn delete(&self) -> Result<(), String> { Ok(()) }
 }
 
+// ---------------------------------------------------------------- other AI services (ADR-121)
+
+/// A key for another AI service, kept in Credential Manager under its own name.
+pub struct ServiceKey(pub String);
+
+impl ServiceKey {
+    fn target(&self) -> String {
+        format!("RetroDrive/ThemeStudio/Service/{}", self.0)
+    }
+}
+
+impl KeyStore for ServiceKey {
+    #[cfg(windows)]
+    fn get(&self) -> Result<Option<String>, String> { credman::read(&self.target()) }
+    #[cfg(windows)]
+    fn set(&self, key: &str) -> Result<(), String> { credman::write(&self.target(), key) }
+    #[cfg(windows)]
+    fn delete(&self) -> Result<(), String> { credman::delete(&self.target()) }
+    #[cfg(not(windows))]
+    fn get(&self) -> Result<Option<String>, String> { Ok(None) }
+    #[cfg(not(windows))]
+    fn set(&self, _: &str) -> Result<(), String> { Err("Keys can only be stored on Windows.".into()) }
+    #[cfg(not(windows))]
+    fn delete(&self) -> Result<(), String> { Ok(()) }
+}
+
+/// An online AI service that speaks the OpenAI-style chat format. Addresses are fixed here,
+/// so a key only ever goes to the service it belongs to.
+pub struct Service {
+    pub id: &'static str,
+    pub name: &'static str,
+    /// The API address; `/models` and `/chat/completions` follow it.
+    pub base: &'static str,
+    /// Where the user signs in and creates a key.
+    pub keys_page: &'static str,
+    /// A request that needs a valid key (most services: the model list).
+    pub check: &'static str,
+}
+
+pub const SERVICES: &[Service] = &[
+    Service { id: "openai", name: "OpenAI (ChatGPT)", base: "https://api.openai.com/v1", keys_page: "https://platform.openai.com/api-keys", check: "/models" },
+    Service { id: "gemini", name: "Google Gemini", base: "https://generativelanguage.googleapis.com/v1beta/openai", keys_page: "https://aistudio.google.com/apikey", check: "/models" },
+    Service { id: "openrouter", name: "OpenRouter (many models)", base: "https://openrouter.ai/api/v1", keys_page: "https://openrouter.ai/settings/keys", check: "/key" },
+    Service { id: "mistral", name: "Mistral", base: "https://api.mistral.ai/v1", keys_page: "https://console.mistral.ai/api-keys", check: "/models" },
+    Service { id: "groq", name: "Groq", base: "https://api.groq.com/openai/v1", keys_page: "https://console.groq.com/keys", check: "/models" },
+    Service { id: "deepseek", name: "DeepSeek", base: "https://api.deepseek.com", keys_page: "https://platform.deepseek.com/api_keys", check: "/models" },
+    Service { id: "xai", name: "xAI (Grok)", base: "https://api.x.ai/v1", keys_page: "https://console.x.ai/", check: "/models" },
+    Service { id: "together", name: "Together AI", base: "https://api.together.xyz/v1", keys_page: "https://api.together.ai/settings/api-keys", check: "/models" },
+    Service { id: "fireworks", name: "Fireworks AI", base: "https://api.fireworks.ai/inference/v1", keys_page: "https://app.fireworks.ai/settings/users/api-keys", check: "/models" },
+];
+/// A service at an address the user types (Pro only in the app).
+pub const CUSTOM: &str = "custom";
+
+pub fn service(id: &str) -> Option<&'static Service> {
+    SERVICES.iter().find(|s| s.id == id)
+}
+
+/// A custom online service address: https only, a real internet host (local ones belong under
+/// Private AI), no user name, query or fragment. Returns it without a trailing slash.
+pub fn custom_url(text: &str) -> Result<String, String> {
+    let text = text.trim().trim_end_matches('/');
+    let rest = text.strip_prefix("https://").ok_or("Use an address that starts with https://.")?;
+    if text.len() > 200 || rest.contains('@') || rest.contains('?') || rest.contains('#') || rest.contains('\\') || rest.contains("..") {
+        return Err("That address isn't allowed.".into());
+    }
+    let (authority, path) = rest.split_once('/').unwrap_or((rest, ""));
+    if !path.chars().all(|c| c.is_ascii_alphanumeric() || "/._-".contains(c)) {
+        return Err("That address isn't allowed.".into());
+    }
+    let host = authority.rsplit_once(':').map(|(h, port)| if port.chars().all(|c| c.is_ascii_digit()) { h } else { authority }).unwrap_or(authority).to_ascii_lowercase();
+    if host.is_empty() || !host.contains('.') || !host.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-') {
+        return Err("Use the service's internet address, for example https://api.example.com/v1.".into());
+    }
+    if local_host(&host) {
+        return Err("That's on your own PC or network: connect it under Private AI instead.".into());
+    }
+    Ok(text.to_string())
+}
+
+/// The address and name for a service, known or custom.
+pub fn service_address(id: &str, settings: &AiSettings) -> Result<(String, String, &'static str), String> {
+    if id == CUSTOM {
+        let url = settings.custom_url.as_deref().ok_or("Add the custom address first.")?;
+        return Ok((custom_url(url)?, "Your custom service".into(), "/models"));
+    }
+    let s = service(id).ok_or("Unknown AI service.")?;
+    Ok((s.base.to_string(), s.name.to_string(), s.check))
+}
+
+/// What a service's HTTP status means, in plain words. Some services answer a bad key with 400.
+pub fn service_message(status: u16, name: &str) -> Result<(), String> {
+    match status {
+        200..=299 => Ok(()),
+        400 | 401 | 403 => Err(format!("{name} didn't accept that key. Copy it again from {name}.")),
+        402 => Err(format!("{name} says the account needs credit or a payment method.")),
+        404 => Err(format!("{name} couldn't find that. Check the address.")),
+        429 => Err(format!("{name} is busy or the account has reached a limit. Try again in a minute.")),
+        500..=599 => Err(format!("{name} isn't responding right now. Try again later.")),
+        other => Err(format!("{name} answered with an unexpected status ({other}).")),
+    }
+}
+
+/// A plausible key: printable, no spaces, sensible length (formats differ by service).
+pub fn service_key_looks_valid(key: &str) -> bool {
+    (16..=400).contains(&key.len()) && key.bytes().all(|b| b.is_ascii_graphic())
+}
+
+/// Read model ids from an OpenAI-style `/models` answer.
+pub fn model_ids(answer: &serde_json::Value) -> Vec<String> {
+    let mut ids: Vec<String> = answer
+        .get("data")
+        .and_then(|d| d.as_array())
+        .map(|items| items.iter().filter_map(|m| m.get("id").and_then(|i| i.as_str())).filter(|id| !id.is_empty() && id.len() <= 200).map(String::from).collect())
+        .unwrap_or_default();
+    ids.sort();
+    ids.dedup();
+    ids.truncate(1000);
+    ids
+}
+
+/// Check a key with the service and list the models it can use.
+pub fn service_models(base: &str, check: &str, name: &str, key: &str) -> Result<Vec<String>, String> {
+    if !service_key_looks_valid(key) {
+        return Err("That doesn't look like a key. Copy it again, without spaces.".into());
+    }
+    let agent = agent()?;
+    let call = |path: &str| agent.get(&format!("{base}{path}")).set("Authorization", &format!("Bearer {key}")).call().map_err(Box::new);
+    let unreachable = || format!("Couldn't reach {name}. Check the internet connection.");
+    if check != "/models" {
+        match call(check).map_err(|e| *e) {
+            Ok(_) => {}
+            Err(ureq::Error::Status(code, _)) => service_message(code, name)?,
+            Err(_) => return Err(unreachable()),
+        }
+    }
+    let answer: serde_json::Value = match call("/models").map_err(|e| *e) {
+        Ok(r) => r.into_json().map_err(|_| format!("{name} answered, but not like an AI service."))?,
+        Err(ureq::Error::Status(code, _)) => return Err(service_message(code, name).err().unwrap_or_default()),
+        Err(_) => return Err(unreachable()),
+    };
+    let ids = model_ids(&answer);
+    if ids.is_empty() {
+        return Err(format!("{name} has no models for that key."));
+    }
+    Ok(ids)
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ServiceStatus {
+    pub id: String,
+    pub name: String,
+    pub keys_page: Option<String>,
+    pub connected: bool,
+    pub model: Option<String>,
+    pub url: Option<String>,
+}
+
+/// Every offered service and whether it's connected (a stored key and a chosen model).
+pub fn services_status(settings: &AiSettings, key_for: &dyn Fn(&str) -> bool) -> Vec<ServiceStatus> {
+    let entry = |id: &str, name: &str, keys_page: Option<&str>, url: Option<String>| {
+        let model = settings.service_models.get(id).cloned();
+        ServiceStatus { id: id.into(), name: name.into(), keys_page: keys_page.map(String::from), connected: model.is_some() && key_for(id), model, url }
+    };
+    let mut list: Vec<ServiceStatus> = SERVICES.iter().map(|s| entry(s.id, s.name, Some(s.keys_page), None)).collect();
+    list.push(entry(CUSTOM, "Custom address", None, settings.custom_url.clone()));
+    list
+}
+
 // ---------------------------------------------------------------- settings file (no secrets)
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -133,6 +302,9 @@ pub struct AiSettings {
     /// Design requests today (ADR-120): the day (days since 1970, UTC) and how many so far.
     pub requests_day: Option<u64>,
     pub requests_today: u32,
+    /// Other AI services (ADR-121): the chosen model for each connected service, and a custom address.
+    pub service_models: std::collections::BTreeMap<String, String>,
+    pub custom_url: Option<String>,
 }
 
 pub fn settings_path(catalog: &Path) -> PathBuf {
@@ -268,15 +440,18 @@ pub struct AiStatus {
     pub claude_models: Vec<(String, String)>,
     pub private_url: Option<String>,
     pub private_model: Option<String>,
+    pub services: Vec<ServiceStatus>,
 }
 
 pub fn status(catalog: &Path, keys: &dyn KeyStore) -> Result<AiStatus, String> {
     let settings = load_settings(catalog);
+    let services = services_status(&settings, &|id| ServiceKey(id.to_string()).get().ok().flatten().is_some());
     Ok(AiStatus {
         claude_connected: keys.get()?.is_some(),
         claude_model: settings.claude_model.filter(|m| CLAUDE_MODELS.iter().any(|(id, _)| id == m)).unwrap_or_else(|| DEFAULT_CLAUDE_MODEL.into()),
         claude_models: CLAUDE_MODELS.iter().map(|(id, label)| (id.to_string(), label.to_string())).collect(),
         private_url: settings.private_url,
+        services,
         private_model: settings.private_model,
     })
 }
@@ -350,4 +525,40 @@ mod tests {
         credman::delete(target).unwrap();
         assert_eq!(credman::read(target).unwrap(), None);
     }
+
+    #[test]
+    fn other_services_use_fixed_addresses_and_custom_ones_must_be_internet_https() {
+        assert!(SERVICES.iter().all(|s| s.base.starts_with("https://") && s.keys_page.starts_with("https://") && !s.base.ends_with('/')));
+        let ids: std::collections::BTreeSet<_> = SERVICES.iter().map(|s| s.id).collect();
+        assert_eq!(ids.len(), SERVICES.len());
+        assert!(!ids.contains(CUSTOM));
+        assert_eq!(custom_url(" https://api.example.com/v1/ ").unwrap(), "https://api.example.com/v1");
+        for bad in ["http://api.example.com/v1", "https://localhost/v1", "https://192.168.1.5/v1", "https://box.local/v1", "https://user@api.example.com", "https://api.example.com/v1?x=1", "https://api.example.com/../x", "https://nodots/v1", "https://api.example.com/v 1"] {
+            assert!(custom_url(bad).is_err(), "{bad}");
+        }
+        let settings = AiSettings { custom_url: Some("https://api.example.com/v1".into()), ..Default::default() };
+        assert_eq!(service_address("custom", &settings).unwrap().0, "https://api.example.com/v1");
+        assert_eq!(service_address("openai", &settings).unwrap().0, "https://api.openai.com/v1");
+        assert!(service_address("evil", &settings).is_err());
+        assert!(service_address("custom", &AiSettings::default()).is_err());
+    }
+
+    #[test]
+    fn service_answers_are_explained_and_models_listed() {
+        assert!(service_message(200, "X").is_ok());
+        for bad_key in [400, 401, 403] {
+            assert!(service_message(bad_key, "Google Gemini").unwrap_err().contains("didn't accept that key"));
+        }
+        assert!(service_message(402, "X").unwrap_err().contains("credit"));
+        assert!(!service_key_looks_valid("short") && !service_key_looks_valid("has space in the key 123") && service_key_looks_valid("sk-proj-abcdefghijklmnop"));
+        let ids = model_ids(&serde_json::json!({ "data": [{ "id": "b" }, { "id": "a" }, { "id": "a" }, { "id": "" }, { "nope": 1 }] }));
+        assert_eq!(ids, ["a", "b"]);
+        assert!(model_ids(&serde_json::json!({ "error": "x" })).is_empty());
+        let settings = AiSettings { service_models: [("groq".to_string(), "llama".to_string()), ("openai".to_string(), "gpt".to_string())].into_iter().collect(), ..Default::default() };
+        let list = services_status(&settings, &|id| id == "groq");
+        assert!(list.iter().find(|s| s.id == "groq").unwrap().connected);
+        assert!(!list.iter().find(|s| s.id == "openai").unwrap().connected, "a model without a stored key isn't connected");
+        assert_eq!(list.last().unwrap().id, CUSTOM);
+    }
 }
+

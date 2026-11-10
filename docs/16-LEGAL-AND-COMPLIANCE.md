@@ -342,3 +342,5 @@ This is an engineering status record, not a legal conclusion.
 **Theme clips (2026-11-10, ADR-117):** clips are the user's own files, kept on their PC and copied into themes they save; their license and credit are recorded like pictures. RetroDrive ships no video.
 
 **AI helpers (2026-11-10, ADR-119):** the user brings their own Claude account (billed by Anthropic under their terms) or their own private model; RetroDrive ships no model and no key. New compiled-in components `ureq` and `native-tls` (MIT OR Apache-2.0) are listed in docs/17 and the notices.
+
+**Other AI services (2026-11-10, ADR-121):** users bring their own accounts with each company, under that company's terms and prices; RetroDrive ships no keys and no new components.

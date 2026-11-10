@@ -6,14 +6,22 @@ import type { ProjectSession } from './session';
 import type { Scene } from './types';
 import { applyEdits, describeScreen } from './ai-suggest';
 
-type Status = { claudeConnected: boolean; claudeModel: string; claudeModels: [string, string][]; privateUrl: string | null; privateModel: string | null };
+type Status = { claudeConnected: boolean; claudeModel: string; claudeModels: [string, string][]; privateUrl: string | null; privateModel: string | null; services: { id: string; name: string; connected: boolean; model: string | null }[] };
+/** Every connected AI, Claude first (ADR-121). */
+function choices(s: Status): [string, string][] {
+  return [
+    ...(s.claudeConnected ? [['claude', 'Claude'] as [string, string]] : []),
+    ...s.services.filter(v => v.connected).map(v => [`service:${v.id}`, `${v.name} (${v.model})`] as [string, string]),
+    ...(s.privateUrl ? [['private', `${s.privateModel} (private)`] as [string, string]] : []),
+  ];
+}
 type Answer = { explanation: string; edits: unknown[]; answeredBy: string; costUsd: number | null; requestsLeft: number };
 export const AI_LABEL = 'AI suggestion';
 const IDEAS = ['Choose a colour scheme', 'Make the text easier to read', 'Tidy up the layout', 'Give it an arcade feel'];
 
 export default function AskAi({ session, scene, showExactly, onReview, onClose }: { session: ProjectSession; scene: Scene; showExactly: boolean; onReview: (reviewing: boolean) => void; onClose: () => void }) {
   const [status, setStatus] = useState<Status | null>(null);
-  const [provider, setProvider] = useState<'claude' | 'private'>('claude');
+  const [provider, setProvider] = useState('claude');
   const [request, setRequest] = useState('');
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState('');
@@ -23,12 +31,13 @@ export default function AskAi({ session, scene, showExactly, onReview, onClose }
   const box = useRef<HTMLElement>(null);
   // Beside the canvas, so the suggestion and the screen are seen together.
   useEffect(() => { box.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }); }, []);
-  useEffect(() => { invoke<Status>('ai_status').then(s => { setStatus(s); if (!s.claudeConnected && s.privateUrl) setProvider('private'); }).catch(e => setError(String(e))); }, []);
+  useEffect(() => { invoke<Status>('ai_status').then(s => { setStatus(s); const first = choices(s)[0]; if (first) setProvider(first[0]); }).catch(e => setError(String(e))); }, []);
   useEffect(() => () => { ticket.current++; }, []);
   const reviewing = result !== null && result.done.length > 0;
   useEffect(() => { onReview(reviewing); }, [reviewing]);
 
-  const connected = !!status && (status.claudeConnected || !!status.privateUrl);
+  const options = status ? choices(status) : [];
+  const connected = options.length > 0;
   const layers = scene.nodes.length;
   const sent = `Sent: this screen's ${layers} layer${layers === 1 ? '' : 's'} (positions, sizes, colours and text) and what you type. Not sent: pictures, file names, your games or your settings.`;
 
@@ -51,9 +60,9 @@ export default function AskAi({ session, scene, showExactly, onReview, onClose }
   return <section ref={box} className="ts-ask-ai" aria-label="Ask AI">
     <h3>Ask AI for ideas</h3>
     {!status && !error && <p>Checking your AI helpers…</p>}
-    {status && !connected && <p>Connect Claude or your own private AI in <b>Settings → AI helpers</b> first. Nothing is sent anywhere until you do.</p>}
+    {status && !connected && <p>Connect Claude, another AI service or your own private AI in <b>Settings → AI helpers</b> first. Nothing is sent anywhere until you do.</p>}
     {connected && !reviewing && <>
-      {status!.claudeConnected && status!.privateUrl && <label>Ask <select value={provider} disabled={asking} onChange={e => setProvider(e.target.value as 'claude' | 'private')}><option value="claude">Claude</option><option value="private">{status!.privateModel} (private)</option></select></label>}
+      {options.length > 1 && <label>Ask <select value={provider} disabled={asking} onChange={e => setProvider(e.target.value)}>{options.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>}
       <div className="ts-ai-ideas">{IDEAS.map(idea => <button key={idea} type="button" disabled={asking} onClick={() => setRequest(idea)}>{idea}</button>)}</div>
       <textarea aria-label="What would you like?" maxLength={1000} rows={3} disabled={asking} placeholder={`What would you like for “${scene.name}”? For example: dark blue with gold text, and a bigger title.`} value={request} onChange={e => setRequest(e.target.value)}/>
       <p className="ts-field-help">{sent}{showExactly && <> <button type="button" className="link" onClick={() => { if (exact) setExact(null); else invoke<[string, string]>('ai_design_preview', { screen: describeScreen(scene), request }).then(setExact).catch(e => setError(String(e))); }}>{exact ? 'Hide' : 'Show exactly'}</button></>}</p>
