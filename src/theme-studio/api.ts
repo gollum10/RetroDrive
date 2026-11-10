@@ -34,3 +34,6 @@ export const discardProjectDraft = (id: string, revision: number) => invoke<Proj
 export type StoredImage = { sha256: string; path: string; bytes: number; width: number; height: number };
 export const importPng = (projectId: string, pngBase64: string) => invoke<StoredImage>('import_theme_png',{ projectId,pngBase64 });
 export const previewPng = (projectId: string,assetId: string) => invoke<string>('preview_theme_png',{ projectId,assetId });
+/** Your own clips (ADR-117): copy an MP4 the user chose into the clip store. */
+export type StoredVideo = { sha256: string; path: string; bytes: number };
+export const importVideo = (projectId: string, path: string) => invoke<StoredVideo>('import_theme_video', { projectId, path });

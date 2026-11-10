@@ -18,6 +18,7 @@ export type ExportPlan = { screens: ScreenPlan[]; notes: string[]; live: string[
 
 /** Is this layer one RetroBat draws itself (changes per game) on this screen? */
 export function liveLayer(scene: Scene, node: ThemeNode): boolean {
+  if (node.type === 'video' && !node.bindings.video && node.assets.length === 1) return true; // your own clip (ADR-117)
   if (scene.role === 'system_select') return node.type === 'system_carousel' || (node.type === 'text' && node.bindings.text?.source === 'system.games');
   if (scene.role !== 'game_list') return false;
   if (node.type === 'game_list') return true;
@@ -38,7 +39,7 @@ export function planExport(project: ThemeProject): ExportPlan {
     for (const node of scene.nodes) {
       if (layerState(node).hidden || node.children.length) continue;
       if (liveLayer(scene, node)) {
-        live.add(node.type === 'game_list' ? 'the game list' : node.type === 'video' ? 'the game video' : node.type === 'system_carousel' ? 'the system carousel' : `“${node.name}”`);
+        live.add(node.type === 'game_list' ? 'the game list' : node.type === 'video' ? (node.bindings.video ? 'the game video' : `your clip “${node.name}”`) : node.type === 'system_carousel' ? 'the system carousel' : `“${node.name}”`);
         groups.push({ kind: 'live', node });
         if (node.layout.rotation !== 0 || (typeof node.style.opacity === 'number' && node.style.opacity !== 1)) notes.push(`“${node.name}” is shown upright and solid in RetroBat (it can't turn or fade changing text, lists or videos).`);
         continue;
@@ -151,7 +152,8 @@ export function exportDocument(project: ThemeProject, plan: ExportPlan, baked: M
       if (group.kind === 'live') {
         const { node } = group;
         const style = Object.fromEntries(Object.entries(node.style).filter(([key]) => key !== 'opacity'));
-        nodes.push({ id: node.id, type: node.type, name: node.name, layout: { x: { ...node.layout.x }, y: { ...node.layout.y }, width: { ...node.layout.width }, height: { ...node.layout.height }, rotation: 0 }, style, children: [], assets: [], bindings: node.bindings });
+        for (const id of node.assets) { const declared = project.assets.find(a => a.id === id); if (declared && !assets.some(a => a.id === id)) assets.push({ ...declared }); }
+        nodes.push({ id: node.id, type: node.type, name: node.name, layout: { x: { ...node.layout.x }, y: { ...node.layout.y }, width: { ...node.layout.width }, height: { ...node.layout.height }, rotation: 0 }, style, children: [], assets: [...node.assets], bindings: node.bindings });
         return;
       }
       const picture = baked.get(group); if (!picture) return;

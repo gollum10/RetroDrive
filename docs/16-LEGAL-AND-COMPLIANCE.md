@@ -338,3 +338,5 @@ This is an engineering status record, not a legal conclusion.
 **Theme Studio pictures (2026-11-10, ADR-110):** users add their own pictures, including ones made with AI tools. RetroDrive ships no art; it converts the user's picture on their PC and keeps a copy in their own catalog. A "Made with an AI tool" tickbox adds that to the picture's credit, and the license help tells users to check the AI tool's terms (or the artist's license) before sharing a theme.
 
 **Saved RetroBat themes (2026-11-10, ADR-113):** a saved theme contains only the user's own design and pictures, drawn into new pictures by RetroDrive, plus `credits.json` listing the theme's author and license and each picture's credit and license (including "made with an AI tool"). RetroDrive adds no third-party art, fonts or theme code; the theme XML is generated from the user's design.
+
+**Theme clips (2026-11-10, ADR-117):** clips are the user's own files, kept on their PC and copied into themes they save; their license and credit are recorded like pictures. RetroDrive ships no video.

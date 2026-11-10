@@ -1,5 +1,8 @@
 # RetroDrive — Features
 
+**Theme Studio clips (2026-11-10, ADR-117):** add your own looping MP4 clips anywhere, including as a moving background; they play in the editor and on RetroBat.
+
+
 **Theme Studio: Put on RetroBat (2026-11-10, ADR-115):** after saving a theme, put it on your RetroBat and switch to it in one click (never replaces a theme; Undo in Customize). Game videos play in your design on RetroBat, including inside a cabinet frame.
 **Theme Studio System Select (2026-11-10, ADR-116):** style RetroBat's system carousel (band colour and see-through, name colour, direction, how many systems show) and place the number of games; checked on RetroBat.
 

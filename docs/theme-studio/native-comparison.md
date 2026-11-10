@@ -68,3 +68,7 @@ With the game list screen written as `<view name="detailed, video">` and a OneSa
 ## System Select check (2026-11-10, ADR-116)
 
 A Ready layout theme saved with the new System carousel layer (dark see-through band `0a0e1899`, white names, 3 systems) and a games count was copied to `themes\RetroDrive Carousel Test` and selected (settings backed up and restored byte for byte). RetroBat showed the dark band instead of its light default, white system names, and the games count in the design's colour without the grey bar. Log clean.
+
+## Clip check (2026-11-10, ADR-117)
+
+A OneSauce MP4 (read only) added as a clip on System Select, made to fill the screen behind the carousel, saved and copied to `themes\RetroDrive Clip Test` (settings backed up and restored byte for byte). RetroBat played the clip as a moving background (different frames five seconds apart) behind the see-through carousel band and text.

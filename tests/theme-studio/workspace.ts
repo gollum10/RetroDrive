@@ -42,3 +42,5 @@ export { encodePictureFile } from '../../src/theme-studio/ImageImportForm';
 export { GAME_VIDEO, supportedNode } from '../../src/theme-studio/scene-edit';
 
 export { planExport, exportDocument, liveLayer } from '../../src/theme-studio/export-retrobat';
+
+export { attachVideo, isClip, fillScreen } from '../../src/theme-studio/image-assets';

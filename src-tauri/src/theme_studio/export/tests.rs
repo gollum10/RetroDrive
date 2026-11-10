@@ -273,3 +273,26 @@ fn system_carousel_and_games_count_map_to_native_elements() {
     }
 }
 
+/// ADR-117: your own clip is an extra video with its path, on any screen.
+#[test]
+fn your_own_clip_is_an_extra_video_on_any_screen() {
+    let sha = "c".repeat(64);
+    let input = changed(|v| {
+        v["assets"] = json!([{"id": "clip-1", "path": format!("assets/video/{sha}.mp4"), "sha256": sha, "bytes": 1000, "mediaType": "video/mp4", "license": "own", "attribution": "Me", "source": "User clip"}]);
+        v["scenes"][0]["role"] = json!("system_select");
+        let mut clip = v["scenes"][0]["nodes"][0].clone();
+        clip["id"] = json!("clip-node");
+        clip["type"] = json!("video");
+        clip["style"] = json!({});
+        clip["assets"] = json!(["clip-1"]);
+        v["scenes"][0]["nodes"] = json!([clip]);
+    });
+    let candidate = compile_candidate(&input).unwrap();
+    assert!(candidate.xml.contains("extra=\"true\">") && candidate.xml.contains(&format!("<path>./assets/video/{sha}.mp4</path>")), "{}", candidate.xml);
+    assert!(candidate.xml.contains("<video name=\"rd_"), "{}", candidate.xml);
+    assert_eq!(candidate.required_assets.len(), 1);
+    assert_eq!(candidate.required_assets[0].path, format!("assets/video/{sha}.mp4"));
+    // A clip without its video, or pointing at a picture, is refused.
+    assert!(compile_candidate(&changed(|v| { v["scenes"][0]["nodes"][0]["type"] = json!("video"); v["scenes"][0]["nodes"][0]["style"] = json!({}); })).is_err());
+}
+

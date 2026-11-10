@@ -216,8 +216,10 @@ pub(crate) async fn save_theme_for_retrobat(
     folder: Option<String>,
 ) -> Result<super::export::save::SavedTheme, ProjectError> {
     let destination = theme_destination(&app, folder)?;
+    let catalog_path = catalog.path().map_err(|e| projects::error_message("catalog", &e))?;
     run(catalog, move |connection| {
-        let files = super::export::save::build(connection, &project_id, revision, &export_json, &baked)?;
+        let clips = |sha: &str| super::video_store::read(&catalog_path, sha);
+        let files = super::export::save::build(connection, &project_id, revision, &export_json, &baked, &clips)?;
         let name = super::validation::parse_project(&export_json)
             .map(|p| p.metadata.name)
             .unwrap_or_default();
@@ -239,5 +241,16 @@ pub(crate) fn open_saved_theme(folder: String) -> Result<(), ProjectError> {
         .spawn()
         .map(|_| ())
         .map_err(|e| projects::error_message("open", &format!("Couldn't open File Explorer: {e}")))
+}
+
+/// Your own clips (ADR-117): add an MP4 the user chose to the clip store (the file is only read).
+#[tauri::command]
+pub(crate) async fn import_theme_video(catalog: State<'_, Catalog>, project_id: String, path: String) -> Result<super::video_store::StoredVideo, ProjectError> {
+    let catalog_path = catalog.path().map_err(|e| projects::error_message("catalog", &e))?;
+    run(catalog, move |connection| {
+        projects::open(connection, &project_id)?;
+        super::video_store::import(&catalog_path, std::path::Path::new(&path)).map_err(|e| projects::error_message("clip", &e))
+    })
+    .await
 }
 
