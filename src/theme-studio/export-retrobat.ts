@@ -18,6 +18,7 @@ export type ExportPlan = { screens: ScreenPlan[]; notes: string[]; live: string[
 
 /** Is this layer one RetroBat draws itself (changes per game) on this screen? */
 export function liveLayer(scene: Scene, node: ThemeNode): boolean {
+  if (scene.role === 'system_select') return node.type === 'system_carousel' || (node.type === 'text' && node.bindings.text?.source === 'system.games');
   if (scene.role !== 'game_list') return false;
   if (node.type === 'game_list') return true;
   if (node.type === 'video') return node.bindings.video?.source === 'game.video';
@@ -37,12 +38,12 @@ export function planExport(project: ThemeProject): ExportPlan {
     for (const node of scene.nodes) {
       if (layerState(node).hidden || node.children.length) continue;
       if (liveLayer(scene, node)) {
-        live.add(node.type === 'game_list' ? 'the game list' : node.type === 'video' ? 'the game video' : `“${node.name}”`);
+        live.add(node.type === 'game_list' ? 'the game list' : node.type === 'video' ? 'the game video' : node.type === 'system_carousel' ? 'the system carousel' : `“${node.name}”`);
         groups.push({ kind: 'live', node });
         if (node.layout.rotation !== 0 || (typeof node.style.opacity === 'number' && node.style.opacity !== 1)) notes.push(`“${node.name}” is shown upright and solid in RetroBat (it can't turn or fade changing text, lists or videos).`);
         continue;
       }
-      if (node.bindings.text || node.bindings.video || node.type === 'video' || node.type === 'game_list') {
+      if (node.bindings.text || node.bindings.video || node.type === 'video' || node.type === 'game_list' || node.type === 'system_carousel') {
         notes.push(role === 'system_select'
           ? `“${node.name}” isn't included on System Select: RetroBat shows each system's name and logo itself.`
           : `“${node.name}” isn't included: RetroBat can't show that game detail there yet.`);
@@ -52,6 +53,7 @@ export function planExport(project: ThemeProject): ExportPlan {
       const last = groups[groups.length - 1];
       if (last?.kind === 'bake') last.nodes.push(node); else { groups.push({ kind: 'bake', nodes: [node] }); bakeCount++; }
     }
+    if (role === 'system_select' && !groups.some(g => g.kind === 'live' && g.node.type === 'system_carousel')) notes.push("Your System Select screen has no system carousel layer, so RetroBat's own light band is used. Add a System carousel layer to place and colour it.");
     if (role === 'game_list' && !groups.some(g => g.kind === 'live' && g.node.type === 'game_list')) notes.push("Your Game List screen has no game list layer, so RetroBat's list goes on the left with standard colours. Add a Game list layer to place and colour it yourself.");
 
     screens.push({ scene, groups });

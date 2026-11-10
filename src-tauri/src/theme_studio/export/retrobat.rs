@@ -145,6 +145,8 @@ pub fn compile_candidate(source: &str) -> Result<Candidate, Blocker> {
             return Err(fail("Duplicate target view."));
         }
         let mut names = BTreeSet::new();
+        // The colour of the system names, when the design places a carousel (ADR-116).
+        let mut carousel_names: Option<String> = None;
         xml.push_str(&format!("  <view name=\"{view}\">\n"));
         for (index, node) in scene.nodes.iter().enumerate() {
             // Editor flags are supported only when recognized; hide has no native semantics yet.
@@ -175,6 +177,17 @@ pub fn compile_candidate(source: &str) -> Result<Candidate, Blocker> {
             let mut kind = match node.node_type.as_str() {
                 "text" => "text",
                 "image" => "image",
+                "system_carousel" if view != "system" => {
+                    return Err(fail("The system carousel belongs on the System Select screen."))
+                }
+                "system_carousel" => {
+                    if !node.bindings.is_empty() {
+                        return Err(fail("A system carousel has no links."));
+                    }
+                    name = "systemcarousel".into();
+                    extra = false;
+                    "carousel"
+                }
                 "video" | "game_list" if view != "detailed" => {
                     return Err(fail("Game lists and game videos belong on the game list screen."))
                 }
@@ -218,6 +231,7 @@ pub fn compile_candidate(source: &str) -> Result<Candidate, Blocker> {
                     ("detailed", "game.players") => ("text", "md_players", "number"),
                     // Shown as RetroBat formats the release date (no year-only option in format 7).
                     ("detailed", "game.year") => ("datetime", "md_releasedate", "number"),
+                    ("system", "system.games") => ("text", "systemInfo", "text"),
                     ("detailed", _) => return Err(fail("Unsupported metadata source.")),
                     _ => return Err(fail("Unsupported binding context.")),
                 };
@@ -266,6 +280,7 @@ pub fn compile_candidate(source: &str) -> Result<Candidate, Blocker> {
             let allowed = match kind {
                 "text" | "datetime" => &["text", "color", "fontSize", "textAlign"][..],
                 "textlist" => &["color", "selectedColor", "selectorColor", "fontSize", "textAlign"][..],
+                "carousel" => &["fill", "color", "direction", "count"][..],
                 "video" => &[][..],
                 _ => &["imageFit"][..],
             };
@@ -337,6 +352,10 @@ pub fn compile_candidate(source: &str) -> Result<Candidate, Blocker> {
                 }
                 tag(&mut xml, "color", &colour("color", "ffffff")?)?;
                 tag(&mut xml, "alignment", alignment()?)?;
+                if name == "systemInfo" {
+                    // RetroBat draws a grey bar behind the games count by default (native check, ADR-116).
+                    tag(&mut xml, "backgroundColor", "00000000")?;
+                }
                 if kind == "text" {
                     tag(&mut xml, "verticalAlignment", "top")?;
                     tag(&mut xml, "lineSpacing", "1.2")?;
@@ -353,6 +372,25 @@ pub fn compile_candidate(source: &str) -> Result<Candidate, Blocker> {
                 tag(&mut xml, "selectorColor", &colour("selectorColor", "378cdd")?)?;
                 tag(&mut xml, "fontSize", &font_size()?)?;
                 tag(&mut xml, "alignment", alignment()?)?;
+            } else if kind == "carousel" {
+                if !node.assets.is_empty() {
+                    return Err(fail("A system carousel has no pictures."));
+                }
+                tag(&mut xml, "color", &colour("fill", "0a0e1899")?)?;
+                let direction = match node.style.get("direction") {
+                    Some(Value::String(v)) if v == "vertical" => "vertical",
+                    Some(Value::String(v)) if v == "horizontal" => "horizontal",
+                    None => "horizontal",
+                    _ => return Err(fail("Unknown carousel direction.")),
+                };
+                tag(&mut xml, "type", direction)?;
+                let count = match node.style.get("count") {
+                    Some(Value::Number(n)) => n.as_f64().filter(|c| c.fract() == 0.0 && (1.0..=9.0).contains(c)).ok_or_else(|| fail("Systems shown must be 1 to 9."))?,
+                    None => 3.0,
+                    _ => return Err(fail("Systems shown must be 1 to 9.")),
+                };
+                tag(&mut xml, "maxLogoCount", &format!("{count}"))?;
+                carousel_names = Some(colour("color", "ffffff")?);
             } else if kind == "video" {
                 if !node.assets.is_empty() {
                     return Err(fail("A game video has no pictures."));
@@ -382,6 +420,16 @@ pub fn compile_candidate(source: &str) -> Result<Candidate, Blocker> {
                 tag(&mut xml, "path", &format!("./{}", asset.path))?;
             }
             xml.push_str(&format!("    </{kind}>\n"));
+        }
+        if let Some(colour) = &carousel_names {
+            // System names in the carousel (when a system has no logo picture).
+            if !names.insert("logoText".into()) {
+                return Err(fail("Multiple layers map to the same native element."));
+            }
+            xml.push_str(&format!("    <text name=\"logoText\">\n      <color>{colour}</color>\n    </text>\n"));
+            if !names.contains("systemInfo") {
+                xml.push_str(&format!("    <text name=\"systemInfo\">\n      <color>{colour}</color>\n      <backgroundColor>00000000</backgroundColor>\n    </text>\n"));
+            }
         }
         if view == "detailed" && !names.contains("gamelist") {
             // Native check (2026-11-10): a detailed view that doesn't place the game list shows

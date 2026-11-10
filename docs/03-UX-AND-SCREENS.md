@@ -1,5 +1,8 @@
 # 03 | Information Architecture and UX Specification
 
+**Theme Studio System Select (2026-11-10, ADR-116):** on the System Select screen, *Add system carousel* places the band of systems (colour, see-through amount, name colour, across or up and down, how many show); text can show the *Number of games* of the selected system.
+
+
 **Theme Studio: Save for RetroBat (2026-11-10, ADR-113):** *Save for RetroBat…* in the editor shows what will be saved and anything RetroBat can't show, then saves the theme to a new folder in *Documents\RetroDrive Themes* (or one you choose), with *Open folder* afterwards.
 
 
