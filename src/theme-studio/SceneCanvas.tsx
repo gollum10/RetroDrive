@@ -45,10 +45,10 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
     return { id: current.id, ...(snapping && !bypass ? snapPosition(box,scene.resolution.width,scene.resolution.height,spacing,tolerance) : { x: box.x, y: box.y }) };
   };
   return <section className="panel ts-canvas" aria-label="Scene canvas"><div className="ts-toolbar"><h3>{scene.name}</h3><small>{scene.resolution.width} × {scene.resolution.height}</small></div>
-    <fieldset className="ts-canvas-tools" disabled={disabled || preview !== null}><legend>Canvas aids</legend><label>Preview data<select value={dataset} onChange={event=>setDataset(event.target.value)}><option value="placeholders">Binding placeholders</option>{previewDatasets.map(sample=><option key={sample.id} value={sample.id}>{sample.label}</option>)}</select></label>
+    <fieldset className="ts-canvas-tools" disabled={disabled || preview !== null}><legend className="ts-sr-only">Canvas aids</legend><label>Preview<select value={dataset} onChange={event=>setDataset(event.target.value)}><option value="placeholders">Show links, not samples</option>{previewDatasets.map(sample=><option key={sample.id} value={sample.id}>{sample.label}</option>)}</select></label>
       <label><input type="checkbox" checked={showGrid} onChange={event => setShowGrid(event.target.checked)}/>Show grid</label>
       <label><input type="checkbox" checked={snapping} onChange={event => setSnapping(event.target.checked)}/>Snap to grid and canvas</label>
-      <label>Grid spacing<select value={spacing} onChange={event => setSpacing(Number(event.target.value))}>{[8,16,32,64].map(value => <option key={value} value={value}>{value} px</option>)}</select></label>
+      <label>Grid<select value={spacing} onChange={event => setSpacing(Number(event.target.value))}>{[8,16,32,64].map(value => <option key={value} value={value}>{value} px</option>)}</select></label>
     </fieldset>
     <svg ref={svg} className="ts-canvas-svg" viewBox={`0 0 ${scene.resolution.width} ${scene.resolution.height}`} preserveAspectRatio="none" style={{ aspectRatio: `${scene.resolution.width} / ${scene.resolution.height}` }} tabIndex={0} role="group" aria-label="Editable scene canvas" aria-describedby="ts-canvas-help"
       onPointerDown={event => { if (event.target === event.currentTarget) onSelect(null); }}
@@ -102,8 +102,8 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
         return <g data-canvas-guides="true" pointerEvents="none" aria-hidden="true" stroke="#f4c96b" strokeWidth={1} strokeDasharray="6 4">{lines.x.map(x => <line key={`x${x}`} x1={x} x2={x} y1={0} y2={scene.resolution.height} vectorEffect="non-scaling-stroke"/>)}{lines.y.map(y => <line key={`y${y}`} x1={0} x2={scene.resolution.width} y1={y} y2={y} vectorEffect="non-scaling-stroke"/>)}</g>;
       })()}
     </svg>
-    <p className="ts-field-help">The preview uses made-up sample games, not your library. Grid and snapping help you line things up (hold Alt to place freely); the dashed lines mark the screen's edges and centre.</p>
-    <p id="ts-canvas-help" className="ts-field-help">Click a layer and drag it, or use the arrow keys (Shift moves 10 pixels). Drag the bottom-right corner to resize. Esc cancels. The finished theme may differ slightly on the system itself.</p>
+    <details className="ts-tips"><summary>Tips</summary><p className="ts-field-help">The preview uses made-up sample games, not your library. Grid and snapping help you line things up (hold Alt to place freely); the dashed lines mark the screen's edges and centre.</p>
+    <p id="ts-canvas-help" className="ts-field-help">Click a layer and drag it, or use the arrow keys (Shift moves 10 pixels). Drag the bottom-right corner to resize. Esc cancels. The finished theme may differ slightly on the system itself.</p></details>
     {visible.length < scene.nodes.length && <p>Some layers can't be shown in this editor yet. They're kept and not changed.</p>}
   </section>;
 }

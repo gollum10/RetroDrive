@@ -544,7 +544,7 @@ async function main() {
     assert.match(wizard, /Any system \(choose later\)/);
     assert.match(wizard, /You don&#x27;t need a system connected/);
     const editor = render('theme-studio/ProjectOverview', { session, onClose() {}, onCopy() {}, onReload() {} });
-    for (const region of ['Screens and layers', 'Scene canvas', 'Properties inspector']) assert.ok(editor.includes(region), region);
+    for (const region of ['Select screen', 'Layer list', 'Scene canvas', 'Properties inspector']) assert.ok(editor.includes(region), region);
     assert.ok(!editor.includes('ts-timeline'), 'the animation placeholder is Pro only (Standard by default)');
     assert.match(editor, /Changes kept|Saved|Saving/);
     assert.match(editor, /any system \(choose later\)/); assert.ok(!/unverified|checkpoint|Universal/.test(editor), 'plain wording');
@@ -571,7 +571,8 @@ async function main() {
     const orderButtons = orderControls.props.children.find(Array.isArray);
     orderButtons.find(button => button.props.children === 'Bring to front').props.onClick();
     assert.equal(orderRequest, 'front');
-    for (const overrides of [{ disabled: true }, { selected: null }, { scene: unknownLayered.scenes[0] }, { selected: originalOrder[2] }]) {
+    assert.equal(component('theme-studio/LayerOrderControls')({ ...orderProps, selected: null }), null, 'no order buttons without a selected layer');
+    for (const overrides of [{ disabled: true }, { scene: unknownLayered.scenes[0] }, { selected: originalOrder[2] }]) {
       orderRequest = null;
       const blockedControls = component('theme-studio/LayerOrderControls')({ ...orderProps, ...overrides });
       blockedControls.props.children.find(Array.isArray).find(button => button.props.children === 'Bring to front').props.onClick();
@@ -614,14 +615,15 @@ async function main() {
     let alignRequest = null;
     const alignProps = { scene: alignmentScene, node: alignmentNode, disabled: false, onAlign(action) { alignRequest = action; } };
     const alignmentControls = component('theme-studio/AlignmentControls')(alignProps);
-    alignmentControls.props.children.find(Array.isArray).find(button => button.props.children === 'Align left').props.onClick();
+    alignmentControls.props.children.find(Array.isArray).find(button => button.props['aria-label'] === 'Align left').props.onClick();
     assert.equal(alignRequest, 'left');
-    for (const overrides of [{ disabled: true }, { node: null }, { node: unknownAlign }, { node: alignedNode(alignmentScene, alignmentNode, 'left') }]) {
+    assert.equal(component('theme-studio/AlignmentControls')({ ...alignProps, node: null }), null, 'no align buttons without a selected layer');
+    for (const overrides of [{ disabled: true }, { node: unknownAlign }, { node: alignedNode(alignmentScene, alignmentNode, 'left') }]) {
       alignRequest = null;
-      component('theme-studio/AlignmentControls')({ ...alignProps, ...overrides }).props.children.find(Array.isArray).find(button => button.props.children === 'Align left').props.onClick();
+      component('theme-studio/AlignmentControls')({ ...alignProps, ...overrides }).props.children.find(Array.isArray).find(button => button.props['aria-label'] === 'Align left').props.onClick();
       assert.equal(alignRequest, null);
     }
-    assert.match(editor, /Align to canvas/);
+    assert.ok(!editor.includes('Align on the screen'), 'align buttons wait for a selected layer');
     const lockedCanvasProps = { scene: lockedProject.scenes[0], selected: added.id, disabled: false, onSelect() {}, onMove() {}, onResize() {}, onEndGroup() {} };
     assert.ok(!render('theme-studio/SceneCanvas',lockedCanvasProps).includes('aria-label="Resize Text"'));
     const hiddenCanvas = render('theme-studio/SceneCanvas',{ ...lockedCanvasProps,scene:hiddenProject.scenes[0] });
@@ -632,7 +634,7 @@ async function main() {
     const rows = layerList.props.children.find(child => child?.type === 'div').props.children;
     const row = rows.find(row => row.key === added.id);
     const toggles = row.props.children.find(child => child?.props?.className === 'ts-layer-toggles').props.children;
-    toggles.find(button => button.props.children === 'Show').props.onClick();
+    toggles.find(button => button.props.title === 'Show').props.onClick();
     assert.deepEqual(flagRequest,[added.id,'hidden',false]);
     assert.match(render('theme-studio/LayerList',listProps),/hidden/);
     flagRequest = null;
