@@ -15,6 +15,18 @@
       <lineSpacing>1.2</lineSpacing>
       <fontSize>0.050000</fontSize>
     </text>
+    <textlist name="gamelist">
+      <pos>0.040000 0.150000</pos>
+      <size>0.440000 0.780000</size>
+      <origin>0 0</origin>
+      <zIndex>50</zIndex>
+      <primaryColor>c8d0e0</primaryColor>
+      <secondaryColor>c8d0e0</secondaryColor>
+      <selectedColor>ffffff</selectedColor>
+      <selectorColor>378cdd</selectorColor>
+      <fontSize>0.029630</fontSize>
+      <alignment>left</alignment>
+    </textlist>
     <text name="logoText">
       <visible>false</visible>
     </text>

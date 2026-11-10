@@ -212,6 +212,10 @@ fn game_list_video_and_game_data_map_to_native_elements_and_unused_extras_are_hi
     assert!(!xml.contains("<datetime name=\"md_releasedate\">\n      <visible>false</visible>"));
     let mut reader = quick_xml::Reader::from_str(&xml);
     while reader.read_event().unwrap() != quick_xml::events::Event::Eof {}
+    assert_eq!(xml.matches("<textlist name=\"gamelist\">").count(), 1, "a placed game list isn't duplicated");
+    let plain = compile_candidate(SOURCE).unwrap().xml;
+    assert!(plain.contains("<textlist name=\"gamelist\">
+      <pos>0.040000 0.150000</pos>"), "a design without a game list still gets one (native check)");
 
     // Blocked instead of guessed.
     for bad in [

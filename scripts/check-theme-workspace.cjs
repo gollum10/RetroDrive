@@ -350,6 +350,9 @@ async function main() {
   assert.deepEqual(listPlan.map(g => g.kind), ['bake', 'live', 'bake', 'live', 'live', 'live', 'live'], JSON.stringify(listPlan.map(g => g.kind === 'live' ? g.node.name : g.nodes.map(n => n.name))));
   assert.deepEqual([listPlan[0].nodes.map(n => n.name), listPlan[2].nodes.map(n => n.name)], [['Background'], ['Game list area']], 'a live layer between static ones splits them, keeping the order');
   assert.ok(exportPlan.live.includes('the game list'));
+  assert.ok(!exportPlan.notes.some(n => /no game list layer/.test(n)), 'no note when a game list is placed');
+  const noList = JSON.parse(JSON.stringify(readyTheme)); const noListScene = noList.scenes.find(s => s.role === 'game_list'); noListScene.nodes = noListScene.nodes.filter(n => n.type !== 'game_list');
+  assert.ok(planExport(noList).notes.some(n => /no game list layer/.test(n) && /on the left/.test(n)), 'missing game list is explained');
   const turned = JSON.parse(JSON.stringify(readyTheme)); turned.scenes.find(s => s.role === 'game_list').nodes.find(n => n.name === 'Game title').layout.rotation = 10;
   assert.ok(planExport(turned).notes.some(n => /upright and solid/.test(n)));
   const listSceneReady = readyTheme.scenes.find(s => s.role === 'game_list');

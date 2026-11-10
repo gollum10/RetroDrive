@@ -52,6 +52,8 @@ export function planExport(project: ThemeProject): ExportPlan {
       const last = groups[groups.length - 1];
       if (last?.kind === 'bake') last.nodes.push(node); else { groups.push({ kind: 'bake', nodes: [node] }); bakeCount++; }
     }
+    if (role === 'game_list' && !groups.some(g => g.kind === 'live' && g.node.type === 'game_list')) notes.push("Your Game List screen has no game list layer, so RetroBat's list goes on the left with standard colours. Add a Game list layer to place and colour it yourself.");
+
     screens.push({ scene, groups });
   }
   return { screens, notes, live: [...live], bakeCount };
