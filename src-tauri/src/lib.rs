@@ -19,6 +19,7 @@ mod custom_collections;
 mod db;
 mod deployment;
 mod drives;
+mod find_systems;
 mod game_groups;
 mod gamelists;
 mod health;
@@ -1555,6 +1556,35 @@ async fn inspect_installation(folder: String) -> Result<installations::Inspectio
         .map_err(|e| e.to_string())?
 }
 
+/// The saved installations' folders (to mark systems the wizard finds as already added).
+fn saved_paths(db_path: &Path) -> Vec<String> {
+    db::open(db_path).and_then(|c| installations::list(&c, &volumes::presence)).map(|rows| rows.into_iter().map(|r| r.path).collect()).unwrap_or_default()
+}
+
+/// Setup wizard (ADR-100): emulation systems on the connected drives (reads only).
+#[tauri::command]
+async fn find_systems_on_drives(catalog: State<'_, Catalog>) -> Result<Vec<find_systems::Found>, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let roots: Vec<PathBuf> = drives::list().into_iter().map(|d| PathBuf::from(d.mount_point)).collect();
+        // An installed (not portable) ES-DE reads games from %USERPROFILE%\ROMs.
+        let extra: Vec<PathBuf> = std::env::var_os("USERPROFILE").map(|h| PathBuf::from(h).join("ROMs")).into_iter().collect();
+        find_systems::on_drives(&roots, &extra, &saved_paths(&db_path))
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Setup wizard: emulation systems answering on their usual network names (reads only;
+/// names that don't answer within 8 seconds are left out).
+#[tauri::command]
+async fn find_systems_on_network(catalog: State<'_, Catalog>) -> Result<Vec<find_systems::Found>, String> {
+    let db_path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || find_systems::on_network(find_systems::NETWORK_NAMES, &saved_paths(&db_path), std::time::Duration::from_secs(8)))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Save a recognized installation; refused if the adapter doesn't detect it.
 #[tauri::command]
 fn add_installation(catalog: State<'_, Catalog>, folder: String, adapter_id: String) -> Result<String, String> {
@@ -1855,6 +1885,8 @@ pub fn run() {
             inspect_installation,
             add_installation,
             list_installations,
+            find_systems_on_drives,
+            find_systems_on_network,
             remove_installation,
             deployment_plan,
             system_summary,
