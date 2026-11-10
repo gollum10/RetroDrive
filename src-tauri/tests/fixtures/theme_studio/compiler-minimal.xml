@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<theme>
+  <formatVersion>7</formatVersion>
+  <view name="detailed">
+    <text name="rd_176ca52906b001daa816562988464d2af4e18590a85bc7090e28ad3faccb7f8c" extra="true">
+      <pos>0.100000 0.200000</pos>
+      <size>0.500000 0.100000</size>
+      <origin>0 0</origin>
+      <zIndex>0</zIndex>
+      <text>Original &amp; &lt;test&gt; &quot;caption&quot;
+世界</text>
+      <color>abcdef</color>
+      <alignment>center</alignment>
+      <verticalAlignment>top</verticalAlignment>
+      <lineSpacing>1.2</lineSpacing>
+      <fontSize>0.050000</fontSize>
+    </text>
+  </view>
+</theme>

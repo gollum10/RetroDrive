@@ -1,5 +1,8 @@
 # 13 | Product Decisions and Open Questions
 
+**Experimental RetroBat compiler:** a pure in-memory candidate compiler now produces bounded XML and used-PNG declarations for a strict subset. It does not enable export, resolve asset bytes or write target files. See [scope and evidence](theme-studio/retrobat-export-plan.md#compiler-spike-implementation).
+
+
 **VIS-004 partial typography:** text layers now support left/center/right alignment within their existing rectangle, including sample-bound multiline captions. Unknown values stay preserved read-only; source edits use existing history and draft/checkpoint persistence. Wrapping, vertical alignment, custom fonts and native engine output remain unimplemented.
 
 

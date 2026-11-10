@@ -1,0 +1,66 @@
+{
+  "format": "retrodrive.theme",
+  "schemaVersion": "1.0.0",
+  "id": "compiler-original",
+  "metadata": {
+    "name": "Untitled theme",
+    "author": "",
+    "description": "",
+    "version": "1.0.0",
+    "license": "original",
+    "tags": []
+  },
+  "targets": [],
+  "scenes": [
+    {
+      "id": "games",
+      "role": "game_list",
+      "name": "Games",
+      "resolution": {
+        "width": 1920,
+        "height": 1080
+      },
+      "nodes": [
+        {
+          "id": "caption",
+          "type": "text",
+          "name": "Caption",
+          "layout": {
+            "x": {
+              "value": 192,
+              "unit": "px"
+            },
+            "y": {
+              "value": 20,
+              "unit": "%"
+            },
+            "width": {
+              "value": 50,
+              "unit": "%"
+            },
+            "height": {
+              "value": 108,
+              "unit": "px"
+            },
+            "rotation": 0
+          },
+          "style": {
+            "text": "Original & <test> \"caption\"\n世界",
+            "textAlign": "center",
+            "color": "abcdef",
+            "fontSize": {
+              "value": 54,
+              "unit": "px"
+            }
+          },
+          "children": [],
+          "assets": [],
+          "bindings": {}
+        }
+      ]
+    }
+  ],
+  "assets": [],
+  "tokens": {},
+  "variants": {}
+}
