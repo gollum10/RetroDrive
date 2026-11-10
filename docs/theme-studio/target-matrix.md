@@ -1,5 +1,8 @@
 # Theme target matrix and capability boundary (Sprint 1 PR 4)
 
+**RetroBat export groundwork:** [pinned evidence and minimal exporter plan](retrobat-export-plan.md) now defines the pure compiler, exact installed-engine capture and native acceptance gates. This is planning only; no exporter or installation support is enabled.
+
+
 This is a discovery/evidence matrix, not a supported-exporter list. No production theme adapter is enabled and export/deployment always remain disabled in this increment.
 
 | Family | Evidence currently available | Missing before native support |

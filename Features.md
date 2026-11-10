@@ -1,5 +1,8 @@
 # RetroDrive — Features
 
+**RetroBat export groundwork:** [pinned evidence and minimal exporter plan](docs/theme-studio/retrobat-export-plan.md) now defines the pure compiler, exact installed-engine capture and native acceptance gates. This is planning only; no exporter or installation support is enabled.
+
+
 **VIS-004 partial typography:** text layers now support left/center/right alignment within their existing rectangle, including sample-bound multiline captions. Unknown values stay preserved read-only; source edits use existing history and draft/checkpoint persistence. Wrapping, vertical alignment, custom fonts and native engine output remain unimplemented.
 
 
