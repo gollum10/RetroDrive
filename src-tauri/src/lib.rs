@@ -38,6 +38,8 @@ mod retropie_settings;
 mod rocknix_settings;
 mod themes;
 pub mod theme_studio;
+/// Optional AI helpers for Theme Studio (ADR-118).
+pub mod ai;
 mod scanner;
 mod sinden_step;
 mod backup_zip;
