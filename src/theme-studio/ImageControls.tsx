@@ -19,8 +19,8 @@ export default function ImageControls({ scene, node, asset, url, disabled, onCha
     const blocked = disabled || !editableNode(scene, node);
     const commit = (next: ThemeNode, label: string, group?: string) => { if (!blocked && next !== node)
         onChange(next, label, group); };
-    return <section aria-label="Image controls"><h3>Image display</h3>
-    <fieldset disabled={blocked}><legend>{showCrop ? 'Fit and crop' : 'Fit'}</legend><label>Image sizing<select disabled={!state.fitEditable} value={state.fit} onChange={event => { commit(setImageFit(node, event.target.value as 'contain' | 'cover'), 'Change image sizing'); onEnd(); }}><option value="contain">Fit: show the whole picture</option><option value="cover">Fill: cover the whole area</option></select></label>
+    return <section aria-label="Image controls"><h3>Picture display</h3>
+    <fieldset disabled={blocked}><legend>{showCrop ? 'Fit and crop' : 'Fit'}</legend><label>Size<select disabled={!state.fitEditable} value={state.fit} onChange={event => { commit(setImageFit(node, event.target.value as 'contain' | 'cover'), 'Change image sizing'); onEnd(); }}><option value="contain">Fit: show the whole picture</option><option value="cover">Fill: cover the whole area</option></select></label>
       {!state.fitEditable && <p>This picture's sizing can't be changed here; it's kept as it is.</p>}
       {!showCrop ? null : state.cropEditable ? <><p className="ts-field-help">Crop in percent of the picture. Your picture itself is never changed.</p>
         {(['x', 'y', 'width', 'height'] as (keyof Crop)[]).map(key => <NumberField key={key} label={`Crop ${key === 'x' ? 'left' : key === 'y' ? 'top' : key} (%)`} value={state.crop[key]} min={key === 'x' || key === 'y' ? 0 : .1} max={key === 'x' || key === 'y' ? 99.9 : key === 'width' ? Math.round((100 - state.crop.x) * 1e6) / 1e6 : Math.round((100 - state.crop.y) * 1e6) / 1e6} onChange={value => commit(setImageCrop(node, key, value), 'Crop image', `crop:${node.id}:${key}`)} onEnd={onEnd}/>)}

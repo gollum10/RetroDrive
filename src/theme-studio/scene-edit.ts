@@ -11,7 +11,7 @@ export function layerState(node: ThemeNode) {
   return { locked: !recognized || object?.locked === true, hidden: object?.hidden === true, recognized };
 }
 export function supportedNode(scene: Scene, node: ThemeNode): boolean {
-  return ['text', 'panel', 'image'].includes(node.type) && node.children.length === 0 && rootNodes(scene).some(root => root.id === node.id);
+  return ['text', 'panel', 'image', 'video'].includes(node.type) && node.children.length === 0 && rootNodes(scene).some(root => root.id === node.id);
 }
 export function setLayerState(project: ThemeProject, sceneId: string, nodeId: string, key: 'locked' | 'hidden', value: boolean): ThemeProject {
   const scene = project.scenes.find(scene => scene.id === sceneId);
@@ -25,7 +25,7 @@ export function setLayerState(project: ThemeProject, sceneId: string, nodeId: st
 }
 export type LayerOrder = 'back' | 'backward' | 'forward' | 'front';
 export function canOrderLayers(scene: Scene): boolean {
-  return scene.nodes.every(node => ['text', 'panel', 'image'].includes(node.type) && node.children.length === 0);
+  return scene.nodes.every(node => ['text', 'panel', 'image', 'video'].includes(node.type) && node.children.length === 0);
 }
 /** Array order is the editor's back-to-front paint order, not a native export promise. */
 export function orderLayer(project: ThemeProject, sceneId: string, nodeId: string, order: LayerOrder): ThemeProject {
@@ -66,14 +66,16 @@ export function moveNode(project: ThemeProject, sceneId: string, nodeId: string,
   if (!scene || !Number.isFinite(x) || !Number.isFinite(y)) return project;
   return updateNode(project, sceneId, nodeId, node => ({ ...node, layout: { ...node.layout, x: positionFromPixels(node.layout.x, x, scene.resolution.width), y: positionFromPixels(node.layout.y, y, scene.resolution.height) } }));
 }
-export function addNode(project: ThemeProject, sceneId: string, kind: 'text' | 'panel'): { project: ThemeProject; id: string } {
+/** The selected game's video (ADR-111): a layer the system fills with each game's own video. */
+export const GAME_VIDEO = { source: 'game.video', kind: 'video' as const };
+export function addNode(project: ThemeProject, sceneId: string, kind: 'text' | 'panel' | 'video'): { project: ThemeProject; id: string } {
   if (!project.scenes.some(scene => scene.id === sceneId) || project.scenes.reduce((count, scene) => count + scene.nodes.length, 0) >= 10_000) return { project, id: '' };
   const ids = new Set(project.scenes.flatMap(scene => scene.nodes.map(node => node.id)));
   let index = 1; while (ids.has(`${kind}-${index}`)) index++;
   const id = `${kind}-${index}`;
-  const node: ThemeNode = { id, type: kind, name: kind === 'text' ? 'Text' : 'Panel',
-    layout: { x: { value: 10, unit: '%' }, y: { value: 15, unit: '%' }, width: { value: 30, unit: '%' }, height: { value: kind === 'text' ? 10 : 30, unit: '%' }, rotation: 0 },
-    style: kind === 'text' ? { text: 'Your text', color: 'ffffff', fontSize: { value: 36, unit: 'px' } } : { fill: '263f60' }, children: [], assets: [], bindings: {} };
+  const node: ThemeNode = { id, type: kind, name: kind === 'text' ? 'Text' : kind === 'video' ? 'Game video' : 'Panel',
+    layout: { x: { value: 10, unit: '%' }, y: { value: 15, unit: '%' }, width: { value: kind === 'video' ? 40 : 30, unit: '%' }, height: { value: kind === 'text' ? 10 : kind === 'video' ? 40 : 30, unit: '%' }, rotation: 0 },
+    style: kind === 'text' ? { text: 'Your text', color: 'ffffff', fontSize: { value: 36, unit: 'px' } } : kind === 'video' ? {} : { fill: '263f60' }, children: [], assets: [], bindings: kind === 'video' ? { video: { ...GAME_VIDEO } } : {} };
   return { project: { ...project, scenes: project.scenes.map(scene => scene.id === sceneId ? { ...scene, nodes: [...scene.nodes, node] } : scene) }, id };
 }
 /** Remove an editable (unlocked, shown, supported) layer; anything else is left as it is (ADR-110). */

@@ -10,7 +10,7 @@ export type Dimension = Extensions & { value: number; unit: 'px' | '%' };
 export type Layout = Extensions & {
   x: Dimension; y: Dimension; width: Dimension; height: Dimension; rotation: number;
 };
-export type Binding = Extensions & { source: string; kind: 'text' | 'number' | 'image' };
+export type Binding = Extensions & { source: string; kind: 'text' | 'number' | 'image' | 'video' };
 export type ThemeNode = Extensions & {
   id: string; type: string; name: string; layout: Layout; style: Extensions;
   children: string[]; assets: string[]; bindings: Record<string, Binding>;

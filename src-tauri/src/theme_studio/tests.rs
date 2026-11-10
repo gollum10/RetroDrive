@@ -180,6 +180,16 @@ fn dimensions_resolutions_and_binding_types_are_bounded() {
     rejects("binding", |v| {
         v["scenes"][3]["nodes"][0]["bindings"]["text"]["source"] = json!("eval(userInput)")
     });
+    // The game's video link (ADR-111) is typed: only kind "video" is accepted.
+    rejects("binding", |v| {
+        v["scenes"][3]["nodes"][0]["bindings"]["text"] = json!({"source": "game.video", "kind": "text"})
+    });
+    let video = edited(|v| {
+        let node = &mut v["scenes"][3]["nodes"][0];
+        node["type"] = json!("video");
+        node["bindings"] = json!({"video": {"source": "game.video", "kind": "video"}});
+    });
+    assert!(video.is_ok(), "{video:?}");
     let mut project = parse_project(STARTER).unwrap();
     project.scenes[3].nodes[0].layout.x.value = f64::NAN;
     assert!(validate_project(&project)

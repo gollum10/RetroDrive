@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { errorText } from './document';
 import type { Placement } from './image-assets';
 export async function encodePngFile(file: File) {
@@ -49,7 +49,9 @@ export async function encodePictureFile(file: File): Promise<{ encoded: string; 
     } finally { bitmap.close(); }
 }
 export type ImportOptions = { placement: Placement; aiMade: boolean };
-export default function ImageImportForm({ sceneName, overName, onImport, onCancel }: {
+export default function ImageImportForm({ sceneName, overName, initialPlacement = 'free', onImport, onCancel }: {
+    /** Which placement is chosen when the form opens (for example a frame over a game video). */
+    initialPlacement?: Placement;
     sceneName: string;
     /** The selected layer's name, when a picture can be placed over it (a frame). */
     overName?: string;
@@ -59,13 +61,16 @@ export default function ImageImportForm({ sceneName, overName, onImport, onCance
     const [file, setFile] = useState<File | null>(null);
     const [license, setLicense] = useState('unknown');
     const [attribution, setAttribution] = useState('');
-    const [placement, setPlacement] = useState<Placement>('free');
+    const [placement, setPlacement] = useState<Placement>(initialPlacement === 'over' && !overName ? 'free' : initialPlacement);
     const [aiMade, setAiMade] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [note, setNote] = useState('');
     const active = useRef(false);
-    return <form className="panel" aria-label="Import PNG" onSubmit={event => { event.preventDefault(); if (!file || active.current)
+    const formRef = useRef<HTMLFormElement>(null);
+    // Bring the form into view when it opens: it appears above the editor (ADR-111).
+    useEffect(() => { formRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' }); }, []);
+    return <form ref={formRef} className="panel" aria-label="Import PNG" onSubmit={event => { event.preventDefault(); if (!file || active.current)
         return; active.current = true; setBusy(true); setError(''); setNote(''); void encodePictureFile(file).then(picture => { setNote(picture.note); return onImport(picture.encoded, license, attribution, { placement, aiMade }); }).catch(error => setError(errorText(error))).finally(() => { active.current = false; setBusy(false); }); }}>
     <h3>Add a picture to {sceneName}</h3><p>Use any picture: your own art, a photo, or an image you made with an AI tool. PNG, JPG and WebP all work; RetroDrive keeps its own copy as PNG, so moving or deleting the original later is fine. Very large pictures are made smaller to fit (4096 × 4096 pixels at most).</p>
     <fieldset disabled={busy}><label>Picture<input type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" onChange={event => { setFile(event.target.files?.[0] ?? null); setError(''); setNote(''); }}/></label>
