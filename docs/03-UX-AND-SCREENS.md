@@ -1,5 +1,8 @@
 # 03 | Information Architecture and UX Specification
 
+**Theme Studio: Save for RetroBat (2026-11-10, ADR-113):** *Save for RetroBat…* in the editor shows what will be saved and anything RetroBat can't show, then saves the theme to a new folder in *Documents\RetroDrive Themes* (or one you choose), with *Open folder* afterwards.
+
+
 **Theme Studio game video (2026-11-10, ADR-111):** *Add game video* adds a space where the system plays the selected game's video. Its properties offer *Add a frame over it* for an arcade-cabinet (or TV, or handheld) look: a picture with a see-through screen placed right above the video.
 
 

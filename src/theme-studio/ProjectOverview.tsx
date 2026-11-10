@@ -7,6 +7,7 @@ import { attachImage } from './image-assets';
 import { importPng } from './api';
 import useImagePreviews from './use-image-previews';
 import SaveCopyForm from './SaveCopyForm';
+import SaveForRetroBat from './SaveForRetroBat';
 import SceneCanvas from './SceneCanvas';
 import ImageControls from './ImageControls';
 import NodeInspector from './NodeInspector';
@@ -29,6 +30,7 @@ export default function ProjectOverview({ session, onClose, onCopy, onReload, bl
   useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
   const copyButton = useRef<HTMLButtonElement>(null);
   const [confirmReload, setConfirmReload] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [level, setLevelState] = useState<Level>(savedLevel);
   const setLevel = (next: Level) => { setLevelState(next); saveLevel(next); };
   const can = (tool: Tool) => shows(level, tool);
@@ -58,9 +60,10 @@ export default function ProjectOverview({ session, onClose, onCopy, onReload, bl
     if (event.key.toLowerCase() === 'z') { event.preventDefault(); if (event.shiftKey) session.redo(); else session.undo(); }
     else if (event.key.toLowerCase() === 'y') { event.preventDefault(); session.redo(); }
   }}>
-    <div className="panel ts-toolbar"><h2>{document.metadata.name || 'Untitled theme'}</h2><span role="status" aria-live="polite">{status}</span><button className="primary" disabled={session.busy || !!session.error || copyName !== null} onClick={() => { void session.save().catch(() => undefined); }} title="Save this as a version you can go back to">Save version</button><button ref={copyButton} aria-expanded={copyName !== null} aria-controls="ts-save-copy" disabled={session.busy || importScene !== null} onClick={() => setCopyName(suggestCopyName(document.metadata.name))}>Save a copy…</button><button className="ghost" onClick={onClose}>Back to my themes</button></div>
+    <div className="panel ts-toolbar"><h2>{document.metadata.name || 'Untitled theme'}</h2><span role="status" aria-live="polite">{status}</span><button className="primary" disabled={session.busy || !!session.error || copyName !== null} onClick={() => { void session.save().catch(() => undefined); }} title="Save this as a version you can go back to">Save version</button><button ref={copyButton} aria-expanded={copyName !== null} aria-controls="ts-save-copy" disabled={session.busy || importScene !== null} onClick={() => setCopyName(suggestCopyName(document.metadata.name))}>Save a copy…</button><button disabled={session.busy || importScene !== null || copyName !== null} title="Make a RetroBat theme from this design, in a new folder" onClick={() => setSaving(true)}>Save for RetroBat…</button><button className="ghost" onClick={onClose}>Back to my themes</button></div>
     {session.error != null && <div className="panel" role="alert"><p>{errorText(session.error)}</p>{!session.conflict && <button onClick={() => { void session.retry().catch(() => undefined); }}>Try saving again</button>}<p>Save a copy keeps your edits in a separate theme. Reload opens the last saved state instead.</p><button className="ghost" onClick={() => setConfirmReload(true)}>Reload the last saved state…</button></div>}
     {confirmReload && <div className="panel" role="alert"><p>Drop the edits you just made and reopen the last saved state? Save a copy first if you want to keep them.</p><button onClick={onReload}>Drop my edits and reload</button><button className="ghost" onClick={() => setConfirmReload(false)}>Keep editing</button></div>}
+    {saving && <SaveForRetroBat session={session} onClose={() => setSaving(false)}/>}
     {copyName !== null && <SaveCopyForm name={copyName} sourceName={document.metadata.name} busy={session.busy} onName={setCopyName} onCreate={onCopy} onCancel={() => { setCopyName(null); copyButton.current?.focus(); }} />}
     {importScene && <ImageImportForm sceneName={document.scenes.find(scene=>scene.id===importScene)?.name??'scene'} overName={removable && importScene === scene.id ? selected!.name : undefined} initialPlacement={importPlacement} onCancel={()=>setImportScene(null)} onImport={async(encoded,license,attribution,options)=>{await session.flush();const image=await importPng(session.record.id,encoded);if(!alive.current)return;const next=attachImage(session.document,importScene,image,license,attribution,{ ...options, overId: selectedId });session.edit(next.project,options?.placement==='background'?'Add background picture':options?.placement==='over'?'Add frame':'Add picture');setSelectedId(next.id);setImportScene(null);await session.flush();}}/>}
     {previews.error && <p role="status">{previews.error} <button onClick={previews.retry}>Retry previews</button></p>}

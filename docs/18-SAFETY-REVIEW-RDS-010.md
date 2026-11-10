@@ -719,3 +719,14 @@ Only the disposable test fixture in copier.rs changes. Production confirmation c
 | Writing somewhere unexpected | Only inside the new backup folder RetroDrive just created (still named "(incomplete)"), before it is renamed; never in an existing folder, never on a system's drive | `a_backup_saved_as_zip_and_added_back_is_identical_and_the_original_is_untouched` |
 | Changing what a backup holds | The note isn't on the backup's list; `manifest.json` is written exactly as it was in the zip; check, restore and save as .zip use only the list | same test: a re-saved zip has no note; `only_listed_files_are_unpacked_and_only_to_places_a_backup_holds` |
 | A strange note shown in the app | Only the first line is read, at most 260 characters, shown as plain text | `system_backup::entry` |
+
+## 67. Addendum: Save for RetroBat writes a new theme folder (2026-11-10)
+**Scope:** ADR-113. Theme Studio writes a RetroBat theme it built (theme.xml, PNG pictures, credits.json, retrodrive-theme.json) to a new folder. It doesn't touch RetroBat, Customize or any existing theme; putting a theme on RetroBat is a later step with its own review.
+
+| Risk | Mitigation | Evidence |
+|---|---|---|
+| Replacing or changing existing files | Always a new folder named after the theme (`free_folder` adds "(2)" etc.); files created with create-new; written as "<name> (incomplete)" and renamed without replacing; nothing deleted | `a_theme_goes_to_a_new_folder_and_never_replaces_one` |
+| Writing outside the chosen folder | File names come only from the builder and must be plain relative names (lowercase letters, digits, `._-/`, no `..`, no leading slash); checked before anything is written | `only_plain_relative_file_names_are_written`, same test (`../escape.txt` refused) |
+| Corrupt or partial output | Every file read back and compared; a failure leaves the "(incomplete)" folder and says so | `write_new_folder` |
+| Packaging pictures that aren't the theme's, or damaged ones | Baked pictures re-checked by the PNG normalizer; other pictures must be declared by the stored theme and pass the store's integrity check; 32 MB budget; read-only transaction | `a_theme_is_built_from_baked_pictures_and_live_parts_without_storing_anything` |
+| Opening arbitrary folders | Open folder only for absolute paths holding `retrodrive-theme.json` | `open_saved_theme` |

@@ -101,3 +101,7 @@ Package-spike validation executed: full Rust suite 348 passed, seven ignored (in
 ## Live elements and hidden built-ins (2026-11-10, ADR-112)
 
 The compiler now maps the parts of a design that change per game to RetroBat's own detailed-view elements: `textlist name="gamelist"`, `video name="md_video"` (centred, `maxSize`), `text name="md_name"`, `md_description`, `logoText`, `md_players` and `datetime name="md_releasedate"`. Built-in elements the design doesn't place are emitted with `<visible>false</visible>` (THEMES.md at the pinned revision documents `visible` for text, image, video, rating and datetime). Static design is expected to arrive as baked full-screen pictures (step 5b). Native rendering, the hidden built-ins and the date format still need the step 6 check.
+
+## Save for RetroBat (2026-11-10, ADR-113)
+
+User-facing build and write are on: the editor bakes static layers into full-screen PNGs, the backend compiles the export document (system and detailed views), checks every picture and writes a new folder (docs/18 §67). Native rendering is still unverified; step 6 runs the native comparison with the owner's go-ahead.
