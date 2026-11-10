@@ -258,4 +258,6 @@ button.small{padding:4px 10px;font-size:12.5px}
 .task-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin:0 0 14px}
 .task-grid .task{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;padding:12px 14px;border-radius:10px;border:1px solid #2a3b50;background:#132131;color:#e6f0fb;cursor:pointer}
 .task-grid .task small{color:#8ea3b9;font-size:12px}.task-grid .task:hover:not(:disabled){border-color:#3d6a99}.task-grid .task:disabled{opacity:.5;cursor:default}
-
+.wizard-systems{list-style:none;padding:0;margin:6px 0 12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px 16px}
+.wizard-systems small{color:#8ea3b9}
+.wizard select{background:#101d2c;color:#e6f0fb;border:1px solid #2f4b69;border-radius:6px;padding:3px 6px}
