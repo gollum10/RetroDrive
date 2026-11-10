@@ -22,7 +22,7 @@ This replaces the "narrow the editor" idea: the editor stays flexible, and expor
 | 4 | **Videos** (4a game video done, ADR-111; 4b your own clips next) | A video layer: **your clip** (loops, muted) or **the selected game's video**, placed anywhere, with a frame picture over it (the arcade-cabinet effect) | MP4/WebM; size limits; preview in the editor |
 | 5 | **Save for RetroBat** (done: 5a ADR-112, 5b ADR-113) | Save the theme to a new folder you choose; unsupported features baked into pictures; a clear list of anything that changes | Builds on the existing compiler and packager; writes only to a new folder |
 | 6 | **Try it in RetroBat** (native check done by hand, ADR-114) | RetroDrive opens RetroBat with the theme in a separate test home, so your setup isn't touched | First time RetroDrive runs RetroBat: owner go-ahead and a safety review first |
-| 7 | **Use this theme** | Apply to your RetroBat through Customize (backup, undo) | Reuses Customize's apply path |
+| 7 | **Use this theme** (done as Put on RetroBat, ADR-115) | Apply to your RetroBat through Customize (backup, undo) | Reuses Customize's apply path |
 | 8 | **AI assistant** | Connect a frontier or private model; ask for layouts, colour schemes, text; suggestions appear as undoable edits | New network feature: privacy and safety review first; keys kept in Windows Credential Manager, never in theme files |
 | 9 | **More systems** | Batocera and ES-DE; possibly RetroFE (the owner's OneSauce setup) | Each needs its own evidence and exporter |
 
