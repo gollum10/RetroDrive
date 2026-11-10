@@ -5,3 +5,5 @@ mod tests;
 pub mod package;
 #[cfg(test)]
 mod package_tests;
+#[cfg(test)]
+mod native_fixture;

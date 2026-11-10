@@ -1,5 +1,8 @@
 # 15 | Quality Assurance, Threat Scenarios and Test Matrix
 
+**Native comparison preparation:** an opt-in test now generates original compiler-produced themes, inert game markers and a disposable home configuration without launching RetroBat. [Preparation and pending native checks](theme-studio/native-comparison.md). Native behavior and launch isolation remain unverified.
+
+
 **Candidate package assembly:** a read-only catalog snapshot now resolves used managed PNGs, checks exact length/hash/signature and assembles bounded deterministic XML/assets/credits/manifest files in memory. Native verification, full licensing/privacy audit and user-facing export remain disabled. [Details](theme-studio/retrobat-export-plan.md#managed-asset-package-spike).
 
 
