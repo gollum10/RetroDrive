@@ -1,5 +1,7 @@
 # RetroDrive — Features
 
+**Theme Studio sample previews prepared:** synthetic normal/long/Unicode/missing text metadata plus placeholder mode, and typed text-source selection for title/description/year/players/rating/system name. Sample choices are session-only; binding edits use existing history/save. No emulator or personal library is read. Native acceptance remains pending.
+
 **Theme Studio image controls prepared:** Fit/Fill, non-destructive percentage cropping/reset and asset dimensions/format/size/license/attribution/hash details. Existing images default to Fit/full image. Pixel-level browser checks pass; native visual/save/reopen confirmation remains pending.
 
 **CI test reliability:** the copier confirmation test now gives each file pair a separate modification second and pins its confirmation to that pair. This removes a runner-timing assumption without changing production copying behavior.

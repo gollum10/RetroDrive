@@ -1,10 +1,11 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { previewDatasets,sampleText } from './sample-data';
 import ImageLayer from './ImageLayer';
 import { safePngPreview } from './use-image-previews';
 import { snapPosition, snapSize, guides } from './snapping';
 import { resizeDelta } from './resize';
 import type { Scene } from './types';
-import { pixels, pointerToScene, previewColor, previewText, rootNodes, editableNode, layerState } from './scene-edit';
+import { pixels, pointerToScene, previewColor, rootNodes, editableNode, layerState } from './scene-edit';
 
 type Drag = { id: string; pointerId: number; x: number; y: number; startX: number; startY: number; mode: 'move' | 'resize'; width: number; height: number; rotation: number };
 export default function SceneCanvas({ scene, selected, disabled, onSelect, onMove, onResize, onEndGroup, previewImages = {} }: {
@@ -12,6 +13,7 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
   scene: Scene; selected: string | null; disabled: boolean; onSelect: (id: string | null) => void;
   onMove: (id: string, x: number, y: number, group?: string) => void; onResize: (id: string, width: number, height: number, group?: string) => void; onEndGroup: () => void;
 }) {
+  const [dataset,setDataset]=useState('sample');
   const [showGrid, setShowGrid] = useState(false);
   const [snapping, setSnapping] = useState(false);
   const [spacing, setSpacing] = useState(16);
@@ -42,7 +44,7 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
     return { id: current.id, ...(snapping && !bypass ? snapPosition(box,scene.resolution.width,scene.resolution.height,spacing,tolerance) : { x: box.x, y: box.y }) };
   };
   return <section className="panel ts-canvas" aria-label="Scene canvas"><div className="ts-toolbar"><h3>{scene.name}</h3><small>{scene.resolution.width} × {scene.resolution.height}</small></div>
-    <fieldset className="ts-canvas-tools" disabled={disabled || preview !== null}><legend>Canvas aids</legend>
+    <fieldset className="ts-canvas-tools" disabled={disabled || preview !== null}><legend>Canvas aids</legend><label>Preview data<select value={dataset} onChange={event=>setDataset(event.target.value)}><option value="placeholders">Binding placeholders</option>{previewDatasets.map(sample=><option key={sample.id} value={sample.id}>{sample.label}</option>)}</select></label>
       <label><input type="checkbox" checked={showGrid} onChange={event => setShowGrid(event.target.checked)}/>Show grid</label>
       <label><input type="checkbox" checked={snapping} onChange={event => setSnapping(event.target.checked)}/>Snap to grid and canvas</label>
       <label>Grid spacing<select value={spacing} onChange={event => setSpacing(Number(event.target.value))}>{[8,16,32,64].map(value => <option key={value} value={value}>{value} px</option>)}</select></label>
@@ -73,7 +75,7 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
           onPointerDown={event => { if (disabled || event.button !== 0) return; event.stopPropagation(); svg.current?.focus(); onSelect(node.id); if (!editableNode(scene,node)) return; const start = point(event.clientX, event.clientY); if (!start) return; drag.current = { id: node.id, pointerId: event.pointerId, x, y, startX: start.x, startY: start.y, mode: 'move', width, height, rotation: node.layout.rotation }; svg.current?.setPointerCapture(event.pointerId); }}>
           <title>{node.name}</title><rect width={width} height={height} fill={node.type === 'panel' ? previewColor(node.style.fill, '#263f60') : 'transparent'} opacity={opacity}/>
           {node.type === 'image' && (safeImages[node.assets[0]] ? <ImageLayer node={node} url={safeImages[node.assets[0]]} width={width} height={height} opacity={opacity}/> : <text x={4} y={20} fill="#abc0d9" fontSize={18} pointerEvents="none">Image unavailable</text>)}
-          {node.type === 'text' && <svg width={width} height={height} overflow="hidden" pointerEvents="none"><text x={0} y={0} dominantBaseline="hanging" fontFamily="sans-serif" fontSize={fontSize} fill={previewColor(node.style.color, '#ffffff')} opacity={opacity}>{previewText(node).split('\n').slice(0, 20).map((line, index) => <tspan key={index} x={0} dy={index ? '1.2em' : 0}>{line || ' '}</tspan>)}</text></svg>}
+          {node.type === 'text' && <svg width={width} height={height} overflow="hidden" pointerEvents="none"><text x={0} y={0} dominantBaseline="hanging" fontFamily="sans-serif" fontSize={fontSize} fill={previewColor(node.style.color, '#ffffff')} opacity={opacity}>{sampleText(node,dataset).split('\n').slice(0, 20).map((line, index) => <tspan key={index} x={0} dy={index ? '1.2em' : 0}>{line || ' '}</tspan>)}</text></svg>}
         </g>;
       })}
       {(() => {
@@ -98,7 +100,7 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
         return <g data-canvas-guides="true" pointerEvents="none" aria-hidden="true" stroke="#f4c96b" strokeWidth={1} strokeDasharray="6 4">{lines.x.map(x => <line key={`x${x}`} x1={x} x2={x} y1={0} y2={scene.resolution.height} vectorEffect="non-scaling-stroke"/>)}{lines.y.map(y => <line key={`y${y}`} x1={0} x2={scene.resolution.width} y1={y} y2={y} vectorEffect="non-scaling-stroke"/>)}</g>;
       })()}
     </svg>
-    <p>Grid and snapping are session-only aids. Hold Alt to bypass pointer snapping; arrow keys keep precise steps. Guides mark canvas edges and centers.</p>
+    <p>Sample data is synthetic and session-only; no emulator or personal library is read. Grid and snapping are session-only aids. Hold Alt to bypass pointer snapping; arrow keys keep precise steps. Guides mark canvas edges and centers.</p>
     <p id="ts-canvas-help">Select a layer and drag to move it, or focus the canvas and use arrow keys (Shift: 10 pixels). Drag the bottom-right handle to resize; focus it and use arrows for numeric steps. Escape cancels a drag or resize. Editor preview; native frontend behavior is unverified.</p>
     {visible.length < scene.nodes.length && <p>Only supported top-level layers are drawn here. Other layers and their source data are preserved.</p>}
   </section>;

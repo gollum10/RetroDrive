@@ -1,5 +1,7 @@
 # Theme Studio delivery tracking
 
+**SCENE-003/PREV-001 partial sample context:** synthetic scalar metadata and typed text binding selection now support no-emulator/no-library authoring. This is text preview only: sample artwork, real catalog bridge, navigation/list components, target-native previews and full fallback/formatting rules remain future increments.
+
 **VIS-004 partial image presentation:** Fit/Fill, percentage crop/reset and asset metadata inspection now integrate with history and immutable PNG previews. Direct graphical crop handles, anchors/conditional visibility, advanced image effects, codecs and native compilation remain future work. Browser pixels pass; native acceptance remains pending.
 
 **MEDIA-001/VIS-003 partial PNG workflow:** static user PNG import, license/attribution, managed catalog bytes, image-layer authoring and verified previews are implemented for review. Byte limits/normalization remain as documented; native end-to-end QA is pending. More codecs, crop tools, full asset browser/cleanup, source packages and native export remain unimplemented.

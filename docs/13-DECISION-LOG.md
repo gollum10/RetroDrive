@@ -1,5 +1,7 @@
 # 13 | Product Decisions and Open Questions
 
+**Synthetic preview semantics:** resolve only known existing text/number sources from explicit in-memory maps, capped at existing text limits. Null/unsupported values use visible binding placeholders. Preview data is never persisted as game metadata; binding selection is source authoring and retains static content for return. Artwork/image bindings are not converted to text or fetched.
+
 **Image crop semantics:** crop selects original pixels before Fit/Fill using a top-left percentage rectangle, min 0.1% extent, inside the original. Editing left/top trims extent if needed; values round to six decimals. Fit shows the whole selected region, Fill covers the layer with excess clipped. Source pixels/hash/license data do not change; no native exporter support is implied.
 
 **Image preview lifecycle:** deduplicate concurrent effect requests by full project/asset/hash/length identity without weakening native saved-declaration authorization. Retry image_busy only (100/200/300ms delays, four attempts total); permanent errors remain visible and manual retry is available. Discard stale effects and cached data not represented by current declarations.
