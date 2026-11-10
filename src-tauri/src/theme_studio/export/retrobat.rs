@@ -7,6 +7,20 @@ use std::collections::BTreeSet;
 
 const MAX_NODES: usize = 128;
 const MAX_XML: usize = 1024 * 1024;
+/// The game list used when a design doesn't place one (ADR-114): without it RetroBat shows no list.
+const DEFAULT_GAMELIST: &str = "    <textlist name=\"gamelist\">
+      <pos>0.040000 0.150000</pos>
+      <size>0.440000 0.780000</size>
+      <origin>0 0</origin>
+      <zIndex>50</zIndex>
+      <primaryColor>c8d0e0</primaryColor>
+      <secondaryColor>c8d0e0</secondaryColor>
+      <selectedColor>ffffff</selectedColor>
+      <selectorColor>378cdd</selectorColor>
+      <fontSize>0.029630</fontSize>
+      <alignment>left</alignment>
+    </textlist>
+";
 /// RetroBat's built-in game-list elements (THEMES.md at the pinned revision, "detailed" view).
 /// Any the design doesn't place are hidden, so nothing appears where the design has art (ADR-112).
 const HIDDEN_DEFAULTS: &[(&str, &str)] = &[
@@ -371,6 +385,11 @@ pub fn compile_candidate(source: &str) -> Result<Candidate, Blocker> {
                 tag(&mut xml, "path", &format!("./{}", asset.path))?;
             }
             xml.push_str(&format!("    </{kind}>\n"));
+        }
+        if view == "detailed" && !names.contains("gamelist") {
+            // Native check (2026-11-10): a detailed view that doesn't place the game list shows
+            // no list at all in RetroBat, so one is always placed (left side, standard colours).
+            xml.push_str(DEFAULT_GAMELIST);
         }
         if view == "detailed" {
             for (kind, name) in HIDDEN_DEFAULTS {
