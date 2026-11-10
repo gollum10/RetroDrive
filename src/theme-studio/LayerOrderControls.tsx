@@ -3,9 +3,9 @@ import { canOrderLayers, layerState, type LayerOrder } from './scene-edit';
 
 const actions: { order: LayerOrder; label: string }[] = [
   { order: 'back', label: 'Send to back' },
+  { order: 'front', label: 'Bring to front' },
   { order: 'backward', label: 'Send backward' },
   { order: 'forward', label: 'Bring forward' },
-  { order: 'front', label: 'Bring to front' },
 ];
 
 export default function LayerOrderControls({ scene, selected, disabled, onOrder }: {
@@ -13,7 +13,8 @@ export default function LayerOrderControls({ scene, selected, disabled, onOrder 
 }) {
   const supported = canOrderLayers(scene);
   const index = scene.nodes.findIndex(node => node.id === selected);
-  return <fieldset disabled={disabled || !supported || index < 0} className="ts-layer-order">
+  if (index < 0) return null; // shown once a layer is selected (ADR-109)
+  return <fieldset disabled={disabled || !supported} className="ts-layer-order ts-order">
     <legend>Layer order</legend>
     {actions.map(({ order, label }) => {
       const destination = order === 'back' ? 0 : order === 'front' ? scene.nodes.length-1 : order === 'backward' ? Math.max(0,index-1) : Math.min(scene.nodes.length-1,index+1);

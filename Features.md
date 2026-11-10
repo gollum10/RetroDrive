@@ -1,5 +1,8 @@
 # RetroDrive — Features
 
+**Theme Studio layout (2026-11-10, ADR-109):** the canvas, layers and properties now fit on one screen; screens are tabs across the top.
+
+
 **Theme Studio tool levels (2026-11-10, ADR-108):** choose **Simple**, **Standard** or **Pro** tools in the editor; the theme is the same in each. New themes start from a **Ready layout** with the game's title, year and description already placed.
 
 

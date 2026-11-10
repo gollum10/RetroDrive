@@ -67,8 +67,9 @@ async function main() {
     for (const width of [850, 650]) {
       await evaluate(`window.canvasTest.setWorkspaceWidth(${width})`); await frame();
       const rects = await evaluate("(() => {const r=s=>{const b=document.querySelector(s).getBoundingClientRect();return {x:b.x,y:b.y,width:b.width,right:b.right,bottom:b.bottom}};return {canvas:r('.ts-canvas'),inspector:r('.ts-inspector'),svg:r('.ts-canvas-svg')};})()");
-      assert.ok(rects.inspector.y >= rects.canvas.bottom - 1, `${width}: inspector must stack below canvas at workspace width`);
-      assert.ok(rects.svg.width >= width - (width === 850 ? 200 : 5), `${width}: canvas should use available space`);
+      // ADR-109: at 850px the properties sit beside the canvas (in view while editing); at 650px they stack below it.
+      if (width === 850) { assert.ok(rects.inspector.x >= rects.canvas.right - 1, '850: inspector beside the canvas'); assert.ok(rects.inspector.y < rects.canvas.bottom, '850: inspector starts next to the canvas'); assert.ok(rects.svg.width >= width - 360, '850: canvas uses the rest of the width'); }
+      else { assert.ok(rects.inspector.y >= rects.canvas.bottom - 1, '650: inspector stacks below canvas'); assert.ok(rects.svg.width >= width - 5, '650: canvas uses available space'); }
       const start = await handle(); const count = (await state()).commits;
       await mouse('mousePressed', start.x, start.y); await mouse('mouseMoved', start.x + 15, start.y + 10); await mouse('mouseReleased', start.x + 15, start.y + 10); await frame();
       assert.equal((await state()).commits, count + 1, `${width}: resize still works after layout reflow`);
@@ -227,18 +228,18 @@ async function main() {
     const choose=async(label,value)=>{await evaluate(`(()=>{const select=[...document.querySelectorAll('label')].find(label=>label.textContent.startsWith(${JSON.stringify(label)})).querySelector('select');select.value=${JSON.stringify(value)};select.dispatchEvent(new Event('change',{bubbles:true}));})()`);await frame();};
     const unchangedSource=await evaluate('window.samplePreview.source');
     assert.equal(await sampleCaption(),'Sample Adventure');
-    await choose('Preview data','long');assert.ok((await sampleCaption()).includes('??'));
-    await choose('Preview data','placeholders');assert.equal(await sampleCaption(),'{game.title}');
+    await choose('Preview','long');assert.ok((await sampleCaption()).includes('??'));
+    await choose('Preview','placeholders');assert.equal(await sampleCaption(),'{game.title}');
     assert.equal(await evaluate('window.samplePreview.source'),unchangedSource,'preview-only choices never modify saved document');
     assert.equal(await evaluate('window.samplePreview.commits'),0);
     await choose('Text content source','game.year');
     assert.equal(await evaluate('window.samplePreview.node.bindings.text.kind'),'number');
-    await choose('Preview data','sample');assert.equal(await sampleCaption(),'1994');
-    await choose('Preview data','missing');assert.equal(await sampleCaption(),'{game.year}');
+    await choose('Preview','sample');assert.equal(await sampleCaption(),'1994');
+    await choose('Preview','missing');assert.equal(await sampleCaption(),'{game.year}');
     assert.equal(await evaluate('window.samplePreview.commits'),1,'sample switching creates no extra source edits');
     await choose('Text content source','');assert.equal(await sampleCaption(),'Game List');
     await evaluate(`(()=>{const text=document.querySelector('textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(text,'Original static caption');text.dispatchEvent(new Event('input',{bubbles:true}));})()`);await frame();
-    await choose('Text content source','game.title');await choose('Preview data','sample');assert.equal(await sampleCaption(),'Sample Adventure');
+    await choose('Text content source','game.title');await choose('Preview','sample');assert.equal(await sampleCaption(),'Sample Adventure');
     await choose('Text content source','');assert.equal(await sampleCaption(),'Original static caption','static content survives binding edits');
     await choose('Text content source','game.description');
     assert.equal(await evaluate('document.querySelectorAll("[data-node-id] text tspan").length'),2,'multiline description uses literal text');

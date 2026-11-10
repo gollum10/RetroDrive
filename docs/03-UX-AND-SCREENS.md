@@ -1,5 +1,8 @@
 # 03 | Information Architecture and UX Specification
 
+**Theme Studio layout (2026-11-10, ADR-109):** screens are tabs above the editor; the canvas, layers and properties are visible together (properties beside the canvas, scrolling on their own), so nothing needs a page scroll to change. Align and layer order appear once a layer is selected.
+
+
 **Theme Studio tool levels (2026-11-10, ADR-108):** a **Tools** switch above the editor: **Simple** (pictures, text, colours; drag things where you want them), **Standard** (adds panels, layer order, exact positions and sizes, theme details) and **Pro** (every control). Same theme in every level. New themes start from a **Ready layout** (background, system name, game title, year and description) unless you pick a starter or blank screens.
 
 
