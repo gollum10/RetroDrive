@@ -38,3 +38,5 @@ export { LEVELS, shows } from '../../src/theme-studio/skill';
 export { deleteNode } from '../../src/theme-studio/scene-edit';
 export { creditFor } from '../../src/theme-studio/image-assets';
 export { encodePictureFile } from '../../src/theme-studio/ImageImportForm';
+
+export { GAME_VIDEO, supportedNode } from '../../src/theme-studio/scene-edit';

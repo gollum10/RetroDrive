@@ -1,5 +1,8 @@
 # 03 | Information Architecture and UX Specification
 
+**Theme Studio game video (2026-11-10, ADR-111):** *Add game video* adds a space where the system plays the selected game's video. Its properties offer *Add a frame over it* for an arcade-cabinet (or TV, or handheld) look: a picture with a see-through screen placed right above the video.
+
+
 **Theme Studio pictures (2026-11-10, ADR-110):** *Add picture* takes PNG, JPG or WebP (very large ones are made smaller) and asks where to put it: on the screen, as the screen background, or over the selected layer as a frame. A *Made with an AI tool* tickbox adds that to the credit. *Delete layer* (or the Delete key) removes the selected layer; Undo brings it back.
 
 

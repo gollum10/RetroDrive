@@ -321,6 +321,15 @@ async function main() {
   assert.notEqual(repeatedImage.id,attached.id);
   assert.throws(()=>attachImage(project,scene.id,{...pngInfo,path:'C:/private.png'},'original',''));
   assert.throws(()=>attachImage(project,scene.id,{...pngInfo,width:0},'original',''));
+  // Game video layer (ADR-111).
+  const { GAME_VIDEO, supportedNode } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  const withVideo = addNode(project, scene.id, 'video');
+  const videoNode = withVideo.project.scenes[0].nodes.find(n => n.id === withVideo.id);
+  assert.equal(videoNode.type, 'video'); assert.equal(videoNode.name, 'Game video'); assert.deepEqual(videoNode.bindings.video, GAME_VIDEO);
+  assert.ok(supportedNode(withVideo.project.scenes[0], videoNode) && editableNode(withVideo.project.scenes[0], videoNode));
+  const videoFrame = attachImage(withVideo.project, scene.id, pngInfo, 'original', '', { placement: 'over', overId: videoNode.id });
+  assert.deepEqual(videoFrame.project.scenes[0].nodes.find(n => n.id === videoFrame.id).layout, videoNode.layout, 'a frame fits over the game video');
+  assert.ok(canOrderLayers(withVideo.project.scenes[0]), 'screens with a game video can still be reordered');
   // Picture placement, AI credit and delete (ADR-110).
   const { deleteNode, creditFor, encodePictureFile } = require(path.join(output, 'tests/theme-studio/workspace.js'));
   assert.equal(creditFor('', true), 'Made with an AI tool'); assert.equal(creditFor('Sam', true), 'Sam (made with an AI tool)');
@@ -682,6 +691,11 @@ async function main() {
     assert.match(importForm,/License/);assert.match(importForm,/Credit/);assert.match(importForm,/Add picture/);
     assert.match(importForm,/As the screen background/);assert.match(importForm,/Made with an AI tool/);assert.ok(!/as a frame/.test(importForm),'frame option needs a selected layer');assert.match(importForm,/image\/jpeg/);
     assert.match(render('theme-studio/ImageImportForm',{sceneName:'Main',overName:'Game list area',async onImport(){},onCancel(){}}),/Over “Game list area”, as a frame/);
+    const videoCanvas = render('theme-studio/SceneCanvas', { scene: withVideo.project.scenes[0], selected: null, disabled: false, onSelect() {}, onMove() {}, onResize() {}, onEndGroup() {} });
+    assert.match(videoCanvas, /Game video plays here/);
+    assert.ok(!/Text color|Panel color/.test(render('theme-studio/NodeInspector', { scene: withVideo.project.scenes[0], node: videoNode, disabled: false, onChange() {}, onEnd() {} })), 'no colour for a video layer');
+    assert.match(render('theme-studio/ImageImportForm',{sceneName:'Main',overName:'Game video',initialPlacement:'over',async onImport(){},onCancel(){}}), /value="on"[^>]*checked=""[^>]*\/> Over “Game video”|checked=""[^>]*\/> Over “Game video”/);
+    assert.match(editor, /Add game video/);
     let alignedEdit=null;
     const typographyProps={node:typographyNode,disabled:false,onChange(next){alignedEdit=next;},onEnd(){}};
     const alignmentSelect=component('theme-studio/TextAlignmentControls')(typographyProps).props.children.find(child=>child?.type==='select');

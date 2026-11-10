@@ -1,5 +1,8 @@
 # RetroDrive — Features
 
+**Theme Studio game video (2026-11-10, ADR-111):** add a game video layer (plays the selected game's own video on the system) and put a frame picture over it, such as an arcade cabinet with a see-through screen.
+
+
 **Theme Studio: your art everywhere (2026-11-10, ADR-110):** add PNG, JPG or WebP pictures (AI-made ones too, credited as such) on the screen, as a full-screen background, or as a frame over another layer; delete layers with undo.
 
 
