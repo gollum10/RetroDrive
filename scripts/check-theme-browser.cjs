@@ -242,6 +242,14 @@ async function main() {
     await choose('Text content source','');assert.equal(await sampleCaption(),'Original static caption','static content survives binding edits');
     await choose('Text content source','game.description');
     assert.equal(await evaluate('document.querySelectorAll("[data-node-id] text tspan").length'),2,'multiline description uses literal text');
+    for (const [alignment,anchor,fraction] of [['center','middle',0.5],['right','end',1],['left','start',0]]) {
+      await choose('Text alignment',alignment);
+      const geometry=await evaluate(`(()=>{const text=document.querySelector('[data-node-id] text');return {anchor:text.getAttribute('text-anchor'),x:Number(text.getAttribute('x')),width:Number(text.parentElement.getAttribute('width')),spans:[...text.querySelectorAll('tspan')].map(span=>Number(span.getAttribute('x')))};})()`);
+      assert.equal(geometry.anchor,anchor);
+      assert.equal(geometry.x,geometry.width*fraction);
+      assert.ok(geometry.spans.every(x=>x===geometry.x),'all multiline spans use the selected alignment');
+      assert.equal(await sampleCaption(),'Explore a colorful world.Find the hidden route home.');
+    }
     const portableSource=await evaluate('window.samplePreview.source');
     assert.ok(!portableSource.includes('Sample Adventure')&&!portableSource.includes('colorful world'),'synthetic samples never enter portable project JSON');
     console.log('Theme browser: real pointer resize/default focus, preview, no-op, Escape, external blur, keyboard 850/650px workspace layout, rotated resize at 150% scale grid controls, snapped resize, Alt bypass, center guides/cancellation lock/hide/restore/edit-guard PNG form attachment/double-submit/preview/resize/hide-show saved-image StrictMode/reopen/busy retry/isolation/error recovery pixel-verified Fit/Fill/crop/letterbox clipping sample dataset/binding/source-preservation and asset controls passed.');

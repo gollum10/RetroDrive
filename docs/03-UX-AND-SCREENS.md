@@ -1,5 +1,8 @@
 # 03 | Information Architecture and UX Specification
 
+**VIS-004 partial typography:** text layers now support left/center/right alignment within their existing rectangle, including sample-bound multiline captions. Unknown values stay preserved read-only; source edits use existing history and draft/checkpoint persistence. Wrapping, vertical alignment, custom fonts and native engine output remain unimplemented.
+
+
 **Theme Studio sample context:** Canvas aids now includes Preview data (sample game, long text/Unicode, missing metadata, placeholders). Text layer properties offers Text content source using existing typed bindings or retained static text. Switching preview context never dirties the document; selecting a binding is an undoable edit.
 
 **Theme Studio canvas increment:** Add text/Add panel, selectable layer list and SVG canvas, drag/arrow movement, numeric position/size/units, static text/color/font inspector and Undo/Redo. Save As blocks underlying edits. Only top-level text/panel nodes are editable; nested/future content is retained. [Canvas contract and QA](theme-studio/canvas.md).

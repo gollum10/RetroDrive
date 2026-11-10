@@ -1,5 +1,8 @@
 # 04 | Technical Architecture
 
+**VIS-004 partial typography:** text layers now support left/center/right alignment within their existing rectangle, including sample-bound multiline captions. Unknown values stay preserved read-only; source edits use existing history and draft/checkpoint persistence. Wrapping, vertical alignment, custom fonts and native engine output remain unimplemented.
+
+
 **Sample preview:** sample-data.ts provides an explicit six-source typed catalog and original synthetic value maps. SceneCanvas resolves recognized text/number slots to bounded literal text; NodeInspector uses TextBindingControls for source edits through normal graph/session services. No expression traversal/eval, IPC, catalog/library reads or image sources are resolved by this text-only increment.
 
 **Image presentation:** pure image-presentation helpers validate/preserve style fit/crop data; ImageControls uses shared NumberField and existing graph/history/persistence callbacks. ImageLayer resolves intrinsic dimensions only from authorized PNG data, renders a cropped SVG viewBox and an explicit source-region clipPath so Fit margins cannot reveal outside pixels. No native API, storage or permission changes.

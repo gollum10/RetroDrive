@@ -132,3 +132,15 @@ Executed checks: test:theme-workspace covers all source/kind mappings, fallback/
 Native smoke check: open a starter Game List scene (already bound), or add/select text and choose Game title. Switch all Preview data options; choose Year and Missing metadata; verify a visible placeholder. Return to Static text and verify the original caption. Test font/geometry, lock/unlock, undo/redo; checkpoint/close/reopen and confirm only the binding persisted, not a game record or selected dataset. No real library or emulator should be required.
 
 Sample artwork/media, real catalog selection, navigation simulation, list/carousel rendering, automatic wrapping, custom data/fallback editors and native performance/compatibility previews remain later increments.
+
+## Text alignment inside a layer
+
+The inspector offers Left, Center and Right text alignment for supported editable text layers. Optional style.textAlign uses those literal strings; absence previews as Left without adding a source edit. This is an additive style extension, requiring no source version or database migration. Unknown values remain preserved and disabled in the selector, previewing with the existing left fallback. Other style extensions, bindings, geometry, assets and IDs are preserved.
+
+Each literal SVG line uses a matching start/middle/end anchor at zero/half/full local layer width. Static and sample-bound multiline captions share this behavior; resize updates the alignment point and rotation retains the existing top-left pivot. Existing clipping, 500-character and 20-line bounds apply. Alignment does not change font size, wrap text, fit content automatically or promise target-native compatibility.
+
+Alignment edits are single history operations through existing graph guards and serialized draft/checkpoint persistence. Locked, hidden, nested, disabled or unsupported layers cannot change alignment. Native exports and emulator files remain untouched.
+
+Executed: workspace model/control tests cover defaults/no-ops, source preservation, unknown/invalid/protected guards, undo/redo and checkpoint/draft reopening. Real Edge browser tests exercise all three selectors on a two-line bound description and verify every SVG span anchor/position. Contract, build, license and diff checks pass. Rust was not rerun for frontend-only changes. The browser may leave its disposable cache profile locked during cleanup; it does not use a personal browser profile or native catalog.
+
+Native smoke check pending: select text, change alignment with a multiline static caption and sample description, resize/rotate the layer, undo/redo, checkpoint/close/reopen, and verify a Save As copy remains independent. Automatic wrapping, vertical alignment, custom fonts and native text rendering remain later work. PR 16 native sample-preview checks remain pending until owner validation.

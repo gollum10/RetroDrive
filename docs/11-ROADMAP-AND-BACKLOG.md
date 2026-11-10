@@ -1,5 +1,8 @@
 # 11 | Development Roadmap and Backlog
 
+**VIS-004 partial typography:** text layers now support left/center/right alignment within their existing rectangle, including sample-bound multiline captions. Unknown values stay preserved read-only; source edits use existing history and draft/checkpoint persistence. Wrapping, vertical alignment, custom fonts and native engine output remain unimplemented.
+
+
 **Sample text preview prepared:** six existing scalar bindings, synthetic datasets/placeholder mode, binding authoring and persistence tests. Native validation remains pending. Real-library contexts, sample artwork, list/carousel components, navigation simulation and target-engine previews remain later work.
 
 **Image controls prepared:** Fit/Fill and percentage crop/reset, safe intrinsic dimensions and asset information, with browser pixel/source-history tests. Native smoke checks remain. Additional codecs, direct crop handles, asset management/cleanup, richer scenes and verified native export remain separate future increments.
