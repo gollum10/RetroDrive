@@ -1,5 +1,8 @@
 # RetroDrive — Features
 
+**Theme Studio: your art everywhere (2026-11-10, ADR-110):** add PNG, JPG or WebP pictures (AI-made ones too, credited as such) on the screen, as a full-screen background, or as a frame over another layer; delete layers with undo.
+
+
 **Theme Studio layout (2026-11-10, ADR-109):** the canvas, layers and properties now fit on one screen; screens are tabs across the top.
 
 
