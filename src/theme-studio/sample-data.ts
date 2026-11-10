@@ -7,12 +7,13 @@ export const textSources = [
     { source: 'game.players', label: 'Players', kind: 'number' },
     { source: 'game.rating', label: 'Rating (0–1)', kind: 'number' },
     { source: 'system.name', label: 'System name', kind: 'text' },
+    { source: 'system.games', label: 'Number of games (System Select)', kind: 'text' },
 ] as const;
 type Source = typeof textSources[number]['source'];
 export const previewDatasets = [
-    { id: 'sample', label: 'Sample game', values: { 'game.title': 'Sample Adventure', 'game.description': 'Explore a colorful world.\nFind the hidden route home.', 'game.year': 1994, 'game.players': 2, 'game.rating': 0.85, 'system.name': 'Demo Console' } },
-    { id: 'long', label: 'Long text / Unicode', values: { 'game.title': 'Sample Adventure: A Very Long Journey ? ??', 'game.description': 'This original sample description tests a busy game-details scene.\nA second line helps check text height and clipping.\nPreview data never enters the saved project.', 'game.year': 2001, 'game.players': 4, 'game.rating': 1, 'system.name': 'Demonstration System With a Long Name' } },
-    { id: 'missing', label: 'Missing metadata', values: { 'game.title': 'Untitled sample', 'game.description': null, 'game.year': null, 'game.players': null, 'game.rating': null, 'system.name': 'Unknown sample system' } },
+    { id: 'sample', label: 'Sample game', values: { 'game.title': 'Sample Adventure', 'game.description': 'Explore a colorful world.\nFind the hidden route home.', 'game.year': 1994, 'game.players': 2, 'game.rating': 0.85, 'system.name': 'Demo Console', 'system.games': '4885 games' } },
+    { id: 'long', label: 'Long text / Unicode', values: { 'game.title': 'Sample Adventure: A Very Long Journey ? ??', 'game.description': 'This original sample description tests a busy game-details scene.\nA second line helps check text height and clipping.\nPreview data never enters the saved project.', 'game.year': 2001, 'game.players': 4, 'game.rating': 1, 'system.name': 'Demonstration System With a Long Name', 'system.games': '12 games' } },
+    { id: 'missing', label: 'Missing metadata', values: { 'game.title': 'Untitled sample', 'game.description': null, 'game.year': null, 'game.players': null, 'game.rating': null, 'system.name': 'Unknown sample system', 'system.games': null } },
 ] as const;
 export function textBindingEditable(node: ThemeNode) {
     const binding = node.bindings.text;

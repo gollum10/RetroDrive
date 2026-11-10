@@ -330,6 +330,12 @@ async function main() {
   const videoFrame = attachImage(withVideo.project, scene.id, pngInfo, 'original', '', { placement: 'over', overId: videoNode.id });
   assert.deepEqual(videoFrame.project.scenes[0].nodes.find(n => n.id === videoFrame.id).layout, videoNode.layout, 'a frame fits over the game video');
   assert.ok(canOrderLayers(withVideo.project.scenes[0]), 'screens with a game video can still be reordered');
+  // System carousel layer (ADR-116).
+  const withCarousel = addNode(project, scene.id, 'system_carousel');
+  const carouselNode = withCarousel.project.scenes[0].nodes.find(n => n.id === withCarousel.id);
+  assert.equal(carouselNode.name, 'System carousel'); assert.deepEqual([carouselNode.style.fill, carouselNode.style.color, carouselNode.style.direction, carouselNode.style.count], ['0a0e1899', 'ffffff', 'horizontal', 3]);
+  assert.ok(editableNode(withCarousel.project.scenes[0], carouselNode) && canOrderLayers(withCarousel.project.scenes[0]));
+  assert.ok(textSources.some(o => o.source === 'system.games' && o.kind === 'text'));
   // Game list layer (ADR-112).
   const withList = addNode(project, scene.id, 'game_list');
   const listNode = withList.project.scenes[0].nodes.find(n => n.id === withList.id);
@@ -345,7 +351,14 @@ async function main() {
   const exportPlan = planExport(readyTheme);
   assert.deepEqual(exportPlan.screens.map(s => s.scene.role), ['system_select', 'game_list']);
   assert.ok(exportPlan.notes.some(n => /Startup/.test(n) && /aren't included/.test(n)), 'other screens are explained');
-  assert.ok(exportPlan.notes.some(n => /System name/.test(n) && /System Select/.test(n)), 'system name on System Select is explained');
+  // System Select (ADR-116): the Ready layout's carousel and games count are live; a system-name text there is explained.
+  const selectPlan = exportPlan.screens[0].groups;
+  assert.deepEqual(selectPlan.map(g => g.kind === 'live' ? g.node.type : 'bake'), ['bake', 'system_carousel', 'bake', 'text'], JSON.stringify(selectPlan.map(g => g.kind)));
+  assert.ok(exportPlan.live.includes('the system carousel') && !exportPlan.notes.some(n => /no system carousel/.test(n)));
+  const namedSelect = JSON.parse(JSON.stringify(readyTheme)); namedSelect.scenes[2].nodes.push({ ...namedSelect.scenes[2].nodes[2], id: 'sys-name', name: 'System name', bindings: { text: { source: 'system.name', kind: 'text' } } });
+  assert.ok(planExport(namedSelect).notes.some(n => /System name/.test(n) && /System Select/.test(n)), 'system name on System Select is explained');
+  const bareSelect = JSON.parse(JSON.stringify(readyTheme)); bareSelect.scenes[2].nodes = bareSelect.scenes[2].nodes.filter(n => n.type !== 'system_carousel');
+  assert.ok(planExport(bareSelect).notes.some(n => /no system carousel layer/.test(n)), 'a missing carousel is explained');
   const listPlan = exportPlan.screens[1].groups;
   assert.deepEqual(listPlan.map(g => g.kind), ['bake', 'live', 'bake', 'live', 'live', 'live', 'live'], JSON.stringify(listPlan.map(g => g.kind === 'live' ? g.node.name : g.nodes.map(n => n.name))));
   assert.deepEqual([listPlan[0].nodes.map(n => n.name), listPlan[2].nodes.map(n => n.name)], [['Background'], ['Game list area']], 'a live layer between static ones splits them, keeping the order');
@@ -356,7 +369,7 @@ async function main() {
   const turned = JSON.parse(JSON.stringify(readyTheme)); turned.scenes.find(s => s.role === 'game_list').nodes.find(n => n.name === 'Game title').layout.rotation = 10;
   assert.ok(planExport(turned).notes.some(n => /upright and solid/.test(n)));
   const listSceneReady = readyTheme.scenes.find(s => s.role === 'game_list');
-  assert.ok(liveLayer(listSceneReady, listSceneReady.nodes.find(n => n.type === 'game_list')) && !liveLayer(readyTheme.scenes.find(s => s.role === 'system_select'), readyTheme.scenes.find(s => s.role === 'system_select').nodes[1]));
+  assert.ok(liveLayer(listSceneReady, listSceneReady.nodes.find(n => n.type === 'game_list')) && liveLayer(readyTheme.scenes.find(s => s.role === 'system_select'), readyTheme.scenes.find(s => s.role === 'system_select').nodes[1]) && !liveLayer(readyTheme.scenes.find(s => s.role === 'system_select'), readyTheme.scenes.find(s => s.role === 'system_select').nodes[2]));
   const fakeBaked = new Map(exportPlan.screens.flatMap(s => s.groups).filter(g => g.kind === 'bake').map((g, i) => [g, { encoded: 'x', info: { sha256: String(i).repeat(64).slice(0, 64), path: `assets/images/${String(i).repeat(64).slice(0, 64)}.png`, bytes: 10, width: 1920, height: 1080 } }]));
   const exported = exportDocument(readyTheme, exportPlan, fakeBaked);
   assert.deepEqual(exported.scenes.map(s => s.role), ['system_select', 'game_list']); assert.deepEqual(exported.targets, []);
@@ -738,6 +751,11 @@ async function main() {
     const listInspector = render('theme-studio/NodeInspector', { scene: withList.project.scenes[0], node: listNode, disabled: false, onChange() {}, onEnd() {} });
     assert.match(listInspector, /Highlight bar/); assert.match(listInspector, /Selected game name/); assert.match(listInspector, /Text alignment/); assert.ok(!/Text color|Panel color/.test(listInspector));
     assert.ok(!editor.includes('Add game list'), 'Add game list is only on the Game List screen');
+    const carouselCanvas = render('theme-studio/SceneCanvas', { scene: withCarousel.project.scenes[0], selected: null, disabled: false, onSelect() {}, onMove() {}, onResize() {}, onEndGroup() {} });
+    assert.match(carouselCanvas, /SNES/); assert.match(carouselCanvas, /fill="#0a0e1899"/);
+    const carouselInspector = render('theme-studio/NodeInspector', { scene: withCarousel.project.scenes[0], node: carouselNode, disabled: false, onChange() {}, onEnd() {} });
+    assert.match(carouselInspector, /Band opacity/); assert.match(carouselInspector, /Up and down/); assert.match(carouselInspector, /Systems shown/);
+    assert.ok(!editor.includes('Add system carousel'), 'Add system carousel is only on System Select');
     let alignedEdit=null;
     const typographyProps={node:typographyNode,disabled:false,onChange(next){alignedEdit=next;},onEnd(){}};
     const alignmentSelect=component('theme-studio/TextAlignmentControls')(typographyProps).props.children.find(child=>child?.type==='select');

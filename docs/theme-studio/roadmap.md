@@ -31,3 +31,5 @@ Order can change with the owner. AI picture generation (asking the assistant to 
 ## What exists (built 2026-11-08 to 11-10)
 
 Projects with autosave, saved versions, recovery and copies; eight screens per theme; text, panel and picture layers with move, resize, rotate, opacity, align, snap, grid, lock, hide, order and undo; sample game data for previews; a checked PNG store; an off-by-default RetroBat compiler and packager for a small subset; a test kit for a separate RetroBat home that has never been run. Details: [requirements](requirements.md), [export plan](retrobat-export-plan.md), [native comparison](native-comparison.md).
+
+**2026-11-10:** System Select styling added (ADR-116) after the native check showed RetroBat's default carousel band.

@@ -349,7 +349,7 @@ pub fn validate_project(project: &ThemeProject) -> Result<(), Vec<Issue>> {
             }
             for binding in node.bindings.values() {
                 let kind = match binding.source.as_str() {
-                    "game.title" | "game.description" | "system.name" => Some("text"),
+                    "game.title" | "game.description" | "system.name" | "system.games" => Some("text"),
                     "game.year" | "game.players" | "game.rating" => Some("number"),
                     "game.artwork" => Some("image"),
                     // The selected game's own video (ADR-111); played by the system, never stored in the theme.
@@ -462,6 +462,7 @@ pub fn unsupported_features(project: &ThemeProject) -> Vec<Issue> {
                 "navigation",
                 "video",
                 "game_list",
+                "system_carousel",
             ]
             .contains(&node.node_type.as_str())
             {

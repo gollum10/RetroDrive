@@ -30,7 +30,10 @@ const gameList = (id: string, at: Box): ThemeNode => ({ id, type: 'game_list', n
 /** The "Ready layout" starting point (ADR-108): an original, plain design to change. */
 function readyLayout(role: string, name: string): ThemeNode[] {
   const nodes: ThemeNode[] = [panel(`${role}-background`, 'Background', [0, 0, 100, 100], '10141f')];
-  if (role === 'system_select') nodes.push(text(`${role}-system`, 'System name', [10, 40, 80, 14], 'System name', 96, 'ffffff', 'system.name'), text(`${role}-hint`, 'Hint', [10, 58, 80, 6], 'Choose a system', 32, '9fb3cb'));
+  if (role === 'system_select') nodes.push(
+    { id: `${role}-carousel`, type: 'system_carousel', name: 'System carousel', layout: box([0, 36, 100, 26]), style: { fill: '0a0e1899', color: 'ffffff', direction: 'horizontal', count: 3 }, children: [], assets: [], bindings: {} },
+    text(`${role}-hint`, 'Hint', [10, 14, 80, 8], 'Choose a system', 48, 'ffffff'),
+    { ...text(`${role}-games`, 'Number of games', [10, 66, 80, 6], '4885 games', 32, '9fb3cb', 'system.games'), style: { text: '4885 games', color: '9fb3cb', fontSize: { value: 32, unit: 'px' }, textAlign: 'center' } });
   else if (role === 'game_list' || role === 'game_detail') nodes.push(
     text(`${role}-heading`, 'Heading', [4, 4, 92, 8], name, 48, '9fb3cb', role === 'game_list' ? 'system.name' : undefined),
     panel(`${role}-list`, role === 'game_list' ? 'Game list area' : 'Picture area', [4, 15, 44, 80], '1b2233'),

@@ -24,7 +24,7 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
   const [preview, setPreview] = useState<{ id: string; x: number; y: number; width?: number; height?: number } | null>(null);
   const safeImages=useMemo(()=>Object.fromEntries(Object.entries(previewImages).filter(([,value])=>safePngPreview(value))),[previewImages]);
   const roots = useMemo(() => rootNodes(scene), [scene]);
-  const visible = roots.filter(node => ['text', 'panel', 'image', 'video', 'game_list'].includes(node.type) && node.children.length === 0 && !layerState(node).hidden);
+  const visible = roots.filter(node => ['text', 'panel', 'image', 'video', 'game_list', 'system_carousel'].includes(node.type) && node.children.length === 0 && !layerState(node).hidden);
   const cancel = () => { drag.current = null; setPreview(null); };
   const selectedState = scene.nodes.find(node => node.id === selected);
   const locked = selectedState ? layerState(selectedState).locked : false;
@@ -78,6 +78,7 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
           <title>{node.name}</title><rect width={width} height={height} fill={node.type === 'panel' ? previewColor(node.style.fill, '#263f60') : 'transparent'} opacity={opacity}/>
           {node.type === 'image' && (safeImages[node.assets[0]] ? <ImageLayer node={node} url={safeImages[node.assets[0]]} width={width} height={height} opacity={opacity}/> : <text x={4} y={20} fill="#abc0d9" fontSize={18} pointerEvents="none">Image unavailable</text>)}
           {node.type === 'video' && <g pointerEvents="none" opacity={opacity}><rect width={width} height={height} fill="#0b0f16"/><rect width={width} height={height} fill="none" stroke="#3a4a60" strokeDasharray="12 8" vectorEffect="non-scaling-stroke"/><polygon points={`${width / 2 - Math.min(width, height) * .09},${height / 2 - Math.min(width, height) * .12} ${width / 2 - Math.min(width, height) * .09},${height / 2 + Math.min(width, height) * .12} ${width / 2 + Math.min(width, height) * .13},${height / 2}`} fill="#ffffff" fillOpacity={.85}/><text x={width / 2} y={height - Math.max(12, Math.min(40, height * .12))} textAnchor="middle" fontFamily="sans-serif" fontSize={Math.max(14, Math.min(36, height * .09))} fill="#c8d0e0">Game video plays here</text></g>}
+          {node.type === 'system_carousel' && <CarouselPreview node={node} width={width} height={height} opacity={opacity}/>}
           {node.type === 'game_list' && <GameListPreview node={node} width={width} height={height} fontSize={fontSize} opacity={opacity}/>}
           {node.type === 'text' && <svg width={width} height={height} overflow="hidden" pointerEvents="none"><text x={textPlacement.x} textAnchor={textPlacement.anchor} y={0} dominantBaseline="hanging" fontFamily="sans-serif" fontSize={fontSize} fill={previewColor(node.style.color, '#ffffff')} opacity={opacity}>{sampleText(node,dataset).split('\n').slice(0, 20).map((line, index) => <tspan key={index} x={textPlacement.x} dy={index ? '1.2em' : 0}>{line || ' '}</tspan>)}</text></svg>}
         </g>;
@@ -121,5 +122,19 @@ function GameListPreview({ node, width, height, fontSize, opacity }: { node: The
       {i === 1 && <rect y={row} width={width} height={row} fill={previewColor(node.style.selectorColor, '#378cdd')}/>}
       <text x={x} y={i * row + row / 2} dominantBaseline="central" textAnchor={align} fontFamily="sans-serif" fontSize={fontSize} fill={previewColor(i === 1 ? node.style.selectedColor : node.style.color, i === 1 ? '#ffffff' : '#c8d0e0')}>{SAMPLE_GAMES[i % SAMPLE_GAMES.length]}</text>
     </g>)}
+  </svg>;
+}
+
+/** The System Select carousel as RetroBat draws it: a band of system names, the middle one selected and larger (ADR-116). */
+const SAMPLE_SYSTEMS = ['Arcade', 'NES', 'SNES', 'Genesis', 'Game Boy', 'PlayStation', 'N64', 'Atari 2600', 'Neo Geo'];
+function CarouselPreview({ node, width, height, opacity }: { node: ThemeNode; width: number; height: number; opacity: number }) {
+  const count = typeof node.style.count === 'number' ? Math.max(1, Math.min(9, Math.round(node.style.count))) : 3;
+  const vertical = node.style.direction === 'vertical';
+  const middle = Math.floor(count / 2);
+  const step = (vertical ? height : width) / count;
+  const base = Math.min(vertical ? step : height, vertical ? width / 6 : step / 4) * .45;
+  return <svg width={width} height={height} overflow="hidden" pointerEvents="none" opacity={opacity}>
+    <rect width={width} height={height} fill={previewColor(node.style.fill, '#0a0e1899')}/>
+    {Array.from({ length: count }, (_, i) => { const c = step * (i + .5); return <text key={i} x={vertical ? width / 2 : c} y={vertical ? c : height / 2} textAnchor="middle" dominantBaseline="central" fontFamily="sans-serif" fontWeight={i === middle ? 700 : 400} fontSize={i === middle ? base * 1.2 : base} fill={previewColor(node.style.color, '#ffffff')} fillOpacity={i === middle ? 1 : .6}>{SAMPLE_SYSTEMS[(i + 1) % SAMPLE_SYSTEMS.length]}</text>; })}
   </svg>;
 }
