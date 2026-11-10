@@ -1,6 +1,6 @@
 # First RetroBat exporter: evidence and delivery plan
 
-Status: research/implementation plan, not a supported exporter. Reviewed 2026-11-09. No frontend binaries, themes or artwork were downloaded, installed or launched. No target installation was inspected or changed during this investigation.
+Status: experimental in-memory compiler, not a supported exporter. Updated 2026-11-10. No frontend binaries, themes or artwork were downloaded, installed or launched. Installed-artifact evidence stays local; no installation files were changed.
 
 ## Evidence pinned for reproducibility
 
@@ -61,9 +61,23 @@ File locations are proposed, not implemented stubs. Each code PR updates Feature
 
 ## Acceptance gates and current result
 
-- Current result: pinned research and reviewed local contracts only; no exact installed engine verified, no compiler implemented, no native output produced.
+- Current result: pinned research and a pure candidate compiler with original fixtures. No source/build association or native behavior verified; no production exporter enabled.
 - Compiler gate: deterministic bounded output; parseable escaped XML; all requested features accounted for; source and managed asset declarations preserved; unsupported data blocks output.
 - Runtime gate: exact trusted profile, original native fixtures and navigation/metadata checks pass; documented editor/native differences are surfaced before export.
 - Release gate: complete diagnostics, portable packaging/privacy/license checks, accessible build UI, filesystem safety tests and owner native acceptance. A passing synthetic unit test alone does not enable native support.
 
 Validation for this documentation-only PR: inspect pinned upstream source via read-only GitHub API, compare current ThemeAdapter/ProfileKey/compatibility boundary and existing theme services, validate Markdown links and git diff --check. No application or Rust tests are claimed for this planning change. The next implementation task is the pure in-memory compiler spike; installed-engine evidence can proceed alongside it without weakening production gates.
+
+## Compiler spike implementation
+
+The pure export::retrobat::compile_candidate function accepts bounded JSON through the existing portable source parser. It returns theme.xml text and sorted used-PNG requirements (relative path/hash/byte declaration), or one deterministic blocker with no partial candidate. This is experimental candidate output, not a buildable package, native certification or a registered adapter. It has no filesystem/database/network/process/IPC access.
+
+Limits: existing 2 MiB portable input and structural validation, at most two distinct system_select/game_list scenes, 128 total flat text/image nodes, literal text up to 500 characters/20 lines, normalized coordinates/sizes within 0..1 and six-decimal precision (rounded-zero dimensions refused), at most 1 MiB XML. Image bytes are not emitted. Hash-derived element names and source ordering yield repeatable output; no timestamps or machine paths are generated.
+
+Candidate text supports literal strings, six/eight-digit color, 8..256 px font size, left/center/right alignment, explicit top vertical alignment and 1.2 line spacing. Only detailed-view game.title/game.description bind to md_name/md_description; duplicates are blocked and retained static captions are not exported for bound layers. No sample value enters output. PNG Fit maps to maxSize and a controlled relative path; Fill/crop remain blocked. Unknown extensions/styles, nesting, rotation, opacity, panels, other bindings/scenes and hidden flags block output. Known locked and false-hidden editor flags are non-rendering metadata. XML special characters are escaped, invalid XML controls and target variable interpolation syntax are rejected.
+
+Known limitations: one blocker per attempt rather than a complete issue list; default native navigation/UI remains unverified; font metrics/wrapping/clipping and PNG placement need native comparison. Required asset declarations are not byte authorization, a license audit or a package manifest. Subsequent work must resolve managed bytes, hash/length conflicts, licensing and deterministic file manifests before user-facing build/export. Production registry remains empty.
+
+Original compiler-minimal JSON/XML fixtures contain no third-party art or copied upstream code. Unit tests cover golden output/XML parsing, Unicode/escaping, stable output, title/description bindings, unknown-data rejection, unsupported features, source limits, malformed/extreme geometry, duplicate views/bindings, PNG requirements/missing/unsafe paths and portrait font sizing. Native smoke tests remain outstanding.
+
+Validation executed for the compiler PR: eight targeted Rust compiler tests passed; full Rust suite passed on the rebased branch (341 passed, seven ignored); all-target Clippy with warnings denied passed. Theme contract/workspace checks, frontend build, license gate and changed-Rust formatting/whitespace checks passed. The first frontend build required npm ci to install fonts already added on main; no dependency manifest was changed here. No native frontend execution or browser interaction test was performed for this backend-only compiler slice.

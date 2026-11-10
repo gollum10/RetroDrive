@@ -1,5 +1,8 @@
 # 17 | Third-Party Component Manifest (LEGAL-001)
 
+**Experimental RetroBat compiler:** a pure in-memory candidate compiler now produces bounded XML and used-PNG declarations for a strict subset. It does not enable export, resolve asset bytes or write target files. See [scope and evidence](theme-studio/retrobat-export-plan.md#compiler-spike-implementation).
+
+
 **Sample preview content:** original synthetic text/number metadata only; no bundled game data, artwork, ROMs, fonts, downloads, new dependency or browser package. Personal library and emulator services are not queried.
 
 **PNG workflow dependency:** direct base64 0.23.1 reuses the version already locked transitively; no version upgrades or browser packages. License gate and generated notices/inventory remain current (298 components, zero denied). Browser tests generate original pixels in memory; no bundled user art.

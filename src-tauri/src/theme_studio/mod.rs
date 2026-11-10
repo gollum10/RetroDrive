@@ -1,6 +1,7 @@
 //! Portable theme source and local catalog projects; no installation writes.
 pub mod adapters;
 pub mod capabilities;
+pub mod export;
 #[cfg(test)]
 mod capability_tests;
 pub(crate) mod commands;

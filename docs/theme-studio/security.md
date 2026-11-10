@@ -27,3 +27,7 @@ Later boundaries require separate tests: actual asset bytes/hash/codec/SVG check
 Installation requires a dedicated scoped safety review and owner-authorized plan before target mutations. Reuse identity checks, stale-review SHA protection, no-replace renames, read-back verification, retained backups and journaled recovery where appropriate. Existing docs/18 authorization is not blanket approval for a new deployment service. No automatic boot/system writes or deletion of working themes/backups.
 
 Development is isolated in .worktrees/theme-studio on feature/theme-studio-schema. The original checkout's branch and uncommitted planning documents, and the existing RetroInstaller-wip checkout, are preserved. A Git-local info/exclude entry hides .worktrees; no tracked ignore rule changes. Build outputs are isolated; Git refs/object storage remain shared. Do not reset/switch/force-push another checkout's branch.
+
+## Experimental compiler boundary
+
+The RetroBat candidate compiler consumes only bounded source JSON and emits in-memory XML/declarations. No command, output directory, installation path, network request or production adapter is exposed. Unknown semantics block rather than disappear; XML controls and target-variable interpolation are refused. PNG requirements are untrusted declarations until managed-store byte/hash/length and license verification in a later increment. Candidate XML must not be presented as an installable package or native-verified output. No changes to Customize or target settings writers.

@@ -1,5 +1,8 @@
 # 04 | Technical Architecture
 
+**Experimental RetroBat compiler:** a pure in-memory candidate compiler now produces bounded XML and used-PNG declarations for a strict subset. It does not enable export, resolve asset bytes or write target files. See [scope and evidence](theme-studio/retrobat-export-plan.md#compiler-spike-implementation).
+
+
 **RetroBat export groundwork:** [pinned evidence and minimal exporter plan](theme-studio/retrobat-export-plan.md) now defines the pure compiler, exact installed-engine capture and native acceptance gates. This is planning only; no exporter or installation support is enabled.
 
 
