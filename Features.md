@@ -1,5 +1,8 @@
 # RetroDrive — Features
 
+**80s look (2026-11-10, ADR-123):** a sixth RetroDrive look in the logo's synthwave colours: purple night, hot pink neon, cyan glow and sunset-chrome headings. Pick it in the Dashboard's Look switch.
+
+
 **Other AI services (2026-11-10, ADR-121):** besides Claude and a private AI, connect OpenAI (ChatGPT), Google Gemini, OpenRouter, Mistral, Groq, DeepSeek, xAI, Together AI or Fireworks AI with your own key, and pick the model; Pro adds any service by address. Ask AI lets you choose which one to ask.
 
 
