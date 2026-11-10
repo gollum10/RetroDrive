@@ -339,6 +339,30 @@ async function main() {
   const readyGames = newDocument({ ...form, template: "ready" }).scenes.find(s => s.role === "game_list");
   assert.equal(readyGames.nodes.filter(n => n.type === "game_list").length, 1, 'the Ready layout places a game list');
   assert.ok(readyGames.nodes.findIndex(n => n.type === "game_list") > readyGames.nodes.findIndex(n => n.name === 'Game list area'), 'the list sits on its backing panel');
+  // Save for RetroBat planning and export document (ADR-113).
+  const { planExport, exportDocument, liveLayer } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  const readyTheme = newDocument({ ...form, template: 'ready' });
+  const exportPlan = planExport(readyTheme);
+  assert.deepEqual(exportPlan.screens.map(s => s.scene.role), ['system_select', 'game_list']);
+  assert.ok(exportPlan.notes.some(n => /Startup/.test(n) && /aren't included/.test(n)), 'other screens are explained');
+  assert.ok(exportPlan.notes.some(n => /System name/.test(n) && /System Select/.test(n)), 'system name on System Select is explained');
+  const listPlan = exportPlan.screens[1].groups;
+  assert.deepEqual(listPlan.map(g => g.kind), ['bake', 'live', 'bake', 'live', 'live', 'live', 'live'], JSON.stringify(listPlan.map(g => g.kind === 'live' ? g.node.name : g.nodes.map(n => n.name))));
+  assert.deepEqual([listPlan[0].nodes.map(n => n.name), listPlan[2].nodes.map(n => n.name)], [['Background'], ['Game list area']], 'a live layer between static ones splits them, keeping the order');
+  assert.ok(exportPlan.live.includes('the game list'));
+  const turned = JSON.parse(JSON.stringify(readyTheme)); turned.scenes.find(s => s.role === 'game_list').nodes.find(n => n.name === 'Game title').layout.rotation = 10;
+  assert.ok(planExport(turned).notes.some(n => /upright and solid/.test(n)));
+  const listSceneReady = readyTheme.scenes.find(s => s.role === 'game_list');
+  assert.ok(liveLayer(listSceneReady, listSceneReady.nodes.find(n => n.type === 'game_list')) && !liveLayer(readyTheme.scenes.find(s => s.role === 'system_select'), readyTheme.scenes.find(s => s.role === 'system_select').nodes[1]));
+  const fakeBaked = new Map(exportPlan.screens.flatMap(s => s.groups).filter(g => g.kind === 'bake').map((g, i) => [g, { encoded: 'x', info: { sha256: String(i).repeat(64).slice(0, 64), path: `assets/images/${String(i).repeat(64).slice(0, 64)}.png`, bytes: 10, width: 1920, height: 1080 } }]));
+  const exported = exportDocument(readyTheme, exportPlan, fakeBaked);
+  assert.deepEqual(exported.scenes.map(s => s.role), ['system_select', 'game_list']); assert.deepEqual(exported.targets, []);
+  assert.equal(exported.assets.length, fakeBaked.size); assert.ok(exported.assets.every(a => a.mediaType === 'image/png' && /combined by RetroDrive/.test(a.attribution)));
+  const exportedList = exported.scenes[1].nodes;
+  assert.equal(exportedList[0].type, 'image'); assert.deepEqual(exportedList[0].layout.width, { value: 100, unit: '%' }); assert.equal(exportedList[0].style.imageFit, 'contain');
+  assert.ok(exportedList.every(n => n.type === 'image' ? n.layout.width.value === 100 && n.assets.length === 1 : ['game_list', 'text'].includes(n.type) && n.layout.rotation === 0 && !('opacity' in n.style) && !('editor' in n)));
+  assert.deepEqual(exportedList.map(n => n.type), ['image', 'text', 'image', 'game_list', 'text', 'text', 'text']);
+  assert.ok(!JSON.stringify(exported).includes('Startup'), 'nothing from other screens is exported');
   // Picture placement, AI credit and delete (ADR-110).
   const { deleteNode, creditFor, encodePictureFile } = require(path.join(output, 'tests/theme-studio/workspace.js'));
   assert.equal(creditFor('', true), 'Made with an AI tool'); assert.equal(creditFor('Sam', true), 'Sam (made with an AI tool)');
@@ -705,6 +729,7 @@ async function main() {
     assert.ok(!/Text color|Panel color/.test(render('theme-studio/NodeInspector', { scene: withVideo.project.scenes[0], node: videoNode, disabled: false, onChange() {}, onEnd() {} })), 'no colour for a video layer');
     assert.match(render('theme-studio/ImageImportForm',{sceneName:'Main',overName:'Game video',initialPlacement:'over',async onImport(){},onCancel(){}}), /value="on"[^>]*checked=""[^>]*\/> Over “Game video”|checked=""[^>]*\/> Over “Game video”/);
     assert.match(editor, /Add game video/);
+    assert.match(editor, /Save for RetroBat…/);
     const listCanvas = render('theme-studio/SceneCanvas', { scene: withList.project.scenes[0], selected: null, disabled: false, onSelect() {}, onMove() {}, onResize() {}, onEndGroup() {} });
     assert.match(listCanvas, /Puzzle Quest/); assert.match(listCanvas, /fill="#378cdd"/);
     const listInspector = render('theme-studio/NodeInspector', { scene: withList.project.scenes[0], node: listNode, disabled: false, onChange() {}, onEnd() {} });
