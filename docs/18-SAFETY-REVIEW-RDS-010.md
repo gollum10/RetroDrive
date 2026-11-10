@@ -730,3 +730,13 @@ Only the disposable test fixture in copier.rs changes. Production confirmation c
 | Corrupt or partial output | Every file read back and compared; a failure leaves the "(incomplete)" folder and says so | `write_new_folder` |
 | Packaging pictures that aren't the theme's, or damaged ones | Baked pictures re-checked by the PNG normalizer; other pictures must be declared by the stored theme and pass the store's integrity check; 32 MB budget; read-only transaction | `a_theme_is_built_from_baked_pictures_and_live_parts_without_storing_anything` |
 | Opening arbitrary folders | Open folder only for absolute paths holding `retrodrive-theme.json` | `open_saved_theme` |
+
+## 68. Addendum: Put on RetroBat (2026-11-10)
+**Scope:** ADR-115. Theme Studio adds a saved theme to a RetroBat installation as a new theme folder and, if the user leaves the box ticked, makes it RetroBat's theme through Customize's existing theme switch.
+
+| Risk | Mitigation | Evidence |
+|---|---|---|
+| Replacing or changing an existing theme | New folder only (`free_folder` adds "(2)"); create-new files; "(incomplete)" then rename without replacing; nothing deleted | `a_saved_theme_is_put_on_retrobat_only_as_listed_and_unchanged` |
+| Copying unexpected or altered files | Only files listed in `retrodrive-theme.json`, each rechecked for size and SHA-256; plain relative names; 256 files and 32 MB at most | same test |
+| Writing while another drive change runs | Holds the drive-change claim like other drive writes | `put_theme_on_retrobat` |
+| Changing RetroBat's settings unsafely | The existing theme switch: file hash reviewed, refused while RetroBat runs, backed up, journaled, Undo in Customize (unchanged code) | Customize tests; ADR for the theme switch |

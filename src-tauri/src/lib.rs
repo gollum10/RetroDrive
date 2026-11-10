@@ -569,6 +569,22 @@ async fn create_theme_remix(catalog: State<'_, Catalog>, active: State<'_, Activ
     result?
 }
 
+/// Theme Studio (ADR-115): put a saved theme on RetroBat as a new theme folder (never replacing one).
+#[tauri::command]
+async fn put_theme_on_retrobat(catalog: State<'_, Catalog>, active: State<'_, ActiveJobs>, installation_id: String, folder: String) -> Result<theme_studio::export::save::SavedTheme, String> {
+    claim_drive_change(&active)?;
+    let db_path = catalog.path()?;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let install = customizer::install(&db::open(&db_path)?, &installation_id, &volumes::presence)?;
+        let themes = install.root.join("emulationstation").join(".emulationstation").join("themes");
+        theme_studio::export::save::put_on_retrobat(&themes, std::path::Path::new(&folder))
+    })
+    .await
+    .map_err(|e| e.to_string());
+    active.undoing.store(false, Ordering::SeqCst);
+    result?
+}
+
 /// What making a theme RetroBat's theme would change (reads only).
 #[tauri::command]
 async fn preview_theme_switch(catalog: State<'_, Catalog>, installation_id: String, theme: String) -> Result<customizer::Preview, String> {
@@ -1872,6 +1888,7 @@ pub fn run() {
             theme_studio::commands::theme_save_destination,
             theme_studio::commands::save_theme_for_retrobat,
             theme_studio::commands::open_saved_theme,
+            put_theme_on_retrobat,
             theme_studio::commands::theme_target_profiles,
             theme_studio::commands::theme_compatibility,
             theme_studio::commands::validate_theme_document,
