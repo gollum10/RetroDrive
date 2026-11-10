@@ -21,7 +21,7 @@ Read `docs/00-START-HERE.md`, `docs/02-SCOPE-AND-REQUIREMENTS.md`, `docs/04-SYST
 M1, RDS-006/007, RDS-009 and RDS-010 are done: read-only RetroBat support, the deployment plan (`deployment.rs`) and the staged, verified copier (`copier.rs`); see docs/04, 08 and the safety review in docs/18. **Any change to `copier.rs` must keep every hazard in docs/18 §2 covered by a test**, and must never add overwrite or delete behavior without a new user-authorized plan and safety review. Replace (step 5b) moves originals to `.retrodrive/backup` and never deletes them (docs/18 §7). Adapter contract is v2 (`PlacementOptions`, e.g. the arcade choice). Never place arcade games without the user's choice, and never copy BIOS files from any target build (e.g. OneSauce). Next candidates are listed in docs/11. Report the plan, risk and test plan before changing files.
 
 ## Keep docs in sync
-Every change updates [`Features.md`](../Features.md) (feature status) and the affected docs here (architecture in 04, schema in 05, rules in 07/08, roadmap status in 11, QA coverage in 15, decisions in 13).
+Every change updates [`FEATURES.md`](../FEATURES.md) (the plain-language feature list, for users: keep it short, no ADR numbers or dates), adds a line to [`CHANGELOG.md`](../CHANGELOG.md) (newest first, with the ADR number) and the affected docs here (architecture in 04, schema in 05, rules in 07/08, roadmap status in 11, QA coverage in 15, decisions in 13).
 
 ## Required response format from coding assistant
 - What was changed and where.
