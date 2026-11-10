@@ -8,22 +8,12 @@
 /* Hand-written effects (ADR-104). Original designs: no names, logos, fonts or screen
    layouts from any film or TV series. Layout never changes; only colour, type, light. */
 
-/* Galactic: space opera, the empire's side. Black and steel, a cold starfield behind a
-   faint targeting grid, imperial red glows, stark white Orbitron headings. */
+/* Galactic: space opera, the empire's side. A black screen with amber vector lines,
+   imperial red glows and readouts, Orbitron headings. */
 :root[data-look="galactic"]{--gal-red:#dc1e2d;--gal-steel:#8b95a3}
-:root[data-look="galactic"] body{background-color:#040506;background-image:
-  radial-gradient(ellipse 70% 45% at 85% -5%,rgba(220,30,45,.12),transparent 70%),
-  linear-gradient(rgba(139,149,163,.045) 1px,transparent 1px),
-  linear-gradient(90deg,rgba(139,149,163,.045) 1px,transparent 1px),
-  radial-gradient(1px 1px at 12% 18%,rgba(255,255,255,.9),transparent),
-  radial-gradient(1px 1px at 68% 42%,rgba(255,255,255,.7),transparent),
-  radial-gradient(1.5px 1.5px at 33% 77%,rgba(220,235,255,.85),transparent),
-  radial-gradient(1px 1px at 88% 71%,rgba(255,255,255,.6),transparent),
-  radial-gradient(1px 1px at 52% 9%,rgba(255,255,255,.75),transparent),
-  radial-gradient(1.5px 1.5px at 6% 58%,rgba(255,255,255,.7),transparent);
-  background-size:100% 100%,64px 64px,64px 64px,340px 340px,290px 290px,410px 410px,260px 260px,370px 370px,450px 450px;background-attachment:fixed}
-:root[data-look="galactic"] .sidebar{background:rgba(6,7,9,.92);border-right:1px solid #2a2f37;box-shadow:inset -1px 0 0 rgba(220,30,45,.25)}
-:root[data-look="galactic"] .panel,:root[data-look="galactic"] .stats article{background:linear-gradient(90deg,transparent,rgba(220,30,45,.55),transparent) top/100% 1px no-repeat,rgba(10,11,14,.9);border:1px solid #2a2f37;border-radius:6px;box-shadow:0 12px 40px rgba(0,0,0,.6)}
+:root[data-look="galactic"] body{background:#000}
+:root[data-look="galactic"] .sidebar{background:#000;border-right:1px solid #2a2f37;box-shadow:inset -1px 0 0 rgba(220,30,45,.25)}
+:root[data-look="galactic"] .panel,:root[data-look="galactic"] .stats article{background:#050506;border:1px solid #2a2f37;border-radius:6px;box-shadow:0 12px 40px rgba(0,0,0,.6)}
 :root[data-look="galactic"] h1,:root[data-look="galactic"] h2,:root[data-look="galactic"] .brand strong{font-family:Orbitron,Inter,Segoe UI,sans-serif;letter-spacing:2px;text-transform:uppercase}
 :root[data-look="galactic"] h1{color:#f2f4f7;text-shadow:0 0 16px rgba(220,30,45,.55)}
 :root[data-look="galactic"] .eyebrow,:root[data-look="galactic"] .nav-label{font-family:Orbitron,Inter,sans-serif;color:var(--gal-steel)}
@@ -33,6 +23,28 @@
 :root[data-look="galactic"] .wizard-main{border-radius:6px;box-shadow:0 0 22px rgba(220,30,45,.2)}
 :root[data-look="galactic"] .nav-item{border-radius:4px}
 :root[data-look="galactic"] .nav-item.selected{border-left-color:var(--gal-red);box-shadow:inset 0 0 18px rgba(220,30,45,.14)}
+:root[data-look="galactic"]{--gal-amber:#f0c43c}
+/* Vector-display touches: an amber perspective grid fading in at the bottom, faint CRT
+   scanlines, bracketed HUD corners, glowing red readouts and indicator lamps. */
+:root[data-look="galactic"] body::before{content:"";position:fixed;left:-50%;right:-50%;bottom:-8vh;height:52vh;z-index:-1;pointer-events:none;
+  background:linear-gradient(90deg,rgba(240,196,60,.55) 1px,transparent 1px) 0 0/56px 100%,linear-gradient(rgba(240,196,60,.55) 1px,transparent 1px) 0 0/100% 40px;
+  transform:perspective(320px) rotateX(62deg);transform-origin:50% 100%;opacity:.16;
+  -webkit-mask-image:linear-gradient(to top,#000 10%,transparent 85%);mask-image:linear-gradient(to top,#000 10%,transparent 85%)}
+:root[data-look="galactic"] body::after{content:"";position:fixed;inset:0;z-index:50;pointer-events:none;background:repeating-linear-gradient(rgba(0,0,0,.12) 0 1px,transparent 1px 3px)}
+:root[data-look="galactic"] .panel,:root[data-look="galactic"] .stats article{position:relative;border-color:rgba(240,196,60,.22);background:
+  linear-gradient(var(--gal-amber),var(--gal-amber)) top left/14px 2px no-repeat,linear-gradient(var(--gal-amber),var(--gal-amber)) top left/2px 14px no-repeat,
+  linear-gradient(var(--gal-amber),var(--gal-amber)) top right/14px 2px no-repeat,linear-gradient(var(--gal-amber),var(--gal-amber)) top right/2px 14px no-repeat,
+  linear-gradient(var(--gal-amber),var(--gal-amber)) bottom left/14px 2px no-repeat,linear-gradient(var(--gal-amber),var(--gal-amber)) bottom left/2px 14px no-repeat,
+  linear-gradient(var(--gal-amber),var(--gal-amber)) bottom right/14px 2px no-repeat,linear-gradient(var(--gal-amber),var(--gal-amber)) bottom right/2px 14px no-repeat,
+  #050506}
+:root[data-look="galactic"] h1{color:var(--gal-amber);text-shadow:0 0 6px rgba(240,196,60,.6),0 0 22px rgba(220,30,45,.45)}
+:root[data-look="galactic"] h2{color:var(--gal-amber)}
+:root[data-look="galactic"] .eyebrow{color:#ff4d55}
+:root[data-look="galactic"] .nav-item svg{color:var(--gal-amber)}
+:root[data-look="galactic"] .stats strong{display:block;width:fit-content;font-family:Orbitron,monospace;color:#ff3b45;text-shadow:0 0 10px rgba(255,40,50,.75);border:2px solid rgba(255,59,69,.75);border-radius:12px;padding:2px 16px;box-shadow:0 0 12px rgba(255,40,50,.3),inset 0 0 10px rgba(255,40,50,.2);letter-spacing:3px}
+:root[data-look="galactic"] .stats article::after{content:"";position:absolute;top:16px;right:18px;width:40px;height:8px;background:
+  radial-gradient(circle 4px at 4px 4px,#ff3b45 60%,transparent 70%),radial-gradient(circle 4px at 20px 4px,#f0c43c 60%,transparent 70%),radial-gradient(circle 4px at 36px 4px,#3ee07a 60%,transparent 70%);
+  filter:drop-shadow(0 0 4px rgba(255,200,80,.6))}
 
 /* Bridge: starship console. Rounded colour bars, pill buttons, condensed capitals. */
 :root[data-look="bridge"]{--bridge-orange:#ff9c33;--bridge-lilac:#c9a6ff;--bridge-sky:#8fc6ff}
