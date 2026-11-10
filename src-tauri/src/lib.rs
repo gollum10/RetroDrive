@@ -41,6 +41,7 @@ pub mod theme_studio;
 /// Optional AI helpers for Theme Studio (ADR-118).
 pub mod ai;
 pub mod ai_design;
+pub mod ai_pictures;
 mod scanner;
 mod sinden_step;
 mod backup_zip;
@@ -967,6 +968,98 @@ fn ai_disconnect_service(catalog: State<'_, Catalog>, id: String) -> Result<(), 
         settings.custom_url = None;
     }
     ai::save_settings(&path, &settings)
+}
+
+/// AI pictures (ADR-122): which picture services are connected.
+#[tauri::command]
+fn ai_picture_status(catalog: State<'_, Catalog>) -> Result<ai_pictures::PictureStatus, String> {
+    let key = ai::KeyStore::get(&ai::ServiceKey("openai".into()))?.is_some();
+    Ok(ai_pictures::status(&catalog.path()?, key))
+}
+
+/// AI pictures: the picture models the connected OpenAI key can use.
+#[tauri::command]
+async fn ai_picture_openai_models() -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let s = ai::service("openai").ok_or("Unknown AI service.")?;
+        let key = ai::KeyStore::get(&ai::ServiceKey("openai".into()))?.ok_or("Connect OpenAI under Other AI services first.")?;
+        let models = ai_pictures::picture_models(&ai::service_models(s.base, s.check, s.name, &key)?);
+        if models.is_empty() {
+            return Err("That OpenAI key can't make pictures. Check the key's permissions on the OpenAI site.".into());
+        }
+        Ok(models)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// AI pictures: choose the OpenAI picture model (None stops using OpenAI for pictures).
+#[tauri::command]
+fn ai_set_picture_openai_model(catalog: State<'_, Catalog>, model: Option<String>) -> Result<(), String> {
+    if model.as_deref().is_some_and(|m| !(m.starts_with("gpt-image") || m.starts_with("dall-e")) || m.len() > 100) {
+        return Err("That isn't a picture model.".into());
+    }
+    let path = catalog.path()?;
+    let mut settings = ai::load_settings(&path);
+    settings.picture_openai_model = model;
+    ai::save_settings(&path, &settings)
+}
+
+/// AI pictures: look for Automatic1111 or ComfyUI at its usual address on this PC.
+#[tauri::command]
+async fn ai_find_picture_program() -> Result<Option<ai_pictures::ProgramFound>, String> {
+    tauri::async_runtime::spawn_blocking(|| Ok(ai_pictures::USUAL_PROGRAMS.iter().find_map(|url| ai_pictures::find_program(url).ok())))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// AI pictures: which picture program answers at an address (local or private network only).
+#[tauri::command]
+async fn ai_check_picture_program(url: String) -> Result<ai_pictures::ProgramFound, String> {
+    tauri::async_runtime::spawn_blocking(move || ai_pictures::find_program(&url)).await.map_err(|e| e.to_string())?
+}
+
+/// AI pictures: remember the picture program and its model (checked against what it offers).
+#[tauri::command]
+async fn ai_connect_picture_program(catalog: State<'_, Catalog>, url: String, model: Option<String>) -> Result<(), String> {
+    let path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let found = ai_pictures::find_program(&url)?;
+        if let Some(m) = &model {
+            if !found.models.contains(m) {
+                return Err("That model isn't offered by the program anymore.".into());
+            }
+        } else if found.kind == "comfyui" {
+            return Err("Choose a ComfyUI model.".into());
+        }
+        let mut settings = ai::load_settings(&path);
+        settings.picture_url = Some(found.url);
+        settings.picture_kind = Some(found.kind);
+        settings.picture_model = model;
+        ai::save_settings(&path, &settings)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// AI pictures: forget the picture program.
+#[tauri::command]
+fn ai_disconnect_picture_program(catalog: State<'_, Catalog>) -> Result<(), String> {
+    let path = catalog.path()?;
+    let mut settings = ai::load_settings(&path);
+    settings.picture_url = None;
+    settings.picture_kind = None;
+    settings.picture_model = None;
+    ai::save_settings(&path, &settings)
+}
+
+/// AI pictures: make one picture from a description; returns it as base64 for the picture checks.
+#[tauri::command]
+async fn ai_make_picture(catalog: State<'_, Catalog>, provider: String, prompt: String, shape: String) -> Result<String, String> {
+    let path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || ai_pictures::make(&path, &ai::ServiceKey("openai".into()), &provider, &prompt, &shape))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// Ask AI for design suggestions (ADR-120): one screen's layers and the request typed.
@@ -2110,6 +2203,14 @@ pub fn run() {
             ai_connect_private,
             ai_disconnect_private,
             ai_suggest_design,
+            ai_picture_status,
+            ai_picture_openai_models,
+            ai_set_picture_openai_model,
+            ai_find_picture_program,
+            ai_check_picture_program,
+            ai_connect_picture_program,
+            ai_disconnect_picture_program,
+            ai_make_picture,
             ai_open_service_keys,
             ai_check_service,
             ai_connect_service,

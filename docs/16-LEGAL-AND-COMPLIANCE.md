@@ -344,3 +344,5 @@ This is an engineering status record, not a legal conclusion.
 **AI helpers (2026-11-10, ADR-119):** the user brings their own Claude account (billed by Anthropic under their terms) or their own private model; RetroDrive ships no model and no key. New compiled-in components `ureq` and `native-tls` (MIT OR Apache-2.0) are listed in docs/17 and the notices.
 
 **Other AI services (2026-11-10, ADR-121):** users bring their own accounts with each company, under that company's terms and prices; RetroDrive ships no keys and no new components.
+
+**AI pictures (2026-11-10, ADR-122):** pictures are made by the user's own service and account; they are credited as made with an AI tool and given an editable AI license note so users check the service's terms before sharing. RetroDrive ships no models or pictures.

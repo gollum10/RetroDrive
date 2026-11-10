@@ -448,6 +448,15 @@ async function main() {
   assert.equal(same.done.length, 0);
   assert.equal(applyEdits(aiTheme, aiScene.id, Array.from({ length: MAX_AI_EDITS + 5 }, () => e('hide', { layer: 'nope' }))).skipped.length, MAX_AI_EDITS + 1, 'at most 40 edits are looked at');
   assert.deepEqual(applyEdits(aiTheme, aiScene.id, 'not a list').done, []);
+  // AI pictures (ADR-122): which services are ready, and the picture as a file for the usual checks.
+  const { pictureServices, aiPictureFile } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  assert.deepEqual(pictureServices(null), []);
+  assert.deepEqual(pictureServices({ openaiConnected: true, openaiModel: null, programUrl: null, programKind: null, programModel: null }), [], 'OpenAI needs a picture model chosen');
+  assert.deepEqual(pictureServices({ openaiConnected: false, openaiModel: 'gpt-image-1', programUrl: null, programKind: null, programModel: null }), [], 'and a connected key');
+  assert.deepEqual(pictureServices({ openaiConnected: true, openaiModel: 'gpt-image-1', programUrl: 'http://127.0.0.1:8188', programKind: 'comfyui', programModel: 'm' }).map(s => s[0]), ['openai', 'program']);
+  const pngFile = aiPictureFile(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0]).toString('base64'));
+  assert.equal(pngFile.type, 'image/png'); assert.equal(pngFile.name, 'ai-picture.png'); assert.equal(pngFile.size, 9);
+  assert.equal(aiPictureFile(Buffer.from([0xff, 0xd8, 0xff, 0]).toString('base64')).type, 'image/jpeg');
   // Picture placement, AI credit and delete (ADR-110).
   const { deleteNode, creditFor, encodePictureFile } = require(path.join(output, 'tests/theme-studio/workspace.js'));
   assert.equal(creditFor('', true), 'Made with an AI tool'); assert.equal(creditFor('Sam', true), 'Sam (made with an AI tool)');

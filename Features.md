@@ -1,5 +1,8 @@
 # RetroDrive — Features
 
+**AI pictures (2026-11-10, ADR-122):** in Theme Studio's Add picture, describe a picture and make it with OpenAI or a picture program on your PC (Automatic1111, Forge or ComfyUI), then use it as a background or anywhere on the screen. It's credited as AI-made.
+
+
 **Other AI services (2026-11-10, ADR-121):** besides Claude and a private AI, connect OpenAI (ChatGPT), Google Gemini, OpenRouter, Mistral, Groq, DeepSeek, xAI, Together AI or Fireworks AI with your own key, and pick the model; Pro adds any service by address. Ask AI lets you choose which one to ask.
 
 

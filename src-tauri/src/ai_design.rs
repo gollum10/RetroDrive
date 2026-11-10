@@ -128,7 +128,7 @@ pub fn check_ask(ask: &DesignAsk) -> Result<(), String> {
     Ok(())
 }
 
-fn today() -> u64 {
+pub fn today() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() / 86_400).unwrap_or(0)
 }
 
