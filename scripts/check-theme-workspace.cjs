@@ -330,6 +330,15 @@ async function main() {
   const videoFrame = attachImage(withVideo.project, scene.id, pngInfo, 'original', '', { placement: 'over', overId: videoNode.id });
   assert.deepEqual(videoFrame.project.scenes[0].nodes.find(n => n.id === videoFrame.id).layout, videoNode.layout, 'a frame fits over the game video');
   assert.ok(canOrderLayers(withVideo.project.scenes[0]), 'screens with a game video can still be reordered');
+  // Game list layer (ADR-112).
+  const withList = addNode(project, scene.id, 'game_list');
+  const listNode = withList.project.scenes[0].nodes.find(n => n.id === withList.id);
+  assert.equal(listNode.type, 'game_list'); assert.equal(listNode.name, 'Game list'); assert.deepEqual(listNode.bindings, {});
+  assert.deepEqual([listNode.style.color, listNode.style.selectedColor, listNode.style.selectorColor, listNode.style.textAlign], ['c8d0e0', 'ffffff', '378cdd', 'left']);
+  assert.ok(editableNode(withList.project.scenes[0], listNode) && canOrderLayers(withList.project.scenes[0]));
+  const readyGames = newDocument({ ...form, template: "ready" }).scenes.find(s => s.role === "game_list");
+  assert.equal(readyGames.nodes.filter(n => n.type === "game_list").length, 1, 'the Ready layout places a game list');
+  assert.ok(readyGames.nodes.findIndex(n => n.type === "game_list") > readyGames.nodes.findIndex(n => n.name === 'Game list area'), 'the list sits on its backing panel');
   // Picture placement, AI credit and delete (ADR-110).
   const { deleteNode, creditFor, encodePictureFile } = require(path.join(output, 'tests/theme-studio/workspace.js'));
   assert.equal(creditFor('', true), 'Made with an AI tool'); assert.equal(creditFor('Sam', true), 'Sam (made with an AI tool)');
@@ -696,6 +705,11 @@ async function main() {
     assert.ok(!/Text color|Panel color/.test(render('theme-studio/NodeInspector', { scene: withVideo.project.scenes[0], node: videoNode, disabled: false, onChange() {}, onEnd() {} })), 'no colour for a video layer');
     assert.match(render('theme-studio/ImageImportForm',{sceneName:'Main',overName:'Game video',initialPlacement:'over',async onImport(){},onCancel(){}}), /value="on"[^>]*checked=""[^>]*\/> Over “Game video”|checked=""[^>]*\/> Over “Game video”/);
     assert.match(editor, /Add game video/);
+    const listCanvas = render('theme-studio/SceneCanvas', { scene: withList.project.scenes[0], selected: null, disabled: false, onSelect() {}, onMove() {}, onResize() {}, onEndGroup() {} });
+    assert.match(listCanvas, /Puzzle Quest/); assert.match(listCanvas, /fill="#378cdd"/);
+    const listInspector = render('theme-studio/NodeInspector', { scene: withList.project.scenes[0], node: listNode, disabled: false, onChange() {}, onEnd() {} });
+    assert.match(listInspector, /Highlight bar/); assert.match(listInspector, /Selected game name/); assert.match(listInspector, /Text alignment/); assert.ok(!/Text color|Panel color/.test(listInspector));
+    assert.ok(!editor.includes('Add game list'), 'Add game list is only on the Game List screen');
     let alignedEdit=null;
     const typographyProps={node:typographyNode,disabled:false,onChange(next){alignedEdit=next;},onEnd(){}};
     const alignmentSelect=component('theme-studio/TextAlignmentControls')(typographyProps).props.children.find(child=>child?.type==='select');

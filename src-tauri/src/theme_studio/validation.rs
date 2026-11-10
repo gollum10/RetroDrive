@@ -461,6 +461,7 @@ pub fn unsupported_features(project: &ThemeProject) -> Vec<Issue> {
                 "game_art",
                 "navigation",
                 "video",
+                "game_list",
             ]
             .contains(&node.node_type.as_str())
             {

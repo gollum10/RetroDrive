@@ -5,7 +5,7 @@ import ImageLayer from './ImageLayer';
 import { safePngPreview } from './use-image-previews';
 import { snapPosition, snapSize, guides } from './snapping';
 import { resizeDelta } from './resize';
-import type { Scene } from './types';
+import type { ThemeNode, Scene } from './types';
 import { pixels, pointerToScene, previewColor, rootNodes, editableNode, layerState } from './scene-edit';
 
 type Drag = { id: string; pointerId: number; x: number; y: number; startX: number; startY: number; mode: 'move' | 'resize'; width: number; height: number; rotation: number };
@@ -24,7 +24,7 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
   const [preview, setPreview] = useState<{ id: string; x: number; y: number; width?: number; height?: number } | null>(null);
   const safeImages=useMemo(()=>Object.fromEntries(Object.entries(previewImages).filter(([,value])=>safePngPreview(value))),[previewImages]);
   const roots = useMemo(() => rootNodes(scene), [scene]);
-  const visible = roots.filter(node => ['text', 'panel', 'image', 'video'].includes(node.type) && node.children.length === 0 && !layerState(node).hidden);
+  const visible = roots.filter(node => ['text', 'panel', 'image', 'video', 'game_list'].includes(node.type) && node.children.length === 0 && !layerState(node).hidden);
   const cancel = () => { drag.current = null; setPreview(null); };
   const selectedState = scene.nodes.find(node => node.id === selected);
   const locked = selectedState ? layerState(selectedState).locked : false;
@@ -78,6 +78,7 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
           <title>{node.name}</title><rect width={width} height={height} fill={node.type === 'panel' ? previewColor(node.style.fill, '#263f60') : 'transparent'} opacity={opacity}/>
           {node.type === 'image' && (safeImages[node.assets[0]] ? <ImageLayer node={node} url={safeImages[node.assets[0]]} width={width} height={height} opacity={opacity}/> : <text x={4} y={20} fill="#abc0d9" fontSize={18} pointerEvents="none">Image unavailable</text>)}
           {node.type === 'video' && <g pointerEvents="none" opacity={opacity}><rect width={width} height={height} fill="#0b0f16"/><rect width={width} height={height} fill="none" stroke="#3a4a60" strokeDasharray="12 8" vectorEffect="non-scaling-stroke"/><polygon points={`${width / 2 - Math.min(width, height) * .09},${height / 2 - Math.min(width, height) * .12} ${width / 2 - Math.min(width, height) * .09},${height / 2 + Math.min(width, height) * .12} ${width / 2 + Math.min(width, height) * .13},${height / 2}`} fill="#ffffff" fillOpacity={.85}/><text x={width / 2} y={height - Math.max(12, Math.min(40, height * .12))} textAnchor="middle" fontFamily="sans-serif" fontSize={Math.max(14, Math.min(36, height * .09))} fill="#c8d0e0">Game video plays here</text></g>}
+          {node.type === 'game_list' && <GameListPreview node={node} width={width} height={height} fontSize={fontSize} opacity={opacity}/>}
           {node.type === 'text' && <svg width={width} height={height} overflow="hidden" pointerEvents="none"><text x={textPlacement.x} textAnchor={textPlacement.anchor} y={0} dominantBaseline="hanging" fontFamily="sans-serif" fontSize={fontSize} fill={previewColor(node.style.color, '#ffffff')} opacity={opacity}>{sampleText(node,dataset).split('\n').slice(0, 20).map((line, index) => <tspan key={index} x={textPlacement.x} dy={index ? '1.2em' : 0}>{line || ' '}</tspan>)}</text></svg>}
         </g>;
       })}
@@ -107,4 +108,18 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
     <p id="ts-canvas-help" className="ts-field-help">Click a layer and drag it, or use the arrow keys (Shift moves 10 pixels). Drag the bottom-right corner to resize. Esc cancels. The finished theme may differ slightly on the system itself.</p></details>
     {visible.length < scene.nodes.length && <p>Some layers can't be shown in this editor yet. They're kept and not changed.</p>}
   </section>;
+}
+
+/** The game list as RetroBat draws it: rows of game names, one selected with a bar (ADR-112). */
+const SAMPLE_GAMES = ['Sample Adventure', 'Puzzle Quest', 'Star Racer', 'Castle Escape', 'Robot Rally', 'Ocean Diver', 'Space Miner', 'Jungle Run', 'Pixel Knights', 'Neon Drift', 'Ghost Maze', 'Sky Fortress'];
+function GameListPreview({ node, width, height, fontSize, opacity }: { node: ThemeNode; width: number; height: number; fontSize: number; opacity: number }) {
+  const row = fontSize * 1.5; const rows = Math.max(1, Math.floor(height / row));
+  const align = node.style.textAlign === 'center' ? 'middle' : node.style.textAlign === 'right' ? 'end' : 'start';
+  const x = align === 'middle' ? width / 2 : align === 'end' ? width - fontSize * .4 : fontSize * .4;
+  return <svg width={width} height={height} overflow="hidden" pointerEvents="none" opacity={opacity}>
+    {Array.from({ length: rows }, (_, i) => <g key={i}>
+      {i === 1 && <rect y={row} width={width} height={row} fill={previewColor(node.style.selectorColor, '#378cdd')}/>}
+      <text x={x} y={i * row + row / 2} dominantBaseline="central" textAnchor={align} fontFamily="sans-serif" fontSize={fontSize} fill={previewColor(i === 1 ? node.style.selectedColor : node.style.color, i === 1 ? '#ffffff' : '#c8d0e0')}>{SAMPLE_GAMES[i % SAMPLE_GAMES.length]}</text>
+    </g>)}
+  </svg>;
 }

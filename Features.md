@@ -1,5 +1,8 @@
 # RetroDrive — Features
 
+**Theme Studio game list (2026-11-10, ADR-112):** place and colour the game list (game names, selected name, highlight bar) on the Game List screen; the Ready layout includes one. Groundwork for saving themes for RetroBat.
+
+
 **Theme Studio game video (2026-11-10, ADR-111):** add a game video layer (plays the selected game's own video on the system) and put a frame picture over it, such as an arcade cabinet with a see-through screen.
 
 

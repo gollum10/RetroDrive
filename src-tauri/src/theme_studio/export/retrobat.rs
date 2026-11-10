@@ -7,6 +7,33 @@ use std::collections::BTreeSet;
 
 const MAX_NODES: usize = 128;
 const MAX_XML: usize = 1024 * 1024;
+/// RetroBat's built-in game-list elements (THEMES.md at the pinned revision, "detailed" view).
+/// Any the design doesn't place are hidden, so nothing appears where the design has art (ADR-112).
+const HIDDEN_DEFAULTS: &[(&str, &str)] = &[
+    ("text", "logoText"),
+    ("image", "md_image"),
+    ("video", "md_video"),
+    ("image", "md_marquee"),
+    ("text", "md_lbl_rating"),
+    ("text", "md_lbl_releasedate"),
+    ("text", "md_lbl_developer"),
+    ("text", "md_lbl_publisher"),
+    ("text", "md_lbl_genre"),
+    ("text", "md_lbl_players"),
+    ("text", "md_lbl_lastplayed"),
+    ("text", "md_lbl_playcount"),
+    ("text", "md_lbl_gametime"),
+    ("rating", "md_rating"),
+    ("datetime", "md_releasedate"),
+    ("text", "md_developer"),
+    ("text", "md_publisher"),
+    ("text", "md_genre"),
+    ("text", "md_players"),
+    ("datetime", "md_lastplayed"),
+    ("text", "md_playcount"),
+    ("text", "md_gametime"),
+    ("text", "md_description"),
+];
 
 #[derive(Debug, PartialEq, Eq, Serialize)]
 pub struct AssetRequirement {
@@ -127,15 +154,42 @@ pub fn compile_candidate(source: &str) -> Result<Candidate, Blocker> {
             if !node.children.is_empty() || node.layout.rotation != 0.0 {
                 return Err(fail("Nested or rotated layers require a verified mapping."));
             }
-            let kind = match node.node_type.as_str() {
-                "text" => "text",
-                "image" => "image",
-                _ => return Err(fail("Unsupported layer type.")),
-            };
+            // Native element kind and name (ADR-112). Text and pictures are extras; the game list,
+            // the game's video and text linked to game data use RetroBat's own named elements.
             let mut name = format!("rd_{:x}", Sha256::digest(node.id.as_bytes()));
             let mut extra = true;
-            if !node.bindings.is_empty() {
-                if kind != "text" || view != "detailed" || node.bindings.len() != 1 {
+            let mut kind = match node.node_type.as_str() {
+                "text" => "text",
+                "image" => "image",
+                "video" | "game_list" if view != "detailed" => {
+                    return Err(fail("Game lists and game videos belong on the game list screen."))
+                }
+                "video" => {
+                    let binding = node
+                        .bindings
+                        .get("video")
+                        .filter(|_| node.bindings.len() == 1)
+                        .ok_or_else(|| fail("A game video layer needs its game-video link."))?;
+                    empty(&binding.extra)?;
+                    if binding.source != "game.video" || binding.kind != "video" {
+                        return Err(fail("Unsupported video source."));
+                    }
+                    name = "md_video".into();
+                    extra = false;
+                    "video"
+                }
+                "game_list" => {
+                    if !node.bindings.is_empty() {
+                        return Err(fail("A game list has no links."));
+                    }
+                    name = "gamelist".into();
+                    extra = false;
+                    "textlist"
+                }
+                _ => return Err(fail("Unsupported layer type.")),
+            };
+            if kind == "text" && !node.bindings.is_empty() {
+                if node.bindings.len() != 1 {
                     return Err(fail("Unsupported binding context."));
                 }
                 let binding = node
@@ -143,16 +197,24 @@ pub fn compile_candidate(source: &str) -> Result<Candidate, Blocker> {
                     .get("text")
                     .ok_or_else(|| fail("Unsupported binding slot."))?;
                 empty(&binding.extra)?;
-                if binding.kind != "text" {
+                let (native_kind, native_name, data_kind) = match (view, binding.source.as_str()) {
+                    ("detailed", "game.title") => ("text", "md_name", "text"),
+                    ("detailed", "game.description") => ("text", "md_description", "text"),
+                    ("detailed", "system.name") => ("text", "logoText", "text"),
+                    ("detailed", "game.players") => ("text", "md_players", "number"),
+                    // Shown as RetroBat formats the release date (no year-only option in format 7).
+                    ("detailed", "game.year") => ("datetime", "md_releasedate", "number"),
+                    ("detailed", _) => return Err(fail("Unsupported metadata source.")),
+                    _ => return Err(fail("Unsupported binding context.")),
+                };
+                if binding.kind != data_kind {
                     return Err(fail("Unsupported binding kind."));
                 }
-                name = match binding.source.as_str() {
-                    "game.title" => "md_name",
-                    "game.description" => "md_description",
-                    _ => return Err(fail("Unsupported metadata source.")),
-                }
-                .into();
+                kind = native_kind;
+                name = native_name.into();
                 extra = false;
+            } else if kind == "image" && !node.bindings.is_empty() {
+                return Err(fail("Unsupported binding context."));
             }
             if !names.insert(name.clone()) {
                 return Err(fail("Multiple layers map to the same native element."));
@@ -168,16 +230,30 @@ pub fn compile_candidate(source: &str) -> Result<Candidate, Blocker> {
             if w == "0.000000" || h == "0.000000" {
                 return Err(fail("Size is below candidate precision."));
             }
-            tag(&mut xml, "pos", &format!("{x} {y}"))?;
-            if kind == "text" {
-                tag(&mut xml, "size", &format!("{w} {h}"))?;
-            }
-            tag(&mut xml, "origin", "0 0")?;
-            tag(&mut xml, "zIndex", &index.to_string())?;
-            let allowed = if kind == "text" {
-                &["text", "color", "fontSize", "textAlign"][..]
+            if kind == "video" {
+                // Centred in its box and as large as fits, keeping the video's own shape
+                // (maxSize is RetroBat's recommendation for game videos of unknown shape).
+                let centre = |a: &str, b: &str| -> Result<String, Blocker> {
+                    let a: f64 = a.parse().map_err(|_| fail("Invalid position."))?;
+                    let b: f64 = b.parse().map_err(|_| fail("Invalid size."))?;
+                    Ok(format!("{:.6}", a + b / 2.0))
+                };
+                tag(&mut xml, "pos", &format!("{} {}", centre(&x, &w)?, centre(&y, &h)?))?;
+                tag(&mut xml, "maxSize", &format!("{w} {h}"))?;
+                tag(&mut xml, "origin", "0.5 0.5")?;
             } else {
-                &["imageFit"][..]
+                tag(&mut xml, "pos", &format!("{x} {y}"))?;
+                if kind != "image" {
+                    tag(&mut xml, "size", &format!("{w} {h}"))?;
+                }
+                tag(&mut xml, "origin", "0 0")?;
+            }
+            tag(&mut xml, "zIndex", &index.to_string())?;
+            let allowed = match kind {
+                "text" | "datetime" => &["text", "color", "fontSize", "textAlign"][..],
+                "textlist" => &["color", "selectedColor", "selectorColor", "fontSize", "textAlign"][..],
+                "video" => &[][..],
+                _ => &["imageFit"][..],
             };
             if node
                 .style
@@ -186,7 +262,49 @@ pub fn compile_candidate(source: &str) -> Result<Candidate, Blocker> {
             {
                 return Err(fail("Unsupported style property."));
             }
-            if kind == "text" {
+            let colour = |key: &str, default: &'static str| -> Result<String, Blocker> {
+                let value = match node.style.get(key) {
+                    Some(Value::String(v)) => v.clone(),
+                    None => default.to_string(),
+                    _ => return Err(fail("Unsupported color.")),
+                };
+                if ![6, 8].contains(&value.len()) || !value.bytes().all(|b| b.is_ascii_hexdigit()) {
+                    return Err(fail("Invalid color."));
+                }
+                Ok(value)
+            };
+            let font_size = || -> Result<String, Blocker> {
+                let size = if let Some(value) = node.style.get("fontSize") {
+                    let dimension: Dimension = serde_json::from_value(value.clone())
+                        .map_err(|_| fail("Unsupported font size."))?;
+                    empty(&dimension.extra)?;
+                    if dimension.unit != "px"
+                        || !dimension.value.is_finite()
+                        || !(8.0..=256.0).contains(&dimension.value)
+                    {
+                        return Err(fail("Unsupported font size."));
+                    }
+                    dimension.value
+                } else {
+                    36.0
+                };
+                Ok(format!(
+                    "{:.6}",
+                    size / f64::from(scene.resolution.width.min(scene.resolution.height))
+                ))
+            };
+            let alignment = || -> Result<&str, Blocker> {
+                let align = match node.style.get("textAlign") {
+                    Some(Value::String(v)) => v.as_str(),
+                    None => "left",
+                    _ => return Err(fail("Unknown alignment.")),
+                };
+                if !["left", "center", "right"].contains(&align) {
+                    return Err(fail("Unknown alignment."));
+                }
+                Ok(align)
+            };
+            if kind == "text" || kind == "datetime" {
                 if !node.assets.is_empty() {
                     return Err(fail("Text assets are unsupported."));
                 }
@@ -203,48 +321,28 @@ pub fn compile_candidate(source: &str) -> Result<Candidate, Blocker> {
                 } else if node.style.get("text").is_some_and(|v| !v.is_string()) {
                     return Err(fail("Unknown retained static text."));
                 }
-                let color = match node.style.get("color") {
-                    Some(Value::String(v)) => v.as_str(),
-                    None => "ffffff",
-                    _ => return Err(fail("Unsupported color.")),
-                };
-                if ![6, 8].contains(&color.len()) || !color.bytes().all(|b| b.is_ascii_hexdigit()) {
-                    return Err(fail("Invalid color."));
+                tag(&mut xml, "color", &colour("color", "ffffff")?)?;
+                tag(&mut xml, "alignment", alignment()?)?;
+                if kind == "text" {
+                    tag(&mut xml, "verticalAlignment", "top")?;
+                    tag(&mut xml, "lineSpacing", "1.2")?;
                 }
-                tag(&mut xml, "color", color)?;
-                let align = match node.style.get("textAlign") {
-                    Some(Value::String(v)) => v.as_str(),
-                    None => "left",
-                    _ => return Err(fail("Unknown alignment.")),
-                };
-                if !["left", "center", "right"].contains(&align) {
-                    return Err(fail("Unknown alignment."));
+                tag(&mut xml, "fontSize", &font_size()?)?;
+            } else if kind == "textlist" {
+                if !node.assets.is_empty() {
+                    return Err(fail("A game list has no pictures."));
                 }
-                tag(&mut xml, "alignment", align)?;
-                tag(&mut xml, "verticalAlignment", "top")?;
-                tag(&mut xml, "lineSpacing", "1.2")?;
-                let size = if let Some(value) = node.style.get("fontSize") {
-                    let dimension: Dimension = serde_json::from_value(value.clone())
-                        .map_err(|_| fail("Unsupported font size."))?;
-                    empty(&dimension.extra)?;
-                    if dimension.unit != "px"
-                        || !dimension.value.is_finite()
-                        || !(8.0..=256.0).contains(&dimension.value)
-                    {
-                        return Err(fail("Unsupported font size."));
-                    }
-                    dimension.value
-                } else {
-                    36.0
-                };
-                tag(
-                    &mut xml,
-                    "fontSize",
-                    &format!(
-                        "{:.6}",
-                        size / f64::from(scene.resolution.width.min(scene.resolution.height))
-                    ),
-                )?;
+                let primary = colour("color", "c8d0e0")?;
+                tag(&mut xml, "primaryColor", &primary)?;
+                tag(&mut xml, "secondaryColor", &primary)?;
+                tag(&mut xml, "selectedColor", &colour("selectedColor", "ffffff")?)?;
+                tag(&mut xml, "selectorColor", &colour("selectorColor", "378cdd")?)?;
+                tag(&mut xml, "fontSize", &font_size()?)?;
+                tag(&mut xml, "alignment", alignment()?)?;
+            } else if kind == "video" {
+                if !node.assets.is_empty() {
+                    return Err(fail("A game video has no pictures."));
+                }
             } else {
                 if node.assets.len() != 1 {
                     return Err(fail("Image needs exactly one managed PNG."));
@@ -270,6 +368,15 @@ pub fn compile_candidate(source: &str) -> Result<Candidate, Blocker> {
                 tag(&mut xml, "path", &format!("./{}", asset.path))?;
             }
             xml.push_str(&format!("    </{kind}>\n"));
+        }
+        if view == "detailed" {
+            for (kind, name) in HIDDEN_DEFAULTS {
+                if !names.contains(*name) {
+                    xml.push_str(&format!(
+                        "    <{kind} name=\"{name}\">\n      <visible>false</visible>\n    </{kind}>\n"
+                    ));
+                }
+            }
         }
         xml.push_str("  </view>\n");
     }
