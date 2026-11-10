@@ -1,5 +1,8 @@
 # 03 | Information Architecture and UX Specification
 
+**Ask AI (2026-11-10, ADR-120):** *Ask AI…* in the Theme Studio toolbar opens a box beside the canvas: idea buttons, a request, a *what is sent* line (and *Show exactly* in Standard and Pro). The suggestion appears on the canvas at once with *Keep* and *Discard* right under its explanation; *What changed* and any left-out suggestions fold away below.
+
+
 **Theme Studio clips (2026-11-10, ADR-117):** *Add clip* adds your own MP4 video, playing over and over without sound; its properties offer *Fill the screen* (a moving background) and *Add a frame over it*.
 
 

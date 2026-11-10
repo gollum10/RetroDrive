@@ -130,6 +130,9 @@ pub struct AiSettings {
     pub claude_model: Option<String>,
     pub private_url: Option<String>,
     pub private_model: Option<String>,
+    /// Design requests today (ADR-120): the day (days since 1970, UTC) and how many so far.
+    pub requests_day: Option<u64>,
+    pub requests_today: u32,
 }
 
 pub fn settings_path(catalog: &Path) -> PathBuf {
@@ -323,7 +326,7 @@ mod tests {
         let fresh = status(&catalog, &keys).unwrap();
         assert!(!fresh.claude_connected && fresh.claude_model == DEFAULT_CLAUDE_MODEL && fresh.private_url.is_none());
         keys.set("sk-ant-api03-abcdefghijklmnopqrstuvwxyz").unwrap();
-        save_settings(&catalog, &AiSettings { claude_model: Some("claude-haiku-5-5".into()), private_url: Some("http://localhost:11434".into()), private_model: Some("llama3".into()) }).unwrap();
+        save_settings(&catalog, &AiSettings { claude_model: Some("claude-haiku-5-5".into()), private_url: Some("http://localhost:11434".into()), private_model: Some("llama3".into()), ..Default::default() }).unwrap();
         let now = status(&catalog, &keys).unwrap();
         assert!(now.claude_connected && now.claude_model == "claude-haiku-5-5" && now.private_model.as_deref() == Some("llama3"));
         let text = std::fs::read_to_string(settings_path(&catalog)).unwrap();

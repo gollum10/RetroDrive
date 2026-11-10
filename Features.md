@@ -1,5 +1,8 @@
 # RetroDrive — Features
 
+**Ask AI (2026-11-10, ADR-120):** in Theme Studio, ask Claude or your private AI for ideas ("give it an arcade feel", "make the text easier to read"); see it on the screen at once, then Keep or Discard. Only the screen's layout and your words are sent.
+
+
 **AI helpers: connect (2026-11-10, ADR-119):** Settings → AI helpers. Connect your own Claude account (Claude Opus 5.5 by default, cheaper models selectable) or a free private AI on your PC or network. Your key stays in Windows Credential Manager; nothing is sent until you connect. Design help comes next.
 
 
