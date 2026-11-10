@@ -27,6 +27,8 @@ jobs:
         run: python scripts/third-party-notices.py --check
       - name: Type-check and build frontend
         run: npm run build
+      - name: App looks up to date (ADR-104)
+        run: npm run test:looks
       - name: Theme Studio source contract
         run: npm run test:theme-contract
       - name: Theme Studio workspace lifecycle

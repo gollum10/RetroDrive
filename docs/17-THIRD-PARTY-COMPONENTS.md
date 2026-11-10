@@ -38,6 +38,7 @@ Measured 2026-11-09: **298 shipped dependencies**, 293 under permissive licenses
 | `@tauri-apps/api`, `@tauri-apps/plugin-dialog` | 2.12.4 / 2.8.4 | Apache-2.0 OR MIT | Bundled (frontend) | Permissive | Notices |
 | React, React DOM, scheduler, loose-envify, js-tokens | 18.3.1 … | MIT | Bundled (frontend) | Permissive | Notices |
 | lucide-react (icons) | 0.468.0 | ISC | Bundled (frontend) | Permissive | Notices |
+| Orbitron and Antonio fonts (`@fontsource/orbitron`, `@fontsource/antonio`, latin subsets; ADR-104) | 5.3.0 | OFL-1.1 | Bundled (frontend, unmodified) | Allowed for bundling with software; fonts not sold on their own | Ship the license text (in the notices) |
 | rusqlite / libsqlite3-sys | 0.32.1 / 0.30.1 | MIT | Bundled | Permissive | Notices |
 | SQLite (compiled in by `libsqlite3-sys` "bundled") | 3.x | Public domain | Bundled | Unrestricted | None required |
 | walkdir, sysinfo, serde, serde_json, uuid, windows-sys (features: storage, foundation, ToolHelp process list since 2026-11-06) | see CSV | MIT / Apache-2.0 / Unlicense | Bundled | Permissive | Notices |
