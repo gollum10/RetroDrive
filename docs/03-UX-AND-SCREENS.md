@@ -1,5 +1,6 @@
 # 03 | Information Architecture and UX Specification
 
+**Theme Studio: Put on RetroBat (2026-11-10, ADR-115):** after saving, *Put it on RetroBat* adds the theme to your RetroBat as a new theme and, with *Switch RetroBat to it now* ticked, makes it RetroBat's theme (Undo in Customize; close RetroBat first).
 **Theme Studio System Select (2026-11-10, ADR-116):** on the System Select screen, *Add system carousel* places the band of systems (colour, see-through amount, name colour, across or up and down, how many show); text can show the *Number of games* of the selected system.
 
 

@@ -147,7 +147,10 @@ pub fn compile_candidate(source: &str) -> Result<Candidate, Blocker> {
         let mut names = BTreeSet::new();
         // The colour of the system names, when the design places a carousel (ADR-116).
         let mut carousel_names: Option<String> = None;
-        xml.push_str(&format!("  <view name=\"{view}\">\n"));
+        // The game list screen also styles RetroBat's "video" layout, which it uses when games
+        // have videos (ADR-115; THEMES.md: a view name is a list).
+        let view_names = if view == "detailed" { "detailed, video" } else { view };
+        xml.push_str(&format!("  <view name=\"{view_names}\">\n"));
         for (index, node) in scene.nodes.iter().enumerate() {
             // Editor flags are supported only when recognized; hide has no native semantics yet.
             for (key, value) in &node.extra {

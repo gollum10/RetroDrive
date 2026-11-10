@@ -113,7 +113,7 @@ fn original_fixture_has_safe_paths_and_uses_real_package_output() {
     )
     .unwrap();
     assert!(theme.contains("name=\"system\""));
-    assert!(theme.contains("name=\"detailed\""));
+    assert!(theme.contains("name=\"detailed, video\""));
     assert!(theme.contains("name=\"md_name\""));
     assert!(theme.contains("name=\"md_description\""));
     for (path, bytes) in &fixture {

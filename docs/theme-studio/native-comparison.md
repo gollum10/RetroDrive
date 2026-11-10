@@ -62,6 +62,9 @@ Run by hand on the owner's G:\RetroBat with permission. The saved "Ready layout 
 | System view carousel | RetroBat default band (not styled yet) |
 | Fonts | RetroBat's own font; small size differences from the editor |
 
+## Video layout check (2026-11-10, ADR-115)
+
+With the game list screen written as `<view name="detailed, video">` and a OneSauce video (`G:\base_assets\...\Arcade3.mp4`, read only) set for one NES game, RetroBat used its video layout with the theme applied and **played the game video** in the `md_video` box, under the baked cabinet frame (visible through its see-through screen). `es_settings.cfg` and the NES `gamelist.xml` were backed up and restored byte for byte.
 ## System Select check (2026-11-10, ADR-116)
 
 A Ready layout theme saved with the new System carousel layer (dark see-through band `0a0e1899`, white names, 3 systems) and a games count was copied to `themes\RetroDrive Carousel Test` and selected (settings backed up and restored byte for byte). RetroBat showed the dark band instead of its light default, white system names, and the games count in the design's colour without the grey bar. Log clean.
