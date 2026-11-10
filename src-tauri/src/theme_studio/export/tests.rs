@@ -173,3 +173,56 @@ fn candidate_node_budget_and_nested_layers_fail_closed() {
         "Nested or rotated layers require a verified mapping."
     );
 }
+
+/// ADR-112: the game list, the game's video and game data use RetroBat's own elements,
+/// and built-in extras the design doesn't place are hidden.
+#[test]
+fn game_list_video_and_game_data_map_to_native_elements_and_unused_extras_are_hidden() {
+    let input = changed(|v| {
+        let base = v["scenes"][0]["nodes"][0].clone();
+        let mut list = base.clone();
+        list["id"] = json!("list-1");
+        list["type"] = json!("game_list");
+        list["style"] = json!({"color": "c8d0e0", "selectedColor": "ffffff", "selectorColor": "aa3300", "fontSize": {"value": 32, "unit": "px"}, "textAlign": "left"});
+        let mut video = base.clone();
+        video["id"] = json!("video-1");
+        video["type"] = json!("video");
+        video["style"] = json!({});
+        video["layout"] = json!({"x": {"value": 50, "unit": "%"}, "y": {"value": 20, "unit": "%"}, "width": {"value": 40, "unit": "%"}, "height": {"value": 40, "unit": "%"}, "rotation": 0});
+        video["bindings"] = json!({"video": {"source": "game.video", "kind": "video"}});
+        let mut system = base.clone();
+        system["id"] = json!("system-1");
+        system["bindings"] = json!({"text": {"source": "system.name", "kind": "text"}});
+        let mut year = base.clone();
+        year["id"] = json!("year-1");
+        year["style"] = json!({"color": "f4c96b"});
+        year["bindings"] = json!({"text": {"source": "game.year", "kind": "number"}});
+        v["scenes"][0]["nodes"] = json!([list, video, system, year]);
+    });
+    let xml = compile_candidate(&input).unwrap().xml;
+    assert!(xml.contains("<textlist name=\"gamelist\">") && xml.contains("<selectorColor>aa3300</selectorColor>") && xml.contains("<primaryColor>c8d0e0</primaryColor>"), "{xml}");
+    assert!(xml.contains("<video name=\"md_video\">\n      <pos>0.700000 0.400000</pos>\n      <maxSize>0.400000 0.400000</maxSize>\n      <origin>0.5 0.5</origin>"), "{xml}");
+    assert!(xml.contains("<text name=\"logoText\">") && xml.contains("<datetime name=\"md_releasedate\">"), "{xml}");
+    let date = &xml[xml.find("<datetime name=\"md_releasedate\">").unwrap()..];
+    let date = &date[..date.find("</datetime>").unwrap()];
+    assert!(!date.contains("<text>") && !date.contains("lineSpacing") && date.contains("<color>f4c96b</color>"), "{date}");
+    // Placed elements are not hidden; unplaced ones are.
+    assert!(!xml.contains("name=\"md_video\">\n      <visible>false</visible>") && !xml.contains("name=\"logoText\">\n      <visible>false</visible>"));
+    assert!(xml.contains("<rating name=\"md_rating\">\n      <visible>false</visible>") && xml.contains("<image name=\"md_image\">\n      <visible>false</visible>"));
+    assert!(!xml.contains("<datetime name=\"md_releasedate\">\n      <visible>false</visible>"));
+    let mut reader = quick_xml::Reader::from_str(&xml);
+    while reader.read_event().unwrap() != quick_xml::events::Event::Eof {}
+
+    // Blocked instead of guessed.
+    for bad in [
+        changed(|v| { v["scenes"][0]["role"] = json!("system_select"); v["scenes"][0]["nodes"][0]["type"] = json!("game_list"); }),
+        changed(|v| { v["scenes"][0]["nodes"][0]["type"] = json!("video"); v["scenes"][0]["nodes"][0]["style"] = json!({}); }),
+        changed(|v| { v["scenes"][0]["nodes"][0]["type"] = json!("video"); v["scenes"][0]["nodes"][0]["style"] = json!({}); v["scenes"][0]["nodes"][0]["bindings"] = json!({"video": {"source": "game.title", "kind": "video"}}); }),
+        changed(|v| { v["scenes"][0]["nodes"][0]["type"] = json!("game_list"); v["scenes"][0]["nodes"][0]["bindings"] = json!({"text": {"source": "game.title", "kind": "text"}}); }),
+        changed(|v| v["scenes"][0]["nodes"][0]["bindings"] = json!({"text": {"source": "game.players", "kind": "text"}})),
+        changed(|v| v["scenes"][0]["nodes"][0]["bindings"] = json!({"text": {"source": "game.rating", "kind": "number"}})),
+    ] {
+        assert!(compile_candidate(&bad).is_err(), "{bad}");
+    }
+}
+

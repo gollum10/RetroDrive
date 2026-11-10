@@ -6,7 +6,7 @@ export default function TextAlignmentControls({ node, disabled, onChange, onEnd 
 }) {
   const alignment = textAlignment(node);
   const state = layerState(node);
-  const blocked = disabled || node.type !== 'text' || !!node.children.length || state.locked || state.hidden || alignment === null;
+  const blocked = disabled || (node.type !== 'text' && node.type !== 'game_list') || !!node.children.length || state.locked || state.hidden || alignment === null;
   return <label>Text alignment<select disabled={blocked} value={alignment ?? 'unsupported'} onChange={event => {
     if (blocked) return;
     const next = setTextAlignment(node, event.target.value);

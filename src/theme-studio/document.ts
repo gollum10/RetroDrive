@@ -26,6 +26,7 @@ const text = (id: string, name: string, at: Box, words: string, size: number, co
   id, type: 'text', name, layout: box(at), style: { text: words, color, fontSize: { value: size, unit: 'px' } }, children: [], assets: [],
   bindings: source ? { text: { source, kind: source === 'game.year' || source === 'game.players' ? 'number' : 'text' } } : {} });
 
+const gameList = (id: string, at: Box): ThemeNode => ({ id, type: 'game_list', name: 'Game list', layout: box(at), style: { color: 'c8d0e0', selectedColor: 'ffffff', selectorColor: '378cdd', fontSize: { value: 32, unit: 'px' }, textAlign: 'left' }, children: [], assets: [], bindings: {} });
 /** The "Ready layout" starting point (ADR-108): an original, plain design to change. */
 function readyLayout(role: string, name: string): ThemeNode[] {
   const nodes: ThemeNode[] = [panel(`${role}-background`, 'Background', [0, 0, 100, 100], '10141f')];
@@ -33,6 +34,7 @@ function readyLayout(role: string, name: string): ThemeNode[] {
   else if (role === 'game_list' || role === 'game_detail') nodes.push(
     text(`${role}-heading`, 'Heading', [4, 4, 92, 8], name, 48, '9fb3cb', role === 'game_list' ? 'system.name' : undefined),
     panel(`${role}-list`, role === 'game_list' ? 'Game list area' : 'Picture area', [4, 15, 44, 80], '1b2233'),
+    ...(role === 'game_list' ? [gameList(`${role}-games`, [5, 16, 42, 78])] : []),
     text(`${role}-title`, 'Game title', [52, 15, 44, 9], 'Game title', 52, 'ffffff', 'game.title'),
     text(`${role}-year`, 'Year', [52, 25, 20, 5], 'Year', 28, 'f4c96b', 'game.year'),
     text(`${role}-description`, 'Description', [52, 32, 44, 50], 'Description', 28, 'c8d0e0', 'game.description'));
