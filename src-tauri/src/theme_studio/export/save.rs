@@ -236,6 +236,47 @@ pub fn write_new_folder(destination: &Path, theme_name: &str, files: &BTreeMap<S
     Ok(SavedTheme { folder: done.display().to_string(), name, files: files.len(), bytes })
 }
 
+/// Put a saved theme on RetroBat (ADR-115): copy the files its `retrodrive-theme.json` lists,
+/// each checked for size and SHA-256, into a new folder in `themes_dir` (never replacing one).
+/// Only listed files (plus the list itself) are copied; anything else in the folder is ignored.
+pub fn put_on_retrobat(themes_dir: &Path, saved: &Path) -> std::result::Result<SavedTheme, String> {
+    #[derive(serde::Deserialize)]
+    struct Listed { path: String, bytes: usize, sha256: String }
+    #[derive(serde::Deserialize)]
+    struct List { format: String, files: Vec<Listed> }
+    let list_bytes = fs::read(saved.join("retrodrive-theme.json")).map_err(|_| "That folder isn't a theme RetroDrive saved.".to_string())?;
+    if list_bytes.len() > 1024 * 1024 {
+        return Err("The theme's file list is too large.".into());
+    }
+    let list: List = serde_json::from_slice(&list_bytes).map_err(|_| "The theme's file list can't be read.".to_string())?;
+    if list.format != "retrodrive.retrobat-theme.v1" || list.files.is_empty() || list.files.len() > 256 {
+        return Err("That folder isn't a theme RetroDrive saved.".into());
+    }
+    let mut files = BTreeMap::new();
+    let mut total = 0usize;
+    for entry in &list.files {
+        if !safe_key(&entry.path) || entry.path == "retrodrive-theme.json" {
+            return Err(format!("Unsafe file name in the theme: {}", entry.path));
+        }
+        let target = entry.path.split('/').fold(saved.to_path_buf(), |path, part| path.join(part));
+        let bytes = fs::read(&target).map_err(|_| format!("{} is missing from the saved theme.", entry.path))?;
+        if bytes.len() != entry.bytes || digest(&bytes) != entry.sha256 {
+            return Err(format!("{} changed since the theme was saved. Save it again from Theme Studio.", entry.path));
+        }
+        total = total.saturating_add(bytes.len());
+        if total > MAX_PACKAGE_BYTES {
+            return Err("The theme is larger than 32 MB.".into());
+        }
+        files.insert(entry.path.clone(), bytes);
+    }
+    if !files.contains_key("theme.xml") {
+        return Err("The saved theme has no theme.xml.".into());
+    }
+    files.insert("retrodrive-theme.json".into(), list_bytes);
+    let name = saved.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    write_new_folder(themes_dir, &name, &files)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -299,6 +340,32 @@ mod tests {
         let other = prepare_baked(&png([1, 2, 3, 255])).unwrap();
         assert!(build(&connection, &record.id, record.revision, &export_doc(&other), &[encoded]).is_err());
         assert!(build(&connection, &record.id, record.revision, &export, &vec![String::new(); MAX_BAKED + 1]).is_err());
+    }
+
+    #[test]
+    fn a_saved_theme_is_put_on_retrobat_only_as_listed_and_unchanged() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut connection = Connection::open_in_memory().unwrap();
+        crate::db::migrate(&mut connection, None).unwrap();
+        let record = projects::create(&connection, SOURCE).unwrap();
+        let encoded = png([9, 9, 9, 255]);
+        let baked = prepare_baked(&encoded).unwrap();
+        let files = build(&connection, &record.id, record.revision, &export_doc(&baked), std::slice::from_ref(&encoded)).unwrap();
+        let saved = write_new_folder(&dir.path().join("saved"), "My Theme", &files).unwrap();
+        fs::write(Path::new(&saved.folder).join("notes.txt"), b"not listed").unwrap();
+        let themes = dir.path().join("RetroBat/emulationstation/.emulationstation/themes");
+        fs::create_dir_all(themes.join("My Theme")).unwrap();
+        fs::write(themes.join("My Theme/theme.xml"), b"someone else's theme").unwrap();
+        let put = put_on_retrobat(&themes, Path::new(&saved.folder)).unwrap();
+        assert_eq!(put.name, "My Theme (2)", "an existing theme folder is never replaced");
+        assert_eq!(fs::read(themes.join("My Theme/theme.xml")).unwrap(), b"someone else's theme");
+        assert_eq!(fs::read(themes.join("My Theme (2)/theme.xml")).unwrap(), files["theme.xml"]);
+        assert!(!themes.join("My Theme (2)/notes.txt").exists(), "only listed files are copied");
+        // A file changed after saving is refused, and nothing new is written.
+        fs::write(Path::new(&saved.folder).join("theme.xml"), b"<theme>edited</theme>").unwrap();
+        assert!(put_on_retrobat(&themes, Path::new(&saved.folder)).unwrap_err().contains("changed since"));
+        assert!(!themes.join("My Theme (3)").exists() && !themes.join("My Theme (3) (incomplete)").exists());
+        assert!(put_on_retrobat(&themes, dir.path()).is_err(), "a folder without a file list is refused");
     }
 
     #[test]
