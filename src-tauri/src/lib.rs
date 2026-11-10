@@ -38,6 +38,8 @@ mod retropie_settings;
 mod rocknix_settings;
 mod themes;
 pub mod theme_studio;
+/// Optional AI helpers for Theme Studio (ADR-118).
+pub mod ai;
 mod scanner;
 mod sinden_step;
 mod backup_zip;
@@ -782,6 +784,101 @@ fn install_writers() -> Vec<install_helper::Writer> {
 #[tauri::command]
 fn open_install_writer(id: String, image: String) -> Result<String, String> {
     install_helper::open_writer(&id, &image)
+}
+
+/// AI helpers (ADR-118): connection status (no network).
+#[tauri::command]
+fn ai_status(catalog: State<'_, Catalog>) -> Result<ai::AiStatus, String> {
+    ai::status(&catalog.path()?, &ai::CredentialManager)
+}
+
+/// AI helpers: open the Claude Console page where the user signs in and creates a key.
+#[tauri::command]
+fn ai_open_keys_page() -> Result<(), String> {
+    std::process::Command::new("explorer.exe").arg(ai::CLAUDE_KEYS_PAGE).spawn().map(|_| ()).map_err(|e| format!("Couldn't open the browser: {e}"))
+}
+
+/// AI helpers: check a Claude key (one request, no tokens) and keep it in Credential Manager.
+#[tauri::command]
+async fn ai_connect_claude(key: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let key = key.trim().to_string();
+        ai::check_claude_key(&key)?;
+        ai::KeyStore::set(&ai::CredentialManager, &key)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// AI helpers: remove the Claude key from Credential Manager.
+#[tauri::command]
+fn ai_disconnect_claude() -> Result<(), String> {
+    ai::KeyStore::delete(&ai::CredentialManager)
+}
+
+/// AI helpers: choose which Claude model design help uses.
+#[tauri::command]
+fn ai_set_claude_model(catalog: State<'_, Catalog>, model: String) -> Result<(), String> {
+    if !ai::CLAUDE_MODELS.iter().any(|(id, _)| *id == model) {
+        return Err("Unknown model.".into());
+    }
+    let path = catalog.path()?;
+    let mut settings = ai::load_settings(&path);
+    settings.claude_model = Some(model);
+    ai::save_settings(&path, &settings)
+}
+
+#[derive(serde::Serialize)]
+struct PrivateFound { url: String, models: Vec<String> }
+
+/// AI helpers: look for a private AI program at its usual address on this PC.
+#[tauri::command]
+async fn ai_find_private() -> Result<Option<PrivateFound>, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        Ok(ai::USUAL_PRIVATE.iter().find_map(|url| ai::private_models(url).ok().map(|models| PrivateFound { url: url.to_string(), models })))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// AI helpers: the models a private AI server offers (local or private-network addresses only).
+#[tauri::command]
+async fn ai_private_models(url: String) -> Result<PrivateFound, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let url = ai::private_url(&url)?;
+        let models = ai::private_models(&url)?;
+        Ok(PrivateFound { url, models })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// AI helpers: remember a private AI server and model (checked against what it offers).
+#[tauri::command]
+async fn ai_connect_private(catalog: State<'_, Catalog>, url: String, model: String) -> Result<(), String> {
+    let path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let url = ai::private_url(&url)?;
+        if !ai::private_models(&url)?.contains(&model) {
+            return Err("That model isn't offered by the server anymore.".into());
+        }
+        let mut settings = ai::load_settings(&path);
+        settings.private_url = Some(url);
+        settings.private_model = Some(model);
+        ai::save_settings(&path, &settings)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// AI helpers: forget the private AI server.
+#[tauri::command]
+fn ai_disconnect_private(catalog: State<'_, Catalog>) -> Result<(), String> {
+    let path = catalog.path()?;
+    let mut settings = ai::load_settings(&path);
+    settings.private_url = None;
+    settings.private_model = None;
+    ai::save_settings(&path, &settings)
 }
 
 /// Open an official download page (fixed addresses only).
@@ -1900,6 +1997,15 @@ pub fn run() {
             theme_studio::commands::save_theme_for_retrobat,
             theme_studio::commands::open_saved_theme,
             theme_studio::commands::import_theme_video,
+            ai_status,
+            ai_open_keys_page,
+            ai_connect_claude,
+            ai_disconnect_claude,
+            ai_set_claude_model,
+            ai_find_private,
+            ai_private_models,
+            ai_connect_private,
+            ai_disconnect_private,
             put_theme_on_retrobat,
             theme_studio::commands::theme_target_profiles,
             theme_studio::commands::theme_compatibility,

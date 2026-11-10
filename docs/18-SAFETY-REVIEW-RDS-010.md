@@ -751,3 +751,16 @@ Only the disposable test fixture in copier.rs changes. Production confirmation c
 | Non-video or oversized files | MP4 header check; 50 MB per clip; 1 GB in all | `only_mp4_clips_within_the_limit_are_accepted` |
 | Serving other files through the media channel | `tv-` must be followed by a 64-character lowercase SHA-256; read only from the clip folder and re-checked | `video_store::read` (rejects `../secret`) |
 | Packaging clips that aren't the theme's | A clip enters a saved theme only when the stored theme declares it and the stored copy matches its size | `a_clip_is_saved_only_when_the_theme_owns_it` |
+
+## 70. Addendum: AI helpers, connect (2026-11-10)
+**Scope:** ADR-119. RetroDrive can store a Claude API key the user pastes, check it, and connect to a private AI server. It makes its first outgoing internet requests, only when the user clicks Connect. No files are changed apart from `ai-settings.json` beside the catalog.
+
+| Risk | Mitigation | Evidence |
+|---|---|---|
+| Key leaks into files or logs | The key goes only to Windows Credential Manager; `ai-settings.json` holds the model and private address; errors never include the key; the input is a password field and is cleared after connecting | `settings_hold_no_secrets_and_status_reflects_the_key_store`; checked in the app (nothing saved after a refused key) |
+| Sending user data | Nothing is sent until the user connects; this step sends only the key check (`GET /v1/models?limit=1`) and the private server's model list; no game names, paths or settings | code review of `ai.rs`; plan §3 |
+| Key sent to the wrong place | The Claude address is fixed in code (`https://api.anthropic.com`); redirects are not followed; TLS uses Windows' certificate store | `agent()`; `CLAUDE_API` |
+| Private AI address used to reach the internet or other services | Only http(s); only this PC, private IPv4, link-local, `fc00::/7`, `.local`/`.lan`/`.home.arpa` or a plain host name; no user name, query or fragment; path only `/v1` | `only_local_and_private_network_addresses_are_accepted_for_private_ai` |
+| Hanging the app | 10 s to connect, 30 s in all; the work runs off the interface thread | `agent()` |
+| Disconnect leaves the key behind | Disconnect deletes the credential; the real Credential Manager round trip leaves nothing | `real_credential_manager_round_trip` (ignored test, passed) |
+| Unexpected costs | The Claude card says the Claude Console bills API use separately and a suggestion usually costs a few cents; nothing is asked of the model in this step | in-app text |

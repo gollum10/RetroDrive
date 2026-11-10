@@ -31,3 +31,5 @@ Copying games is the only write path today. Its hazards, mitigations, tests and 
 
 ## Security release gates
 No raw disk write without documented QA on sacrificial media and safe failures for OS disk, disconnected target, device swap, insufficient space, bad image/hash and power interruption. Code review for every elevated operation. Published installer should be signed when distribution begins.
+
+**AI helpers (2026-11-10, ADR-119):** optional and off until the user connects. A Claude key is kept only in Windows Credential Manager and checked once with Anthropic; a private AI must be on this PC or a private network. Library names, folders and settings are never sent. See docs/18 §70.
