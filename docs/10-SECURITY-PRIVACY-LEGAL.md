@@ -35,3 +35,5 @@ No raw disk write without documented QA on sacrificial media and safe failures f
 **AI helpers (2026-11-10, ADR-119):** optional and off until the user connects. A Claude key is kept only in Windows Credential Manager and checked once with Anthropic; a private AI must be on this PC or a private network. Library names, folders and settings are never sent. See docs/18 §70.
 
 **Ask AI (2026-11-10, ADR-120):** sends one screen's layers and the words typed, only when the user presses Ask; never pictures, file names, paths, games or settings. Suggestions are checked and undoable. At most 50 requests a day. See docs/18 §71.
+
+**Other AI services (2026-11-10, ADR-121):** the user can connect online AI services with their own keys (kept in Windows Credential Manager, sent only to that service's built-in address; custom addresses in Pro only). Same data as Ask AI. See docs/18 §72.

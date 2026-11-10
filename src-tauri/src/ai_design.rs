@@ -121,8 +121,9 @@ pub fn check_ask(ask: &DesignAsk) -> Result<(), String> {
     if !ask.screen.is_object() || serde_json::to_vec(&ask.screen).map(|b| b.len()).unwrap_or(usize::MAX) > MAX_SCREEN_BYTES {
         return Err("This screen is too big to send. Ask about a simpler screen.".into());
     }
-    if ask.provider != "claude" && ask.provider != "private" {
-        return Err("Choose Claude or your private AI.".into());
+    let service_ok = ask.provider.strip_prefix("service:").is_some_and(|id| id == ai::CUSTOM || ai::service(id).is_some());
+    if ask.provider != "claude" && ask.provider != "private" && !service_ok {
+        return Err("Choose which AI to ask.".into());
     }
     Ok(())
 }
@@ -240,9 +241,35 @@ fn long_agent(seconds: u64, tls: bool) -> Result<ureq::Agent, String> {
 }
 
 /// Ask the chosen AI for suggestions. Counts against today's limit before sending.
-pub fn ask(catalog: &Path, keys: &dyn KeyStore, ask: &DesignAsk) -> Result<DesignAnswer, String> {
+/// `service_key` reads another service's stored key (ADR-121).
+pub fn ask(catalog: &Path, keys: &dyn KeyStore, service_key: &dyn Fn(&str) -> Result<Option<String>, String>, ask: &DesignAsk) -> Result<DesignAnswer, String> {
     check_ask(ask)?;
     let settings = ai::load_settings(catalog);
+    if let Some(id) = ask.provider.strip_prefix("service:") {
+        let (base, name, _) = ai::service_address(id, &settings)?;
+        let model = settings.service_models.get(id).cloned().ok_or_else(|| format!("Connect {name} in Settings → AI helpers first."))?;
+        let key = service_key(id)?.ok_or_else(|| format!("Connect {name} in Settings → AI helpers first."))?;
+        let left = take_request(catalog, today())?;
+        let agent = long_agent(240, true)?;
+        let send = |body: Value| agent.post(&format!("{base}/chat/completions")).set("Authorization", &format!("Bearer {key}")).send_json(body).map_err(Box::new);
+        let mut body = private_body(&model, &ask.screen, &ask.request);
+        let mut response = send(body.clone());
+        // Some services don't take a JSON schema; ask once more for plain JSON (the instructions describe it).
+        if matches!(response.as_ref().map_err(|e| &**e), Err(ureq::Error::Status(400, _))) {
+            body["response_format"] = json!({ "type": "json_object" });
+            response = send(body);
+        }
+        let reply: Value = match response.map_err(|e| *e) {
+            Ok(r) => r.into_json().map_err(|_| format!("{name}'s answer couldn't be read. Try again."))?,
+            Err(ureq::Error::Status(400, _)) => return Err(format!("{name} couldn't use that request with {model}. Try a different model.")),
+            Err(ureq::Error::Status(code, _)) => return Err(ai::service_message(code, &name).err().unwrap_or_default()),
+            Err(ureq::Error::Transport(t)) if t.kind() == ureq::ErrorKind::Io => return Err(format!("{name} took too long to answer. Try again.")),
+            Err(_) => return Err(format!("Couldn't reach {name}. Check the internet connection.")),
+        };
+        let text = reply.pointer("/choices/0/message/content").and_then(Value::as_str).ok_or("That model's answer couldn't be used. Try again, or try a different model.")?;
+        let (explanation, edits) = check_answer(text)?;
+        return Ok(DesignAnswer { explanation, edits, answered_by: format!("{model} ({name})"), cost_usd: None, requests_left: left });
+    }
     if ask.provider == "claude" {
         let key = keys.get()?.ok_or("Connect Claude in Settings → AI helpers first.")?;
         let status = ai::status(catalog, keys)?;
@@ -393,9 +420,14 @@ mod tests {
             fn delete(&self) -> Result<(), String> { Ok(()) }
         }
         let claude = DesignAsk { provider: "claude".into(), screen: screen(), request: "Hi".into() };
-        assert!(ask(&catalog, &Empty, &claude).unwrap_err().contains("Connect Claude"));
+        let none = |_: &str| Ok(None);
+        assert!(ask(&catalog, &Empty, &none, &claude).unwrap_err().contains("Connect Claude"));
         let private = DesignAsk { provider: "private".into(), ..ok_clone(&claude) };
-        assert!(ask(&catalog, &Empty, &private).unwrap_err().contains("Connect your private AI"));
+        assert!(ask(&catalog, &Empty, &none, &private).unwrap_err().contains("Connect your private AI"));
+        let groq = DesignAsk { provider: "service:groq".into(), ..ok_clone(&claude) };
+        assert!(ask(&catalog, &Empty, &none, &groq).unwrap_err().contains("Connect Groq"));
+        assert!(check_ask(&DesignAsk { provider: "service:evil".into(), ..ok_clone(&claude) }).is_err());
+        assert!(check_ask(&DesignAsk { provider: "service:custom".into(), ..ok_clone(&claude) }).is_ok());
         assert!(!ai::settings_path(&catalog).exists(), "no request was counted");
         std::fs::remove_dir_all(&dir).unwrap();
     }

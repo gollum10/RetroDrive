@@ -1,5 +1,8 @@
 # RetroDrive — Features
 
+**Other AI services (2026-11-10, ADR-121):** besides Claude and a private AI, connect OpenAI (ChatGPT), Google Gemini, OpenRouter, Mistral, Groq, DeepSeek, xAI, Together AI or Fireworks AI with your own key, and pick the model; Pro adds any service by address. Ask AI lets you choose which one to ask.
+
+
 **Ask AI (2026-11-10, ADR-120):** in Theme Studio, ask Claude or your private AI for ideas ("give it an arcade feel", "make the text easier to read"); see it on the screen at once, then Keep or Discard. Only the screen's layout and your words are sent.
 
 

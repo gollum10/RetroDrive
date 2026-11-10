@@ -882,11 +882,98 @@ fn ai_disconnect_private(catalog: State<'_, Catalog>) -> Result<(), String> {
     ai::save_settings(&path, &settings)
 }
 
+/// Other AI services (ADR-121): open the page where the user creates a key (fixed addresses).
+#[tauri::command]
+fn ai_open_service_keys(id: String) -> Result<(), String> {
+    let s = ai::service(&id).ok_or("Unknown AI service.")?;
+    std::process::Command::new("explorer.exe").arg(s.keys_page).spawn().map(|_| ()).map_err(|e| format!("Couldn't open the browser: {e}"))
+}
+
+/// Other AI services: check a key and list the models it can use (custom: the address too).
+#[tauri::command]
+async fn ai_check_service(catalog: State<'_, Catalog>, id: String, key: String, url: Option<String>) -> Result<Vec<String>, String> {
+    let path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut settings = ai::load_settings(&path);
+        if id == ai::CUSTOM {
+            settings.custom_url = Some(ai::custom_url(url.as_deref().unwrap_or(""))?);
+        }
+        let (base, name, check) = ai::service_address(&id, &settings)?;
+        ai::service_models(&base, check, &name, key.trim())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Other AI services: keep the key in Credential Manager and remember the model chosen.
+#[tauri::command]
+async fn ai_connect_service(catalog: State<'_, Catalog>, id: String, key: String, model: String, url: Option<String>) -> Result<(), String> {
+    let path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let key = key.trim().to_string();
+        let mut settings = ai::load_settings(&path);
+        if id == ai::CUSTOM {
+            settings.custom_url = Some(ai::custom_url(url.as_deref().unwrap_or(""))?);
+        }
+        let (base, name, check) = ai::service_address(&id, &settings)?;
+        if !ai::service_models(&base, check, &name, &key)?.contains(&model) {
+            return Err(format!("{name} doesn't offer that model to this key."));
+        }
+        ai::KeyStore::set(&ai::ServiceKey(id.clone()), &key)?;
+        settings.service_models.insert(id, model);
+        ai::save_settings(&path, &settings)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Other AI services: the models a connected service offers (uses the stored key).
+#[tauri::command]
+async fn ai_service_models(catalog: State<'_, Catalog>, id: String) -> Result<Vec<String>, String> {
+    let path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let settings = ai::load_settings(&path);
+        let (base, name, check) = ai::service_address(&id, &settings)?;
+        let key = ai::KeyStore::get(&ai::ServiceKey(id))?.ok_or("Connect the service first.")?;
+        ai::service_models(&base, check, &name, &key)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Other AI services: choose another model for a connected service.
+#[tauri::command]
+fn ai_set_service_model(catalog: State<'_, Catalog>, id: String, model: String) -> Result<(), String> {
+    let path = catalog.path()?;
+    let mut settings = ai::load_settings(&path);
+    if !settings.service_models.contains_key(&id) || model.is_empty() || model.len() > 200 {
+        return Err("Connect the service first.".into());
+    }
+    settings.service_models.insert(id, model);
+    ai::save_settings(&path, &settings)
+}
+
+/// Other AI services: remove the key from Credential Manager and forget the service.
+#[tauri::command]
+fn ai_disconnect_service(catalog: State<'_, Catalog>, id: String) -> Result<(), String> {
+    if id != ai::CUSTOM && ai::service(&id).is_none() {
+        return Err("Unknown AI service.".into());
+    }
+    ai::KeyStore::delete(&ai::ServiceKey(id.clone()))?;
+    let path = catalog.path()?;
+    let mut settings = ai::load_settings(&path);
+    settings.service_models.remove(&id);
+    if id == ai::CUSTOM {
+        settings.custom_url = None;
+    }
+    ai::save_settings(&path, &settings)
+}
+
 /// Ask AI for design suggestions (ADR-120): one screen's layers and the request typed.
 #[tauri::command]
 async fn ai_suggest_design(catalog: State<'_, Catalog>, provider: String, screen: serde_json::Value, request: String) -> Result<ai_design::DesignAnswer, String> {
     let path = catalog.path()?;
-    tauri::async_runtime::spawn_blocking(move || ai_design::ask(&path, &ai::CredentialManager, &ai_design::DesignAsk { provider, screen, request }))
+    tauri::async_runtime::spawn_blocking(move || ai_design::ask(&path, &ai::CredentialManager, &|id| ai::KeyStore::get(&ai::ServiceKey(id.to_string())), &ai_design::DesignAsk { provider, screen, request }))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -2023,6 +2110,12 @@ pub fn run() {
             ai_connect_private,
             ai_disconnect_private,
             ai_suggest_design,
+            ai_open_service_keys,
+            ai_check_service,
+            ai_connect_service,
+            ai_service_models,
+            ai_set_service_model,
+            ai_disconnect_service,
             ai_design_preview,
             put_theme_on_retrobat,
             theme_studio::commands::theme_target_profiles,
