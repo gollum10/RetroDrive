@@ -3,7 +3,9 @@ import NumberField from './NumberField';
 import { editableNode } from './scene-edit';
 import { imagePresentation, setImageFit, setImageCrop, resetImageCrop, type Crop } from './image-presentation';
 import usePngDimensions from './use-png-dimensions';
-export default function ImageControls({ scene, node, asset, url, disabled, onChange, onEnd }: {
+export default function ImageControls({ scene, node, asset, url, disabled, onChange, onEnd, showCrop = true }: {
+    /** Exact crop numbers (Pro level, ADR-108); Fit/Fill is always shown. */
+    showCrop?: boolean;
     scene: Scene;
     node: ThemeNode;
     asset: Asset | undefined;
@@ -18,9 +20,9 @@ export default function ImageControls({ scene, node, asset, url, disabled, onCha
     const commit = (next: ThemeNode, label: string, group?: string) => { if (!blocked && next !== node)
         onChange(next, label, group); };
     return <section aria-label="Image controls"><h3>Image display</h3>
-    <fieldset disabled={blocked}><legend>Fit and crop</legend><label>Image sizing<select disabled={!state.fitEditable} value={state.fit} onChange={event => { commit(setImageFit(node, event.target.value as 'contain' | 'cover'), 'Change image sizing'); onEnd(); }}><option value="contain">Fit: show the whole picture</option><option value="cover">Fill: cover the whole area</option></select></label>
+    <fieldset disabled={blocked}><legend>{showCrop ? 'Fit and crop' : 'Fit'}</legend><label>Image sizing<select disabled={!state.fitEditable} value={state.fit} onChange={event => { commit(setImageFit(node, event.target.value as 'contain' | 'cover'), 'Change image sizing'); onEnd(); }}><option value="contain">Fit: show the whole picture</option><option value="cover">Fill: cover the whole area</option></select></label>
       {!state.fitEditable && <p>This picture's sizing can't be changed here; it's kept as it is.</p>}
-      {state.cropEditable ? <><p className="ts-field-help">Crop in percent of the picture. Your picture itself is never changed.</p>
+      {!showCrop ? null : state.cropEditable ? <><p className="ts-field-help">Crop in percent of the picture. Your picture itself is never changed.</p>
         {(['x', 'y', 'width', 'height'] as (keyof Crop)[]).map(key => <NumberField key={key} label={`Crop ${key === 'x' ? 'left' : key === 'y' ? 'top' : key} (%)`} value={state.crop[key]} min={key === 'x' || key === 'y' ? 0 : .1} max={key === 'x' || key === 'y' ? 99.9 : key === 'width' ? Math.round((100 - state.crop.x) * 1e6) / 1e6 : Math.round((100 - state.crop.y) * 1e6) / 1e6} onChange={value => commit(setImageCrop(node, key, value), 'Crop image', `crop:${node.id}:${key}`)} onEnd={onEnd}/>)}
         <button type="button" onClick={() => { commit(resetImageCrop(node), 'Reset image crop'); onEnd(); }}>Reset crop</button>
       </> : <p>This picture's crop can't be changed here; it's kept as it is.</p>}

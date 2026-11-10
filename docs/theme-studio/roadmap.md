@@ -16,8 +16,8 @@ This replaces the "narrow the editor" idea: the editor stays flexible, and expor
 
 | # | Step | What the user gets | Notes |
 |---|---|---|---|
-| 1 | **Plain language and looks** (this PR) | Plain wording on every Theme Studio screen; the editor follows Classic/Galactic/Bridge/Cartoon/Versus; garbled characters fixed | No data or behaviour changes |
-| 2 | **Skill levels** | Simple / Standard / Pro switch, remembered | Simple starts from layouts |
+| 1 | **Plain language and looks** (done, #26) | Plain wording on every Theme Studio screen; the editor follows Classic/Galactic/Bridge/Cartoon/Versus; garbled characters fixed | No data or behaviour changes |
+| 2 | **Skill levels** (done, ADR-108) | Simple / Standard / Pro switch, remembered; new themes start from a Ready layout | A layout pass follows: on narrower windows the properties panel sits below the canvas |
 | 3 | **Art everywhere** | Picture fills for screen backgrounds and panels; JPG and WebP pictures as well as PNG (converted to PNG on import); frames with see-through areas; "made with an AI tool" credit | Image store stays bounded and checked |
 | 4 | **Videos** | A video layer: **your clip** (loops, muted) or **the selected game's video**, placed anywhere, with a frame picture over it (the arcade-cabinet effect) | MP4/WebM; size limits; preview in the editor |
 | 5 | **Save for RetroBat** | Save the theme to a new folder you choose; unsupported features baked into pictures; a clear list of anything that changes | Builds on the existing compiler and packager; writes only to a new folder |

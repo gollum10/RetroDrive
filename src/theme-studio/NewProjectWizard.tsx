@@ -3,7 +3,7 @@ import { displays, newDocument, type NewTheme } from './document';
 import type { ThemeProject } from './types';
 
 export default function NewProjectWizard({ busy, onCreate, onCancel }: { busy: boolean; onCreate: (project: ThemeProject) => void; onCancel: () => void }) {
-  const [form, setForm] = useState<NewTheme>({ name: '', author: '', description: '', version: '1.0.0', license: 'unknown', target: '', targetVersion: '', display: '16:9', template: 'starter' });
+  const [form, setForm] = useState<NewTheme>({ name: '', author: '', description: '', version: '1.0.0', license: 'unknown', target: '', targetVersion: '', display: '16:9', template: 'ready' });
   const change = (key: keyof NewTheme, value: string) => setForm(f => ({ ...f, [key]: value }));
   return <section className="panel ts-wizard" aria-labelledby="new-theme-title"><h2 id="new-theme-title">Create a theme</h2>
     <p>Design your own theme: your art, colours and layout on every screen. You don't need a system connected; choose which one it's for now or later.</p>
@@ -18,7 +18,7 @@ export default function NewProjectWizard({ busy, onCreate, onCancel }: { busy: b
         {form.target && <label>System version (optional)<input maxLength={64} value={form.targetVersion} onChange={e => change('targetVersion', e.target.value)} /></label>}
         <p className="ts-field-help">You can change this later. Your design is kept exactly as you make it; saving it as a theme for a system is coming soon.</p>
         <label>Screen shape<select value={form.display} onChange={e => change('display', e.target.value)}>{Object.keys(displays).map(name => <option key={name}>{name}</option>)}</select></label>
-        <label>Starting layout<select value={form.template} onChange={e => change('template', e.target.value)}><option value="starter">Starter: each screen labelled</option><option value="blank">Blank screens</option></select></label>
+        <label>Starting layout<select value={form.template} onChange={e => change('template', e.target.value)}><option value="ready">Ready layout: background, game title and description to change</option><option value="starter">Starter: each screen labelled</option><option value="blank">Blank screens</option></select></label>
       </fieldset>
       <div className="actions"><button className="primary" disabled={busy || !form.name.trim() || !form.version.trim() || !form.license.trim()} type="submit">{busy ? 'Creating…' : 'Create theme'}</button><button type="button" className="ghost" disabled={busy} onClick={onCancel}>Cancel</button></div>
     </form>

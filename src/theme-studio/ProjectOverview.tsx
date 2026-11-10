@@ -16,6 +16,7 @@ import AlignmentControls from './AlignmentControls';
 import { alignLayer } from './alignment';
 import { resizeLayer } from './resize';
 import { addNode, moveNode, updateNode, orderLayer, setLayerState, layerState } from './scene-edit';
+import { LEVELS, savedLevel, saveLevel, shows, type Level, type Tool } from './skill';
 
 export default function ProjectOverview({ session, onClose, onCopy, onReload, blocked = false }: { session: ProjectSession; onClose: () => void; onCopy: (name: string) => void; onReload: () => void; blocked?: boolean }) {
   const change = useSyncExternalStore(session.subscribe, session.snapshot, session.snapshot);
@@ -27,6 +28,9 @@ export default function ProjectOverview({ session, onClose, onCopy, onReload, bl
   useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
   const copyButton = useRef<HTMLButtonElement>(null);
   const [confirmReload, setConfirmReload] = useState(false);
+  const [level, setLevelState] = useState<Level>(savedLevel);
+  const setLevel = (next: Level) => { setLevelState(next); saveLevel(next); };
+  const can = (tool: Tool) => shows(level, tool);
   const document = session.document;
   const scene = document.scenes.find(s => s.id === sceneId) ?? document.scenes[0];
   const selected = scene.nodes.find(node => node.id === selectedId) ?? null;
@@ -54,28 +58,28 @@ export default function ProjectOverview({ session, onClose, onCopy, onReload, bl
     {copyName !== null && <SaveCopyForm name={copyName} sourceName={document.metadata.name} busy={session.busy} onName={setCopyName} onCreate={onCopy} onCancel={() => { setCopyName(null); copyButton.current?.focus(); }} />}
     {importScene && <ImageImportForm sceneName={document.scenes.find(scene=>scene.id===importScene)?.name??'scene'} onCancel={()=>setImportScene(null)} onImport={async(encoded,license,attribution)=>{await session.flush();const image=await importPng(session.record.id,encoded);if(!alive.current)return;const next=attachImage(session.document,importScene,image,license,attribution);session.edit(next.project,'Import image');setSelectedId(next.id);setImportScene(null);await session.flush();}}/>}
     {previews.error && <p role="status">{previews.error} <button onClick={previews.retry}>Retry previews</button></p>}
+    <div className="ts-levels" role="radiogroup" aria-label="Tools"><span>Tools</span>{LEVELS.map(l => <button key={l.id} type="button" role="radio" aria-checked={level === l.id} className={level === l.id ? 'on' : ''} title={l.hint} onClick={() => setLevel(l.id)}>{l.name}</button>)}<small>{LEVELS.find(l => l.id === level)?.hint}</small></div>
     <p className="ts-field-help">Your changes are kept automatically; <b>Save version</b> marks a point you can go back to. Made for: {document.targets.length ? document.targets.map(t => `${t.frontendFamily}${t.frontendVersion ? ` ${t.frontendVersion}` : ''}`).join(', ') : 'any system (choose later)'}.</p>
-    <div className="ts-toolbar ts-edit-actions"><button disabled={editorDisabled || nodeCount >= 10000} onClick={()=>setImportScene(scene.id)}>Add picture</button><button disabled={editorDisabled || !session.history.canUndo} title={session.history.undoLabel ?? 'Nothing to undo'} onClick={() => session.undo()}>Undo</button><button disabled={editorDisabled || !session.history.canRedo} onClick={() => session.redo()}>Redo</button><button disabled={editorDisabled || nodeCount >= 10_000} onClick={() => add('text')}>Add text</button><button disabled={editorDisabled || nodeCount >= 10_000} onClick={() => add('panel')}>Add panel</button></div>
+    <div className="ts-toolbar ts-edit-actions"><button disabled={editorDisabled || nodeCount >= 10000} onClick={()=>setImportScene(scene.id)}>Add picture</button><button disabled={editorDisabled || !session.history.canUndo} title={session.history.undoLabel ?? 'Nothing to undo'} onClick={() => session.undo()}>Undo</button><button disabled={editorDisabled || !session.history.canRedo} onClick={() => session.redo()}>Redo</button><button disabled={editorDisabled || nodeCount >= 10_000} onClick={() => add('text')}>Add text</button>{can('panel') && <button disabled={editorDisabled || nodeCount >= 10_000} onClick={() => add('panel')}>Add panel</button>}</div>
     <div className="ts-editor-grid">
       <aside className="panel ts-scenes" aria-label="Screens and layers"><h3>Screens</h3><nav aria-label="Select screen">{document.scenes.map(s => <button key={s.id} aria-pressed={scene.id === s.id} onClick={() => { setSceneId(s.id); setSelectedId(null); session.endEditGroup(); }}>{s.name}</button>)}</nav><LayerList scene={scene} selected={selectedId} disabled={editorDisabled} onSelect={id => { setSelectedId(id); session.endEditGroup(); }} onState={(id,key,value) => session.edit(setLayerState(session.document,scene.id,id,key,value), `${value ? key === 'locked' ? 'Lock' : 'Hide' : key === 'locked' ? 'Unlock' : 'Show'} layer`)}/></aside>
       <SceneCanvas previewImages={previews.images} scene={scene} selected={selectedId} disabled={editorDisabled} onSelect={setSelectedId} onMove={(id, x, y, group) => session.edit(moveNode(session.document, scene.id, id, x, y), 'Move layer', group)} onResize={(id, width, height, group) => session.edit(resizeLayer(session.document, scene.id, id, width, height), 'Resize layer', group)} onEndGroup={() => session.endEditGroup()}/>
       <aside className="panel ts-inspector" aria-label="Properties inspector"><h3>Properties</h3>
-        <LayerOrderControls scene={scene} selected={selectedId} disabled={editorDisabled} onOrder={order => { if (selectedId) session.edit(orderLayer(session.document, scene.id, selectedId, order), 'Change layer order'); }}/>
-        {selected?.type==='image'&&<ImageControls key={selected.id} scene={scene} node={selected} asset={document.assets.find(asset=>asset.id===selected.assets[0])} url={previews.images[selected.assets[0]]} disabled={editorDisabled} onChange={(node,label,group)=>session.edit(updateNode(session.document,scene.id,node.id,()=>node),label,group)} onEnd={()=>session.endEditGroup()}/>}
-        <NodeInspector scene={scene} node={selected} disabled={editorDisabled} onChange={(node, label, group) => session.edit(updateNode(session.document, scene.id, node.id, () => node), label, group)} onEnd={() => session.endEditGroup()}/>
+        {can('order') && <LayerOrderControls scene={scene} selected={selectedId} disabled={editorDisabled} onOrder={order => { if (selectedId) session.edit(orderLayer(session.document, scene.id, selectedId, order), 'Change layer order'); }}/>}
+        {selected?.type==='image'&&<ImageControls key={selected.id} scene={scene} node={selected} asset={document.assets.find(asset=>asset.id===selected.assets[0])} url={previews.images[selected.assets[0]]} showCrop={can('crop')} disabled={editorDisabled} onChange={(node,label,group)=>session.edit(updateNode(session.document,scene.id,node.id,()=>node),label,group)} onEnd={()=>session.endEditGroup()}/>}
+        <NodeInspector scene={scene} node={selected} tools={{ numbers: can('numbers'), units: can('units'), transform: can('transform'), layerName: can('layerName') }} disabled={editorDisabled} onChange={(node, label, group) => session.edit(updateNode(session.document, scene.id, node.id, () => node), label, group)} onEnd={() => session.endEditGroup()}/>
         <AlignmentControls scene={scene} node={selected} disabled={editorDisabled} onAlign={alignment => { if (selectedId) session.edit(alignLayer(session.document, scene.id, selectedId, alignment), 'Align layer'); }}/>
-        <h3>Project properties</h3>
-        <fieldset className="ts-property-fields" disabled={editorDisabled} onBlur={() => session.endEditGroup()}><legend className="ts-sr-only">Edit current project</legend>
+        <h3>Theme details</h3>
+        <fieldset className="ts-property-fields" disabled={editorDisabled} onBlur={() => session.endEditGroup()}><legend className="ts-sr-only">Edit theme details</legend>
         <label>Name<input maxLength={120} value={document.metadata.name} onChange={e => metadata('name', e.target.value)} /></label>
-        <label>Author<input value={document.metadata.author} onChange={e => metadata('author', e.target.value)} /></label>
+        {can('details') && <><label>Author<input value={document.metadata.author} onChange={e => metadata('author', e.target.value)} /></label>
         <label>Description<textarea value={document.metadata.description} onChange={e => metadata('description', e.target.value)} /></label>
-        <label>Project version<input maxLength={64} value={document.metadata.version} onChange={e => metadata('version', e.target.value)} /></label>
-        <label>License<input maxLength={256} value={document.metadata.license} onChange={e => metadata('license', e.target.value)} /></label>
+        <label>Version<input maxLength={64} value={document.metadata.version} onChange={e => metadata('version', e.target.value)} /></label>
+        <label>License<input maxLength={256} value={document.metadata.license} onChange={e => metadata('license', e.target.value)} /></label></>}
         </fieldset>
-        <p className="ts-field-help">These fields edit the current project. Use Save As to create another project.</p>
-        <CompatibilityPanel document={document}/>
+        {can('check') && <CompatibilityPanel document={document}/>}
       </aside>
     </div>
-    <details className="panel ts-timeline"><summary>Animation timeline</summary><p>This region is reserved for animation tracks, keyframes and media synchronization. Timeline editing is not implemented yet; existing source extension data is preserved.</p></details>
+    {can('timeline') && <details className="panel ts-timeline"><summary>Animation</summary><p>Animation (moving and fading layers over time) is coming later. Nothing here changes your theme yet.</p></details>}
   </section>;
 }
