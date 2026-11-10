@@ -1,5 +1,7 @@
 # RetroDrive — Features
 
+**80s look (2026-11-10, ADR-123):** a sixth RetroDrive look in the logo's synthwave colours: purple night, hot pink neon, cyan glow and sunset-chrome headings. Pick it in the Dashboard's Look switch.
+
 **AI pictures (2026-11-10, ADR-122):** in Theme Studio's Add picture, describe a picture and make it with OpenAI or a picture program on your PC (Automatic1111, Forge or ComfyUI), then use it as a background or anywhere on the screen. It's credited as AI-made.
 
 

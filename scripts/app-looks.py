@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """App looks (ADR-104): every colour in src/style.css is a CSS variable, so the app can
-switch between looks (Classic, Galactic, Bridge) without touching the layout.
+switch between looks (Classic, Galactic, Bridge, Cartoon, Versus, 80s) without touching the layout.
 
 - `src/style.css` keeps its rules; its colours are `var(--c-…)` tokens defined once in
   a `:root` block at the top (the Classic values, exactly as before).
@@ -125,7 +125,21 @@ def versus(h, l, s, r):
     return rgb(h, l, s)
 
 
-LOOKS_RULES = {"galactic": galactic, "bridge": bridge, "cartoon": cartoon, "versus": versus}
+def eighties(h, l, s, r):
+    """80s synthwave, in the colours of RetroDrive's logo: a deep purple-navy night, lavender
+    text, hot pink neon for buttons and cyan glow for light accents."""
+    if r == "neutral":
+        if l < 0.35:
+            return rgb(258, l * 0.75 + 0.01, min(0.75, s + 0.35))
+        return rgb(285, min(1, l * 1.03), min(0.7, s + 0.3))
+    if r == "accent":
+        if l >= 0.66:
+            return rgb(186, 0.7, 1.0)    # cyan glow
+        return rgb(322, 0.56, 1.0)       # hot pink
+    return rgb(h, l, s)
+
+
+LOOKS_RULES = {"galactic": galactic, "bridge": bridge, "cartoon": cartoon, "versus": versus, "eighties": eighties}
 
 
 def tokenize(style, extra=None):
