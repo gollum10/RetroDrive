@@ -1,6 +1,8 @@
 //! Install helper (RDS-027; owner request 2026-11-07, guided approach approved the
-//! same day; docs/18 §24): help the user put Batocera or RetroPie on a card or USB
-//! stick from an image they downloaded themselves.
+//! same day; docs/18 §24): help the user put Batocera, RetroPie, Recalbox, ROCKNIX or
+//! Lakka on a card or USB stick from an image they downloaded themselves (ADR-103 added
+//! the last three, plus download pages for RetroBat and ES-DE, which the user installs
+//! on Windows themselves; docs/18 §65).
 //!
 //! RetroDrive never writes to the card: it reads the image (type, name, optional
 //! checksum), then opens Raspberry Pi Imager or balenaEtcher, which the user installed,
@@ -25,6 +27,12 @@ pub fn download_page(system: &str) -> Option<&'static str> {
     match system {
         "batocera" => Some("https://batocera.org/download"),
         "retropie" => Some("https://retropie.org.uk/download/"),
+        "recalbox" => Some("https://www.recalbox.com/download/"),
+        "rocknix" => Some("https://github.com/ROCKNIX/distribution/releases/latest"),
+        "rocknix-devices" => Some("https://rocknix.org/"),
+        "lakka" => Some("https://www.lakka.tv/get/"),
+        "retrobat" => Some("https://www.retrobat.org/telechargement/"),
+        "esde" => Some("https://es-de.org/"),
         "rpi-imager" => Some("https://www.raspberrypi.com/software/"),
         "etcher" => Some("https://etcher.balena.io/"),
         _ => None,
@@ -38,7 +46,7 @@ pub struct ImageInfo {
     pub bytes: u64,
     /// `gzip`, `xz`, `zip` or `img` (an uncompressed disk image).
     pub format: String,
-    /// `batocera` or `retropie`, from the file name.
+    /// `batocera`, `retropie`, `recalbox`, `rocknix` or `lakka`, from the file name.
     pub system: Option<String>,
     pub version: Option<String>,
     /// The hardware the image is for, as the user would say it.
@@ -77,11 +85,13 @@ fn format_of(file: &mut File, bytes: u64) -> Result<(String, Option<String>), St
         let problem = (bytes < 64 << 20).then(|| "This disk image is too small to be a system image.".to_string());
         return Ok(("img".into(), problem));
     }
-    Err("This isn't a disk image RetroDrive recognizes. Batocera and RetroPie images end in .img.gz (sometimes .img.xz, .zip or .img).".into())
+    Err("This isn't a disk image RetroDrive recognizes. System images end in .img.gz or .img.xz (sometimes .zip or .img).".into())
 }
 
 /// Batocera: `batocera-<board…>-<version>-<yyyymmdd>.img.gz`; RetroPie:
-/// `retropie-<debian>-<version>-<boards>.img.gz`.
+/// `retropie-<debian>-<version>-<boards>.img.gz`; Recalbox: `recalbox-<board>.img.xz`;
+/// ROCKNIX: `ROCKNIX-<chip>.aarch64-<yyyymmdd>[-<variant>].img.gz`; Lakka:
+/// `Lakka-<board>.<arch>-<version>.img.gz`.
 fn name_facts(file_name: &str) -> (Option<String>, Option<String>, Option<String>) {
     let lower = file_name.to_lowercase();
     let stem = lower.split(".img").next().unwrap_or(&lower).trim_end_matches(".zip");
@@ -100,7 +110,41 @@ fn name_facts(file_name: &str) -> (Option<String>, Option<String>, Option<String
             let boards = tokens.iter().rev().find(|t| t.starts_with("rpi") || t.starts_with("x86")).copied();
             (Some("retropie".into()), version, boards.map(retropie_boards))
         }
+        Some(&"recalbox") => (Some("recalbox".into()), None, tokens.get(1).map(|b| recalbox_board(b))),
+        Some(&"rocknix") => {
+            // rocknix-rk3566.aarch64-20261101-generic
+            let chip = tokens.get(1).and_then(|t| t.split('.').next()).map(str::to_uppercase);
+            let date = tokens.get(2).filter(|t| t.len() == 8 && t.chars().all(|c| c.is_ascii_digit())).map(|t| t.to_string());
+            (Some("rocknix".into()), date, chip.map(|c| format!("handhelds with the {c} chip")))
+        }
+        Some(&"lakka") => {
+            // lakka-generic.x86_64-6.1, lakka-rpi4.aarch64-6.1
+            let version = tokens.iter().skip(2).find(|t| is_version(t)).map(|t| t.to_string());
+            (Some("lakka".into()), version, tokens.get(1).map(|b| lakka_board(b)))
+        }
         _ => (None, None, None),
+    }
+}
+
+fn recalbox_board(token: &str) -> String {
+    match token {
+        "rpi5_64" => "Raspberry Pi 5".into(),
+        "rpi4_64" => "Raspberry Pi 4 / 400".into(),
+        "rpi3" => "Raspberry Pi 3".into(),
+        "rpizero2" => "Raspberry Pi Zero 2".into(),
+        "x86_64" => "PCs (64-bit)".into(),
+        "x86" => "older PCs (32-bit)".into(),
+        other => other.to_string(),
+    }
+}
+
+fn lakka_board(token: &str) -> String {
+    let board = token.split('.').next().unwrap_or(token);
+    let arch = token.split('.').nth(1).unwrap_or("");
+    match board {
+        "generic" | "x11" | "wayland" => if arch == "i386" { "older PCs (32-bit)".into() } else { "PCs (64-bit)".into() },
+        b if b.starts_with("rpi") => format!("Raspberry Pi {}", b.trim_start_matches("rpi")),
+        other => other.to_string(),
     }
 }
 
@@ -163,6 +207,9 @@ fn label(system: &str) -> &'static str {
     match system {
         "batocera" => "Batocera",
         "retropie" => "RetroPie",
+        "recalbox" => "Recalbox",
+        "rocknix" => "ROCKNIX",
+        "lakka" => "Lakka",
         _ => "an emulation system",
     }
 }
@@ -301,6 +348,10 @@ mod tests {
         assert_eq!(name_facts("batocera-bcm2711-bcm2711-40-20240801.img.gz"), (Some("batocera".into()), Some("40".into()), Some("Raspberry Pi 4 / 400".into())));
         assert_eq!(name_facts("retropie-buster-4.8-rpi4_400.img.gz"), (Some("retropie".into()), Some("4.8".into()), Some("Raspberry Pi 4 / 400".into())));
         assert_eq!(name_facts("retropie-buster-4.8-rpi2_3_zero2w.img.gz").2.as_deref(), Some("Raspberry Pi 2 / 3 / Zero 2 W"));
+        assert_eq!(name_facts("recalbox-rpi4_64.img.xz"), (Some("recalbox".into()), None, Some("Raspberry Pi 4 / 400".into())));
+        assert_eq!(name_facts("ROCKNIX-RK3566.aarch64-20261101-Generic.img.gz"), (Some("rocknix".into()), Some("20261101".into()), Some("handhelds with the RK3566 chip".into())));
+        assert_eq!(name_facts("Lakka-Generic.x86_64-6.1.img.gz"), (Some("lakka".into()), Some("6.1".into()), Some("PCs (64-bit)".into())));
+        assert_eq!(name_facts("Lakka-RPi4.aarch64-6.1.img.gz").2.as_deref(), Some("Raspberry Pi 4"));
         assert_eq!(name_facts("ubuntu-24.04.img.xz"), (None, None, None));
     }
 
@@ -347,6 +398,9 @@ mod tests {
     #[test]
     fn only_known_programs_and_pages_are_opened() {
         assert_eq!(download_page("batocera"), Some("https://batocera.org/download"));
+        for id in ["recalbox", "rocknix", "rocknix-devices", "lakka", "retrobat", "esde"] {
+            assert!(download_page(id).is_some_and(|u| u.starts_with("https://")), "{id}");
+        }
         assert_eq!(download_page("https://evil.example"), None);
         assert!(open_download_page("https://evil.example").is_err());
         assert!(open_writer("notepad", "C:\\x.img").is_err(), "only the two writers, from their install folders");

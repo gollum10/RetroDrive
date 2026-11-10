@@ -695,6 +695,16 @@ Authorized by the owner on 2026-11-05 ("Approved, build it all", with kept dupli
 | Being pushed into the wizard | Offered once on first start with No thanks; Exit any time; never reopens by itself | in the app with a scratch catalog |
 
 
+## 65. Addendum: Install a system for every supported system (2026-11-09)
+**Scope:** owner asked for the install helper for Recalbox, ROCKNIX, Lakka, RetroBat and ES-DE (ADR-103). Same design as §24: RetroDrive reads the file the user chose and opens fixed pages and programs; it never downloads, installs or writes a system, and never writes to a card.
+
+| Risk | Mitigation | Evidence |
+|---|---|---|
+| Opening an unexpected address | Only fixed official https addresses by id; anything else refused | `only_known_programs_and_pages_are_opened` |
+| Writing the wrong drive | Unchanged: the user picks the drive in Raspberry Pi Imager or balenaEtcher, which warn before erasing | §24 |
+| A wrong or damaged image | File type, cut-short and size checks as before; a different system's image is noted; checksum optional where the page shows one | `images_are_recognized_and_short_downloads_caught`, `image_names_say_what_they_are_for` |
+| Installing a Windows app for the user | Not done: RetroDrive opens the official page and says how; the user installs it; Find it only searches (reading only, §64) | in the app: Find RetroBat listed G:\RetroBat and G:\ES-DE, nothing added |
+
 ## Test-only CI correction: confirmation timestamps
 
 The existing same-second confirmation test used one newest timestamp across two source/destination pairs. If a slower runner created the pairs in different seconds, the older pair legitimately qualified for reuse and the assertion failed. The fixture now deliberately gives pairs different modified times and pins each deployment item's confirmation to its own pair's latest modified/created time. The staggered fixture reproduces the prior failure without sleeps. All same-second/later-confirmation/changed-content assertions remain in place.
