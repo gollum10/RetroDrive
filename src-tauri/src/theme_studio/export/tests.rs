@@ -230,3 +230,46 @@ fn game_list_video_and_game_data_map_to_native_elements_and_unused_extras_are_hi
     }
 }
 
+/// ADR-116: the System Select carousel and the games count use RetroBat's own elements.
+#[test]
+fn system_carousel_and_games_count_map_to_native_elements() {
+    let input = changed(|v| {
+        v["scenes"][0]["role"] = json!("system_select");
+        let base = v["scenes"][0]["nodes"][0].clone();
+        let mut carousel = base.clone();
+        carousel["id"] = json!("carousel-1");
+        carousel["type"] = json!("system_carousel");
+        carousel["style"] = json!({"fill": "10203080", "color": "ffcc00", "direction": "vertical", "count": 5});
+        let mut games = base.clone();
+        games["id"] = json!("games-1");
+        games["style"] = json!({"color": "9fb3cb"});
+        games["bindings"] = json!({"text": {"source": "system.games", "kind": "text"}});
+        v["scenes"][0]["nodes"] = json!([carousel, games]);
+    });
+    let xml = compile_candidate(&input).unwrap().xml;
+    assert!(xml.contains("<view name=\"system\">"), "{xml}");
+    assert!(xml.contains("<carousel name=\"systemcarousel\">") && xml.contains("<color>10203080</color>") && xml.contains("<type>vertical</type>") && xml.contains("<maxLogoCount>5</maxLogoCount>"), "{xml}");
+    assert!(xml.contains("<text name=\"logoText\">\n      <color>ffcc00</color>\n    </text>"), "{xml}");
+    assert!(xml.contains("<text name=\"systemInfo\">") && xml.contains("<backgroundColor>00000000</backgroundColor>"), "{xml}");
+    assert_eq!(xml.matches("name=\"systemInfo\"").count(), 1, "a placed games count isn't duplicated");
+    let mut reader = quick_xml::Reader::from_str(&xml);
+    while reader.read_event().unwrap() != quick_xml::events::Event::Eof {}
+    // Without a placed games count, RetroBat's bar is restyled to match the carousel.
+    let no_count = changed(|v| {
+        v["scenes"][0]["role"] = json!("system_select");
+        v["scenes"][0]["nodes"][0]["type"] = json!("system_carousel");
+        v["scenes"][0]["nodes"][0]["style"] = json!({"color": "ffcc00"});
+    });
+    let xml = compile_candidate(&no_count).unwrap().xml;
+    assert!(xml.contains("<text name=\"systemInfo\">\n      <color>ffcc00</color>\n      <backgroundColor>00000000</backgroundColor>"), "{xml}");
+    // Refused: carousel off System Select, a bad count or direction, games count off System Select.
+    for bad in [
+        changed(|v| { v["scenes"][0]["nodes"][0]["type"] = json!("system_carousel"); v["scenes"][0]["nodes"][0]["style"] = json!({}); }),
+        changed(|v| { v["scenes"][0]["role"] = json!("system_select"); v["scenes"][0]["nodes"][0]["type"] = json!("system_carousel"); v["scenes"][0]["nodes"][0]["style"] = json!({"count": 12}); }),
+        changed(|v| { v["scenes"][0]["role"] = json!("system_select"); v["scenes"][0]["nodes"][0]["type"] = json!("system_carousel"); v["scenes"][0]["nodes"][0]["style"] = json!({"direction": "diagonal"}); }),
+        changed(|v| v["scenes"][0]["nodes"][0]["bindings"] = json!({"text": {"source": "system.games", "kind": "text"}})),
+    ] {
+        assert!(compile_candidate(&bad).is_err(), "{bad}");
+    }
+}
+
