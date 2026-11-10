@@ -20,6 +20,6 @@ export default function LayerOrderControls({ scene, selected, disabled, onOrder 
       const boundary = destination === index || scene.nodes.slice(Math.max(0,Math.min(index,destination)),Math.max(index,destination)+1).some(node => layerState(node).locked || layerState(node).hidden);
       return <button key={order} disabled={boundary} onClick={() => { if (!disabled && supported && index >= 0 && !boundary) onOrder(order); }}>{label}</button>;
     })}
-    {!supported && <p>Ordering is read-only in scenes with nested or unsupported layer types.</p>}
+    {!supported && <p>Order can't be changed on this screen yet.</p>}
   </fieldset>;
 }

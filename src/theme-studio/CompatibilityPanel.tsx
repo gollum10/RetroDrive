@@ -22,11 +22,11 @@ export default function CompatibilityPanel({ document }: { document: ThemeProjec
     }, 300);
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [json, selected, retry]);
-  return <section aria-label="Target compatibility"><h3>Compatibility</h3><label>Check target<select value={selected} onChange={e => { setReport(null); setSelected(e.target.value); }}><option value="">Project intent / no verified target</option>{targets.map(target => <option key={target.installationId} value={target.installationId ?? ''}>{target.frontendFamily} · {target.applicationVersion ?? 'release unknown'} · {target.observation}</option>)}</select></label>
-    {error ? <div role="alert"><p>Compatibility could not be checked: {error}</p><button onClick={() => setRetry(n => n + 1)}>Retry compatibility check</button></div> : !report ? <p role="status">Native support is unverified. Checking profile…</p> : <>
-      <p>Native support is unverified. {report.profile.applicationVersion ? `Detected application release: ${report.profile.applicationVersion}. ` : ''}A verified frontend engine/version profile is still required.</p>
-      <p>{report.issues.length + report.omittedIssues} feature checks. Export and installation are not enabled.</p>
-      <details><summary>Feature compatibility details</summary><ul>{report.issues.map(issue => <li key={issue.id}><strong>{issue.feature}: {issue.outcome}</strong>{issue.nodeId && <span> · layer {issue.nodeId}</span>}<p>{issue.reason}</p>{issue.fallback && <p>Fallback: {issue.fallback}</p>}<small>{issue.userAction}</small></li>)}</ul>{report.omittedIssues > 0 && <p>{report.omittedIssues} additional issues exceed the report display limit. No build is allowed.</p>}</details>
+  return <section aria-label="System check"><h3>Will it work on my system?</h3><label>Check against<select value={selected} onChange={e => { setReport(null); setSelected(e.target.value); }}><option value="">The system it's made for</option>{targets.map(target => <option key={target.installationId} value={target.installationId ?? ''}>{target.frontendFamily} · {target.applicationVersion ?? 'version unknown'} · {target.observation}</option>)}</select></label>
+    {error ? <div role="alert"><p>Couldn't check: {error}</p><button onClick={() => setRetry(n => n + 1)}>Check again</button></div> : !report ? <p role="status">Checking…</p> : <>
+      <p>{report.profile.applicationVersion ? `Found version ${report.profile.applicationVersion}. ` : ''}Saving themes for systems is coming soon; until then this is a preview of what may need attention.</p>
+      <p>{report.issues.length + report.omittedIssues} things checked.</p>
+      <details><summary>Show details</summary><ul>{report.issues.map(issue => <li key={issue.id}><strong>{issue.feature}: {issue.outcome}</strong>{issue.nodeId && <span> · layer {issue.nodeId}</span>}<p>{issue.reason}</p>{issue.fallback && <p>Instead: {issue.fallback}</p>}<small>{issue.userAction}</small></li>)}</ul>{report.omittedIssues > 0 && <p>{report.omittedIssues} more not shown.</p>}</details>
     </>}
   </section>;
 }

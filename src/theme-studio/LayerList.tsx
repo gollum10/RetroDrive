@@ -5,7 +5,7 @@ export default function LayerList({ scene, selected, disabled, onSelect, onState
   scene: Scene; selected: string | null; disabled: boolean; onSelect: (id: string) => void;
   onState: (id: string, key: 'locked' | 'hidden', value: boolean) => void;
 }) {
-  return <section aria-label="Layers"><h3>Layers</h3><small>Back to front; hidden layers stay listed.</small>
+  return <section aria-label="Layers"><h3>Layers</h3><small>Bottom to top. Hidden layers stay in the list.</small>
     {scene.nodes.length ? <div className="ts-layer-list">{scene.nodes.map(node => {
       const state = layerState(node); const supported = supportedNode(scene,node) && state.recognized;
       return <div className="ts-layer-row" key={node.id}>
@@ -14,8 +14,8 @@ export default function LayerList({ scene, selected, disabled, onSelect, onState
           <button disabled={disabled || !supported} aria-label={`${state.locked ? 'Unlock' : 'Lock'} ${node.name || node.type}`} aria-pressed={state.locked} onClick={() => { if (!disabled && supported) onState(node.id,'locked',!state.locked); }}>{state.locked ? 'Unlock' : 'Lock'}</button>
           <button disabled={disabled || !supported} aria-label={`${state.hidden ? 'Show' : 'Hide'} ${node.name || node.type}`} aria-pressed={state.hidden} onClick={() => { if (!disabled && supported) onState(node.id,'hidden',!state.hidden); }}>{state.hidden ? 'Show' : 'Hide'}</button>
         </div>
-        {!state.recognized && <small>Unrecognized editor data is preserved read-only.</small>}
+        {!state.recognized && <small>Some details can't be changed here; they're kept.</small>}
       </div>;
-    })}</div> : <p>No layers in this scene.</p>}
+    })}</div> : <p>Nothing on this screen yet.</p>}
   </section>;
 }

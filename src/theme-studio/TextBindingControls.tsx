@@ -13,6 +13,6 @@ export default function TextBindingControls({ node, disabled, onChange, onEnd }:
     return <div><label>Text content source<select disabled={blocked} value={editable ? node.bindings.text?.source ?? '' : 'unsupported'} onChange={event => { if (blocked)
         return; const next = setTextBinding(node, event.target.value); if (next !== node)
         onChange(next, 'Change text binding'); onEnd(); }}>
-  <option value="">Static text</option>{textSources.map(option => <option key={option.source} value={option.source}>{option.label}</option>)}{!editable && <option value="unsupported">Unsupported binding ? preserved</option>}
- </select></label><p>Bindings use the selected canvas sample for preview. Static text is retained when a binding is selected; switch back to restore it.</p>{!editable && <p>This binding is preserved read-only; no expression or image source is evaluated as text.</p>}</div>;
+  <option value="">Static text</option>{textSources.map(option => <option key={option.source} value={option.source}>{option.label}</option>)}{!editable && <option value="unsupported">Linked to something this editor can’t show (kept)</option>}
+ </select></label><p className="ts-field-help">Shows each game's own title or description on the system; the preview uses the sample game. Your typed text is kept if you switch back.</p>{!editable && <p>This text is linked to something this editor can't change yet. It's kept as it is.</p>}</div>;
 }

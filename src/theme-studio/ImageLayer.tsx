@@ -12,7 +12,7 @@ export default function ImageLayer({ node, url, width, height, opacity }: {
     const dimensions = usePngDimensions(url);
     const clipId = `crop-${useId().replace(/:/g, '')}`;
     if (!dimensions)
-        return <text x={4} y={20} fill="#abc0d9" fontSize={18} pointerEvents="none">Loading image?</text>;
+        return <text x={4} y={20} fill="#abc0d9" fontSize={18} pointerEvents="none">Loading picture…</text>;
     if (dimensions.failed)
         return <text x={4} y={20} fill="#abc0d9" fontSize={18} pointerEvents="none">Image decode unavailable</text>;
     const state = imagePresentation(node);

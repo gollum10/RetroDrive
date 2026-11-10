@@ -102,8 +102,8 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
         return <g data-canvas-guides="true" pointerEvents="none" aria-hidden="true" stroke="#f4c96b" strokeWidth={1} strokeDasharray="6 4">{lines.x.map(x => <line key={`x${x}`} x1={x} x2={x} y1={0} y2={scene.resolution.height} vectorEffect="non-scaling-stroke"/>)}{lines.y.map(y => <line key={`y${y}`} x1={0} x2={scene.resolution.width} y1={y} y2={y} vectorEffect="non-scaling-stroke"/>)}</g>;
       })()}
     </svg>
-    <p>Sample data is synthetic and session-only; no emulator or personal library is read. Grid and snapping are session-only aids. Hold Alt to bypass pointer snapping; arrow keys keep precise steps. Guides mark canvas edges and centers.</p>
-    <p id="ts-canvas-help">Select a layer and drag to move it, or focus the canvas and use arrow keys (Shift: 10 pixels). Drag the bottom-right handle to resize; focus it and use arrows for numeric steps. Escape cancels a drag or resize. Editor preview; native frontend behavior is unverified.</p>
-    {visible.length < scene.nodes.length && <p>Only supported top-level layers are drawn here. Other layers and their source data are preserved.</p>}
+    <p className="ts-field-help">The preview uses made-up sample games, not your library. Grid and snapping help you line things up (hold Alt to place freely); the dashed lines mark the screen's edges and centre.</p>
+    <p id="ts-canvas-help" className="ts-field-help">Click a layer and drag it, or use the arrow keys (Shift moves 10 pixels). Drag the bottom-right corner to resize. Esc cancels. The finished theme may differ slightly on the system itself.</p>
+    {visible.length < scene.nodes.length && <p>Some layers can't be shown in this editor yet. They're kept and not changed.</p>}
   </section>;
 }

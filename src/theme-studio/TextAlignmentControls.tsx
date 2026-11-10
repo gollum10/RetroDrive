@@ -12,5 +12,5 @@ export default function TextAlignmentControls({ node, disabled, onChange, onEnd 
     const next = setTextAlignment(node, event.target.value);
     if (next !== node) onChange(next, 'Change text alignment');
     onEnd();
-  }}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>{alignment === null && <option value="unsupported">Unsupported alignment (preserved)</option>}</select></label>;
+  }}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>{alignment === null && <option value="unsupported">Other alignment (kept)</option>}</select></label>;
 }

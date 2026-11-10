@@ -1,5 +1,8 @@
 # RetroDrive — Features
 
+**Theme Studio in plain words (2026-11-10, ADR-107):** Theme Studio speaks plainly (Save version, Save a copy, Add picture, Made for: any system) and follows the app's look (Classic, Galactic, Bridge, Cartoon, Versus). Coming next, per the [roadmap](docs/theme-studio/roadmap.md): skill levels, your art and videos everywhere, saving for RetroBat, and an optional AI assistant.
+
+
 **Native comparison preparation:** an opt-in test now generates original compiler-produced themes, inert game markers and a disposable home configuration without launching RetroBat. [Preparation and pending native checks](docs/theme-studio/native-comparison.md). Native behavior and launch isolation remain unverified.
 
 
