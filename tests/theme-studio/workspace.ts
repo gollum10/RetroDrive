@@ -32,3 +32,5 @@ export { imagePresentation,setImageFit,setImageCrop,resetImageCrop,cropPixels } 
 export { sampleText,setTextBinding,textBindingEditable,previewDatasets,textSources } from '../../src/theme-studio/sample-data';
 
 export { textAlignment,setTextAlignment,textPosition } from '../../src/theme-studio/text-presentation';
+
+export { LEVELS, shows } from '../../src/theme-studio/skill';

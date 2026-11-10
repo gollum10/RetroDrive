@@ -1,5 +1,8 @@
 # 03 | Information Architecture and UX Specification
 
+**Theme Studio tool levels (2026-11-10, ADR-108):** a **Tools** switch above the editor: **Simple** (pictures, text, colours; drag things where you want them), **Standard** (adds panels, layer order, exact positions and sizes, theme details) and **Pro** (every control). Same theme in every level. New themes start from a **Ready layout** (background, system name, game title, year and description) unless you pick a starter or blank screens.
+
+
 **Theme Studio, plain language (2026-11-10, ADR-107):** every Theme Studio screen now uses plain words: *Your themes*, *New theme*, *Made for: Any system (choose later)*, *Screen shape*, *Save version* (a point to go back to; changes are kept automatically), *Save a copy*, *Add picture*, *Screens* and *Layers*; messages about data the editor can't change say it's kept. The editor follows the app's look. Next steps: [roadmap](theme-studio/roadmap.md).
 
 

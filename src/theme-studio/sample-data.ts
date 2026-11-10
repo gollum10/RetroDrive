@@ -5,7 +5,7 @@ export const textSources = [
     { source: 'game.description', label: 'Game description', kind: 'text' },
     { source: 'game.year', label: 'Release year', kind: 'number' },
     { source: 'game.players', label: 'Players', kind: 'number' },
-    { source: 'game.rating', label: 'Rating (0?1)', kind: 'number' },
+    { source: 'game.rating', label: 'Rating (0–1)', kind: 'number' },
     { source: 'system.name', label: 'System name', kind: 'text' },
 ] as const;
 type Source = typeof textSources[number]['source'];

@@ -1,5 +1,8 @@
 # RetroDrive — Features
 
+**Theme Studio tool levels (2026-11-10, ADR-108):** choose **Simple**, **Standard** or **Pro** tools in the editor; the theme is the same in each. New themes start from a **Ready layout** with the game's title, year and description already placed.
+
+
 **Theme Studio in plain words (2026-11-10, ADR-107):** Theme Studio speaks plainly (Save version, Save a copy, Add picture, Made for: any system) and follows the app's look (Classic, Galactic, Bridge, Cartoon, Versus). Coming next, per the [roadmap](docs/theme-studio/roadmap.md): skill levels, your art and videos everywhere, saving for RetroBat, and an optional AI assistant.
 
 

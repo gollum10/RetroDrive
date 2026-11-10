@@ -23,6 +23,20 @@ async function main() {
   assert.equal(withAssets.emit().emitSkipped, false);
   const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor, canOrderLayers, orderLayer, transformNode, alignedNode, alignLayer, resizeDelta, resizeLayer, bounds, snapSize, snapPosition, guides, layerState, setLayerState, editableNode, attachImage, encodePngFile, safePngPreview, imagePresentation,setImageFit,setImageCrop,resetImageCrop,cropPixels, sampleText,setTextBinding,textBindingEditable,previewDatasets,textSources } = require(path.join(output, 'tests/theme-studio/workspace.js'));
   const { textAlignment,setTextAlignment,textPosition } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  // Tool levels and the ready layout (ADR-108).
+  const { LEVELS, shows } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  assert.deepEqual(LEVELS.map(l => l.id), ['simple', 'standard', 'pro']);
+  for (const tool of ['panel', 'order', 'numbers', 'layerName', 'details', 'units', 'transform', 'crop', 'check', 'timeline']) {
+    assert.equal(shows('simple', tool), false, `Simple hides ${tool}`); assert.equal(shows('pro', tool), true, `Pro shows ${tool}`);
+  }
+  assert.ok(shows('standard', 'panel') && shows('standard', 'numbers') && !shows('standard', 'crop') && !shows('standard', 'transform'));
+  const ready = newDocument({ ...form, template: 'ready' });
+  const readyIds = ready.scenes.flatMap(s => s.nodes.map(n => n.id));
+  assert.equal(new Set(readyIds).size, readyIds.length, 'ready layout ids are unique');
+  assert.ok(ready.scenes.every(s => s.nodes[0].name === 'Background' && s.nodes[0].type === 'panel'), 'every screen starts with a background');
+  const readyList = ready.scenes.find(s => s.role === 'game_list');
+  assert.deepEqual(['game.title', 'game.description', 'game.year'].map(src => readyList.nodes.some(n => n.bindings.text?.source === src)), [true, true, true]);
+  assert.ok(ready.scenes.flatMap(s => s.nodes).every(n => n.bindings.text === undefined || textSources.some(o => o.source === n.bindings.text.source && o.kind === n.bindings.text.kind)), 'ready layout uses known text links');
   const typographyNode = newDocument({ ...form, template: 'starter' }).scenes[0].nodes[0];
   assert.equal(textAlignment(typographyNode),'left');
   assert.equal(setTextAlignment(typographyNode,'left'),typographyNode);
@@ -530,7 +544,8 @@ async function main() {
     assert.match(wizard, /Any system \(choose later\)/);
     assert.match(wizard, /You don&#x27;t need a system connected/);
     const editor = render('theme-studio/ProjectOverview', { session, onClose() {}, onCopy() {}, onReload() {} });
-    for (const region of ['Screens and layers', 'Scene canvas', 'Properties inspector', 'Animation timeline']) assert.ok(editor.includes(region));
+    for (const region of ['Screens and layers', 'Scene canvas', 'Properties inspector']) assert.ok(editor.includes(region), region);
+    assert.ok(!editor.includes('ts-timeline'), 'the animation placeholder is Pro only (Standard by default)');
     assert.match(editor, /Changes kept|Saved|Saving/);
     assert.match(editor, /any system \(choose later\)/); assert.ok(!/unverified|checkpoint|Universal/.test(editor), 'plain wording');
     assert.match(editor, /Add text/); assert.match(editor, /Add panel/); assert.match(editor, />Undo</);
@@ -578,7 +593,9 @@ async function main() {
     assert.equal(renamedLayer.style.text, originalLayer.name, 'renaming a legacy layer keeps its displayed caption');
     const transformProps = { scene: moved.scenes[0], node: transformSource, disabled: false, onChange(node, label, group) { renamedLayer = { node, label, group }; }, onEnd() {} };
     const transformForm = component('theme-studio/NodeInspector')(transformProps);
-    const transformFields = transformForm.props.children.find(child => child?.type === 'fieldset').props.children;
+    // Level-gated tools sit in fragments (ADR-108); look inside them.
+    const flat = items => [items].flat(Infinity).flatMap(child => child?.type === React.Fragment ? flat(child.props.children) : [child]);
+    const transformFields = flat(transformForm.props.children.find(child => child?.type === 'fieldset').props.children);
     const rotationField = transformFields.find(child => child?.props?.label === 'Rotation (degrees)');
     rotationField.props.onChange(30);
     assert.equal(renamedLayer.node.layout.rotation, 30);
@@ -588,7 +605,7 @@ async function main() {
     assert.equal(renamedLayer.node.style.opacity, 0.5);
     renamedLayer = null;
     const disabledTransform = component('theme-studio/NodeInspector')({ ...transformProps, disabled: true });
-    disabledTransform.props.children.find(child => child?.type === 'fieldset').props.children.find(child => child?.props?.label === 'Rotation (degrees)').props.onChange(60);
+    flat(disabledTransform.props.children.find(child => child?.type === 'fieldset').props.children).find(child => child?.props?.label === 'Rotation (degrees)').props.onChange(60);
     assert.equal(renamedLayer, null);
     assert.match(render('theme-studio/NodeInspector', { ...transformProps, node: opaqueOpacity }), /opacity can&#x27;t be changed here; it&#x27;s kept/);
     const transformedCanvas = render('theme-studio/SceneCanvas', { scene: transformProject.scenes[0], selected: added.id, disabled: false, onSelect() {}, onMove() {}, onResize() {}, onEndGroup() {} });
@@ -628,6 +645,13 @@ async function main() {
     assert.match(imageCanvas,/Loading picture/);
     const rejectedImage=render('theme-studio/SceneCanvas',{...imageCanvasProps,previewImages:{[imageNode.assets[0]]:'https://untrusted/image.png'}});
     assert.ok(!rejectedImage.includes('https://untrusted'));assert.match(rejectedImage,/Image unavailable/);
+    const simpleInspector = render('theme-studio/NodeInspector', { scene: safeProject.project.scenes[0], node: safeNode, disabled: false, onChange() {}, onEnd() {}, tools: { numbers: false, units: false, transform: false, layerName: false } });
+    assert.ok(!/X position|Rotation|Opacity|Layer name/.test(simpleInspector), 'Simple inspector hides numbers'); assert.match(simpleInspector, /Drag the layer/);
+    const standardInspector = render('theme-studio/NodeInspector', { scene: safeProject.project.scenes[0], node: safeNode, disabled: false, onChange() {}, onEnd() {}, tools: { numbers: true, units: false, transform: false, layerName: true } });
+    assert.match(standardInspector, /X position/); assert.ok(!/units|Rotation/.test(standardInspector), 'Standard hides units and rotation');
+    const fitOnly = render('theme-studio/ImageControls', { ...imageCanvasProps, node: imageNode, asset: undefined, url: undefined, showCrop: false, onChange() {}, onEnd() {} });
+    assert.ok(!/Crop left/.test(fitOnly) && /Fit: show the whole picture/.test(fitOnly), 'crop numbers only in Pro');
+    assert.match(editor, /role="radiogroup" aria-label="Tools"/);
     const importForm=render('theme-studio/ImageImportForm',{sceneName:'Main',async onImport(){},onCancel(){}});
     assert.match(importForm,/License/);assert.match(importForm,/Credit/);assert.match(importForm,/Add picture/);
     let alignedEdit=null;

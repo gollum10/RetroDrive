@@ -58,3 +58,10 @@
 
 .theme-studio .ts-asset-hash { overflow-wrap: anywhere; font-family: monospace; }
 .theme-studio .ts-inspector dd { margin: .2rem 0 .8rem; }
+
+/* Tool levels (ADR-108): Simple / Standard / Pro. */
+.theme-studio .ts-levels { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin: 0 0 .6rem; }
+.theme-studio .ts-levels > span { font-size: .8rem; color: var(--c-8aa0bb); margin-right: .3rem; }
+.theme-studio .ts-levels button { padding: .35rem .8rem; border-radius: 999px; }
+.theme-studio .ts-levels button.on { background: var(--c-378cdd); border-color: var(--c-378cdd); color: var(--c-ffffff); }
+.theme-studio .ts-levels small { flex-basis: 100%; color: var(--c-8aa0bb); font-size: .8rem; }
