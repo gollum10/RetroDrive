@@ -31,6 +31,11 @@ PERMISSIVE = {
 # Weak, file-level copyleft: allowed for unmodified use; obligations are recorded
 # in docs/17 (ship notices; point to the source of the MPL files).
 NOTICE_REQUIRED = {"MPL-2.0"}
+# Fonts under the SIL Open Font License, allowed only as unmodified font packages
+# bundled with the app (owner decision 2026-11-09, ADR-104; docs/16, docs/17): the
+# license text ships in the notices and the fonts are never sold on their own.
+FONT_LICENSES = {"OFL-1.1"}
+FONT_PACKAGES = ("@fontsource/",)
 RANK = {"deny": 0, "notice": 1, "ok": 2}
 
 
@@ -137,6 +142,8 @@ def main():
     rows = []
     for ecosystem, name, version, license_expr, source in [*rust_crates(), *npm_packages()]:
         verdict, note = classify(license_expr)
+        if verdict == "deny" and ecosystem == "npm" and name.startswith(FONT_PACKAGES) and license_expr.strip() in FONT_LICENSES:
+            verdict, note = "notice", "OFL-1.1 font: ship the license text (ADR-104)"
         rows.append({"ecosystem": ecosystem, "name": name, "version": version, "license": license_expr,
                      "verdict": verdict, "note": note, "source": source})
 

@@ -330,3 +330,5 @@ This is an engineering status record, not a legal conclusion.
 | LEGAL-014 license gate in CI | 🟡 CI fails on licenses outside the allowlist (`scripts/check-licenses.py`). Human sign-off for releases is still to be defined. | `.github/workflows/ci.yml` |
 | Destructive disk operations | ✅ None implemented; the existing gates in docs/06 and docs/15 apply (LEGAL-010). | docs/06 |
 | Privacy | ✅ Local-only; no telemetry and no network calls in the app today. | docs/10 |
+
+**Fonts (owner decision 2026-11-09, ADR-104):** the app looks bundle two fonts under the SIL Open Font License 1.1 (Orbitron, Antonio), unmodified, with their license text in the third-party notices. OFL-1.1 allows bundling fonts with software, including commercial software, as long as the fonts aren't sold on their own. The license gate allows OFL-1.1 only for `@fontsource/` font packages. The looks are original: no names, logos, fonts or screen designs from any film or TV series.

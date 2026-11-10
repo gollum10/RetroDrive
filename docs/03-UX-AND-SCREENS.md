@@ -134,6 +134,9 @@ Inventory: manufacturer/model, bus type when known, capacity, filesystem, free s
 ## Systems
 Catalog of Batocera, RetroBat, and later platforms. Cards: bootable OS vs frontend vs Windows portable application; supported hardware; version/source; setup vs existing-install recognition. Show prerequisites, external links, disk implications, licensing and hardware constraints. Use official download sites, never assume all systems flash like ISOs.
 
+## Looks (ADR-104)
+The Dashboard header has a **Look** switch: **Classic** (the original), **Galactic** (starfield, gold glow) and **Bridge** (starship-console colour bars, condensed capitals). Only colours, type and light change; every screen keeps its layout. Remembered on this PC.
+
 ## Setup wizards (ADR-100)
 Dashboard → **Quick actions**: **Set up everything** (the complete wizard) and one card per task (Add your games, Find or add a system, Copy games to a system, Check BIOS files, Back up a system, Controllers and light guns). All optional: offered once on first start when no system is set up, with "No thanks, I'll do it myself"; Exit any time. The complete wizard shows a step bar: Your games → Find your system → What to copy → BIOS → Copy → Back up and check. *(Built 2026-11-09, ADR-100/101: every step runs inside the wizard. Task cards run only their steps: Copy games = system → what to copy → copy; Check BIOS = system → BIOS; Back up = system → back up and check; the system step is skipped when there's only one. Controllers and light guns opens its own wizard (ADR-102): Controller or light gun? → controller: find it → set it up; light gun: find it → set it up → light gun games (make a smart collection, copy it to a system). Also on the Controllers page as **Step by step**.)*
 

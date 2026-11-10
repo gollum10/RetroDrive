@@ -13,6 +13,7 @@ import BackupSettings from './BackupSettings';
 import CatalogTools from './CatalogTools';
 import ControllerWizard from './ControllerWizard';
 import SetupWizard from './SetupWizard';
+import { LOOKS, applyLook, savedLook, type LookId } from './looks';
 import HealthPanel from './HealthPanel';
 import { fmtSize, localTime, shortPath } from './format';
 import { DecisionsLine, DecisionsPanel, type KeptOffChange } from './Decisions';
@@ -220,6 +221,8 @@ export default function App() {
     } catch(e){setError(true);setMessage(`Import failed: ${String(e)}`)}
   };
   const [installHelp,setInstallHelp]=useState(false);
+  const [look,setLookRaw]=useState<LookId>(savedLook);
+  const setLook=(id:LookId)=>{ setLookRaw(id); applyLook(id); };
   // Setup wizard (ADR-100): optional. Offered once on first start when no system is set
   // up; after that only when the user clicks Set up a system.
   const WIZARD_OFFERED='rd.wizardOffered';
@@ -371,7 +374,7 @@ export default function App() {
       <div className="nav-label">WORKSPACE</div><nav>{menus.map(item=><button key={item.title} className={'nav-item '+(page===item.title?'selected':'')} onClick={()=>setPage(item.title)}><item.icon size={19}/>{item.title}</button>)}</nav>
       <div className="aside-bottom"><img className="sidebar-logo" src={sidebarArtUrl} alt="RetroDrive: retro cartridges and disks streaming onto a drive" width={192} height={192}/><div className="aside-status"><ShieldCheck size={17}/> Never overwrites or deletes</div><small>v0.1.0 · dev build</small></div>
     </aside>
-    <main><header><div><div className="eyebrow">RETRO GAMING COMMAND CENTER</div><h1>{page}</h1></div><button className="ghost" onClick={()=>void load()}><RefreshCcw size={16}/> Refresh</button></header>
+    <main><header><div><div className="eyebrow">RETRO GAMING COMMAND CENTER</div><h1>{page}</h1></div><div className="actions">{page==='Dashboard'&&<div className="look-switch" role="radiogroup" aria-label="Look"><span>Look</span>{LOOKS.map(l=><button key={l.id} role="radio" aria-checked={look===l.id} className={look===l.id?'on':''} onClick={()=>setLook(l.id)}>{l.name}</button>)}</div>}<button className="ghost" onClick={()=>void load()}><RefreshCcw size={16}/> Refresh</button></div></header>
     <div className={'notice '+(error?'warn':'')}><Activity size={17}/>{message}</div>
     {scan && <section className="scan-progress" aria-live="polite"><div className="scan-head"><div><b>Scanning</b> <span className="scan-folder" title={scan.folder}>{scan.folder}</span></div><button className="ghost" disabled={scan.cancelling} onClick={()=>void cancelScan()}><CircleStop size={16}/>{scan.cancelling?'Cancelling...':'Cancel scan'}</button></div>
       <div className="bar indeterminate"><div/></div>
