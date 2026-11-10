@@ -68,13 +68,15 @@ def role(h, l, s):
 
 
 def galactic(h, l, s, r):
-    """Space opera: deep black with a warm tint, gold and amber instead of blue."""
+    """Space opera, the empire's side: black and cold steel grey, imperial red accents."""
     if r == "neutral":
         if l < 0.35:
-            return rgb(32, l * 0.55, min(s, 0.3) * 0.5)
-        return rgb(40, min(1, l * 1.02), min(s, 0.35) * 0.55)
+            return rgb(220, l * 0.5, min(s, 0.2) * 0.4)
+        return rgb(215, min(1, l * 1.03), min(s, 0.2) * 0.5)
     if r == "accent":
-        return rgb(42 if l < 0.7 else 46, max(0.5, min(l, 0.72)), 0.9)
+        if l >= 0.7:
+            return rgb(2, 0.74, 0.95)     # light red for text on black
+        return rgb(356, 0.47, 0.86)       # imperial red
     return rgb(h, l, s)
 
 
@@ -91,7 +93,36 @@ def bridge(h, l, s, r):
     return rgb(h, l, s)
 
 
-LOOKS_RULES = {"galactic": galactic, "bridge": bridge}
+def cartoon(h, l, s, r):
+    """Sunny cartoon: a light look. Lightness is flipped (dark panels become cream, light
+    text becomes dark ink); blue buttons become sunshine yellow, light blue text deep blue."""
+    if r == "neutral":
+        if l < 0.01:
+            return rgb(222, 0.12, 0.4)   # shadows stay dark ink
+        if l < 0.35:
+            return rgb(46, min(0.97, 0.98 - l * 0.7), 0.85 if l < 0.2 else 0.45)
+        return rgb(222, max(0.08, 0.98 - l * 0.95), 0.45)
+    if r == "accent":
+        if l >= 0.6:
+            return rgb(214, max(0.28, 1 - l), 0.8)   # deep blue
+        return rgb(48, 0.56, 1.0)                    # sunshine yellow
+    return rgb(h, 1 - l if l > 0.55 or l < 0.25 else l, s)
+
+
+def versus(h, l, s, r):
+    """Arcade fighter: a dark arena with a red tint; red-orange fire and electric yellow."""
+    if r == "neutral":
+        if l < 0.35:
+            return rgb(352, l * 0.6, min(s, 0.4) * 0.8 + 0.12)
+        return rgb(30, min(1, l * 1.02), min(s, 0.3) * 0.5)
+    if r == "accent":
+        if l >= 0.66:
+            return rgb(50, 0.66, 1.0)    # electric yellow
+        return rgb(12, 0.52, 0.92)       # red-orange
+    return rgb(h, l, s)
+
+
+LOOKS_RULES = {"galactic": galactic, "bridge": bridge, "cartoon": cartoon, "versus": versus}
 
 
 def tokenize(style):

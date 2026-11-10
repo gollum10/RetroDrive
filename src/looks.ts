@@ -5,6 +5,8 @@ export const LOOKS = [
   { id: 'classic', name: 'Classic' },
   { id: 'galactic', name: 'Galactic' },
   { id: 'bridge', name: 'Bridge' },
+  { id: 'cartoon', name: 'Cartoon' },
+  { id: 'versus', name: 'Versus' },
 ] as const;
 export type LookId = typeof LOOKS[number]['id'];
 const KEY = 'rd.look';

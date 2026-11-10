@@ -332,3 +332,5 @@ This is an engineering status record, not a legal conclusion.
 | Privacy | ✅ Local-only; no telemetry and no network calls in the app today. | docs/10 |
 
 **Fonts (owner decision 2026-11-09, ADR-104):** the app looks bundle two fonts under the SIL Open Font License 1.1 (Orbitron, Antonio), unmodified, with their license text in the third-party notices. OFL-1.1 allows bundling fonts with software, including commercial software, as long as the fonts aren't sold on their own. The license gate allows OFL-1.1 only for `@fontsource/` font packages. The looks are original: no names, logos, fonts or screen designs from any film or TV series.
+
+**More looks (2026-11-10, ADR-105):** Cartoon and Versus add Fredoka and Russo One (SIL Open Font License 1.1, unmodified, license text in the notices). The owner asked for a Simpsons-style and a Street Fighter-style look and for Galactic to lean to the empire's side; the looks are original designs with their own names, using no names, characters, logos, fonts, insignia or screen layouts from those works.
