@@ -1,5 +1,8 @@
 # 15 | Quality Assurance, Threat Scenarios and Test Matrix
 
+**Candidate package assembly:** a read-only catalog snapshot now resolves used managed PNGs, checks exact length/hash/signature and assembles bounded deterministic XML/assets/credits/manifest files in memory. Native verification, full licensing/privacy audit and user-facing export remain disabled. [Details](theme-studio/retrobat-export-plan.md#managed-asset-package-spike).
+
+
 **Experimental RetroBat compiler:** a pure in-memory candidate compiler now produces bounded XML and used-PNG declarations for a strict subset. It does not enable export, resolve asset bytes or write target files. See [scope and evidence](theme-studio/retrobat-export-plan.md#compiler-spike-implementation).
 
 
