@@ -456,12 +456,12 @@ export default function App() {
       </article>)}
     </section></>}
     {page==='Emulation Systems' && <>
-    {installHelp&&<InstallHelper notify={(text, isError=false)=>{ setError(isError); setMessage(text); }} onClose={()=>setInstallHelp(false)}/>}
+    {installHelp&&<InstallHelper notify={(text, isError=false)=>{ setError(isError); setMessage(text); }} onClose={()=>setInstallHelp(false)} onFind={()=>{ setInstallHelp(false); setWizard({task:'system'}); }}/>}
     <section className="panel">
       <div className="section-heading"><div><h2>Emulation systems</h2><p>Platforms RetroDrive works with. RetroDrive recognizes an installation, plans where your games would go, checks drive space and existing files, and copies only after you confirm. It never overwrites or deletes files on the drive.</p></div><div className="heading-actions">{wizardButton}<button className="ghost" disabled={!native} onClick={()=>setInstallHelp(v=>!v)}><Download size={17}/> Install a system</button><button className="primary" disabled={!native} onClick={()=>void addInstallation()}><Plus size={17}/> Add existing installation</button></div></div>
       <div className="adapter-grid">
         {adapters.map(a=><article className="adapter" key={a.id}><b>{a.display_name}</b><small>{kindLabel[a.kind]??a.kind}</small>
-          <ul className="caps"><li className={a.capabilities.detect?'yes':'no'}>Recognizes installations</li><li className={a.capabilities.validate_layout?'yes':'no'}>Checks folder layout</li><li className={a.capabilities.plan_placement?'yes':'no'}>Plans deployment (space and conflicts)</li><li className={a.capabilities.copy_games?'yes':'no'}>{a.capabilities.copy_games?'Copies games (verified; never overwrites)':'Copies games (not yet: plans are previews until a safety review)'}</li>{a.id==='batocera'||a.id==='retropie'?<li className="yes">Helps you install it (you download it; Raspberry Pi Imager or balenaEtcher writes it)</li>:<li className="no">Installs {a.display_name} (needs the project's written permission first)</li>}</ul></article>)}
+          <ul className="caps"><li className={a.capabilities.detect?'yes':'no'}>Recognizes installations</li><li className={a.capabilities.validate_layout?'yes':'no'}>Checks folder layout</li><li className={a.capabilities.plan_placement?'yes':'no'}>Plans deployment (space and conflicts)</li><li className={a.capabilities.copy_games?'yes':'no'}>{a.capabilities.copy_games?'Copies games (verified; never overwrites)':'Copies games (not yet: plans are previews until a safety review)'}</li>{a.id==='retrobat'||a.id==='esde'?<li className="yes">Helps you install it (you download it from its website; RetroDrive finds it)</li>:<li className="yes">Helps you install it (you download it; Raspberry Pi Imager or balenaEtcher writes it)</li>}</ul></article>)}
       </div>
     </section>
     {inspection && <section className="panel">

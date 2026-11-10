@@ -163,7 +163,7 @@ export default function SetupWizard({ task, firstRun, games, scanning, busy, ins
       {hint && <p className="warn-text">{hint}</p>}
       <div className="actions"><button className="ghost" onClick={() => void browse()}><FolderOpen size={16}/> Browse…</button>
         {onDrives !== null && onNetwork !== null && found.length > 0 && <button className="ghost" onClick={search}><Search size={16}/> Look again</button>}
-        <button className="link" onClick={onInstallHelp}>No system yet? Install Batocera or RetroPie</button></div>
+        <button className="link" onClick={onInstallHelp}>No system yet? Install one</button></div>
       {installs.some(i => !found.some(f => same(f.path, i.path))) && <><p className="plan-notes">Added before:</p>
         <ul className="backup-list">{installs.filter(i => !found.some(f => same(f.path, i.path))).map(i => <li key={i.id}><b>{i.adapter_name}</b> <span className="mono">{i.path}</span> {i.id === system ? <span className="ok-text"><CheckCircle2 size={14}/> Chosen</span> : <button className="link" onClick={() => setSystem(i.id)}>Use this one</button>}</li>)}</ul></>}
     </div>}
