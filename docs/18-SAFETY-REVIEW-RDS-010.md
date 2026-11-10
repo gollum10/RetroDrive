@@ -787,3 +787,16 @@ Only the disposable test fixture in copier.rs changes. Production confirmation c
 | Keys in files or logs | Credential Manager only (`RetroDrive/ThemeStudio/Service/<id>`); settings hold the model and custom address; disconnect deletes the key | `services_status` test; checked in the app (nothing stored after a refused key) |
 | Model answers | Same schema and the same editor checks as §71; a plain-JSON retry is still checked the same way | §71 evidence |
 | Costs | Each company bills its own account; the card says prices and allowances are theirs; the 50-a-day limit covers every service | in-app text; `take_request` |
+
+## 73. Addendum: Make a picture with AI (2026-11-10)
+**Scope:** ADR-122. RetroDrive sends a picture description to OpenAI (the user's key) or to a picture program on the user's PC or network, and adds the returned picture to the theme like any picture. Only `ai-settings.json` and the existing picture store change on disk.
+
+| Risk | Mitigation | Evidence |
+|---|---|---|
+| Sending private data | Only the description, the size and the model; nothing from the library, the theme or the PC | `requests_hold_only_the_description_and_the_size`; the stand-in server's log |
+| Harmful or broken files coming back | Only PNG, JPEG or WebP up to 20 MB are accepted; then the usual picture path converts to PNG, checks sizes and stores by SHA-256; never run or opened as anything else | `only_real_pictures_come_back`; existing picture-store tests |
+| Key sent elsewhere | OpenAI pictures use the fixed address `https://api.openai.com/v1/images/generations` with the key stored for OpenAI (ADR-121); no redirects | `OPENAI_IMAGES` |
+| Picture program address misuse | Same local/private-network rules as Private AI; no key is sent | ADR-119 tests |
+| Changing the user's picture program | Automatic1111's model override is restored afterwards; ComfyUI's result is a preview, so nothing is added to its output folder | `requests_hold_only_the_description_and_the_size` |
+| Credit and licensing | AI pictures are credited \"made with an AI tool\" and given an AI license note the user can edit | checked in the app |
+| Costs and hanging | Counts toward the 50-a-day limit; OpenAI 240 s, programs 10 minutes, off the interface thread | `ai_pictures::make` |

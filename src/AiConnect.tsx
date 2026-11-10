@@ -49,7 +49,53 @@ function ServicesCard({ services, busy, run, say, children }: { services: Servic
   </div>;
 }
 
-type Card = 'claude' | 'private' | 'services';
+
+// AI pictures (ADR-122): OpenAI (with the key from Other AI services) or a picture program on
+// this PC or network (Automatic1111 or ComfyUI). Pictures are made from Theme Studio's picture form.
+type PictureStatus = { openaiConnected: boolean; openaiModel: string | null; programUrl: string | null; programKind: string | null; programModel: string | null };
+type ProgramFound = { url: string; kind: string; models: string[] };
+const programName = (kind: string | null) => kind === 'comfyui' ? 'ComfyUI' : 'Automatic1111';
+function PicturesCard({ busy, run, say, refreshKey, children }: { busy: string; refreshKey: unknown; children?: React.ReactNode; run: (label: string, task: () => Promise<void>) => Promise<void>; say: (text: string, error?: boolean) => void }) {
+  const [status, setStatus] = useState<PictureStatus | null>(null);
+  const [openaiModels, setOpenaiModels] = useState<string[] | null>(null);
+  const [openaiModel, setOpenaiModel] = useState('');
+  const [address, setAddress] = useState('http://127.0.0.1:7860');
+  const [found, setFound] = useState<ProgramFound | null>(null);
+  const [model, setModel] = useState('');
+  const load = () => invoke<PictureStatus>('ai_picture_status').then(setStatus).catch(e => say(String(e), true));
+  useEffect(() => { void load(); }, [refreshKey]);
+  const act = (label: string, task: () => Promise<void>) => run(label, async () => { await task(); await load(); });
+  if (!status) return null;
+  return <div className="ai-card">
+    <h3>AI pictures {(status.openaiModel && status.openaiConnected || status.programUrl) && <span className="ok-text"><CheckCircle2 size={15}/> Ready</span>}</h3>
+    <p className="plan-notes">Make backgrounds, panels and decorations from a description, in Theme Studio's <b>Add picture</b>. Only the description and the size are sent. Pictures are credited as made with AI.</p>
+    <h4>OpenAI</h4>
+    {!status.openaiConnected ? <p className="plan-notes">Connect OpenAI under <b>Other AI services</b> above; the same key can make pictures. OpenAI charges per picture.</p>
+      : status.openaiModel ? <div className="actions"><span>Pictures with <b>{status.openaiModel}</b>. OpenAI charges per picture.</span><button className="ghost" disabled={!!busy} onClick={() => void act('pic-off', async () => { await invoke('ai_set_picture_openai_model', { model: null }); setOpenaiModels(null); })}>Stop using</button></div>
+      : <div className="actions">
+        {!openaiModels ? <button disabled={!!busy} onClick={() => void act('pic-models', async () => { const list = await invoke<string[]>('ai_picture_openai_models'); setOpenaiModels(list); setOpenaiModel(list[0]); })}>{busy === 'pic-models' ? 'Checking…' : 'Use OpenAI for pictures'}</button>
+          : <><label>Picture model <select value={openaiModel} onChange={e => setOpenaiModel(e.target.value)}>{openaiModels.map(m => <option key={m}>{m}</option>)}</select></label><button className="primary" disabled={!!busy} onClick={() => void act('pic-use', async () => { await invoke('ai_set_picture_openai_model', { model: openaiModel }); say(`OpenAI will make pictures with ${openaiModel}.`); })}>Use it</button></>}
+      </div>}
+    <h4>Picture program on this PC or network</h4>
+    {status.programUrl ? <div className="actions"><span>Using <b>{programName(status.programKind)}</b>{status.programModel && <> with <b>{status.programModel}</b></>} at <span className="mono">{status.programUrl}</span>. Free; nothing leaves your PC or network.</span><button className="ghost" disabled={!!busy} onClick={() => void act('prog-off', async () => { await invoke('ai_disconnect_picture_program'); setFound(null); })}>Disconnect</button></div>
+      : <>
+        <p className="plan-notes">Free and private: run Automatic1111 or Forge (started with <span className="mono">--api</span>) or ComfyUI, with a model downloaded, then connect it here.</p>
+        <div className="actions">
+          <button disabled={!!busy} onClick={() => void act('prog-find', async () => { const hit = await invoke<ProgramFound | null>('ai_find_picture_program'); if (hit) { setFound(hit); setAddress(hit.url); setModel(hit.models[0] ?? ''); } else say('No picture program answered at the usual addresses. Start it, or type its address.', true); })}><Search size={15}/> {busy === 'prog-find' ? 'Looking…' : 'Find it on this PC'}</button>
+          <input className="ai-address" value={address} onChange={e => { setAddress(e.target.value); setFound(null); }}/>
+          <button className="ghost" disabled={!!busy || !address.trim()} onClick={() => void act('prog-check', async () => { const hit = await invoke<ProgramFound>('ai_check_picture_program', { url: address }); setFound(hit); setModel(hit.models[0] ?? ''); })}>{busy === 'prog-check' ? 'Checking…' : 'Check address'}</button>
+        </div>
+        {found && <div className="actions">
+          <span>Found <b>{programName(found.kind)}</b>.</span>
+          {found.models.length > 0 && <label>Model <select value={model} onChange={e => setModel(e.target.value)}>{found.kind === 'a1111' && <option value="">The one it has loaded</option>}{found.models.map(m => <option key={m}>{m}</option>)}</select></label>}
+          <button className="primary" disabled={!!busy || (found.kind === 'comfyui' && !model)} onClick={() => void act('prog-connect', async () => { await invoke('ai_connect_picture_program', { url: found.url, model: model || null }); say(`${programName(found.kind)} connected for pictures.`); })}>Connect</button>
+        </div>}
+      </>}
+    {children}
+  </div>;
+}
+
+type Card = 'claude' | 'private' | 'services' | 'pictures';
 
 export default function AiConnect({ notify }: { notify: (text: string, error?: boolean) => void }) {
   const [status, setStatus] = useState<Status | null>(null);
@@ -107,6 +153,6 @@ export default function AiConnect({ notify }: { notify: (text: string, error?: b
       {noteFor('private')}
     </div>
 
-    {status && <><ServicesCard services={status.services} busy={busy} run={(label, task) => run('services', label, task)} say={(text, error) => say('services', text, error)}>{noteFor('services')}</ServicesCard></>}
+    {status && <><ServicesCard services={status.services} busy={busy} run={(label, task) => run('services', label, task)} say={(text, error) => say('services', text, error)}>{noteFor('services')}</ServicesCard><PicturesCard refreshKey={status} busy={busy} run={(label, task) => run('pictures', label, task)} say={(text, error) => say('pictures', text, error)}>{noteFor('pictures')}</PicturesCard></>}
   </section>;
 }

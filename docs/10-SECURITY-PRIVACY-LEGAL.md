@@ -37,3 +37,5 @@ No raw disk write without documented QA on sacrificial media and safe failures f
 **Ask AI (2026-11-10, ADR-120):** sends one screen's layers and the words typed, only when the user presses Ask; never pictures, file names, paths, games or settings. Suggestions are checked and undoable. At most 50 requests a day. See docs/18 §71.
 
 **Other AI services (2026-11-10, ADR-121):** the user can connect online AI services with their own keys (kept in Windows Credential Manager, sent only to that service's built-in address; custom addresses in Pro only). Same data as Ask AI. See docs/18 §72.
+
+**AI pictures (2026-11-10, ADR-122):** only the description and size are sent, to OpenAI (the user's key) or to a picture program on the user's PC or network; returned pictures go through the usual picture checks and are credited as AI-made. See docs/18 §73.

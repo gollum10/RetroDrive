@@ -46,3 +46,5 @@ export { planExport, exportDocument, liveLayer } from '../../src/theme-studio/ex
 export { attachVideo, isClip, fillScreen } from '../../src/theme-studio/image-assets';
 
 export { applyEdits, describeScreen, AI_OPS, MAX_AI_EDITS } from '../../src/theme-studio/ai-suggest';
+
+export { pictureServices, aiPictureFile } from '../../src/theme-studio/ImageImportForm';
