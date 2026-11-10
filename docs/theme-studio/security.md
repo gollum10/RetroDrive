@@ -1,5 +1,7 @@
 # Theme Studio security boundaries
 
+**Sample resolver:** a six-entry allowlist maps recognized typed scalar sources directly to original in-memory text/number samples. No dotted-path evaluator, script, URI, filesystem or real-library query. Rendering uses escaped literal text with the same 500-character/20-line preview caps. Image/artwork and unknown binding kinds remain inert placeholders/read-only in text controls.
+
 **Image presentation boundary:** only existing authorized bounded PNG data URLs reach intrinsic dimension decoding. Dimensions are checked against codec limits and stale load callbacks ignored. Crop fields use finite bounded percentages; unsupported objects stay inert/read-only. An explicit source-region SVG clip prevents off-crop pixels appearing in Fit margins. No external URLs, new raw image formats, IPC, filesystem writes or permissions are added.
 
 **PNG workflow boundary:** selected browser File bytes (max 16 MiB) enter a bounded base64 command on a worker; a try-lock limits native image work to one operation. SQLite transactional/no-update content-addressed storage avoids adding source/destination path authority and is capped at 256 MiB/2,000 blobs. Preview requires a saved source declaration, byte/hash agreement and PNG signature, returning PNG-only data. Frontend guards URL MIME/encoding/size and limits each scene cache to eight images/32 MiB. Existing CSP suffices; no arbitrary URI/file protocol is added. See [review](image-import.md#managed-catalog-import-and-preview).

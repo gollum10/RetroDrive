@@ -1,5 +1,7 @@
 # 17 | Third-Party Component Manifest (LEGAL-001)
 
+**Sample preview content:** original synthetic text/number metadata only; no bundled game data, artwork, ROMs, fonts, downloads, new dependency or browser package. Personal library and emulator services are not queried.
+
 **PNG workflow dependency:** direct base64 0.23.1 reuses the version already locked transitively; no version upgrades or browser packages. License gate and generated notices/inventory remain current (298 components, zero denied). Browser tests generate original pixels in memory; no bundled user art.
 
 **PNG safety boundary:** direct pinned png 0.18.1 and crc32fast 1.5.4 reuse versions already present transitively in Cargo.lock; SHA-256 remains existing sha2. Dependencies are recorded in generated inventory/notices and checked by the license gate. Tests generate original pixels in memory; no third-party art, fonts or image downloads.

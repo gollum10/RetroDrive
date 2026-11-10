@@ -1,5 +1,7 @@
 # 04 | Technical Architecture
 
+**Sample preview:** sample-data.ts provides an explicit six-source typed catalog and original synthetic value maps. SceneCanvas resolves recognized text/number slots to bounded literal text; NodeInspector uses TextBindingControls for source edits through normal graph/session services. No expression traversal/eval, IPC, catalog/library reads or image sources are resolved by this text-only increment.
+
 **Image presentation:** pure image-presentation helpers validate/preserve style fit/crop data; ImageControls uses shared NumberField and existing graph/history/persistence callbacks. ImageLayer resolves intrinsic dimensions only from authorized PNG data, renders a cropped SVG viewBox and an explicit source-region clipPath so Fit margins cannot reveal outside pixels. No native API, storage or permission changes.
 
 **Preview reopen correction:** useImagePreviews shares promises keyed by project ID, asset ID, hash and byte count across effect restarts, keeps cancelled effects from publishing, and renders immutable loaded state rather than mutable ref cache contents. Busy worker responses retry at most four attempts; other errors require user retry. Native authorization/integrity checks are unchanged.

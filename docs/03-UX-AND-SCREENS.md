@@ -1,5 +1,7 @@
 # 03 | Information Architecture and UX Specification
 
+**Theme Studio sample context:** Canvas aids now includes Preview data (sample game, long text/Unicode, missing metadata, placeholders). Text layer properties offers Text content source using existing typed bindings or retained static text. Switching preview context never dirties the document; selecting a binding is an undoable edit.
+
 **Theme Studio canvas increment:** Add text/Add panel, selectable layer list and SVG canvas, drag/arrow movement, numeric position/size/units, static text/color/font inspector and Undo/Redo. Save As blocks underlying edits. Only top-level text/panel nodes are editable; nested/future content is retained. [Canvas contract and QA](theme-studio/canvas.md).
 
 **Theme Studio copy clarity:** Save As opens a separate form naming the source and new copy, with explicit Create copy/Cancel copy actions. Original metadata and checkpoint saving are disabled while the form is open to avoid accidental rename; Cancel returns focus to Save As. Copy creation shows a success notice. Duplicate suggestions use (copy), (copy 2), etc., normalize legacy copy-copy suffixes and avoid names on the loaded browser page; they are suggestions, not global uniqueness guarantees. Existing project IDs/data are untouched. Controls use the workspace's dark palette.

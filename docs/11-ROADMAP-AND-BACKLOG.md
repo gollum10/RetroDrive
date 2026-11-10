@@ -1,5 +1,7 @@
 # 11 | Development Roadmap and Backlog
 
+**Sample text preview prepared:** six existing scalar bindings, synthetic datasets/placeholder mode, binding authoring and persistence tests. Native validation remains pending. Real-library contexts, sample artwork, list/carousel components, navigation simulation and target-engine previews remain later work.
+
 **Image controls prepared:** Fit/Fill and percentage crop/reset, safe intrinsic dimensions and asset information, with browser pixel/source-history tests. Native smoke checks remain. Additional codecs, direct crop handles, asset management/cleanup, richer scenes and verified native export remain separate future increments.
 
 **PNG native QA follow-up:** owner confirmed duplicate imports visible, then found missing previews after reopen. Read-only QA inspection confirmed stored byte/hash/length/signature integrity. The real-hook StrictMode browser test reproduced zero images; request-sharing/state/retry fix is prepared. Reopen validation takes priority over new image tools.
