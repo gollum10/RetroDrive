@@ -8,6 +8,8 @@ sets up controllers and light guns, and lets you design your own themes.
 RetroDrive never ships, sells or downloads games, BIOS files, firmware or game art. You
 bring your own. It never overwrites or deletes your files.
 
+**Get it:** [download the latest version](https://github.com/gollum10/RetroDrive/releases) (0.1.0 beta, Windows 10 and 11).
+
 **Status:** ✅ Ready · 🟡 Works, with limits noted · 📋 Planned · ❌ Not planned
 
 What changed and when: [CHANGELOG.md](CHANGELOG.md). How it's built: [docs/](docs/00-START-HERE.md).
@@ -144,5 +146,7 @@ Off until you connect one. Your games, folders and settings are never sent.
 | No account, no telemetry | ✅ | RetroDrive has no account and sends nothing about you. The only internet requests are the AI helpers you connect yourself. |
 | Locked-down app | ✅ | The app's pages can only load RetroDrive's own code and talk only to RetroDrive itself. |
 | Open source | ✅ | Apache License 2.0. Third-party notices and data credits ship with the app (**Settings → About and legal**). |
+| Download and check | ✅ | Installers are built by GitHub from the public code and published on the Releases page with SHA-256 checksums. Not code-signed yet, so Windows SmartScreen may warn. |
+| Automatic updates | 📋 | For now, download new versions from the Releases page. |
 | Privacy policy | 🟡 | Draft in [docs/legal/PRIVACY.md](docs/legal/PRIVACY.md), to be reviewed before the first release. |
 | Disk formatting, imaging and cloning | ❌ | Not until a dedicated safety review. |

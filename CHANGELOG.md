@@ -4,6 +4,8 @@ What changed, newest first. For what RetroDrive does today, see [FEATURES.md](FE
 
 ## 2026-11-10
 
+- **RetroDrive 0.1.0 (beta) released** on [GitHub Releases](https://github.com/gollum10/RetroDrive/releases/tag/v0.1.0): the Windows installer and MSI, built by GitHub, with SHA-256 checksums. The README and FEATURES.md link to the download.
+
 - **Downloadable releases (ADR-124):** pushing a version tag builds the installer and MSI on GitHub, with SHA-256 checksums, as a draft pre-release the owner reviews and publishes.
 
 - **80s look (2026-11-10, ADR-123):** a sixth RetroDrive look in the logo's synthwave colours: purple night, hot pink neon, cyan glow and sunset-chrome headings. Pick it in the Dashboard's Look switch.

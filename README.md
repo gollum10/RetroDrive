@@ -8,6 +8,14 @@ Early Windows desktop application for managing a full retro gaming setup.
 
 ![RetroDrive logo](branding/retrodrive-logo-full.png)
 
+## Download
+
+**[Download RetroDrive for Windows](https://github.com/gollum10/RetroDrive/releases)**: the newest version is at the top of the Releases page. Get `RetroDrive_<version>_x64-setup.exe`, then run it. RetroDrive is free, open source (Apache-2.0), and runs on Windows 10 and 11 (64-bit).
+
+- **It's a beta.** The current release is 0.1.0. Please report problems on [GitHub Issues](https://github.com/gollum10/RetroDrive/issues).
+- **"Windows protected your PC":** the installer isn't code-signed yet, so Windows SmartScreen may warn you. Choose **More info → Run anyway**. Each release lists SHA-256 checksums so you can check your download.
+- **Bring your own games.** RetroDrive doesn't include or download games, BIOS files, firmware or game art.
+
 ## What works today
 Full, maintained list: **[FEATURES.md](FEATURES.md)**. What changed and when: **[CHANGELOG.md](CHANGELOG.md)**.
 - **Navigation:** Dashboard, Game Library, Drive Manager, Emulation Systems, Settings.
