@@ -191,6 +191,8 @@ pub fn compile_candidate(source: &str) -> Result<Candidate, Blocker> {
                     extra = false;
                     "carousel"
                 }
+                // Your own clip (ADR-117): a video layer with no link, on any screen.
+                "video" if node.bindings.is_empty() => "video",
                 "video" | "game_list" if view != "detailed" => {
                     return Err(fail("Game lists and game videos belong on the game list screen."))
                 }
@@ -395,7 +397,22 @@ pub fn compile_candidate(source: &str) -> Result<Candidate, Blocker> {
                 tag(&mut xml, "maxLogoCount", &format!("{count}"))?;
                 carousel_names = Some(colour("color", "ffffff")?);
             } else if kind == "video" {
-                if !node.assets.is_empty() {
+                if extra {
+                    // Your own clip: exactly one MP4 the theme declares.
+                    if node.assets.len() != 1 {
+                        return Err(fail("A clip needs exactly one video."));
+                    }
+                    let asset = project
+                        .assets
+                        .iter()
+                        .find(|a| a.id == node.assets[0])
+                        .ok_or_else(|| fail("Missing clip."))?;
+                    if asset.media_type != "video/mp4" {
+                        return Err(fail("Only MP4 clips are mapped."));
+                    }
+                    used.insert(asset.id.clone());
+                    tag(&mut xml, "path", &format!("./{}", asset.path))?;
+                } else if !node.assets.is_empty() {
                     return Err(fail("A game video has no pictures."));
                 }
             } else {

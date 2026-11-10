@@ -9,7 +9,7 @@
 //!   is read from the store with its integrity checks.
 //! - Files are written into "<name> (incomplete)" and the folder is renamed only when every
 //!   file is in. Nothing is replaced or deleted; a failed save leaves the "(incomplete)" folder.
-use super::package::{FileEntry, MAX_PACKAGE_BYTES};
+use super::package::FileEntry;
 use super::retrobat::compile_candidate;
 use crate::theme_studio::{
     image_import::normalize_png,
@@ -27,6 +27,8 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::Path;
 
+/// The whole saved theme, clips included (ADR-117); pictures alone stay within 32 MB.
+pub const MAX_THEME_BYTES: usize = 256 * 1024 * 1024;
 /// At most this many baked pictures per save (a few per screen is typical).
 pub const MAX_BAKED: usize = 16;
 
@@ -125,6 +127,8 @@ pub fn build(
     expected_revision: i64,
     export_json: &str,
     baked: &[String],
+    // Reads a stored clip by SHA-256 (the clip store, ADR-117).
+    clips: &dyn Fn(&str) -> std::result::Result<Vec<u8>, String>,
 ) -> Result<BTreeMap<String, Vec<u8>>> {
     if baked.len() > MAX_BAKED {
         return Err(error_message("package_limit", "Too many baked pictures."));
@@ -155,6 +159,18 @@ pub fn build(
             .ok_or_else(|| error_message("image_authorization", "A picture isn't declared by the theme."))?;
         let bytes = match baked_bytes.get(&declared.sha256) {
             Some(bytes) if bytes.len() as u64 == declared.bytes && declared.path == format!("assets/images/{}.png", declared.sha256) => bytes.clone(),
+            _ if declared.media_type == "video/mp4" => {
+                stored
+                    .assets
+                    .iter()
+                    .find(|a| a.path == declared.path && a.sha256 == declared.sha256 && a.bytes == declared.bytes && a.media_type == "video/mp4")
+                    .ok_or_else(|| error_message("image_authorization", "A clip doesn't belong to this theme."))?;
+                let bytes = clips(&declared.sha256).map_err(|e| error_message("clip_missing", &e))?;
+                if bytes.len() as u64 != declared.bytes {
+                    return Err(error_message("clip_missing", "A clip changed since it was added."));
+                }
+                bytes
+            }
             _ => {
                 let owned = stored
                     .assets
@@ -165,8 +181,8 @@ pub fn build(
             }
         };
         total = total.saturating_add(bytes.len());
-        if total > MAX_PACKAGE_BYTES {
-            return Err(error_message("package_limit", "The theme is larger than 32 MB."));
+        if total > MAX_THEME_BYTES {
+            return Err(error_message("package_limit", "The theme is larger than 256 MB."));
         }
         files.insert(declared.path.clone(), bytes);
     }
@@ -264,8 +280,8 @@ pub fn put_on_retrobat(themes_dir: &Path, saved: &Path) -> std::result::Result<S
             return Err(format!("{} changed since the theme was saved. Save it again from Theme Studio.", entry.path));
         }
         total = total.saturating_add(bytes.len());
-        if total > MAX_PACKAGE_BYTES {
-            return Err("The theme is larger than 32 MB.".into());
+        if total > MAX_THEME_BYTES {
+            return Err("The theme is larger than 256 MB.".into());
         }
         files.insert(entry.path.clone(), bytes);
     }
@@ -281,6 +297,10 @@ pub fn put_on_retrobat(themes_dir: &Path, saved: &Path) -> std::result::Result<S
 mod tests {
     use super::*;
     use serde_json::{json, Value};
+
+    fn no_clips(_: &str) -> std::result::Result<Vec<u8>, String> {
+        Err("no clips in this test".into())
+    }
 
     const SOURCE: &str = include_str!("../../../tests/fixtures/theme_studio/compiler-minimal.json");
 
@@ -322,7 +342,7 @@ mod tests {
         let encoded = png([200, 40, 90, 255]);
         let baked = prepare_baked(&encoded).unwrap();
         let export = export_doc(&baked);
-        let files = build(&connection, &record.id, record.revision, &export, std::slice::from_ref(&encoded)).unwrap();
+        let files = build(&connection, &record.id, record.revision, &export, std::slice::from_ref(&encoded), &no_clips).unwrap();
         let names: Vec<&str> = files.keys().map(String::as_str).collect();
         assert_eq!(names, vec![baked.path.as_str(), "credits.json", "retrodrive-theme.json", "theme.xml"]);
         let xml = String::from_utf8(files["theme.xml"].clone()).unwrap();
@@ -335,11 +355,42 @@ mod tests {
         assert_eq!(stored, 0);
 
         // Refused: the baked picture missing, a stale revision, a picture that isn't the theme's.
-        assert!(build(&connection, &record.id, record.revision, &export, &[]).is_err());
-        assert!(build(&connection, &record.id, record.revision + 1, &export, std::slice::from_ref(&encoded)).is_err());
+        assert!(build(&connection, &record.id, record.revision, &export, &[], &no_clips).is_err());
+        assert!(build(&connection, &record.id, record.revision + 1, &export, std::slice::from_ref(&encoded), &no_clips).is_err());
         let other = prepare_baked(&png([1, 2, 3, 255])).unwrap();
-        assert!(build(&connection, &record.id, record.revision, &export_doc(&other), &[encoded]).is_err());
-        assert!(build(&connection, &record.id, record.revision, &export, &vec![String::new(); MAX_BAKED + 1]).is_err());
+        assert!(build(&connection, &record.id, record.revision, &export_doc(&other), &[encoded], &no_clips).is_err());
+        assert!(build(&connection, &record.id, record.revision, &export, &vec![String::new(); MAX_BAKED + 1], &no_clips).is_err());
+    }
+
+    #[test]
+    fn a_clip_is_saved_only_when_the_theme_owns_it() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        crate::db::migrate(&mut connection, None).unwrap();
+        let record = projects::create(&connection, SOURCE).unwrap();
+        let clip: Vec<u8> = [&[0u8, 0, 0, 24][..], b"ftypisom", &[0; 12]].concat();
+        let sha = digest(&clip);
+        let asset = json!({"id": "clip-1", "path": format!("assets/video/{sha}.mp4"), "sha256": sha, "bytes": clip.len(), "mediaType": "video/mp4", "license": "own", "attribution": "Me", "source": "User clip"});
+        let with_clip = |doc: &mut Value| {
+            doc["assets"] = json!([asset.clone()]);
+            let mut node = doc["scenes"][0]["nodes"][0].clone();
+            node["id"] = json!("clip-node");
+            node["type"] = json!("video");
+            node["style"] = json!({});
+            node["assets"] = json!(["clip-1"]);
+            doc["scenes"][0]["nodes"] = json!([node]);
+        };
+        let mut export: Value = serde_json::from_str(SOURCE).unwrap();
+        with_clip(&mut export);
+        let reader = |wanted: &str| if wanted == sha { Ok(clip.clone()) } else { Err("missing".to_string()) };
+        // The stored theme doesn't declare the clip yet: refused.
+        assert!(build(&connection, &record.id, record.revision, &export.to_string(), &[], &reader).is_err());
+        let mut stored: Value = serde_json::from_str(&record.saved_json).unwrap();
+        with_clip(&mut stored);
+        let saved = projects::write(&connection, &record.id, record.revision, &stored.to_string(), projects::WriteKind::Autosave).unwrap();
+        let files = build(&connection, &record.id, saved.revision, &export.to_string(), &[], &reader).unwrap();
+        assert_eq!(files[&format!("assets/video/{sha}.mp4")], clip);
+        // A clip that is missing from the store is refused.
+        assert!(build(&connection, &record.id, saved.revision, &export.to_string(), &[], &no_clips).is_err());
     }
 
     #[test]
@@ -350,7 +401,7 @@ mod tests {
         let record = projects::create(&connection, SOURCE).unwrap();
         let encoded = png([9, 9, 9, 255]);
         let baked = prepare_baked(&encoded).unwrap();
-        let files = build(&connection, &record.id, record.revision, &export_doc(&baked), std::slice::from_ref(&encoded)).unwrap();
+        let files = build(&connection, &record.id, record.revision, &export_doc(&baked), std::slice::from_ref(&encoded), &no_clips).unwrap();
         let saved = write_new_folder(&dir.path().join("saved"), "My Theme", &files).unwrap();
         fs::write(Path::new(&saved.folder).join("notes.txt"), b"not listed").unwrap();
         let themes = dir.path().join("RetroBat/emulationstation/.emulationstation/themes");

@@ -11,6 +11,8 @@ mod json;
 pub mod model;
 pub mod projects;
 pub mod validation;
+/// Your own video clips (ADR-117).
+pub mod video_store;
 
 #[cfg(test)]
 mod project_tests;

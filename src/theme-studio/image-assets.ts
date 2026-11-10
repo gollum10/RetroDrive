@@ -12,7 +12,7 @@ export function creditFor(attribution: string, aiMade: boolean): string {
     if (!aiMade || /\bAI\b/i.test(text)) return text;
     return text ? `${text} (${AI_NOTE})` : `Made with an AI tool`;
 }
-import type { StoredImage } from './api';
+import type { StoredImage, StoredVideo } from './api';
 export function attachImage(project: ThemeProject, sceneId: string, image: StoredImage, license: string, attribution: string, options: AttachOptions = {}) {
     const placement = options.placement ?? 'free';
     if (!/^[0-9a-f]{64}$/.test(image.sha256) || image.path !== `assets/images/${image.sha256}.png` || !Number.isInteger(image.bytes) || image.bytes < 1 || image.bytes > 20 * 1024 * 1024 || !Number.isInteger(image.width) || !Number.isInteger(image.height) || image.width < 1 || image.height < 1 || image.width > 4096 || image.height > 4096 || image.width * image.height > 4194304)
@@ -54,4 +54,29 @@ export function attachImage(project: ThemeProject, sceneId: string, image: Store
     }
     const nodes = [...scene.nodes.slice(0, at), node, ...scene.nodes.slice(at)];
     return { id: nodeId, project: { ...project, assets: existing ? project.assets : [...project.assets, asset], scenes: project.scenes.map(current => current.id === sceneId ? { ...current, nodes } : current) } };
+}
+
+/** Is this layer the user's own clip (a video layer with no game link)? (ADR-117) */
+export function isClip(node: ThemeNode): boolean { return node.type === 'video' && !node.bindings.video && node.assets.length === 1; }
+
+/** Add the user's own clip (ADR-117): plays looping and muted where it's placed. */
+export function attachVideo(project: ThemeProject, sceneId: string, video: StoredVideo, license: string, attribution: string) {
+    if (!/^[0-9a-f]{64}$/.test(video.sha256) || video.path !== `assets/video/${video.sha256}.mp4` || !Number.isInteger(video.bytes) || video.bytes < 1 || video.bytes > 50 * 1024 * 1024)
+        throw new Error('Invalid clip descriptor.');
+    const scene = project.scenes.find(scene => scene.id === sceneId);
+    if (!scene || project.scenes.reduce((sum, scene) => sum + scene.nodes.length, 0) >= 10000) throw new Error('This screen cannot accept another layer.');
+    const existing = project.assets.find(asset => asset.sha256 === video.sha256 && asset.mediaType === 'video/mp4');
+    let id = `video-${video.sha256}`; let suffix = 1;
+    while (!existing && project.assets.some(asset => asset.id === id)) id = `video-${video.sha256}-${suffix++}`;
+    const asset = existing ?? { id, path: video.path, sha256: video.sha256, bytes: video.bytes, mediaType: 'video/mp4', license: license.trim() || 'unknown', attribution: attribution.trim(), source: 'User-supplied clip' };
+    const ids = new Set(project.scenes.flatMap(scene => scene.nodes.map(node => node.id)));
+    let index = 1; while (ids.has(`clip-${index}`)) index++;
+    const nodeId = `clip-${index}`;
+    const node: ThemeNode = { id: nodeId, type: 'video', name: 'Clip', layout: { x: pct(30), y: pct(30), width: pct(40), height: pct(40), rotation: 0 }, style: {}, children: [], assets: [asset.id], bindings: {} };
+    return { id: nodeId, project: { ...project, assets: existing ? project.assets : [...project.assets, asset], scenes: project.scenes.map(current => current.id === sceneId ? { ...current, nodes: [...current.nodes, node] } : current) } };
+}
+
+/** Make a layer fill the screen (used for clips as moving backgrounds). */
+export function fillScreen(node: ThemeNode): ThemeNode {
+    return { ...node, layout: { ...node.layout, x: pct(0), y: pct(0), width: pct(100), height: pct(100), rotation: 0 } };
 }

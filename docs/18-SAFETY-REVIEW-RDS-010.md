@@ -740,3 +740,14 @@ Only the disposable test fixture in copier.rs changes. Production confirmation c
 | Copying unexpected or altered files | Only files listed in `retrodrive-theme.json`, each rechecked for size and SHA-256; plain relative names; 256 files and 32 MB at most | same test |
 | Writing while another drive change runs | Holds the drive-change claim like other drive writes | `put_theme_on_retrobat` |
 | Changing RetroBat's settings unsafely | The existing theme switch: file hash reviewed, refused while RetroBat runs, backed up, journaled, Undo in Customize (unchanged code) | Customize tests; ADR for the theme switch |
+
+## 69. Addendum: theme clips (2026-11-10)
+**Scope:** ADR-117. Theme Studio copies MP4 clips the user chooses into a `theme-videos` folder beside the catalog, serves them to the editor for preview, and copies them into saved themes.
+
+| Risk | Mitigation | Evidence |
+|---|---|---|
+| Changing the user's file | The chosen file is only read; RetroDrive keeps its own copy | `clips_are_stored_once_by_content_and_checked_when_read` |
+| Replacing or corrupting stored clips | Named by SHA-256; written as `.part` then renamed without replacing; an existing clip is reused only if it still matches; a damaged one is refused, never overwritten | same test |
+| Non-video or oversized files | MP4 header check; 50 MB per clip; 1 GB in all | `only_mp4_clips_within_the_limit_are_accepted` |
+| Serving other files through the media channel | `tv-` must be followed by a 64-character lowercase SHA-256; read only from the clip folder and re-checked | `video_store::read` (rejects `../secret`) |
+| Packaging clips that aren't the theme's | A clip enters a saved theme only when the stored theme declares it and the stored copy matches its size | `a_clip_is_saved_only_when_the_theme_owns_it` |
