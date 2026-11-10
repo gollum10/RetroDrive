@@ -101,25 +101,38 @@ pub fn preview_png(connection: &Connection, project_id: &str, asset_id: &str) ->
                 "Image is not declared by this saved project.",
             )
         })?;
-    if asset.bytes > MAX_OUTPUT_BYTES as u64 {
+    let bytes = verified_png(connection, asset)?;
+    Ok(format!(
+        "data:image/png;base64,{}",
+        BASE64_STANDARD.encode(bytes)
+    ))
+}
+
+/// Internal integrity reader. The caller must authorize the declaration against a stored
+/// project snapshot; this function accepts no filesystem location and never writes.
+pub(crate) fn verified_png(
+    connection: &Connection,
+    asset: &super::model::Asset,
+) -> Result<Vec<u8>> {
+    if asset.media_type != "image/png" || asset.bytes > MAX_OUTPUT_BYTES as u64 {
         return Err(error_message(
             "image_limit",
-            "Image exceeds the preview limit.",
+            "Image exceeds the managed PNG limit.",
         ));
     }
-    let bytes: Vec<u8> = connection.query_row("SELECT png FROM theme_image_assets WHERE sha256=?1 AND byte_count=?2 AND length(png)<=?3",params![asset.sha256,asset.bytes as i64,MAX_OUTPUT_BYTES as i64],|row|row.get(0)).optional()?.ok_or_else(||error_message("image_missing","Managed image is unavailable."))?;
+    let bytes: Vec<u8> = connection.query_row(
+        "SELECT png FROM theme_image_assets WHERE sha256=?1 AND byte_count=?2 AND length(png)=?2 AND length(png)<=?3",
+        params![asset.sha256,asset.bytes as i64,MAX_OUTPUT_BYTES as i64], |row|row.get(0)
+    ).optional()?.ok_or_else(||error_message("image_missing","Managed image is unavailable or has an inconsistent length."))?;
     if format!("{:x}", Sha256::digest(&bytes)) != asset.sha256
         || !bytes.starts_with(b"\x89PNG\r\n\x1a\n")
     {
         return Err(error_message(
             "image_integrity",
-            "Managed image is damaged; preview refused.",
+            "Managed image is damaged; read refused.",
         ));
     }
-    Ok(format!(
-        "data:image/png;base64,{}",
-        BASE64_STANDARD.encode(bytes)
-    ))
+    Ok(bytes)
 }
 
 #[cfg(test)]

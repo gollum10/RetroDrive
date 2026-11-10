@@ -2,3 +2,6 @@
 pub mod retrobat;
 #[cfg(test)]
 mod tests;
+pub mod package;
+#[cfg(test)]
+mod package_tests;
