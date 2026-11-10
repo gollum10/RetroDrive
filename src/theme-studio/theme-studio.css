@@ -55,3 +55,6 @@
 .theme-studio .ts-layer-row small { display: block; }
 .theme-studio .ts-layer-toggles { display: flex; gap: .35rem; margin-top: .35rem; }
 .theme-studio .ts-layer-toggles button { flex: 1; padding: .4rem; }
+
+.theme-studio .ts-asset-hash { overflow-wrap: anywhere; font-family: monospace; }
+.theme-studio .ts-inspector dd { margin: .2rem 0 .8rem; }

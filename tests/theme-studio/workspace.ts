@@ -26,3 +26,5 @@ export { layerState, setLayerState, editableNode } from '../../src/theme-studio/
 export { attachImage } from '../../src/theme-studio/image-assets';
 export { encodePngFile } from '../../src/theme-studio/ImageImportForm';
 export { safePngPreview } from '../../src/theme-studio/use-image-previews';
+
+export { imagePresentation,setImageFit,setImageCrop,resetImageCrop,cropPixels } from '../../src/theme-studio/image-presentation';

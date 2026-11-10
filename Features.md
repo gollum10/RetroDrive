@@ -1,5 +1,7 @@
 # RetroDrive — Features
 
+**Theme Studio image controls prepared:** Fit/Fill, non-destructive percentage cropping/reset and asset dimensions/format/size/license/attribution/hash details. Existing images default to Fit/full image. Pixel-level browser checks pass; native visual/save/reopen confirmation remains pending.
+
 **CI test reliability:** the copier confirmation test now gives each file pair a separate modification second and pins its confirmation to that pair. This removes a runner-timing assumption without changing production copying behavior.
 
 **Saved PNG preview fix prepared:** shared in-flight requests prevent StrictMode setup/cleanup from racing the native image-worker guard on reopen. Bounded busy retries and state-based preview publication restore saved image layers without touching stored source/bytes. Native owner recheck remains pending.

@@ -8,6 +8,7 @@ import { importPng } from './api';
 import useImagePreviews from './use-image-previews';
 import SaveCopyForm from './SaveCopyForm';
 import SceneCanvas from './SceneCanvas';
+import ImageControls from './ImageControls';
 import NodeInspector from './NodeInspector';
 import LayerList from './LayerList';
 import LayerOrderControls from './LayerOrderControls';
@@ -60,6 +61,7 @@ export default function ProjectOverview({ session, onClose, onCopy, onReload, bl
       <SceneCanvas previewImages={previews.images} scene={scene} selected={selectedId} disabled={editorDisabled} onSelect={setSelectedId} onMove={(id, x, y, group) => session.edit(moveNode(session.document, scene.id, id, x, y), 'Move layer', group)} onResize={(id, width, height, group) => session.edit(resizeLayer(session.document, scene.id, id, width, height), 'Resize layer', group)} onEndGroup={() => session.endEditGroup()}/>
       <aside className="panel ts-inspector" aria-label="Properties inspector"><h3>Properties</h3>
         <LayerOrderControls scene={scene} selected={selectedId} disabled={editorDisabled} onOrder={order => { if (selectedId) session.edit(orderLayer(session.document, scene.id, selectedId, order), 'Change layer order'); }}/>
+        {selected?.type==='image'&&<ImageControls key={selected.id} scene={scene} node={selected} asset={document.assets.find(asset=>asset.id===selected.assets[0])} url={previews.images[selected.assets[0]]} disabled={editorDisabled} onChange={(node,label,group)=>session.edit(updateNode(session.document,scene.id,node.id,()=>node),label,group)} onEnd={()=>session.endEditGroup()}/>}
         <NodeInspector scene={scene} node={selected} disabled={editorDisabled} onChange={(node, label, group) => session.edit(updateNode(session.document, scene.id, node.id, () => node), label, group)} onEnd={() => session.endEditGroup()}/>
         <AlignmentControls scene={scene} node={selected} disabled={editorDisabled} onAlign={alignment => { if (selectedId) session.edit(alignLayer(session.document, scene.id, selectedId, alignment), 'Align layer'); }}/>
         <h3>Project properties</h3>

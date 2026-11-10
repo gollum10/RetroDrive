@@ -1,5 +1,7 @@
 # Universal theme source contract v1
 
+**Image style fields:** optional imageFit is contain or cover; optional imageCrop has x/y/width/height percentages, with x/y nonnegative, width/height at least 0.1, and extents within 100%. Missing crop means full image. Unknown fit/crop expressions remain read-only, extra crop properties survive edits/reset. These are additive style-map fields in v1.0.0; asset content hashes and catalog schema stay unchanged.
+
 **PNG attachment:** declarations keep the existing content-addressed PNG path and byte/hash/MIME/license/attribution fields, with portable provenance text only. Image nodes reference one declared asset ID. Local BLOB storage is not embedded in JSON; future package export must supply those bytes. Duplicate imports reuse existing project metadata and create independent image nodes. No source-format version change.
 
 **Editor extension:** node.editor may contain locked/hidden booleans with false defaults, plus preserved future fields. This additive use of the existing extension map does not change v1.0.0 or require storage migration. Non-object editor data or non-boolean known flags are not coerced/overwritten. Flags are editor-only; exporters are still unimplemented and must not infer native conditional visibility.

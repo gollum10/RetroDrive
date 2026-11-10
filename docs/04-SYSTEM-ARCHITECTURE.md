@@ -1,5 +1,7 @@
 # 04 | Technical Architecture
 
+**Image presentation:** pure image-presentation helpers validate/preserve style fit/crop data; ImageControls uses shared NumberField and existing graph/history/persistence callbacks. ImageLayer resolves intrinsic dimensions only from authorized PNG data, renders a cropped SVG viewBox and an explicit source-region clipPath so Fit margins cannot reveal outside pixels. No native API, storage or permission changes.
+
 **Preview reopen correction:** useImagePreviews shares promises keyed by project ID, asset ID, hash and byte count across effect restarts, keeps cancelled effects from publishing, and renders immutable loaded state rather than mutable ref cache contents. Busy worker responses retry at most four attempts; other errors require user retry. Native authorization/integrity checks are unchanged.
 
 **PNG workflow:** two background commands accept bounded base64 bytes/project ID or saved project ID/asset ID, never filesystem paths. image_store normalizes into immutable SHA-keyed SQLite blobs and re-verifies reads. The UI attaches portable asset declarations/image nodes through existing ProjectSession, then loads a bounded PNG-only data-URL cache. Source file selection uses a browser File grant; existing CSP already permits PNG data images.

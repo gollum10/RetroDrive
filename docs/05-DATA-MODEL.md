@@ -1,5 +1,7 @@
 # 05 | Hybrid Library Data Model
 
+**Image fit/crop source:** existing node.style extension map stores imageFit (contain/cover) and imageCrop (x/y/width/height percentages). Defaults are contain/full region. Additional crop fields remain intact, unsupported shapes are read-only, and image bytes/asset hashes remain immutable. No catalog/source-schema migration.
+
 **Catalog v29:** additive theme_image_assets table stores hash primary key, normalized PNG BLOB, dimensions, byte count and imported_at. Existing migration backup/transaction/refusal rules apply. Images deduplicate across local projects, while license/attribution stay in each portable source declaration. No old design rows or target files change. Content limits: 256 MiB and 2,000 blobs; no automatic deletion or source-schema migration.
 
 **Image normalization:** no source/catalog change. The pure codec returns bytes/hash/dimensions and assets/images/<hash>.png compatible with the existing asset path contract. No asset row/document declaration is persisted yet; provenance/license and managed storage are still unwired.
