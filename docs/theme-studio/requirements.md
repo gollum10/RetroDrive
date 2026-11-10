@@ -1,5 +1,8 @@
 # Theme Studio delivery tracking
 
+**VIS-004 partial typography:** text layers now support left/center/right alignment within their existing rectangle, including sample-bound multiline captions. Unknown values stay preserved read-only; source edits use existing history and draft/checkpoint persistence. Wrapping, vertical alignment, custom fonts and native engine output remain unimplemented.
+
+
 **SCENE-003/PREV-001 partial sample context:** synthetic scalar metadata and typed text binding selection now support no-emulator/no-library authoring. This is text preview only: sample artwork, real catalog bridge, navigation/list components, target-native previews and full fallback/formatting rules remain future increments.
 
 **VIS-004 partial image presentation:** Fit/Fill, percentage crop/reset and asset metadata inspection now integrate with history and immutable PNG previews. Direct graphical crop handles, anchors/conditional visibility, advanced image effects, codecs and native compilation remain future work. Browser pixels pass; native acceptance remains pending.

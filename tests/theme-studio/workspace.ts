@@ -30,3 +30,5 @@ export { safePngPreview } from '../../src/theme-studio/use-image-previews';
 export { imagePresentation,setImageFit,setImageCrop,resetImageCrop,cropPixels } from '../../src/theme-studio/image-presentation';
 
 export { sampleText,setTextBinding,textBindingEditable,previewDatasets,textSources } from '../../src/theme-studio/sample-data';
+
+export { textAlignment,setTextAlignment,textPosition } from '../../src/theme-studio/text-presentation';

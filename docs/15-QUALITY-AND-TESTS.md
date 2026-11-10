@@ -1,5 +1,8 @@
 # 15 | Quality Assurance, Threat Scenarios and Test Matrix
 
+**VIS-004 partial typography:** text layers now support left/center/right alignment within their existing rectangle, including sample-bound multiline captions. Unknown values stay preserved read-only; source edits use existing history and draft/checkpoint persistence. Wrapping, vertical alignment, custom fonts and native engine output remain unimplemented.
+
+
 **Sample binding checks:** workspace tests cover all six source/kind mappings, static restoration, missing placeholders, Unicode, unknown/image-binding refusal, extra-field preservation, lock/disabled guards, no source changes from datasets, history and checkpoint/draft behavior. Browser fixture exercises actual dataset/source selectors and multiline output; previous editor/import/reopen/pixel regressions pass. Source contract/build pass; native app recheck remains pending. Rust is unchanged and was not rerun.
 
 **Image presentation checks:** workspace tests cover defaults/no-ops, bounds/rounding, crop coordinate conversion, unknown field preservation, locked guards, undo/redo and checkpoint/draft behavior. Real Edge tests rasterize a generated two-color fixture to verify Fit letterboxing, Fill coverage, crop pixel choice and explicit clipping; actual controls reject invalid/disabled changes and preserve unsupported fields. Prior reopen/import/editor regressions also pass. Native visual acceptance is pending; Rust suite was not rerun for this frontend-only increment.

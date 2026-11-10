@@ -22,6 +22,39 @@ async function main() {
   assert.equal(errors.length, 0, ts.formatDiagnosticsWithColorAndContext(errors, { getCanonicalFileName: f => f, getCurrentDirectory: () => root, getNewLine: () => '\n' }));
   assert.equal(withAssets.emit().emitSkipped, false);
   const { ProjectSession, project, form, record, newDocument, suggestCopyName, guardedWindowClose, EditHistory, addNode, moveNode, updateNode, rootNodes, pixels, positionFromPixels, pointerToScene, previewColor, canOrderLayers, orderLayer, transformNode, alignedNode, alignLayer, resizeDelta, resizeLayer, bounds, snapSize, snapPosition, guides, layerState, setLayerState, editableNode, attachImage, encodePngFile, safePngPreview, imagePresentation,setImageFit,setImageCrop,resetImageCrop,cropPixels, sampleText,setTextBinding,textBindingEditable,previewDatasets,textSources } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  const { textAlignment,setTextAlignment,textPosition } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  const typographyNode = newDocument({ ...form, template: 'starter' }).scenes[0].nodes[0];
+  assert.equal(textAlignment(typographyNode),'left');
+  assert.equal(setTextAlignment(typographyNode,'left'),typographyNode);
+  for (const value of ['center','right','left']) {
+    const next=setTextAlignment({...typographyNode,style:{...typographyNode.style,textAlign:'right',opaque:{keep:true}}},value);
+    assert.equal(textAlignment(next),value);
+    assert.deepEqual(next.style.opaque,{keep:true});
+    assert.equal(next.layout,typographyNode.layout);
+    assert.equal(next.bindings,typographyNode.bindings);
+    assert.deepEqual(textPosition(next,200),value==='center'?{x:100,anchor:'middle'}:value==='right'?{x:200,anchor:'end'}:{x:0,anchor:'start'});
+  }
+  for (const protectedNode of [ {...typographyNode,editor:{locked:true}}, {...typographyNode,editor:{hidden:true}}, {...typographyNode,style:{textAlign:{future:true}}}, {...typographyNode,type:'panel'}, {...typographyNode,children:[typographyNode]} ]) {
+    assert.equal(setTextAlignment(protectedNode,'center'),protectedNode);
+  }
+  assert.equal(setTextAlignment(typographyNode,'justify'),typographyNode);
+  assert.equal(JSON.stringify(typographyNode).includes('textAlign'),false);
+  const typographyProject=newDocument({ ...form, template:'starter' });
+  const typographyScene=typographyProject.scenes[0];
+  const centeredProject=updateNode(typographyProject,typographyScene.id,typographyScene.nodes[0].id,node=>setTextAlignment(node,'center'));
+  let typographyStored={...record(),savedJson:JSON.stringify(typographyProject)};
+  const typographySession=new ProjectSession(typographyStored,typographyProject,async(id,revision,json,kind)=>{
+    assert.equal(revision,typographyStored.revision);
+    typographyStored={...typographyStored,revision:revision+1,savedJson:kind==='checkpoint'?json:typographyStored.savedJson,draftJson:kind==='checkpoint'?null:json};return typographyStored;
+  });
+  typographySession.edit(centeredProject,'Align text');await typographySession.flush();
+  assert.deepEqual(JSON.parse(typographyStored.draftJson),centeredProject);
+  typographySession.undo();assert.deepEqual(typographySession.document,typographyProject);
+  typographySession.redo();await typographySession.save();
+  assert.deepEqual(new ProjectSession(typographyStored,JSON.parse(typographyStored.savedJson)).document,centeredProject);
+  typographySession.undo();await typographySession.flush();
+  assert.deepEqual(JSON.parse(typographyStored.savedJson),centeredProject);
+  assert.deepEqual(JSON.parse(typographyStored.draftJson),typographyProject);
   assert.deepEqual(project.targets, []);
   assert.equal(project.scenes[0].resolution.width, 1080);
   assert.equal(project.scenes[0].resolution.height, 1920);
@@ -597,6 +630,15 @@ async function main() {
     assert.ok(!rejectedImage.includes('https://untrusted'));assert.match(rejectedImage,/Image unavailable/);
     const importForm=render('theme-studio/ImageImportForm',{sceneName:'Main',async onImport(){},onCancel(){}});
     assert.match(importForm,/License/);assert.match(importForm,/Attribution/);assert.match(importForm,/Import and add image/);
+    let alignedEdit=null;
+    const typographyProps={node:typographyNode,disabled:false,onChange(next){alignedEdit=next;},onEnd(){}};
+    const alignmentSelect=component('theme-studio/TextAlignmentControls')(typographyProps).props.children.find(child=>child?.type==='select');
+    alignmentSelect.props.onChange({target:{value:'center'}});
+    assert.equal(alignedEdit.style.textAlign,'center');
+    alignedEdit=null;
+    component('theme-studio/TextAlignmentControls')({...typographyProps,disabled:true}).props.children.find(child=>child?.type==='select').props.onChange({target:{value:'right'}});
+    assert.equal(alignedEdit,null);
+    assert.match(render('theme-studio/TextAlignmentControls',{...typographyProps,node:{...typographyNode,style:{textAlign:'future'}}}),/Unsupported alignment/);
     let bindingEdit=null;
     const bindingProps={node:staticSample,disabled:false,onChange(next){bindingEdit=next;},onEnd(){}};
     const bindingControl=component('theme-studio/TextBindingControls')(bindingProps);

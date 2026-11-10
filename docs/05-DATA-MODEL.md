@@ -1,5 +1,8 @@
 # 05 | Hybrid Library Data Model
 
+**VIS-004 partial typography:** text layers now support left/center/right alignment within their existing rectangle, including sample-bound multiline captions. Unknown values stay preserved read-only; source edits use existing history and draft/checkpoint persistence. Wrapping, vertical alignment, custom fonts and native engine output remain unimplemented.
+
+
 **Preview samples:** dataset selection and synthetic values remain transient canvas state. Only existing node.bindings.text source/kind are edited; other bindings, static style.text and binding extension fields survive source changes. Explicit Static text selection removes that text binding slot. No source or catalog schema migration.
 
 **Image fit/crop source:** existing node.style extension map stores imageFit (contain/cover) and imageCrop (x/y/width/height percentages). Defaults are contain/full region. Additional crop fields remain intact, unsupported shapes are read-only, and image bytes/asset hashes remain immutable. No catalog/source-schema migration.

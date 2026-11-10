@@ -1,5 +1,8 @@
 # RetroDrive — Features
 
+**VIS-004 partial typography:** text layers now support left/center/right alignment within their existing rectangle, including sample-bound multiline captions. Unknown values stay preserved read-only; source edits use existing history and draft/checkpoint persistence. Wrapping, vertical alignment, custom fonts and native engine output remain unimplemented.
+
+
 **Theme Studio sample previews prepared:** synthetic normal/long/Unicode/missing text metadata plus placeholder mode, and typed text-source selection for title/description/year/players/rating/system name. Sample choices are session-only; binding edits use existing history/save. No emulator or personal library is read. Native acceptance remains pending.
 
 **Theme Studio image controls prepared:** Fit/Fill, non-destructive percentage cropping/reset and asset dimensions/format/size/license/attribution/hash details. Existing images default to Fit/full image. Pixel-level browser checks pass; native visual/save/reopen confirmation remains pending.

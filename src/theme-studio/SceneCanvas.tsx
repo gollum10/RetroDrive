@@ -1,3 +1,4 @@
+import { textPosition } from './text-presentation';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { previewDatasets,sampleText } from './sample-data';
 import ImageLayer from './ImageLayer';
@@ -68,6 +69,7 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
         const x = preview?.id === node.id ? preview.x : pixels(node.layout.x, scene.resolution.width);
         const y = preview?.id === node.id ? preview.y : pixels(node.layout.y, scene.resolution.height);
         const width = preview?.id === node.id && preview.width !== undefined ? preview.width : pixels(node.layout.width, scene.resolution.width); const height = preview?.id === node.id && preview.height !== undefined ? preview.height : pixels(node.layout.height, scene.resolution.height);
+        const textPlacement = textPosition(node, width);
         const font = node.style.fontSize;
         const fontSize = font && typeof font === 'object' && !Array.isArray(font) && font.unit === 'px' && typeof font.value === 'number' ? Math.max(8, Math.min(256, font.value)) : 36;
         const opacity = typeof node.style.opacity === 'number' ? Math.max(0, Math.min(1, node.style.opacity)) : 1;
@@ -75,7 +77,7 @@ export default function SceneCanvas({ scene, selected, disabled, onSelect, onMov
           onPointerDown={event => { if (disabled || event.button !== 0) return; event.stopPropagation(); svg.current?.focus(); onSelect(node.id); if (!editableNode(scene,node)) return; const start = point(event.clientX, event.clientY); if (!start) return; drag.current = { id: node.id, pointerId: event.pointerId, x, y, startX: start.x, startY: start.y, mode: 'move', width, height, rotation: node.layout.rotation }; svg.current?.setPointerCapture(event.pointerId); }}>
           <title>{node.name}</title><rect width={width} height={height} fill={node.type === 'panel' ? previewColor(node.style.fill, '#263f60') : 'transparent'} opacity={opacity}/>
           {node.type === 'image' && (safeImages[node.assets[0]] ? <ImageLayer node={node} url={safeImages[node.assets[0]]} width={width} height={height} opacity={opacity}/> : <text x={4} y={20} fill="#abc0d9" fontSize={18} pointerEvents="none">Image unavailable</text>)}
-          {node.type === 'text' && <svg width={width} height={height} overflow="hidden" pointerEvents="none"><text x={0} y={0} dominantBaseline="hanging" fontFamily="sans-serif" fontSize={fontSize} fill={previewColor(node.style.color, '#ffffff')} opacity={opacity}>{sampleText(node,dataset).split('\n').slice(0, 20).map((line, index) => <tspan key={index} x={0} dy={index ? '1.2em' : 0}>{line || ' '}</tspan>)}</text></svg>}
+          {node.type === 'text' && <svg width={width} height={height} overflow="hidden" pointerEvents="none"><text x={textPlacement.x} textAnchor={textPlacement.anchor} y={0} dominantBaseline="hanging" fontFamily="sans-serif" fontSize={fontSize} fill={previewColor(node.style.color, '#ffffff')} opacity={opacity}>{sampleText(node,dataset).split('\n').slice(0, 20).map((line, index) => <tspan key={index} x={textPlacement.x} dy={index ? '1.2em' : 0}>{line || ' '}</tspan>)}</text></svg>}
         </g>;
       })}
       {(() => {
