@@ -764,3 +764,15 @@ Only the disposable test fixture in copier.rs changes. Production confirmation c
 | Hanging the app | 10 s to connect, 30 s in all; the work runs off the interface thread | `agent()` |
 | Disconnect leaves the key behind | Disconnect deletes the credential; the real Credential Manager round trip leaves nothing | `real_credential_manager_round_trip` (ignored test, passed) |
 | Unexpected costs | The Claude card says the Claude Console bills API use separately and a suggestion usually costs a few cents; nothing is asked of the model in this step | in-app text |
+
+## 71. Addendum: Ask AI for design suggestions (2026-11-10)
+**Scope:** ADR-120. When the user presses Ask, RetroDrive sends one screen's layers and the request to the AI they connected, and applies the checked suggestions to the theme being edited (undoable). Only RetroDrive's own `ai-settings.json` is written (the daily count); no other files change.
+
+| Risk | Mitigation | Evidence |
+|---|---|---|
+| Sending private data | Only the screen's layers (types, names, positions, colours, typed text, linked game detail) and the request; never pictures, file names, paths, library games, credits or settings; *what is sent* shown on every request, *Show exactly* in Standard and Pro | `describeScreen` test; `the_request_holds_only_the_screen_and_the_words_typed`; the stand-in server's log |
+| Model output doing harm | The answer must match a fixed schema; it is read as data only, never run, never used as a path or link; every edit is checked against the theme and applied through the editor's own functions; unknown kinds, missing layers, locked or hidden layers and out-of-range values are skipped and listed; text has control characters removed and is capped at 500 characters | `applyEdits` tests; `answers_are_read_carefully_and_cost_is_worked_out` |
+| Unwanted changes | Shown at once as one undoable step; other edits pause until Keep or Discard; Discard undoes it exactly; other screens are never touched | theme tests; checked in the app |
+| Surprise costs | 50 requests a day, counted before sending; rough cost and requests left shown after each answer; Stop waiting says the request may still count | `the_daily_limit_counts_requests_and_resets_each_day` |
+| Sending without a connection or to the wrong place | Claude only with a stored key at the fixed Anthropic address; private only at the saved local or private-network address; redirects not followed | `nothing_is_sent_without_a_connection`; ADR-119 rules |
+| Hanging | 240 s (Claude) or 300 s (private) limit, off the interface thread; Stop waiting ignores a late answer | `ai_design::ask`; `AskAi` ticket |

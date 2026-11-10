@@ -40,6 +40,7 @@ mod themes;
 pub mod theme_studio;
 /// Optional AI helpers for Theme Studio (ADR-118).
 pub mod ai;
+pub mod ai_design;
 mod scanner;
 mod sinden_step;
 mod backup_zip;
@@ -879,6 +880,21 @@ fn ai_disconnect_private(catalog: State<'_, Catalog>) -> Result<(), String> {
     settings.private_url = None;
     settings.private_model = None;
     ai::save_settings(&path, &settings)
+}
+
+/// Ask AI for design suggestions (ADR-120): one screen's layers and the request typed.
+#[tauri::command]
+async fn ai_suggest_design(catalog: State<'_, Catalog>, provider: String, screen: serde_json::Value, request: String) -> Result<ai_design::DesignAnswer, String> {
+    let path = catalog.path()?;
+    tauri::async_runtime::spawn_blocking(move || ai_design::ask(&path, &ai::CredentialManager, &ai_design::DesignAsk { provider, screen, request }))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// The exact text an AI design request sends (for "Show exactly"), besides the fixed instructions.
+#[tauri::command]
+fn ai_design_preview(screen: serde_json::Value, request: String) -> (String, String) {
+    (ai_design::SYSTEM_PROMPT.to_string(), ai_design::user_message(&screen, &request))
 }
 
 /// Open an official download page (fixed addresses only).
@@ -2006,6 +2022,8 @@ pub fn run() {
             ai_private_models,
             ai_connect_private,
             ai_disconnect_private,
+            ai_suggest_design,
+            ai_design_preview,
             put_theme_on_retrobat,
             theme_studio::commands::theme_target_profiles,
             theme_studio::commands::theme_compatibility,

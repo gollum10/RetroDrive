@@ -396,6 +396,58 @@ async function main() {
   const clipExport = exportDocument(clipped.project, clipPlan, new Map());
   const exportedClip = clipExport.scenes[0].nodes.find(n => n.type === 'video');
   assert.deepEqual(exportedClip.assets, [clipped.project.assets.find(a => a.mediaType === 'video/mp4').id]); assert.ok(clipExport.assets.some(a => a.mediaType === 'video/mp4' && a.path === clipInfo.path));
+  // Ask AI for design suggestions (ADR-120): what is sent, and every edit checked.
+  const { applyEdits, describeScreen, MAX_AI_EDITS } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  const aiTheme = attachImage(newDocument({ ...form, template: 'ready' }), newDocument({ ...form, template: 'ready' }).scenes.find(s => s.role === 'game_list').id, { sha256: 'a'.repeat(64), path: `assets/images/${'a'.repeat(64)}.png`, bytes: 100, width: 10, height: 10 }, 'own', 'Me').project;
+  const aiScene = aiTheme.scenes.find(s => s.role === 'game_list');
+  const sent = describeScreen(aiScene);
+  const sentText = JSON.stringify(sent);
+  assert.equal(sent.layers.length, aiScene.nodes.length);
+  assert.ok(!sentText.includes('a'.repeat(64)) && !sentText.includes('assets/') && !sentText.includes('Me'), 'no picture files, paths or credits are sent');
+  assert.ok(sent.layers.some(l => l.showsGameDetail === 'game.title'), 'linked text says which detail it shows');
+  assert.ok(sent.layers.every(l => [l.x, l.y, l.width, l.height].every(Number.isFinite)), 'positions are percentages');
+  const aiTitle = aiScene.nodes.find(n => n.bindings.text?.source === 'game.title');
+  const aiList = aiScene.nodes.find(n => n.type === 'game_list');
+  const aiBack = aiScene.nodes.find(n => n.type === 'panel');
+  const blank = { layer: '', x: null, y: null, width: null, height: null, color: null, text: null, fontSize: null, source: null, align: null, opacity: null, order: null };
+  const e = (op, fields) => ({ ...blank, op, ...fields });
+  const aiResult = applyEdits(aiTheme, aiScene.id, [
+    e('fill', { layer: aiBack.id, color: '#1A0B2E' }),
+    e('color', { layer: aiTitle.id, color: 'ff2bd6' }),
+    e('font_size', { layer: aiTitle.id, fontSize: 60 }),
+    e('move', { layer: aiTitle.id, x: 5, y: 3 }),
+    e('highlight_color', { layer: aiList.id, color: '00e5ffcc' }),
+    e('add_text', { x: 70, y: 90, width: 25, height: 6, text: 'Insert coin\u0007', color: 'ffffff', fontSize: 28 }),
+    e('add_panel', { x: 0, y: 0, width: 100, height: 8, color: '000000aa' }),
+    e('color', { layer: aiBack.id, color: 'ffffff' }),          // panels have no text colour
+    e('text', { layer: aiTitle.id, text: 'New words' }),        // linked text can't be reworded
+    e('font_size', { layer: aiTitle.id, fontSize: 9000 }),      // out of range
+    e('move', { layer: 'nope', x: 1, y: 1 }),                   // not on this screen
+    e('delete_everything', { layer: aiBack.id }),               // not an offered change
+    e('link', { layer: aiTitle.id, source: 'file.path' }),      // unknown detail
+    e('fill', { layer: aiBack.id, color: 'red' }),              // not a colour
+  ]);
+  const after = aiResult.project.scenes.find(s => s.id === aiScene.id);
+  const node = id => after.nodes.find(n => n.id === id);
+  assert.equal(node(aiBack.id).style.fill, '1a0b2e');
+  assert.equal(node(aiTitle.id).style.color, 'ff2bd6');
+  assert.deepEqual(node(aiTitle.id).style.fontSize, { value: 60, unit: 'px' });
+  assert.equal(node(aiList.id).style.selectorColor, '00e5ffcc');
+  assert.equal(node(aiTitle.id).layout.x.unit, aiTitle.layout.x.unit, 'positions keep their unit');
+  const addedText = after.nodes.find(n => n.name === 'AI text');
+  assert.equal(addedText.style.text, 'Insert coin', 'control characters are removed');
+  assert.ok(after.nodes.some(n => n.name === 'AI panel' && n.style.fill === '000000aa'));
+  assert.equal(aiResult.done.length, 7); assert.equal(aiResult.skipped.length, 7);
+  assert.ok(aiResult.skipped.some(t => /isn’t on this screen/.test(t)) && aiResult.skipped.some(t => /doesn’t offer/.test(t)));
+  assert.equal(JSON.stringify(aiTheme.scenes.filter(s => s.id !== aiScene.id)), JSON.stringify(aiResult.project.scenes.filter(s => s.id !== aiScene.id)), 'other screens are untouched');
+  // Locked and hidden layers stay as they are; repeated values change nothing.
+  const lockedTheme = setLayerState(aiTheme, aiScene.id, aiTitle.id, 'locked', true);
+  const lockedResult = applyEdits(lockedTheme, aiScene.id, [e('color', { layer: aiTitle.id, color: '00ff00' })]);
+  assert.equal(lockedResult.project, lockedTheme); assert.match(lockedResult.skipped[0], /locked or hidden/);
+  const same = applyEdits(aiTheme, aiScene.id, [e('fill', { layer: aiBack.id, color: aiBack.style.fill })]);
+  assert.equal(same.done.length, 0);
+  assert.equal(applyEdits(aiTheme, aiScene.id, Array.from({ length: MAX_AI_EDITS + 5 }, () => e('hide', { layer: 'nope' }))).skipped.length, MAX_AI_EDITS + 1, 'at most 40 edits are looked at');
+  assert.deepEqual(applyEdits(aiTheme, aiScene.id, 'not a list').done, []);
   // Picture placement, AI credit and delete (ADR-110).
   const { deleteNode, creditFor, encodePictureFile } = require(path.join(output, 'tests/theme-studio/workspace.js'));
   assert.equal(creditFor('', true), 'Made with an AI tool'); assert.equal(creditFor('Sam', true), 'Sam (made with an AI tool)');
