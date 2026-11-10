@@ -214,6 +214,17 @@ fn remove_game_art(catalog: State<'_, Catalog>, file_id: String) -> Result<bool,
 fn serve_media(db_path: Result<PathBuf, String>, uri_path: &str) -> tauri::http::Response<Vec<u8>> {
     let not_found = || tauri::http::Response::builder().status(404).body(Vec::new()).unwrap_or_default();
     let id = uri_path.trim_matches('/');
+    // Theme Studio clips (ADR-117): `tv-<sha256>` from the clip store, checked when read.
+    if let Some(sha) = id.strip_prefix("tv-") {
+        return match db_path.map(|p| theme_studio::video_store::read(&p, sha)) {
+            Ok(Ok(bytes)) => tauri::http::Response::builder()
+                .header(tauri::http::header::CONTENT_TYPE, "video/mp4")
+                .header(tauri::http::header::CACHE_CONTROL, "private, max-age=86400")
+                .body(bytes)
+                .unwrap_or_else(|_| not_found()),
+            _ => not_found(),
+        };
+    }
     if id.is_empty() || id.len() > 64 || !id.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
         return not_found();
     }
@@ -1888,6 +1899,7 @@ pub fn run() {
             theme_studio::commands::theme_save_destination,
             theme_studio::commands::save_theme_for_retrobat,
             theme_studio::commands::open_saved_theme,
+            theme_studio::commands::import_theme_video,
             put_theme_on_retrobat,
             theme_studio::commands::theme_target_profiles,
             theme_studio::commands::theme_compatibility,

@@ -379,6 +379,23 @@ async function main() {
   assert.ok(exportedList.every(n => n.type === 'image' ? n.layout.width.value === 100 && n.assets.length === 1 : ['game_list', 'text'].includes(n.type) && n.layout.rotation === 0 && !('opacity' in n.style) && !('editor' in n)));
   assert.deepEqual(exportedList.map(n => n.type), ['image', 'text', 'image', 'game_list', 'text', 'text', 'text']);
   assert.ok(!JSON.stringify(exported).includes('Startup'), 'nothing from other screens is exported');
+  // Your own clips (ADR-117).
+  const { attachVideo, isClip, fillScreen } = require(path.join(output, 'tests/theme-studio/workspace.js'));
+  const clipInfo = { sha256: 'd'.repeat(64), path: `assets/video/${'d'.repeat(64)}.mp4`, bytes: 1000 };
+  const withClip = attachVideo(project, scene.id, clipInfo, '', '');
+  const clipNode = withClip.project.scenes[0].nodes.find(n => n.id === withClip.id);
+  assert.ok(isClip(clipNode) && clipNode.name === 'Clip' && !clipNode.bindings.video);
+  assert.equal(withClip.project.assets[0].mediaType, 'video/mp4'); assert.equal(withClip.project.assets[0].path, clipInfo.path);
+  assert.throws(() => attachVideo(project, scene.id, { ...clipInfo, path: 'C:/clip.mp4' }, '', ''));
+  assert.deepEqual(fillScreen(clipNode).layout.width, { value: 100, unit: '%' });
+  assert.equal(attachVideo(withClip.project, scene.id, clipInfo, '', '').project.assets.length, 1, 'the same clip is declared once');
+  const clipTheme = newDocument({ ...form, template: 'ready' }); const clipSelect = clipTheme.scenes.find(s => s.role === 'system_select');
+  const clipped = attachVideo(clipTheme, clipSelect.id, clipInfo, 'own', 'Me');
+  const clipPlan = planExport(clipped.project);
+  assert.ok(clipPlan.live.some(l => /your clip/.test(l)), 'a clip is live, even on System Select');
+  const clipExport = exportDocument(clipped.project, clipPlan, new Map());
+  const exportedClip = clipExport.scenes[0].nodes.find(n => n.type === 'video');
+  assert.deepEqual(exportedClip.assets, [clipped.project.assets.find(a => a.mediaType === 'video/mp4').id]); assert.ok(clipExport.assets.some(a => a.mediaType === 'video/mp4' && a.path === clipInfo.path));
   // Picture placement, AI credit and delete (ADR-110).
   const { deleteNode, creditFor, encodePictureFile } = require(path.join(output, 'tests/theme-studio/workspace.js'));
   assert.equal(creditFor('', true), 'Made with an AI tool'); assert.equal(creditFor('Sam', true), 'Sam (made with an AI tool)');
@@ -745,6 +762,10 @@ async function main() {
     assert.ok(!/Text color|Panel color/.test(render('theme-studio/NodeInspector', { scene: withVideo.project.scenes[0], node: videoNode, disabled: false, onChange() {}, onEnd() {} })), 'no colour for a video layer');
     assert.match(render('theme-studio/ImageImportForm',{sceneName:'Main',overName:'Game video',initialPlacement:'over',async onImport(){},onCancel(){}}), /value="on"[^>]*checked=""[^>]*\/> Over “Game video”|checked=""[^>]*\/> Over “Game video”/);
     assert.match(editor, /Add game video/);
+    assert.match(editor, /Add clip/);
+    const clipCanvasProps = { scene: withClip.project.scenes[0], selected: null, disabled: false, onSelect() {}, onMove() {}, onResize() {}, onEndGroup() {} };
+    assert.match(render('theme-studio/SceneCanvas', { ...clipCanvasProps, clips: { [clipNode.assets[0]]: 'http://rdmedia.localhost/tv-x' } }), /<video[^>]*src="http:\/\/rdmedia.localhost\/tv-x"[^>]*loop/);
+    assert.match(render('theme-studio/SceneCanvas', clipCanvasProps), /Your clip/);
     assert.match(editor, /Save for RetroBat…/);
     const listCanvas = render('theme-studio/SceneCanvas', { scene: withList.project.scenes[0], selected: null, disabled: false, onSelect() {}, onMove() {}, onResize() {}, onEndGroup() {} });
     assert.match(listCanvas, /Puzzle Quest/); assert.match(listCanvas, /fill="#378cdd"/);
