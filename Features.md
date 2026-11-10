@@ -1,5 +1,8 @@
 # RetroDrive — Features
 
+**Theme Studio checked in RetroBat (2026-11-10, ADR-114):** saved themes were tried on RetroBat itself: pictures, game list, game details and hidden extras all appear as designed. A theme without a Game list layer now always gets RetroBat's list on the left.
+
+
 **Theme Studio: Save for RetroBat (2026-11-10, ADR-113):** save your design as a RetroBat theme in a new folder. Your art, panels, text, turning and fading are drawn into pictures exactly as you see them; the game list, game video and game details stay live. Credits for every picture are included.
 
 

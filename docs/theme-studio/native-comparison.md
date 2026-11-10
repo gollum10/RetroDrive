@@ -45,3 +45,19 @@ Current result: fixture generation and XML/config structural tests only. Native 
 ## Checks executed for this increment
 
 The exact opt-in preparation test passed and produced one new temporary fixture; the ordinary structural fixture test also passed. Full Rust suite: 349 passed, eight ignored (the additional ignored test is this explicit preparation step). All-target Clippy with warnings denied, license gate (302 components, zero denied), changed Rust formatting and git diff checks passed. No frontend build/browser test was rerun for this test-only Rust change. No native frontend was launched and no installation-derived metadata is published.
+
+## Native check results (2026-11-10, ADR-114)
+
+Run by hand on the owner's G:\RetroBat with permission. The saved "Ready layout test" theme (JPG background, game video, cabinet frame) was copied into `emulationstation\.emulationstation\themes\RetroDrive Test`; `es_settings.cfg` and `roms\nes\gamelist.xml` were backed up and restored byte for byte afterwards. EmulationStation ran windowed (1280 × 720). Scripted key presses didn't reach it, so `StartupSystem`/`StartupOnGameList` opened the NES list.
+
+| Feature | Result |
+|---|---|
+| Baked pictures (background, panel, frame with transparency) | Pass: as in the editor, correct order |
+| `textlist name="gamelist"` position, colours, selector, font size | Pass (block added to the installed copy to test the mapping) |
+| `logoText`, `md_name`, `md_releasedate`, `md_description` | Pass (description shown with a temporary test description) |
+| Hidden built-in extras (`visible false`) | Pass: none shown |
+| Theme log warnings | None |
+| `md_video` | Read without errors; playback not seen (no game video; selection couldn't be moved) |
+| No game list placed | **Fail: no list shown.** Fixed: the converter always places one |
+| System view carousel | RetroBat default band (not styled yet) |
+| Fonts | RetroBat's own font; small size differences from the editor |
