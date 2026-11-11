@@ -54,7 +54,7 @@ Contributions are welcome: see [docs/12-DEVELOPMENT-GUIDE.md](docs/12-DEVELOPMEN
 ## Legal
 RetroDrive doesn't include or download games, BIOS or firmware; it organizes and copies files you choose, for your personal use. It isn't for preparing drives or machines for others or for sale. See [docs/16-LEGAL-AND-COMPLIANCE.md](docs/16-LEGAL-AND-COMPLIANCE.md) for the legal assessment and [docs/17-THIRD-PARTY-COMPONENTS.md](docs/17-THIRD-PARTY-COMPONENTS.md) for the component inventory.
 
-> RetroDrive is an independent retro gaming management application. All third-party product names and trademarks belong to their respective owners. Compatibility references do not imply sponsorship, affiliation, or endorsement. *(Draft wording, pending counsel review.)*
+> RetroDrive is an independent retro gaming management application. All third-party product names and trademarks belong to their respective owners. Compatibility references do not imply sponsorship, affiliation, or endorsement.
 
 ## Design rules
 - Always use a preview and explicit confirmation before potentially destructive disk operations.
