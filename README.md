@@ -38,8 +38,6 @@ Clone the repo outside OneDrive (sync can lock build files):
 ```powershell
 git clone https://github.com/gollum10/RetroDrive.git C:\dev\RetroDrive
 cd C:\dev\RetroDrive
-```
-```powershell
 npm install
 npm run tauri dev
 ```
