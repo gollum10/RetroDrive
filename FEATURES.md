@@ -148,5 +148,5 @@ Off until you connect one. Your games, folders and settings are never sent.
 | Open source | ✅ | Apache License 2.0. Third-party notices and data credits ship with the app (**Settings → About and legal**). |
 | Download and check | ✅ | Installers are built by GitHub from the public code and published on the Releases page with SHA-256 checksums. Not code-signed yet, so Windows SmartScreen may warn. |
 | Automatic updates | 📋 | For now, download new versions from the Releases page. |
-| Privacy policy | 🟡 | Draft in [docs/legal/PRIVACY.md](docs/legal/PRIVACY.md), to be reviewed before the first release. |
+| Privacy policy | 🟡 | [docs/legal/PRIVACY.md](docs/legal/PRIVACY.md), including exactly what the AI helpers send. Not yet reviewed by a lawyer. |
 | Disk formatting, imaging and cloning | ❌ | Not until a dedicated safety review. |

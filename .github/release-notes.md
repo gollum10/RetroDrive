@@ -20,6 +20,7 @@ RetroDrive is for your own games, for personal use. It doesn't include, sell or 
 - RetroDrive never overwrites or deletes your files. Anything it replaces is backed up first and can be undone.
 - There's no account and no telemetry. RetroDrive sends nothing about you.
 - The optional AI helpers in Theme Studio only connect when you set them up with your own account or your own private AI.
+- Details: [privacy policy](https://github.com/gollum10/RetroDrive/blob/main/docs/legal/PRIVACY.md).
 
 ### Beta notes
 
