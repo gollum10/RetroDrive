@@ -1,10 +1,6 @@
-# RetroDrive — Source + Full Design Documentation
-
-**Start with [`docs/00-START-HERE.md`](docs/00-START-HERE.md).** This package combines the prior v0.1 desktop scaffold with a comprehensive design handoff.
-
 # RetroDrive
 
-Early Windows desktop application for managing a full retro gaming setup.
+A free Windows app for people who keep their own retro game collection.
 
 ![RetroDrive logo](branding/retrodrive-logo-full.png)
 
@@ -16,21 +12,19 @@ Early Windows desktop application for managing a full retro gaming setup.
 - **"Windows protected your PC":** the installer isn't code-signed yet, so Windows SmartScreen may warn you. Choose **More info → Run anyway**. Each release lists SHA-256 checksums so you can check your download.
 - **Bring your own games.** RetroDrive doesn't include or download games, BIOS files, firmware or game art.
 
-## What works today
-Full, maintained list: **[FEATURES.md](FEATURES.md)**. What changed and when: **[CHANGELOG.md](CHANGELOG.md)**.
-- **Navigation:** Dashboard, Game Library, Drive Manager, Emulation Systems, Settings.
-- **Drives:** read-only detection of mounted volumes. Drives are recognized by volume ID even when Windows gives them a different letter, and **Known drives** lists every scanned drive, plugged in or not.
-- **Import:** scan an existing ROM folder in the background *without moving, modifying or deleting anything*. Shows live progress, can be cancelled, and the report lists ignored and unreadable files.
-- **Activity:** every scan is logged. The Dashboard shows recent scans, including ones interrupted by a crash.
-- **Catalog:** normalized SQLite catalog (schema v6) in the app data folder. Versioned migrations back up the catalog before upgrading it.
-- **RetroBat (read-only):** add an existing RetroBat folder, see layout checks, and preview where each game would go (`roms\snes`, `roms\psx\<Game>\…`). Nothing is copied yet.
-- **Disc games:** `.cue` + `.bin` sets and multi-disc `.m3u` games count as one game, with their total size; missing tracks are flagged **Incomplete**.
-- **Library:** fast full-text search, 100-row pages, and filters by platform, status (**Online** / **Offline** / **Missing**) and drive. Sorts by title, platform or size. Possible duplicate copies are flagged (never deleted). Measured at 100,000 files: most pages take 1–3 ms.
+## What it does
+RetroDrive catalogs your games, copies them safely to the systems you play on (RetroBat, Batocera, RetroPie, ES-DE, Recalbox, ROCKNIX, Knulli, Lakka), keeps them in sync, backs up your saves, sets up controllers and light guns, and lets you design your own themes in Theme Studio, with optional AI helpers.
 
-## Not yet implemented
-This is an **early development build**, not a drive installer. No imaging, formatting, partition creation, ROM deployment, metadata scraping, BIOS repair, controller mapping, or automatic updates are implemented. The platform labels are a roadmap, not functional installers.
+- It never overwrites or deletes your files. Anything it replaces is backed up first and can be undone.
+- There's no account and no telemetry.
+- It doesn't format, image or partition disks.
 
-## Requirements (Windows)
+The full, maintained list of what's ready, what has limits and what's planned is in **[FEATURES.md](FEATURES.md)**. What changed and when: **[CHANGELOG.md](CHANGELOG.md)**. How it's designed: **[docs/00-START-HERE.md](docs/00-START-HERE.md)**.
+
+## Build from source
+Most people should use the [download](#download). To build it yourself:
+
+### Requirements (Windows)
 - Node.js LTS and npm
 - Rust toolchain (rustup, stable MSVC target)
 - Microsoft C++ Build Tools (Desktop development with C++)
@@ -39,34 +33,23 @@ This is an **early development build**, not a drive installer. No imaging, forma
 
 See Tauri's official Windows prerequisites: https://v2.tauri.app/start/prerequisites/
 
-## Run locally
+### Run locally
+Clone the repo outside OneDrive (sync can lock build files):
 ```powershell
+git clone https://github.com/gollum10/RetroDrive.git C:\dev\RetroDrive
+cd C:\dev\RetroDrive
 npm install
 npm run tauri dev
 ```
 
-The first Rust build can download numerous dependencies. To compile a production installer later:
+The first Rust build downloads many dependencies. To build the installer yourself:
 ```powershell
 npm run tauri build
 ```
 
 `npm run dev` alone opens the UI in a browser, but native commands **do not** work without Tauri.
 
-## Create your GitHub repo
-The project lives at **https://github.com/gollum10/RetroDrive** (private). Clone it outside OneDrive:
-```powershell
-git clone https://github.com/gollum10/RetroDrive.git C:\dev\RetroDrive
-```
-Original first-push steps, kept for reference:
-```powershell
-git init
-git add .
-git commit -m "Initial RetroDrive scaffold"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/retrodrive-studio.git
-git push -u origin main
-```
-Replace `YOUR_USERNAME` with your GitHub account. GitHub may prompt for authentication.
+Contributions are welcome: see [docs/12-DEVELOPMENT-GUIDE.md](docs/12-DEVELOPMENT-GUIDE.md) and [AGENTS.md](AGENTS.md).
 
 ## Legal
 RetroDrive doesn't include or download games, BIOS or firmware; it organizes and copies files you choose, for your personal use. It isn't for preparing drives or machines for others or for sale. See [docs/16-LEGAL-AND-COMPLIANCE.md](docs/16-LEGAL-AND-COMPLIANCE.md) for the legal assessment and [docs/17-THIRD-PARTY-COMPONENTS.md](docs/17-THIRD-PARTY-COMPONENTS.md) for the component inventory.

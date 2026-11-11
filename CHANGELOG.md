@@ -4,6 +4,8 @@ What changed, newest first. For what RetroDrive does today, see [FEATURES.md](FE
 
 ## 2026-11-10
 
+- **README refreshed:** a short "What it does" summary replaces the out-of-date feature list (FEATURES.md is the full list), build steps are grouped under "Build from source", and the old private-repo setup steps are gone.
+
 - **RetroDrive 0.1.0 (beta) released** on [GitHub Releases](https://github.com/gollum10/RetroDrive/releases/tag/v0.1.0): the Windows installer and MSI, built by GitHub, with SHA-256 checksums. The README and FEATURES.md link to the download.
 
 - **Downloadable releases (ADR-124):** pushing a version tag builds the installer and MSI on GitHub, with SHA-256 checksums, as a draft pre-release the owner reviews and publishes.
