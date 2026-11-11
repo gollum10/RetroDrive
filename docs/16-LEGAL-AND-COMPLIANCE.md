@@ -320,12 +320,12 @@ This is an engineering status record, not a legal conclusion.
 | RetroBat: manage a user-installed copy only | ✅ The adapter only reads an existing folder the user picks; nothing is bundled, downloaded or modified. | docs/06, ADR-018 |
 | RetroBat download/install (RDS-012) | ⛔ **Out of scope** (owner decision 2026-11-09, ADR-087; would need RetroBat's written permission first). The installer license recorded in §5 (2026-11-05) supports this block. | docs/11 |
 | RetroBat: copying the user's games into their own install (RDS-010) | ✅ Personal-use copying only; no RetroBat files are touched; no "prepare drives for sale" feature. | docs/18 |
-| Personal-use statement | 🟡 Draft wording in Settings and README, pending counsel. | `src/App.tsx`, README |
+| Personal-use statement | ✅ Shown in Settings → About and legal and in the README. The owner removed the "pending counsel review" label for the free beta (2026-11-10); counsel can still review it, and any changes go in a later version. | `src/App.tsx`, README |
 | Game art | ✅ Never shipped, downloaded or copied. RetroDrive only links to images on the user's own drives (gamelists, folder conventions, user picks) and displays them locally (ADR-025). | docs/07 |
 | OneSauce / RetroFE target | ⛔ **Not started; blocked on LEGAL-015.** | §6, docs/11 |
 | Batocera images and installs (RDS-013/014) | ⛔ **Blocked on LEGAL-004** (plus the existing safety review). | docs/11 |
 | Metadata and artwork providers | ❌ **Not planned** (owner decision 2026-11-06; LEGAL-007 closed by not integrating). | docs/11, docs/07 |
-| Independence statement | 🟡 The proposed disclaimer is shown in the app (Settings) and in the README, marked as pending counsel review. | `src/App.tsx`, README |
+| Independence statement | ✅ Shown in the app (Settings → About and legal) and in the README. The owner removed the "pending counsel review" label for the free beta (2026-11-10); counsel can still review it. | `src/App.tsx`, README |
 | LEGAL-001 dependency inventory | 🟡 Software dependencies are inventoried (`docs/17-THIRD-PARTY-COMPONENTS.md`). Emulators and cores aren't shipped, so none are listed. | docs/17 |
 | LEGAL-014 license gate in CI | 🟡 CI fails on licenses outside the allowlist (`scripts/check-licenses.py`). The release workflow runs the same gate, and a person signs off every release: GitHub builds a draft, and only the owner can publish it (ADR-124, 2026-11-10). | `.github/workflows/ci.yml`, `.github/workflows/release.yml` |
 | LEGAL-011 download verification | 🟡 Releases are built by GitHub from the public code and published with SHA-256 checksums (ADR-124). Not code-signed yet. RetroDrive itself downloads no software. | docs/12 |

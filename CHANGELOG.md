@@ -4,6 +4,8 @@ What changed, newest first. For what RetroDrive does today, see [FEATURES.md](FE
 
 ## 2026-11-10
 
+- **Settings → About and legal:** the personal-use and independence statements no longer carry a "pending counsel review" label (owner decision for the free beta). The out-of-date "Application settings" text, which listed metadata providers as a future setting, is replaced by a short "Your data" note: where the catalog is kept, and that game files are never moved or deleted.
+
 - **Privacy policy, version 2:** now covers the optional AI helpers: what is sent, what is never sent, where keys are kept and how to remove them. Version 1 said RetroDrive had no code that sends data over the internet, which stopped being true when the AI helpers shipped. Release notes now link to it. Legal status notes (docs/16) updated: a first USPTO trademark check for "RetroDrive" and its variants found no live marks (LEGAL-008; the closest, "E-Drive Retro", is abandoned); the release sign-off (LEGAL-014) is done, and releases have checksums (LEGAL-011, in part).
 
 - **README refreshed:** a short "What it does" summary replaces the out-of-date feature list (FEATURES.md is the full list), build steps are grouped under "Build from source", and the old private-repo setup steps are gone.
